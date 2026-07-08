@@ -1,0 +1,103 @@
+import 'package:flutter_test/flutter_test.dart';
+import 'package:usta_cepte/data/local/mock_database.dart';
+import 'package:usta_cepte/features/chat/data/chat_repository.dart';
+
+void main() {
+  group('MockChatRepository', () {
+    test('sohbet başlatır ve mesaj gönderir', () async {
+      final repo = MockChatRepository();
+      final chatId = repo.startChat(
+        customerUid: 'c1',
+        customerName: 'Müşteri',
+        artisanUid: 'a1',
+        artisanName: 'Usta',
+      );
+      expect(repo.getThread(chatId), isNotNull);
+
+      await repo.sendMessage(chatId: chatId, senderUid: 'c1', text: 'Merhaba');
+      final msgs = await repo.watchMessages(chatId).first;
+      expect(msgs.length, 1);
+      expect(msgs.first.text, 'Merhaba');
+    });
+
+    test('iletişim bilgisi maskelenir ve uyarı döner', () async {
+      final repo = MockChatRepository();
+      final chatId = repo.startChat(
+        customerUid: 'c1',
+        customerName: 'Müşteri',
+        artisanUid: 'a1',
+        artisanName: 'Usta',
+      );
+      final masked =
+          await repo.sendMessage(chatId: chatId, senderUid: 'c1', text: 'ara 0532 123 45 67');
+      expect(masked, isTrue);
+      final msgs = await repo.watchMessages(chatId).first;
+      expect(msgs.first.text, isNot(contains('123 45 67')));
+    });
+
+    test('sohbet listesi ilgili kullanıcı için görünür', () async {
+      final repo = MockChatRepository();
+      repo.startChat(
+        customerUid: 'c1', customerName: 'M', artisanUid: 'a1', artisanName: 'U');
+      final threads = await repo.watchThreads('a1').first;
+      expect(threads.length, 1);
+      expect(threads.first.involves('a1'), isTrue);
+    });
+
+    test('okunmamış sayısı ve okundu işaretleme çalışır', () async {
+      final repo = MockChatRepository();
+      final chatId = repo.startChat(
+        customerUid: 'c1', customerName: 'M', artisanUid: 'a1', artisanName: 'U');
+      await repo.sendMessage(chatId: chatId, senderUid: 'c1', text: 'Merhaba');
+
+      // Usta için 1 okunmamış; kendi mesajı gönderen müşteri için 0.
+      expect(repo.unreadCount(chatId: chatId, uid: 'a1'), 1);
+      expect(repo.unreadCount(chatId: chatId, uid: 'c1'), 0);
+      expect(repo.lastReadAt(chatId: chatId, uid: 'a1'), isNull);
+
+      repo.markRead(chatId: chatId, uid: 'a1');
+      expect(repo.unreadCount(chatId: chatId, uid: 'a1'), 0);
+      expect(repo.lastReadAt(chatId: chatId, uid: 'a1'), isNotNull);
+    });
+
+    test('hasChatBetween sohbet geçmişini doğrular (PRD §5)', () {
+      final repo = MockChatRepository();
+      expect(
+        repo.hasChatBetween(customerUid: 'c1', artisanUid: 'a1'),
+        isFalse,
+      );
+      repo.startChat(
+        customerUid: 'c1', customerName: 'M', artisanUid: 'a1', artisanName: 'U');
+      expect(
+        repo.hasChatBetween(customerUid: 'c1', artisanUid: 'a1'),
+        isTrue,
+      );
+      // Farklı usta için hâlâ false.
+      expect(
+        repo.hasChatBetween(customerUid: 'c1', artisanUid: 'a2'),
+        isFalse,
+      );
+    });
+  });
+
+  group('MockDatabase.addReview (PRD §3/§5)', () {
+    test('değerlendirme ekler ve ortalama puanı günceller', () {
+      final db = MockDatabase();
+      final before = db.artisans['artisan_0']!.profile;
+
+      db.addReview(
+        artisanUid: 'artisan_0',
+        customerUid: 'c1',
+        customerName: 'Müşteri',
+        rating: 5,
+        tags: const ['Temiz işçilik', 'Zamanında geldi'],
+      );
+
+      final rec = db.artisans['artisan_0']!;
+      expect(rec.profile.totalReviews, before.totalReviews + 1);
+      expect(rec.profile.totalRatingSum, before.totalRatingSum + 5);
+      expect(rec.reviews.first.rating, 5);
+      expect(rec.reviews.first.tags, contains('Temiz işçilik'));
+    });
+  });
+}

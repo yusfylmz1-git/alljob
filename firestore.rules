@@ -1,0 +1,155 @@
+rules_version = '2';
+
+// Usta Cepte — Firestore güvenlik kuralları (PRD §5).
+// Dağıtım: `firebase deploy --only firestore:rules`
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    function isSelf(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    // users — herkes okuyabilir (profil adı/foto herkese açık); yalnızca sahibi yazar.
+    // NOT: telefon/e-posta gibi hassas alanlar istemciye gösterilmez (UI zaten göstermez).
+    match /users/{uid} {
+      allow read: if true;
+      allow create, update: if isSelf(uid);
+      allow delete: if false;
+    }
+
+    // artisanProfiles — herkese açık (misafir de görebilir, PRD §2); sahibi yazar.
+    // Puanlama alanları yalnızca Cloud Functions (Admin SDK) tarafından yazılır.
+    // Create ve update ayrı: create'te `resource` null olduğu için diff yerine
+    // doğrudan yazılan anahtarlara bakılır (null.data erişimi kuralı hataya
+    // düşürüp ilk kaydı reddediyordu).
+    match /artisanProfiles/{uid} {
+      allow read: if true;
+      allow create: if isSelf(uid)
+        && !request.resource.data.keys()
+              .hasAny(['averageRating','totalReviews','totalRatingSum']);
+      allow update: if isSelf(uid)
+        && !request.resource.data.diff(resource.data)
+              .affectedKeys().hasAny(['averageRating','totalReviews','totalRatingSum']);
+      allow delete: if false;
+    }
+
+    // chats — yalnızca katılımcılar okuyabilir/yazabilir.
+    //
+    // Üyelik, `members: {uid: true}` HARİTASI ile kontrol edilir. Liste
+    // sorgusu `where('members.<uid>', '==', true)` eşitlik filtresi kullanır;
+    // kural motoru bu ispatı garantili yapar (array-contains + `in` ispatı
+    // sorgularda PERMISSION_DENIED üretebiliyordu). `participants` dizisi
+    // eski dökümanlarla uyum ve veri modeli için durmaya devam eder.
+    match /chats/{chatId} {
+      function isMember(data) {
+        return isSignedIn()
+          && (data.members[request.auth.uid] == true
+              || request.auth.uid in data.participants);
+      }
+
+      allow read: if isMember(resource.data);
+      allow create: if isMember(request.resource.data);
+      allow update: if isMember(resource.data);
+      allow delete: if false;
+
+      match /messages/{msgId} {
+        function memberOfChat() {
+          return isMember(
+            get(/databases/$(database)/documents/chats/$(chatId)).data);
+        }
+
+        allow read: if memberOfChat();
+        // Yalnızca gönderen kendi mesajını oluşturabilir; mesaj değiştirilemez.
+        allow create: if isSignedIn()
+          && request.resource.data.senderUid == request.auth.uid
+          && memberOfChat();
+        allow update, delete: if false;
+      }
+    }
+
+    // reviews — herkes okuyabilir; yalnızca ilgili müşteri kendi değerlendirmesini
+    // oluşturur (PRD §5: sohbet geçmişi gerekliliği Cloud Functions ile de doğrulanmalı).
+    match /reviews/{reviewId} {
+      allow read: if true;
+      allow create: if isSignedIn()
+        && request.resource.data.customerUID == request.auth.uid;
+      allow update, delete: if false;
+    }
+
+    // neighborhoods — lazy loading ile okunur (PRD §3); yazım yönetici/CF'e ait.
+    match /neighborhoods/{id} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    // Verilen güncellemede yalnızca [keys] alanları mı değişti?
+    function changedOnly(keys) {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(keys);
+    }
+
+    // jobs — iş ilanları (çift taraflı pazaryeri).
+    // Okuma: HERKES (Keşfet "İş İlanları" paneli misafire de açık; ilanlar
+    // pazaryeri gereği kamuya açık içeriktir). Oluşturma: yalnızca
+    // ilanı açan müşteri. Güncelleme:
+    //  - İlan sahibi (müşteri): teklif seçme, iptal, tamamlama onayı, puanlama.
+    //  - Seçilen usta: yalnızca durum + kendi tamamlama onayı.
+    //  - `offerCount` alanını yalnızca `onOfferWritten` Cloud Function'ı
+    //    (Admin SDK, kuralları bypass eder) yazar — istemciye izin YOK.
+    match /jobs/{jobId} {
+      function isJobOwner() {
+        return isSignedIn() && resource.data.customerId == request.auth.uid;
+      }
+      function isSelectedArtisan() {
+        return isSignedIn() && resource.data.selectedArtisanId == request.auth.uid;
+      }
+
+      allow read: if true;
+      allow create: if isSignedIn()
+        && request.resource.data.customerId == request.auth.uid;
+      allow update: if isJobOwner()
+        || (isSelectedArtisan()
+            && changedOnly(['status', 'artisanConfirmedDone']));
+      allow delete: if false;
+    }
+
+    // offers — ilanlara verilen teklifler. Döküman ID'si = jobId__artisanId
+    // (bir usta bir ilana yalnızca 1 kez teklif verebilir, #1).
+    // Okuma: teklifi veren usta veya ilgili ilanın sahibi müşteri.
+    // Oluşturma/güncelleme: teklifi veren usta (fiyat/not/geri çekme);
+    // müşteri yalnızca seçim sırasında status alanını değiştirebilir.
+    match /offers/{offerId} {
+      // resource == null: var olmayan bir dökümanın get()'i (teklif verirken
+      // "önce oku" adımı) — kuralın null.data'ya düşüp reddetmesini önler.
+      allow read: if isSignedIn()
+        && (resource == null
+            || resource.data.artisanId == request.auth.uid
+            || resource.data.customerId == request.auth.uid);
+      allow create: if isSignedIn()
+        && request.resource.data.artisanId == request.auth.uid;
+      allow update: if (isSignedIn()
+            && resource.data.artisanId == request.auth.uid)
+        || (isSignedIn()
+            && resource.data.customerId == request.auth.uid
+            && changedOnly(['status', 'updatedAt']));
+      allow delete: if false;
+    }
+
+    // favorites — müşterinin favori ustaları (#14). Döküman ID'si =
+    // customerUid__artisanUid. Yalnızca sahibi müşteri erişir. Toggle =
+    // create/delete (update yok).
+    match /favorites/{favId} {
+      // resource == null: favori eklerken "önce oku" adımı (var olmayan döküman).
+      allow read: if isSignedIn()
+        && (resource == null
+            || resource.data.customerUid == request.auth.uid);
+      allow create: if isSignedIn()
+        && request.resource.data.customerUid == request.auth.uid;
+      allow delete: if isSignedIn()
+        && resource.data.customerUid == request.auth.uid;
+      allow update: if false;
+    }
+  }
+}

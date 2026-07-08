@@ -1,0 +1,26 @@
+rules_version = '2';
+
+// Usta Cepte — Cloud Storage güvenlik kuralları.
+//
+// Model: pazaryeri görselleri (profil fotoğrafı, iş galerisi, ilan fotoğrafı,
+// sertifika, sohbet fotoğrafı) KAMUYA AÇIK içeriktir — misafir de Keşfet'te
+// ustaları/ilanları görür. Bu yüzden OKUMA herkese açık.
+// YAZMA yalnızca oturum açmış kullanıcıya; ayrıca sunucu tarafında da tür/boyut
+// sınırı (istemci image_picker ile küçültse de savunma katmanı).
+//
+// Yollar (bkz. FirebaseStorageRepository): profile/, work/, job/, certificate/, chat/
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Ortak: geçerli bir görsel yükleme mi? (≤6 MB, image/* içerik tipi)
+    function isValidImage() {
+      return request.resource != null
+        && request.resource.size < 6 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+    }
+
+    match /{folder}/{fileName} {
+      allow read: if true;
+      allow write: if request.auth != null && isValidImage();
+    }
+  }
+}

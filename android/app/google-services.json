@@ -1,0 +1,54 @@
+{
+  "project_info": {
+    "project_number": "839781526307",
+    "project_id": "alljob1",
+    "storage_bucket": "alljob1.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:839781526307:android:b73835fe450e77df9aba96",
+        "android_client_info": {
+          "package_name": "com.ustacepte.usta_cepte"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "839781526307-doj0aqmngsb6o7km0sph9co2gffb8e2j.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.ustacepte.usta_cepte",
+            "certificate_hash": "5dc4f1624b88db10bbaf758babefc61709b12602"
+          }
+        },
+        {
+          "client_id": "839781526307-igop85vu9fqtrsvs5o853hp5alekulqb.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCJsp6zfD5YD-pFHHIkKRHQfne_Pu0FC1s"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "839781526307-igop85vu9fqtrsvs5o853hp5alekulqb.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "839781526307-29ltrp37h0acp3rjr5thgnircbgqtgl2.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.ustacepte.ustaCepte"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -1,0 +1,15 @@
+# Satır sonlarını depoda LF'e normalle (Windows/macOS/Linux tutarlılığı).
+* text=auto eol=lf
+
+# İkili dosyalar dokunulmasın.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.ttf binary
+*.otf binary
+*.woff binary
+*.woff2 binary
+*.jar binary
+*.keystore binary

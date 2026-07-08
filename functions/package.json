@@ -1,0 +1,13 @@
+{
+  "name": "usta-cepte-functions",
+  "description": "Usta Cepte — Cloud Functions (puan + teklif sayacı aggregation)",
+  "private": true,
+  "main": "index.js",
+  "engines": {
+    "node": "22"
+  },
+  "dependencies": {
+    "firebase-admin": "^12.7.0",
+    "firebase-functions": "^6.1.1"
+  }
+}

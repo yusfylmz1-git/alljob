@@ -1,0 +1,14 @@
+[
+  { "code": "painter", "nameTR": "Boyacı Ustası", "icon": "format_paint" },
+  { "code": "plumber", "nameTR": "Tesisatçı", "icon": "plumbing" },
+  { "code": "electrician", "nameTR": "Elektrikçi", "icon": "electrical_services" },
+  { "code": "carpenter", "nameTR": "Marangoz", "icon": "carpenter" },
+  { "code": "tiler", "nameTR": "Fayansçı", "icon": "grid_view" },
+  { "code": "welder", "nameTR": "Kaynakçı", "icon": "construction" },
+  { "code": "ac_technician", "nameTR": "Klima Servisi", "icon": "ac_unit" },
+  { "code": "locksmith", "nameTR": "Çilingir", "icon": "lock" },
+  { "code": "white_goods", "nameTR": "Beyaz Eşya Tamiri", "icon": "kitchen" },
+  { "code": "mover", "nameTR": "Nakliyat / Evden Eve", "icon": "local_shipping" },
+  { "code": "gardener", "nameTR": "Bahçıvan", "icon": "yard" },
+  { "code": "cleaner", "nameTR": "Temizlik", "icon": "cleaning_services" }
+]

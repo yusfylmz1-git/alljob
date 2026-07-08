@@ -1,0 +1,472 @@
+# 📓 İlerleme Notları (Proje Defteri)
+
+> Bu dosya, geliştirme sırasında **kaldığımız yeri** kaydetmek içindir.
+> Tokenlar bittiğinde veya yeni bir oturuma başladığımızda, buradan kaldığımız
+> yerden devam edebiliriz. Her oturum sonunda "Son Durum" bölümünü güncelle.
+
+---
+
+## 🎯 Proje Hakkında
+- **Proje adı:** Usta Cepte (`usta_cepte`) — hizmet pazaryeri uygulaması
+- **Amaç:** Müşterileri (tamirat/tadilat ihtiyacı olanlar) bölge ve meslek bazlı ustalarla buluşturmak. TR pazarı.
+- **Platform:** Flutter — Android + iOS + Web
+- **Backend (hedef):** Firebase (Auth, Firestore, Storage, Cloud Functions, FCM)
+- **Teknolojiler:** Flutter 3.38.7 / Dart 3.10.7, Riverpod (state), GoRouter (routing)
+- **Referans:** Güncel PRD `PRD.md` (v4.0 — son sürüm). Gelir modeli yalnızca Premium; canlı müsaitlik + çalışma takvimi ana farklılaştırıcı; kredi sistemi YOK.
+
+### Mimari Kararlar
+- **Feature-first / katmanlı mimari:** `lib/core` (ortak), `lib/data` (model+kaynak), `lib/features/<özellik>/{presentation,application,data}`.
+- **Repository soyutlaması:** Auth bir arayüz (`AuthRepository`) arkasında. Şu an `MockAuthRepository` (bellek içi) ile çalışıyor; Firebase gelince sadece `FirebaseAuthRepository` yazılıp provider değişecek, UI/controller değişmeyecek.
+- **Coğrafi/meslek verisi:** Statik JSON assetlerinden okunuyor (`assets/data/`), Firebase'e sorgu yok.
+
+---
+
+## ✅ Son Durum (EN SON BURAYI OKU)
+
+**Tarih:** 2026-07-08
+
+**Tamamlanan: AŞAMA 1–5 + PRD v4.0 + FIREBASE CANLI + ÇİFT TARAFLI PAZARYERI + OTURUM 15 (UX) + OTURUM 16 (Keşfette ilan paneli) + OTURUM 17 (TEK HESAP, ÇİFT ROL) + OTURUM 18 (TASARIM v2) + OTURUM 19 (MALİYET/FATURA OPTİMİZASYONU) + OTURUM 20 (BLAZE + STORAGE CANLI) + OTURUM 21 (CLOUD FUNCTIONS CANLI) + OTURUM 22 (FCM PUSH BİLDİRİMLERİ)**
+
+**Oturum 22 (2026-07-08): FCM push bildirimleri (yeni sohbet mesajı). UYGULANDI ✅ — deploy KULLANICIYA kaldı.**
+Yeni sohbet mesajı gelince alıcının cihaz(lar)ına push bildirimi. Kod tarafı uçtan uca hazır.
+- **Cloud Function (`functions/index.js`) — yeni `onMessageCreated`:** `chats/{chatId}/messages/{msgId}` onCreate → sohbet dökümanından katılımcıları okur → GÖNDEREN dışındaki alıcıyı bulur → alıcının `users/{uid}.fcmTokens` dizisindeki token'lara `sendEachForMulticast` ile bildirim yollar (başlık = gönderenin adı, gövde = mesaj / "📷 Fotoğraf") → `data:{type:'chat',chatId}` ekler (dokununca sohbete gidilsin) → "kayıtsız/geçersiz" dönen token'ları `arrayRemove` ile temizler. **channelId belirtilmedi** (cihazda olmayan kanal Android 8+'da bildirimi gizler; FCM SDK otomatik varsayılan kanalı kullanır). `node --check` geçti.
+- **Flutter push servisi (`lib/features/notifications/data/push_service.dart`, yeni):** `PushService` + `pushServiceProvider`. `registerFor(uid)`: izin iste → token al → `users/{uid}.fcmTokens`'a `arrayUnion` → `onTokenRefresh` dinle. `unregisterFor(uid)`: token'ı `arrayRemove` + `deleteToken`. Ön planda gelen mesaj → in-app SnackBar (`scaffoldMessengerKey`, "Gör" aksiyonu). `onMessageOpenedApp` + `getInitialMessage` → `/chats/{chatId}`'e git. Yalnız `useFirebaseBackend` iken çalışır (mock modda no-op). Web'de VAPID boşsa getToken atlanır.
+- **`main.dart`:** top-level `@pragma('vm:entry-point')` arka plan işleyicisi (`onBackgroundMessage`, runApp'ten ÖNCE, ayrı isolate → Firebase yeniden init). Yalnız bayrak açıkken.
+- **`app.dart`:** `scaffoldMessengerKey` MaterialApp'a bağlandı; `ref.listen(authStateProvider)` ile giriş olunca token kaydı (+ açılışta zaten oturum açıksa `ref.read` ile ilk kayıt). **NOT (Riverpod tuzağı):** `WidgetRef.listen` `fireImmediately` DESTEKLEMEZ (yalnız provider `Ref.listen`) → ilk değer ayrıca ele alındı.
+- **`auth_controller.dart` signOut:** `_repo.signOut()` ÖNCESİ `pushService.unregisterFor(uid)` (uid oturum kapanınca kaybolur; başka hesap bu cihaza bildirim almasın).
+- **`web/firebase-messaging-sw.js` (yeni):** web arka plan bildirimleri için servis çalışanı (compat SDK importScripts, `firebase_options.dart web` ile aynı config).
+- **pubspec:** `firebase_messaging: ^15.1.6` (çözülen 15.2.10).
+- **Kurallar DEĞİŞMEDİ:** `users/{uid}` sahibi zaten `fcmTokens`'ı yazabiliyor → ayrı rules deploy'u gerekmez.
+- **Doğrulama:** `flutter analyze` **0 sorun**; Firebase'siz testler **57/57** (7 bilinen `artisan_login`/`my_profile` Firebase kırığı, ilgisiz); `flutter build web` başarılı.
+- ⚠️ **KULLANICI AKSİYONLARI:** (1) **`firebase deploy --only functions --project alljob1`** (yeni `onMessageCreated`). (2) Web push istiyorsan Firebase Console → Cloud Messaging → Web Push certificates → VAPID anahtarını `push_service.dart` `kWebVapidKey`'e yapıştır. (3) Android: ek ayar yok, gerçek cihazda test et. (4) iOS: APNs (Windows'ta yapılamaz). Detaylar `FIREBASE_KURULUM.md` "Push bildirimleri" bölümünde.
+- ⚠️ **Hâlâ bekleyen (önceki):** Google giriş sağlayıcısını Console'da etkinleştir (Oturum 15).
+
+**Oturum 21 (2026-07-08): Cloud Functions — rating + offerCount aggregation CANLI. UYGULANDI ✅**
+Blaze açıldığı için sunucu-tarafı aggregation devreye alındı; istemci-tarafı "geçici çözümler" kaldırıldı:
+- **`functions/` (yeni, Node 22, Gen 2, `europe-west1`):** `index.js` iki tetikleyici — **`onReviewCreated`** (yeni değerlendirme → `artisanProfiles`'ın `averageRating/totalReviews/totalRatingSum` alanlarını transaction ile increment) + **`onOfferWritten`** (teklif her değişince ilgili ilanın `offerCount`'unu çekilmemiş teklif sayısına göre yeniden hesap). `package.json` + `firebase.json`'a `functions` bölümü.
+- **DEPLOY EDİLDİ (ben, birçok denemeyle):** Blaze sonrası ilk Gen 2 deploy 6 Google API'sini açtırdı (kullanıcı 2'sini konsoldan elle açtı: Runtime Config/Eventarc/Cloud Run/Pub/Sub) + Eventarc servis-hesabı IAM yayılması için birkaç dk beklendi. Sonunda `onReviewCreated` + `onOfferWritten` **başarıyla oluşturuldu**; Artifact Registry temizlik politikası `--force` ile ayarlandı (imajlar 1 günde silinir).
+- **İstemci temizliği (fonksiyonlar CANLI olduktan SONRA gönderildi):**
+  - `firebase_artisan_repository.dart`: **`_ratingSums()` 1000-review taraması TAMAMEN KALDIRILDI** (Oturum 19'un son kalan sızıntısı). Rating artık doğrudan profil dökümanından okunuyor (CF denormalize ediyor). Profil-dökümanı okuma önbelleği (3 dk TTL) + fetch cap korundu; `getArtisanDetail` yorumları yalnızca liste için çekiyor.
+  - `firebase_offer_repository.dart`: istemci `FieldValue.increment(offerCount)` (submit + withdraw) **kaldırıldı** — CF tutuyor.
+  - `firestore.rules`: `jobs` update'inden `changedOnly(['offerCount'])` **silindi** (güvenlik sıkılaştı; offerCount'u yalnız CF/Admin SDK yazar). **Kural deploy edildi.**
+- **Doğrulama:** `flutter analyze` 0 sorun; Firebase'siz testler **57/57**; `flutter build web` başarılı; fonksiyonlar + kurallar canlı.
+- ⚠️ **Not (backfill):** CF yalnızca YENİ review'lerde tetiklenir. Deploy'dan ÖNCE var olan review'lerin puanı profile yansımaz (eski profil `averageRating=0` görünebilir). Firestore büyük ölçüde boş olduğundan önemsiz; gerekirse tek seferlik backfill script'i yazılır.
+- ⚠️ **Hâlâ bekleyen:** Google giriş sağlayıcısını Console'da etkinleştir (Oturum 15). Sıradaki büyük iş: **FCM push bildirimleri** (yeni mesaj → alıcının token'ına CF ile gönderim; `firebase_messaging` + token kaydı + izin akışı).
+
+**Oturum 20 (2026-07-08): Blaze planı + Cloud Storage CANLI. UYGULANDI ✅**
+Kullanıcı Blaze planını açtı + Storage bucket'ını kurdu (`gs://alljob1.firebasestorage.app`). Storage devreye alındı:
+- **`useFirebaseStorage = true`** (`backend_config.dart`). Foto yükleme artık gerçek kalıcı Storage URL'leri üretir (eskiden mock, yalnız-oturum). `firebase_options.dart` bucket'ı zaten doğru (`alljob1.firebasestorage.app`).
+- **`storage.rules` (yeni):** pazaryeri görselleri kamuya açık OKUMA (misafir de Keşfet'te görür); YAZMA yalnız oturum açmışa + sunucu tarafı tür/boyut sınırı (`image/.*`, <6 MB — istemci sıkıştırmasına ek savunma katmanı). `firebase.json`'a `storage` bölümü eklendi.
+- **DEPLOY EDİLDİ (ben çalıştırdım):** `firebase deploy --only storage,firestore:rules,firestore:indexes --project alljob1` → hepsi başarılı. Bu deploy ayrıca **Oturum 19'un bekleyen index'lerini + Oturum 16'nın bekleyen public `jobs` okuma kuralını** da yayınladı. (Uyarı: eski `jobs (category,status)` index'i projede duruyor, zararsız; `--force` ile temizlenebilir.)
+- **Doğrulama:** `flutter analyze` 0 sorun. (Storage'ı gerçek cihazda foto yükleyerek test etmek kullanıcıya kaldı.)
+- ⚠️ **Kalan bekleyenler:** (1) Google sağlayıcısını Firebase Console'da etkinleştir (Oturum 15'ten). (2) FCM push + Cloud Functions (rating/offerCount aggregation) — artık Blaze açık, yapılabilir; yeni geliştirme işi.
+
+**Oturum 19 (2026-07-08): Firebase maliyet/fatura optimizasyonu (Blaze gerektirmeyen kısım). UYGULANDI ✅**
+Kullanıcı sordu: "pagination + cache + görsel sıkıştırma yapalım, ücretlendirme optimizasyonu gerekmez mi?" Teşhis: senin 3 maddenden **görsel yükleme zaten yapılmış** (image_picker maxWidth/quality ile sıkıştırıyordu); asıl fatura sızıntıları **sahte pagination** (Firestore'dan hepsini çekip bellekte bölme) ve **görsel indirme cache'inin olmaması**ydı. Firebase faturası = doküman OKUMA sayısı + Storage bant genişliği. Blaze'siz yapılabilenlerin hepsi uygulandı:
+- **Usta araması gerçek okuma azaltma (`firebase_artisan_repository.dart`):** en büyük sızıntı düzeltildi. Eskiden HER arama+HER "daha fazla yükle" `q.get()` ile TÜM `artisanProfiles` koleksiyonunu + `_ratingSums()` ile **1000 review dokümanını** okuyordu (tek arama = 1000+ okuma; loadMore her seferinde tekrar). Artık: örnek-ömrü (singleton provider) önbellek — profil dökümanları profesyon anahtarına göre + `reviews` toplamları, **3 dk TTL** (`_cacheTtl`, `_cachedProfiles`, `_ratingSums` cache). `loadMore` ve ardışık aramalar artık **0 Firestore okuması** yapar. Ayrıca sunucu sorgusuna `.limit(AppConstants.artisanFetchCap=300)` tavanı. `invalidateCache()` metodu eklendi (yazma sonrası elle boşaltma için, opsiyonel). Müsaitlik hesaplanmış alan olduğundan istemci-sıralaması korundu — gerçek `startAfter` cursor'u hâlâ CF+areaKeys[] (Blaze) ölçeğine bağlı.
+- **İş ilanı feed'leri sunucu-tarafı limit (`firebase_job_repository.dart`):** `watchOpenJobs` ve `watchNearbyJobs` artık limitsiz `.snapshots()` değil → sunucuda `orderBy('createdAt', descending:true).limit(cap)` (openJobsFetchCap=60, nearbyJobsFetchCap=100). Koleksiyon büyüdükçe okuma sabit kalır. Süre dolumu/coğrafi eşleşme istemcide (cap pay bırakır). Yeni composite index'ler: `jobs (status, createdAt DESC)` ve `jobs (category, status, createdAt DESC)` — eski `(category,status)` bununla değişti (`firestore.indexes.json`).
+- **Görsel indirme cache'i (`app_image.dart` + pubspec):** `cached_network_image: ^3.4.1` eklendi; `AppImage` `Image.network` → `CachedNetworkImage` (diske önbellek). Aynı foto her kaydırmada Storage'dan yeniden inmez → Storage bant genişliği faturası düşer (Storage açılınca doğrudan kazanç).
+- **Görsel yükleme sıkıştırması sıkılaştırıldı:** tüm `pickImage` çağrıları (profil/iş/sohbet) artık ortak `AppConstants.imagePickMaxWidth=1080` + `imagePickImageQuality=70` (eskiden dağınık 1280/85). 5 MB ham foto → tipik ~150–300 KB.
+- **Doğrulama:** `flutter analyze` **0 sorun**; Firebase'siz testler **57/57** (7 bilinen `artisan_login_test`/`my_profile_test` Firebase kırığı — Oturum 12'den, ilgisiz); `flutter build web` başarılı; `flutter pub get` OK.
+- ⚠️ **KULLANICI AKSİYONU:** Yeni index'ler için `firebase deploy --only firestore:indexes --project alljob1` (deploy edilene dek Firebase modunda feed sorguları FAILED_PRECONDITION/index hatası verebilir). Bekleyen `firestore:rules` deploy'uyla birlikte yapılabilir.
+- ⚠️ **İleride (Blaze gerekli):** gerçek `startAfter` cursor pagination + rating'i CF ile profile denormalize etme (o zaman `_ratingSums` full-scan tamamen kalkar) + `areaKeys[]` ile sunucu-tarafı coğrafi filtre. Bunlar Storage/CF ile aynı Blaze kapısında bekliyor.
+
+**Oturum 18 (2026-07-03): Tasarım yönü v2 — "nefes alan, cam dokunuşlu" yenileme. UYGULANDI ✅**
+- Kullanıcı: "tasarımı baştan ele alalım" — Uber/Linear/Revolut/Apple Wallet referanslı; nefes alan kartlar, ince cam (glass) efektleri, hafif gradyanlar, profil etiketleri, yükleme skeleton'ları, sade alt bar. Kararlar (AskUserQuestion): önce HTML prototip → onaylandı; alt bar **3 sade sekme kalsın** (Keşfet/Mesajlar/Profil); cam/gradient **ince & seçici**. Ek istek: sade üst başlıklar (İlanlarım/Mesajlarım/Bildirimler) da yeni dile uyarlandı. Kullanıcı "tam yetki, onay isteme" dedi.
+- **HTML prototip yayınlandı** (artifact, scratchpad `design-v2.html`): palet, önce/sonra usta kartı, Keşfet, Usta Profili (etiketler + cam stat kartı), İş İlanları, skeleton.
+- **Palet (`app_colors.dart`):** zemin `background` → **#FAFAFB** (serin beyaz), yeni `hairline` (#EEF0F3, ince kart kenarı), ortak `availableRing` gradyanı (kart+profil paylaşır).
+- **Tema (`app_theme.dart`):** yeni `floatShadow` (yüzen öğeler), kart kenarı açık modda `hairline`'a indi, kart radius 18.
+- **Yeni ortak widget'lar:** `core/widgets/skeleton.dart` (`Skeleton`/`Skeleton.circle` shimmer + `SkeletonList` hazır liste); `core/widgets/gradient_app_bar.dart` (`GradientAppBar` — lacivert gradyan + turuncu radial ışık + beyaz metin, alttan yuvarlak, drop-in `AppBar` yerine).
+- **`MainBottomBar` (`role_bottom_bar.dart`) yeniden yazıldı:** NavigationBar → **yüzen pill** (kenardan boşluklu, radius 24, `floatShadow`, `maxWidth 480` ortalı). API/sekmeler aynı (Keşfet/Mesajlar/Profil, mesaj rozeti) — ekranlar değişmedi. `bottomNavigationBar` yuvasında kalır (extendBody YOK; içeriği örtmez).
+- **`ArtisanCard`:** yatay-kompakttan **nefes alan beyaz karta** (radius 20 + softShadow): üst satır (halkalı avatar + ad/doğrulama + müsait pill) → hairline ayraç → puan satırı (★ · N değerlendirme · N yıl · chevron). Grid `mainAxisExtent` 96→134.
+- **Keşfet:** yükleme durumları `CircularProgressIndicator` → `SkeletonList`.
+- **Usta Profili:** hero'ya **değerlendirmelerden türeyen olumlu etiket çipleri** (`_topPositiveTags`, en sık 4; cam `_HeroTag`). Cam stat kartı zaten vardı.
+- **İlan kartı (`NearbyJobCard`):** başa **meslek emojisi rozeti** (`jobCategoryEmoji`, 12 meslek→emoji), meta satırı "📍 ilçe · N dk önce"; açıklama+CTA+ilgi rozeti korundu.
+- **İkincil başlıklar → `GradientAppBar`:** İlanlarım, İletişimlerim, Favorilerim, Hizmetlerim, Bildirimler, Mesajlar, İlan Detayı, İş İlanı Ver, Premium Üyelik, Profili Düzenle (ikon + isteğe bağlı alt satır). Liste ekranlarının yükleme durumları da `SkeletonList`.
+- **Doğrulama:** `flutter analyze` **0 sorun**; Firebase'siz testler **57/57**; `flutter build web` **başarılı**. (7 test hatası = Oturum 12'den beri bilinen `artisan_login_test`+`my_profile_test` Firebase kırığı, tasarımla ilgisiz.)
+- Marka açık temaya kilitli (telefon hep açık). ⚠️ Bekleyenler önceki oturumlardan aynen duruyor: Oturum 16 kural deploy'u + Google sağlayıcısını etkinleştirme.
+- **Oturum 18a — HATA DÜZELTMESİ (kullanıcı "ortada sadece Keşfet/Mesajlar/Profil, başka bişey yok"):** Yeni yüzen `MainBottomBar`'daki `Center`, `bottomNavigationBar` yuvasında dikeyde tüm boş yüksekliği kaplıyordu → 66px bar ekranın ortasına gidip gövdeyi eziyordu. Çözüm: `Center` → `Align(alignment: bottomCenter, heightFactor: 1.0)` (dikeyde içeriğe sarılır). analyze temiz. **Ders:** `bottomNavigationBar` içinde `Center`/`Align` kullanınca `heightFactor: 1.0` şart, yoksa dikeyde genişler.
+- **Oturum 18b — Usta kartı overflow düzeltmesi:** Keşfet ızgara hücresi `mainAxisExtent` 134→**152** (yeni ferah kart taşıyordu, alttaki sarı şerit). Puan satırındaki "N değerlendirme" `Flexible`+ellipsis (dar telefon yatay taşması).
+- **Oturum 18c — Moda göre 4. sekme (kullanıcı isteği):** Alt bar artık moda duyarlı. `MainTab`'a **`work`** eklendi: müşteri = **İlanlarım** (`/jobs/mine`, campaign ikonu), usta = **İşler** (`/panel/jobs`, handyman ikonu); misafirde gizli (`showWork = user != null`). Sekmeler: Keşfet · [work] · Mesajlar · Profil. `my_jobs_screen` + `nearby_jobs_screen`'e `bottomNavigationBar: MainBottomBar(current: MainTab.work)` eklendi (artık sekme kökü). Drawer'dan tekrar eden girişler kaldırıldı (müşteri "İlanlarım", usta "Hizmetlerim"); "İş İlanı Ver"/"Favorilerim"/"İletişimlerim" vb. drawer'da kaldı. Not: müşteri work'ü top-level (geri oksuz temiz sekme); usta `/panel/jobs` nested olduğu için panele geri oku çıkar (küçük asimetri, kabul edildi). analyze 0.
+
+**Oturum 17e (2026-07-03): Usta paneli sadeleştirme ("çok kötü ve karışık" geri bildirimi).**
+- Panel gövdesi 7-8 ayrı karttan 4-5 net bloğa indi. Yeni düzen: (profil eksikse uyarı) → **_StatusCard** → **_WorkflowCard** → Hakkımda → Değerlendirmeler → Müşteri Modu kartı (en alta taşındı).
+- **_StatusCard (yeni):** Müsaitlik + Premium tek kartta iki kompakt satır. Büyük `_PremiumCard` SİLİNDİ (yönetim zaten `/panel/premium` sayfasında; satırdaki "Yönet / Premium Ol" oraya gider). `_AvailabilityCard` SİLİNDİ (satıra dönüştü; "Düzenle" → panelEdit).
+- **_WorkflowCard (yeni):** `_QuickStatsRow` (3 istatistik kartı) + `_NearbyJobsSection` (3 ilanlık önizleme) SİLİNDİ; yerine iki tıklanabilir gezinme satırı: "Yakınımdaki İşler" (sayı rozeti → panelJobs) ve "İletişimlerim" (bekleyen sayısı → panelOffers). **"Aktif İş" istatistiği kullanıcı isteğiyle KALDIRILDI** ("fonksiyonu yok") — assignedJobsProvider paneldeki kullanımı kalktı (bildirimler ekranında hâlâ kullanılıyor).
+- analyze 0, 57/57 test, web build OK.
+
+**Oturum 17d (2026-07-03): "İki profil sayfası" kurgu düzeltmesi.**
+- Kullanıcı şikâyeti: usta modunda alt bar Profil → panel (genel bilgiler), ama hero'daki profil FOTOĞRAFINA basınca ikinci bir "profil sayfası" (Profili Düzenle formu) açılıyordu — iki profil sayfası hissi.
+- Düzeltme: `_HeroAvatar` artık salt görsel (tıklanamaz, kalem rozeti kaldırıldı). Düzenlemeye giden görünür yollar: hero'daki "Profili Düzenle" butonu, ☰ menüdeki "Profili Düzenle" satırı ve bölümlerin "Düzenle" aksiyonları. "Dükkânımı Gör" (müşteri gözünden önizleme) etiketli buton olarak duruyor — bilinçli.
+- analyze 0, 57/57 test, web build OK.
+
+**Oturum 17c (2026-07-03): Çapraz mod mesaj rozeti + FCM kararı.**
+- **Çapraz mod rozeti (kullanıcı isteği):** karşı moda okunmamış mesaj düşerse ☰ menü düğmesinde **kırmızı nokta** (`DrawerMenuButton`, üç hero'daki düz IconButton'ların yerini aldı) + menüdeki "Usta/Müşteri Moduna Geç" satırında **sayılı kırmızı rozet**. Yeni provider'lar (`chat_providers.dart`): `unreadBySideProvider` (okunmamışları `thread.artisanUid == uid` ile usta/müşteri tarafına ayırır) + `otherModeUnreadProvider` (aktif modun karşısı; usta profili yoksa 0). Mesajlar sekmesi rozeti toplamı göstermeye devam eder (sohbet listesi zaten iki tarafı birleşik listeler). Test: `dual_role_test.dart`'a taraf ayrımı testi (57/57).
+- **FCM (telefona push) YAPILAMADI — Blaze engeli:** gerçek push bildirimi, yeni mesajda sunucudan gönderim ister → Cloud Functions (messages onCreate → alıcının FCM token'ına gönder) → **Blaze planı gerekli** (Storage gibi). Blaze'e geçilince yapılacaklar: `firebase_messaging` paketi + token'ı `users/{uid}`'e kaydet + CF gönderici + bildirim izin akışı. Kullanıcıya iletildi.
+
+**Oturum 17b (2026-07-03): Ortak alt bar + hamburger menü (kullanıcı önerisi).**
+- **`MainBottomBar`** (`role_bottom_bar.dart` yeniden yazıldı; eski Customer/Artisan/RoleBottomBar sınıfları SİLİNDİ): her iki modda ve misafirde ORTAK 3 sekme — **Keşfet / Mesajlar / Profil**. Usta da Keşfet'i görür. Profil hedefi moda göre: müşteri → `/profile`, usta → `/panel`, misafir → login. Mesajlar rozeti korundu (misafirde 0).
+- **`AppMenuDrawer`** (`core/widgets/app_menu_drawer.dart`, yeni): sol üst 3 çizgi menü; içerik duruma göre — misafir: Giriş/Kayıt; müşteri modu: İş İlanı Ver, İlanlarım, Favorilerim + (Usta Moduna Geç | Hizmet Vermeye Başla); usta modu: Hizmetlerim, İletişimlerim, Bildirimler, Premium, Profili Düzenle + Müşteri Moduna Geç; oturum varsa Çıkış Yap. Async işlemlerde router/messenger await ÖNCESİ yakalanıyor (drawer kapanınca context ölür).
+- **Hamburger butonları:** Keşfet hero'su (marka satırının solu), müşteri profil hero'su, usta panel hero'su (müsaitlik switch'inin solu); Mesajlar'da AppBar drawer ikonu otomatik.
+- **İkincil ekranlar push sayfası oldu** (alt bar kaldırıldı, AppBar geri okuyla): İlanlarım, Favorilerim, Hizmetlerim (yakındaki işler), İletişimlerim, Bildirimler. Drawer `context.push` kullanır → geri tuşu hub'a döner.
+- Doğrulama: analyze 0, 56/56 test, web build OK.
+
+**Oturum 17 (2026-07-03): Tek hesap, çift rol sistemi.**
+Kalıcı/değişmez rol modeli kaldırıldı; kullanıcı tek hesapla hem müşteri hem usta olabilir. "Her İkisi" modu bilinçli olarak YOK (iki mod + tek dokunuş geçiş); kullanıcı "sonra bazı değişiklikler yaparız" dedi — kurgu revizyonları beklenebilir.
+- **`AppUser`:** `role` alanı yerine **`hasArtisanProfile: bool`** (usta profili açıldı mı — kalıcı) + **`activeMode: UserRole`** (arayüz modu — değiştirilebilir). `isArtisan/isCustomer` artık AKTİF MODA bakar (UI kapıları otomatik uyum sağladı). Geriye dönük uyum: eski `role: artisan` dökümanı → `hasArtisanProfile=true, activeMode=artisan`; `toMap` eski istemciler için `role`'ü de yazar.
+- **`AuthRepository`:** `register` ROLSÜZ (herkes müşteri modunda başlar), `signInWithGoogle` parametresiz (Google'da rol sorunu kökten çözüldü). Yeni: **`becomeArtisan()`** (hasArtisanProfile=true + usta moduna geç) ve **`setActiveMode(mode)`** (usta modu hasArtisanProfile ister, yoksa `AuthException.noArtisanProfile`). Mock + Firebase impl. **Firebase'de kritik detay:** `userChanges()` Firestore'u görmediği için `_manualUpdates` broadcast controller'ı `authStateChanges()` akışına birleştirildi — mod değişince router/UI anında güncellenir.
+- **Kayıt akışı:** rol seçim ekranı SİLİNDİ (`role_selection_screen.dart`, `/role-selection` rotası). Kayıt tek tip; giriş ekranındaki "Yeni Hesap Oluştur" doğrudan `/register`'a gider.
+- **Router:** "usta yalnızca /panel'de yaşar" HAPSİ KALKTI. Splash/auth-sonrası yönlendirme aktif moda göre; `/panel*` yalnızca `hasArtisanProfile` olana açık; gerisi serbest (menüleri UI modu yönetir). Alt barlar zaten `isArtisan` (mod) bazlı — değişmedi.
+- **Profil ekranları:** Müşteri profilinde `_ArtisanModeCard` — profil yoksa **"Hizmet Vermeye Başla"** (onay diyaloğu → becomeArtisan → `/panel/edit`'e gider, meslek+bölge doldurur), varsa **"Usta Moduna Geç"**. Usta panelinde `_CustomerModeCard` — **"Müşteri Moduna Geç"** → keşfete döner.
+- **Kendi-kendine etkileşim guard'ları (çift rolün yan etkileri):** kendi usta profilinde "Sohbet Başlat" gizli; kendi profiline favori butonu gizli; usta feed'i kullanıcının müşteri olarak verdiği KENDİ ilanlarını elemez oldu (`nearbyJobsProvider` filtresi). Kendine değerlendirme zaten sohbet-geçmişi guard'ıyla imkânsız. İlan detayında sahiplik kontrolü usta bölümünden ÖNCE geldiğinden kendi ilanına "İletişime Geç" zaten çıkmaz.
+- **chat_screen:** "müşteri tarafı mıyım" tespiti moda değil THREAD'e bakar (`thread.artisanUid != user.uid`) — çift rollü kullanıcı hangi modda olursa olsun doğru davranır.
+- **Firestore kuralları:** DEĞİŞİKLİK GEREKMEDİ — kurallar zaten `isSelf`/sahiplik bazlı; `users` dökümanını sahibi güncelleyebiliyor. (Oturum 16'nın `jobs` okuma kuralı deploy'u hâlâ bekliyor.)
+- **Test:** yeni `dual_role_test.dart` (6 test: yeni kullanıcı varsayılanları, legacy `role` eşleme, roundtrip, kayıt→becomeArtisan→mod geçişleri, kalıcılık, demo usta). `my_profile_test` yeni alanlarla güncellendi (ama Firebase bağımlılığı nedeniyle Oturum 12'den beri kırık olmaya devam ediyor).
+- **Doğrulama:** `flutter analyze` 0 sorun; Firebase'siz testler **56/56**; `flutter build web` başarılı.
+- **⚠️ Firebase modunda dikkat:** mevcut Firestore'daki eski kullanıcılar dokunulmadan çalışır (fromMap eşlemesi okuma anında). Mock demo hesapları: `musteri@test.com` (düz kullanıcı) / `usta@test.com` (usta profili + usta modu), şifreler `123456`.
+
+**Oturum 16 (2026-07-03): Keşfet ekranında ustaların yanında iş ilanları.**
+- **`JobRepository.watchOpenJobs({limit=30})`:** tüm açık + süresi dolmamış ilanlar, en yeni en üstte (meslek/bölge filtresi YOK — herkese açık panel). Mock + Firebase impl (tek eşitlik filtresi `status==open`, composite index gerekmez; eleme/sıralama/limit istemcide). `openJobsProvider`.
+- **Keşfet düzeni:** geniş ekranda (≥1000px) usta ızgarasının HEMEN YANINDA 400px "İş İlanları" paneli (dikey ayraçla); dar ekranda hero altında `SegmentedButton` ile **Ustalar / İş İlanları** görünüm geçişi. Panel: başlık + adet rozeti + kart listesi; boş/hata durumları mevcut `_Centered` ile.
+- **`NearbyJobCard` `job_widgets.dart`'a taşındı** (+`ctaText` parametresi: usta feed'inde "İletişime Geç", keşfette "Detayı Gör"; konum satırı il/ilçe; alt satıra `OfferCountBadge` eklendi). `nearby_jobs_screen.dart` ve `artisan_home_screen.dart` importları güncellendi.
+- **İlan detayı üçüncü taraf guard'ı:** ilan sahibi olmayan MÜŞTERİ artık usta arayüzünü ("İletişime Geç") değil salt-okunur bilgi kartını görür ("Bu ilan başka bir müşteriye ait…"). Misafir karta tıklayınca `/jobs/...` needsLogin ile girişe yönlenir (mevcut davranış).
+- **firestore.rules:** `jobs` okuma `isSignedIn()` → **herkese açık** (`if true`) — misafir de Keşfet'te ilanları görsün (pazaryeri kamu içeriği). ⚠️ **KULLANICI AKSİYONU: `firebase deploy --only firestore:rules --project alljob1`** (deploy edilene dek Firebase modunda misafir ilan paneli PERMISSION_DENIED görür; giriş yapmış kullanıcıda sorun yok).
+- **Test:** `watchOpenJobs` 2 yeni test; ayrıca ÖNCEDEN VAR OLAN flaky "acil ilan feed başında gelir" testi deterministikleştirildi (iki ilan aynı milisaniyede oluşunca `createdAt` eşitliği sıralamayı belirsizleştiriyordu — artık açık `createdAt` veriliyor).
+- **Doğrulama:** `flutter analyze` 0 sorun; Firebase'siz testler **50/50**; `flutter build web` başarılı.
+
+**Oturum 15 (2026-07-02): Kullanıcının 14 maddelik listesi (müşteri 10 + usta 3 + mesaj hatası) uygulandı.**
+- **Hata teşhisi (mesajlar ustada görünmüyor + favoriler bozuk):** Firestore REST ile gerçek test hesapları açılıp canlı kurallara karşı uçtan uca denendi (müşteri sohbet başlat → mesaj → USTA sohbet listesi sorgusu → usta cevap; favori ekle/listele/sil). **HEPSİ GEÇTİ** — backend/kurallar sağlıklı. Sorunlar büyük olasılıkla Oturum 14b kural deploy'u ÖNCESİNDEN kalmaydı; kullanıcı yeniden test etmeli. Bilinen kısıt: sohbette **fotoğraf** mesajları Storage kapalıyken (`useFirebaseStorage=false`, Blaze yok) karşı cihazda görünmez. (Not: teşhisin bıraktığı `chats/chat_PYW...__GUv...` dökümanı silinemedi — kural delete:false; konsoldan silinebilir, zararsız. Test auth hesapları silindi.)
+- **Coğrafi veri (#5-6-7):** `districts.json` 81 il / **970 ilçe** ile yeniden üretildi (kaynak: berkaycatak/turkiye_il_ilce_json, Türkçe başlık düzenine çevrildi, il içi alfabetik, Merkez en üstte). **Mahalle seçimi tamamen kaldırıldı** (keşfet filtresi, ilan verme, usta bölge düzenleyici). `ServiceArea.neighborhood` geriye dönük uyum için opsiyonel kaldı (eski Firestore kayıtları okunur); `key`/`==` il+ilçe düzeyine indi; `labelTR` eklendi. `ArtisanFilter`'dan neighborhood kalktı.
+- **Keşfet yeniden (#1):** hero'da **metin arama kutusu** (yazdıkça 400ms debounce ile arar; ad VEYA meslek adı, Türkçe İ/ı duyarlı `ArtisanFilter.query/matchesQuery`) + yanında **"Detaylı" butonu** → mevcut il/ilçe/meslek filtreleri **bottom sheet açılır pencerede** (`detailed_search_sheet.dart`), her dropdown'da **"Tümü"** seçeneği (null=filtre yok), aktif filtre sayısı rozeti + Temizle.
+- **Rol bazlı görünürlük (#2):** "İş İlanı Ver" yalnızca oturum açmış MÜŞTERİDE görünür (hero'da). İlanlarım/Favoriler artık alt barda (yalnız müşteri). Misafir yalnızca arama + "Giriş Yap" görür.
+- **Müşteri alt bar (#9):** `core/widgets/role_bottom_bar.dart` — Keşfet / İlanlarım / Mesajlar (okunmamış rozetli) / Favoriler / Profil. Keşfet, İlanlarım, Mesajlar, Favoriler, Profil ekranlarına takıldı.
+- **Müşteri profil sayfası (#8):** `/profile` → `customer_profile_screen.dart`: hero (avatar+ad+e-posta), **gerçek istatistikler** (toplam/aktif/tamamlanan ilan + favori sayısı), hesap bilgileri kartı, Çıkış Yap. Router: needsLogin'e `/profile` eklendi.
+- **Mesajlarda avatar (#10):** sohbette karşı tarafın mesajlarının başında yuvarlak avatar + AppBar başlığında avatar; müşteri tarafında dokununca usta profiline gider. `chat_icon_button.dart` silindi (alt bar rozetli ikonla değişti).
+- **Google ile giriş (#3):** `AuthRepository.signInWithGoogle({roleIfNew})` — web'de `signInWithPopup`, mobilde `signInWithProvider` (ek paket YOK). İlk girişte `users/{uid}` müşteri rolüyle açılır; mevcut hesabın rolü korunur. Giriş ekranına "Google ile devam et" butonu (elle çizilmiş G logosu). Mock impl + iptal hata eşlemeleri eklendi. **⚠️ KULLANICI AKSİYONU: Firebase Console → Authentication → Sign-in method → Google'ı ETKİNLEŞTİR** (yoksa giriş "Bir hata oluştu" verir).
+- **Usta alt bar (usta #1):** Profil (/panel) / Hizmetlerim (/panel/jobs, AppBar'dan İletişimlerim'e geçiş) / Mesajlarım / Bildirimler (/panel/notifications — yeni `artisan_notifications_screen.dart`: FCM gelene dek bölgedeki yeni ilanlar + seçilme olaylarından türetilmiş akış). Hero'daki bildirim+mesaj ikonları kaldırıldı.
+- **Usta panel sadeleşti (usta #2):** "İşlerim" galerisi ve "Hizmet Bölgelerim" bölümleri ana ekrandan KALDIRILDI (düzenleme ekranında duruyorlar).
+- **İlan sıralaması (usta #3):** feed artık **salt en yeni en üstte** (acil-önce sıralama kaldırıldı; acil rozeti duruyor) — mock + firebase.
+- **Doğrulama:** `flutter analyze` 0 sorun; Firebase'siz testler **48/48** (yeni: metin sorgusu 2 test; sayfalama testi ilçe düzeyine uyarlandı); `flutter build web` başarılı. `artisan_login_test`/`my_profile_test` Oturum 12'den beri bilinen kırık (provider override yok → gerçek Firebase'e gidiyor).
+
+**Oturum 14 (2026-07-02): Çift taraflı pazaryeri — İş İlanları + Teklifler (5 aşama, TAMAM).**
+Uygulama tek yönlü usta rehberinden dinamik pazaryerine dönüştü. İki akış birlikte: **Doğrudan İletişim** (usta profilinden sohbet, korundu) + **İş İlanı → Teklif** (sohbet yalnızca teklif seçilince açılır, #6). Plan dosyası: `C:\Users\Okul\.claude\plans\mutable-juggling-parrot.md`. Doğrulama: `flutter analyze` 0 sorun, **45/45 Firebase'siz test** (yeni `jobs_test.dart` 12 test), `flutter build web` başarılı.
+
+- **Aşama A — Veri katmanı:** modeller `job.dart` (Job + JobStatus/JobPriceType/JobDuration/JobCancelReason enumları), `offer.dart` (Offer + OfferStatus, tekillik `Offer.idFor=jobId__artisanId` #1), `favorite.dart`. 3 repo arayüzü + Mock + Firebase: `features/jobs/data/{job,offer}_repository.dart` (+mock/firebase), `features/favorites/data/favorite_repository.dart`. Provider'lar `job_providers.dart`/`favorite_providers.dart` (`useFirebaseBackend` ile mock/firebase). `MockDatabase` genişletildi (jobs/offers/favorites map + `changes` tick stream + `notify()` + 3 örnek ilan tohumu). `AppConstants` (maxJobPhotos=5 #9, başlık/açıklama/not limitleri). `firestore.rules` + `firestore.indexes.json` güncellendi.
+- **Aşama B — Müşteri:** `create_job_screen.dart` (/jobs/new: başlık, kategori, il/ilçe/mahalle, açıklama, foto ≤5, ☑ACİL, süre 24s/3g/7g varsayılan 3g #2, fiyat "Bütçem var"/"Keşif Gerekli" #8), `my_jobs_screen.dart` (/jobs/mine: durum çipi + "N teklif geldi" rozeti #3). Keşfet hero'suna hızlı eylemler (İş İlanı Ver / İlanlarım / Favorilerim). `favorites_screen.dart` (/favorites).
+- **Aşama C — Usta:** `nearby_jobs_screen.dart` (/panel/jobs: meslek+bölge eşleşen açık ilanlar, acil kırmızı #urgent), `my_offers_screen.dart` (/panel/offers). `job_detail_screen.dart` usta teklif formu (fiyat/Keşif + not, Güncelle/Geri Çek #7). Usta ana ekranına hızlı istatistik kartları (#12: Yakında İş / Bekleyen Teklif / Aktif İş — hepsi gerçek veri) + "Yakınımdaki İş İlanları" önizleme (ilk 3).
+- **Aşama D — Döngü:** `job_detail_screen.dart` müşteri teklif listesi (usta özet kartı #5 → profile git), teklif seç → sohbet açılır (`chatRepository.startChat`) + ilan kapanır + diğerleri reddedilir (#6). Yaşam döngüsü stepper (Açık→Usta Seçildi→İş Sürüyor→Tamamlandı→Değerlendirildi #4), iki taraflı tamamlama (`confirmDone` #10), tamamlanınca müşteri değerlendirir (mevcut `ReviewScreen` + opsiyonel `jobId` → `markRated`), müşteri iptali (bottomsheet 3 neden #11).
+- **Aşama E — Favoriler + cila:** `favorite_button.dart` (kalp; kart sağ üstü + profil hero'su; misafir→login, usta→gizli #14). Acil rozeti (`UrgentBadge`) + Expired gösterimi (`Job.effectiveStatus`, feed'den elenir) tutarlı.
+
+**⚠️ KULLANICI AKSİYONU — Firestore kural/index deploy (izin gerekiyor):**
+`firebase deploy --only firestore:rules,firestore:indexes --project alljob1`
+Bu, jobs/offers/favorites kurallarını + `jobs (category,status)` index'ini yayınlar. Ayrıca **Oturum 13'ten bekleyen chat `members` + review kuralları** da bununla birlikte gider. Deploy edilene dek Firebase modunda ilan/teklif/favori işlemleri PERMISSION_DENIED verebilir.
+
+**Notlar:**
+- `offerCount` Cloud Functions gelene dek istemci `FieldValue.increment` ile güncelliyor; kural yalnızca bu alanın değişmesine izin veren `changedOnly(['offerCount'])` satırıyla korunuyor (CF gelince kaldırılacak).
+- Feed coğrafi eşleşme MVP: sunucuda kategori+durum, istemcide bölge (il+ilçe). Ölçekleme (areaKeys[] array-contains) ileride.
+- "Profil görüntüleme" istatistiği gerçek sayaç istediğinden (rules non-owner yazımı engelliyor) dashboard'a eklenmedi; yerine türetilebilen gerçek sayılar gösteriliyor.
+- Usta ilan detayına erişebilsin diye router `/jobs/:jobId` ustaya açıldı; `/jobs/new` ve `/jobs/mine` müşteriye özel.
+
+---
+
+**Oturum 13 (2026-07-02): Profesyonel tasarım sistemi** — Inter fontu, elle seçilmiş renk paleti, baştan yazılmış tema, `BrandMark`, lacivert hero'lu keşfet ekranı, yenilenen splash/rol seçimi/giriş/kayıt ekranları. Detay aşağıda Oturum 13 girdisinde.
+
+**AŞAMA 4 (Mesajlaşma + maskeleme + değerlendirme) — TAMAM ve doğrulandı:**
+- ✅ Sohbet modeli (`lib/data/models/chat.dart`: `ChatMessage`, `ChatThread`) + repo soyutlaması `ChatRepository` ve `MockChatRepository` (`lib/features/chat/data/chat_repository.dart`) — bellek içi gerçek-zamanlı stream taklidi (`watchThreads`/`watchMessages`).
+- ✅ Sohbet listesi ekranı (`chat_list_screen.dart`) + gerçek-zamanlı mesajlaşma ekranı (`chat_screen.dart`: metin + foto baloncukları, otomatik alta kaydırma). Müşteri için ÜCRETSİZ (kredi YOK).
+- ✅ **İletişim maskeleme** (`lib/core/utils/contact_masker.dart`): telefon/e-posta/URL/sosyal medya (@kullanıcı, whatsapp/telegram/instagram) otomatik `•••` olur; gönderirken uyarı gösterilir. Maskeleme `sendMessage` içinde uygulanır.
+- ✅ "Sohbet Başlat" butonu usta profil sayfasına bağlandı (misafir → `/login`, müşteri → sohbet aç). Usta ana ekranı + müşteri dashboard'da "Mesajlar" ikonu → `/chats`.
+- ✅ İş sonu değerlendirme ekranı (`review_screen.dart`): 1–5 yıldız + `ReviewTags` hazır etiket seçimi, serbest metin yok. `MockDatabase.addReview` ortalama puanı günceller.
+- ✅ Rotalar: `/chats`, `/chats/:chatId`, `/review/:uid` (hepsi giriş gerektiren korumalı bölge).
+- ✅ `flutter analyze`: **0 sorun**. `flutter test`: **37/37 geçti** (chat + maskeleme testleri dahil: `chat_review_test.dart`, `contact_masker_test.dart`).
+
+**Aşama 4 sonrası mock rötuşları (Firebase öncesi) — TAMAM:**
+- ✅ **Değerlendirme yalnızca sohbet geçmişi olana açık** (PRD §5): `ChatRepository.hasChatBetween` + `ReviewScreen` guard.
+- ✅ **Premium yönetimi** (PRD §6): usta panelinde Premium kartı + `MyProfileController.setPremium` (ilk yıl ücretsiz).
+- ✅ **Sohbet UX:** okunmamış rozeti (liste + AppBar `ChatIconButton`), okundu bilgisi (tek/çift tik), tarih ayraçları. Repo: `markRead/unreadCount/lastReadAt`, `totalUnreadProvider`.
+- ✅ **Premium arama etkisi:** `AppConstants.firstYearFreePremium` bayrağı; `false` → yalnızca müsait+Premium listelenir.
+- ✅ **Sertifika yükleme/görüntüleme:** usta panelinde sertifika bölümü + müşteri profilinde küçük resim + tam ekran görüntüleme.
+- ✅ `flutter test`: **40/40**, `flutter analyze`: 0 sorun.
+
+**PRD v4.0 güncellemesi (son sürüm) — yapılan kod değişiklikleri:**
+- ✅ `PRD.md` eklendi (v4.0, son sürüm). Sürüm notu içerir.
+- ✅ **Kredi sistemi kaldırıldı:** `ArtisanProfile.creditBalance` ve `AppConstants.messageInitiationCreditCost` / `maxReviewLength` silindi. Gelir modeli yalnızca Premium.
+- ✅ **Canlı müsaitlik + çalışma takvimi:** yeni `availability.dart` (`WeeklySchedule`, `DayAvailability`, `AvailabilityMode`). `ArtisanProfile`'a `alwaysAvailable`, `manualPause`, `weeklySchedule`, `createdAt` + `isAvailable`/`isNewArtisan` hesap alanları.
+- ✅ **Arama sıralaması** premium-önce → **müsait-önce** (puana göre) olarak değişti (PRD §3, ilk 1 yıl modeli).
+- ✅ **"Yeni Usta" rozeti:** ilk 15 gün (`AppConstants.newArtisanVisibilityDays`), puana yansımaz. Kartta rozet.
+- ✅ **Değerlendirme:** `Review.comment` (serbest metin) kaldırıldı → `Review.tags` (hazır etiketler). `ReviewTags.positive/negative` sabit listeleri. Profil ekranında etiket çipleri.
+- ✅ **Usta paneli:** müsaitlik bölümü (SegmentedButton: Her zaman / Haftalık / Kapalı) + haftalık gün-saat düzenleyici (switch + saat seçici). Controller'da `setAvailabilityMode`, `toggleScheduleDay`, `setScheduleDayHours`.
+- ✅ Kart + müşteri profilinde "Şu an müsait / müsait değil" göstergesi.
+
+**PRD v4.0 TAM/SON metin uyumu (ikinci geçiş):**
+- ✅ `PRD.md` kullanıcının verdiği tam v4.0 metniyle yeniden yazıldı (Ekran A–F, tüm detaylar).
+- ✅ **Opsiyonel/bağımsız filtreler (Keşfet):** İl/İlçe/Mahalle/Meslek artık zorunlu değil. Yeni `ArtisanFilter` (hepsi nullable). `ArtisanRepository.searchArtisans({filter, offset, limit})` imzası değişti; mock kısmi eşleşme yapıyor. `CustomerFilter.toArtisanFilter()`, controller opsiyonel filtreyle çalışıyor, "Usta Bul" her zaman aktif (boş filtre = Türkiye geneli).
+- ✅ **Değerlendirme etiketleri** PRD'deki kesin listelerle güncellendi (`ReviewTags.positive` 8, `.negative` 8 etiket).
+- ✅ **Çalışma takvimi serileştirme** Firestore şekline hizalandı: gün-adlı map (`monday`..`sunday`) + `"HH:mm"` string, kapalı günde yalnızca `enabled:false`. `WeeklySchedule.toMap/fromMap`, `DayAvailability.toMap/fromMap(weekday, ...)` + `parseMinute`.
+- ✅ `flutter analyze`: **0 sorun**. `flutter test`: **25/25 geçti** (opsiyonel filtre + takvim serileştirme roundtrip testleri dahil).
+
+---
+
+### Aşama 1-3 özeti
+
+**Tamamlanan: AŞAMA 1 + AŞAMA 2 + AŞAMA 3**
+
+Aşama 1 özet: Flutter projesi (Android/iOS/Web), Riverpod+GoRouter, tema, `Validators`, modeller, statik JSON veri + `LocalDataService`, uçtan uca auth akışı (Splash→Rol→Kayıt/Giriş→Dashboard) + auth guard + rol izolasyonu.
+
+**AŞAMA 2 — yeni eklenenler:**
+- ✅ `Review` modeli (maskeli ad: "A***").
+- ✅ Usta veri soyutlaması: `ArtisanRepository` (+ `ArtisanSummary`, `ArtisanDetail`, `ArtisanSearchPage`) ve `MockArtisanRepository` (25 boyacı Dikkaldırım + örnekler, sabit tohum). `artisan_providers.dart`.
+- ✅ Müşteri Dashboard: kademeli dropdown (il→ilçe→mahalle→meslek; üst değişince alt sıfırlanır), "Usta Bul" (filtre tamamsa aktif).
+- ✅ Usta listeleme: kart (avatar/ad/meslek/deneyim/puan), "Öne Çıkan" premium rozeti, **sıralama** (premium önce, grup içinde puana göre), **pagination** (20'şer, scroll ile loadMore).
+- ✅ Usta profil sayfası (salt okunur): kapak+doğrulama tiki, hakkımda, hizmet bölgeleri (chip), sertifikalar, yorumlar (tarihli), sabit "Sohbet Başlat" (Aşama 4'e stub). Telefon/e-posta GÖSTERİLMEZ.
+- ✅ Rota: `/customer/artisan/:uid`. `main.dart`'ta `tr_TR` tarih locale init.
+- ✅ `flutter analyze`: **0 sorun**. `flutter test`: **11/11 geçti** (filtre/sıralama/sayfalama testleri dahil).
+
+**AŞAMA 3 — yeni eklenenler:**
+- ✅ `image_picker` eklendi. `StorageRepository` soyutlaması + `MockStorageRepository` (bellek içi, `local://` handle). `AppImage` widget (network + local:// + placeholder, platformdan bağımsız `Image.memory`).
+- ✅ `MyProfileRepository` (ustanın KENDİ profili get/save) + mock. `AuthRepository.updateUserProfile` (ad/foto) eklendi.
+- ✅ `MyProfileController` (AsyncNotifier): taslak yükle, alanları düzenle, bölge ekle/çıkar (dedupe), foto ekle/çıkar, kaydet.
+- ✅ Usta Profil Düzenleme Paneli (`ArtisanProfileEditScreen`, artık usta ana ekranı): profil foto (kamera butonu), ad-soyad, meslek (tek seçim), deneyim, hakkımda (≤500 sayaç), **çoklu hizmet bölgesi** (il→ilçe→mahalle seç + Ekle, chip + sil), iş fotoğrafları (yatay galeri + ekle/sil), Kaydet (validasyonlu).
+- ✅ Eski `artisan_dashboard_screen.dart` silindi. `flutter analyze`: **0 sorun**. `flutter test`: **15/15 geçti**.
+
+**Demo hesaplar (mock):** Müşteri `musteri@test.com` / Usta `usta@test.com` — ikisi de `123456`.
+**Demo arama:** İl=Bursa, İlçe=Osmangazi, Mahalle=Dikkaldırım, Meslek=Boyacı Ustası → 26 sonuç (premium önce).
+
+**AŞAMA 5 — Firebase: BAĞLANDI VE CANLI (Oturum 12).** Uygulama artık `alljob1` projesine bağlı; `useFirebaseBackend = true`. Storage hariç (Blaze/kart sonra).
+- [x] Backend bayrağı + tüm Firebase repo implementasyonları + provider geçişi + main.dart init + kurallar/index + rehber.
+- [x] **CLI kuruldu (Oturum 12):** Node v24.18.0 / npm 11.16.0, firebase-tools 15.22.4 (global PATH), flutterfire_cli 1.4.0 (`%LOCALAPPDATA%\Pub\Cache\bin` PATH'e eklendi). Flutter 3.38.7.
+- [x] **Firebase bağlandı (Oturum 12):** Proje `alljob1` (proje no 839781526307). Auth (E-posta/Şifre) + Firestore (default db) etkin. `firebase login` OK. PowerShell ExecutionPolicy CurrentUser=RemoteSigned yapıldı (firebase.ps1 engeli için).
+- [x] `flutterfire configure --project=alljob1 --platforms=android,web,ios` → `lib/firebase_options.dart` gerçek anahtarlar + `android/app/google-services.json` + `firebase.json`. iOS için GoogleService-Info.plist YOK (Windows, iOS build zaten yapılamaz).
+- [x] `useFirebaseBackend = true` (`useFirebaseStorage = false` — Storage Blaze ister, sonra). `flutter pub get` + `analyze` temiz.
+- [x] `firebase.json`'a firestore bölümü + `.firebaserc` (default=alljob1) eklendi → `firebase deploy --only firestore:rules,firestore:indexes` BAŞARILI (kurallar derlendi+yayınlandı, indexler yüklendi).
+- [ ] **(Kullanıcı) DOĞRULAMA:** `flutter run -d chrome` → YENİ hesap kaydı (mock demo hesapları ARTIK YOK, Firestore boş — seed veri yok). İlk usta profili oluşunca aramada görünür.
+- [ ] Blaze planı + kart → Storage'ı aç (`useFirebaseStorage = true`) → gerçek foto URL'leri.
+- [ ] Cloud Functions: puan hesabı (reviews onCreate) + `ReviewRepository` soyutlaması (review yazımını Firestore'a taşı).
+- [ ] Usta ana ekranı yorumlarını `reviews` sorgusundan oku (şu an mockDatabaseProvider).
+- [ ] FCM bildirimleri (yeni mesaj/değerlendirme).
+- [ ] Geo arama ölçekleme (`areaKeys[]` + array-contains + startAfter).
+
+**Dikkat / Açık konular:**
+- ~~Mock veri izolasyonu~~ **ÇÖZÜLDÜ:** Artık tek ortak `MockDatabase` (`lib/data/local/mock_database.dart`, `mockDatabaseProvider`) var; usta panelinden kaydedilen profil müşteri aramasında da görünüyor. Firebase gelince bu sınıf Firestore ile değişecek.
+- **Firebase henüz bağlı DEĞİL.** Node + Firebase CLI kurulu değil. Firebase bağlanınca: `flutterfire configure` → `firebase_options.dart`, `main.dart`'ta `Firebase.initializeApp()`, mock repo'ları Firebase implementasyonlarıyla değiştir.
+- `neighborhoods.json` şimdilik **tek test mahallesi** içeriyor (Dikkaldırım / Osmangazi / Bursa) — mahalleler PRD §3'e göre ileride Firestore'dan lazy loading ile çekilecek. `districts.json` örnek veri.
+- Java 8 kurulu — Android APK build için JDK 17 gerekebilir (ileride kontrol et).
+
+---
+
+## 📜 Oturum Geçmişi (en yeni en üstte)
+
+### 2026-07-08 — Oturum 22 (FCM push bildirimleri — detay yukarıda "Son Durum → Oturum 22")
+Kullanıcı: "FCM push ile devam edelim, eksik bir şey kalmasın." Uygulandı: CF `onMessageCreated` (yeni mesaj → alıcının `fcmTokens`'larına push + geçersiz token temizliği), Flutter `PushService` (izin/token kaydı-silme/ön plan SnackBar/tıklayınca sohbete gitme), `main.dart` arka plan işleyicisi, `app.dart` giriş→token / `auth_controller` çıkış→token silme, `web/firebase-messaging-sw.js`, `firebase_messaging` paketi. Kurallar değişmedi. analyze 0, 57/57, web build OK.
+**Sıradaki adım (kullanıcı):** `firebase deploy --only functions --project alljob1` (yeni `onMessageCreated`) → gerçek Android cihazda iki hesapla test. Web push için VAPID anahtarını `kWebVapidKey`'e ekle. Google sağlayıcısını Console'da aç (hâlâ bekliyor).
+
+### 2026-07-08 — Oturum 21 (Cloud Functions canlı — detay yukarıda "Son Durum → Oturum 21")
+Blaze sonrası sunucu aggregation devreye alındı. `functions/index.js`: `onReviewCreated` (rating→profile) + `onOfferWritten` (offerCount yeniden hesap), Node 22 Gen 2 `europe-west1`. Deploy zorlu geçti (6 API elle/otomatik açıldı, Eventarc IAM yayılması beklendi) ama başarılı. İstemci temizliği fonksiyonlar canlı olunca gönderildi: rating 1000-review taraması kaldırıldı (profilden okunuyor), offerCount istemci increment'i kaldırıldı, `changedOnly(['offerCount'])` kuralı silindi + deploy. analyze 0, 57/57, web build OK.
+**Sıradaki adım (kullanıcı):** `flutter run` ile dene (değerlendirme yap → ustanın puanı güncelleniyor mu; teklif ver/geri çek → "N usta ilgilendi" sayacı doğru mu). Google sağlayıcısını Console'da aç. Sonra istenirse FCM push.
+
+### 2026-07-08 — Oturum 20 (Blaze + Storage canlı — detay yukarıda "Son Durum → Oturum 20")
+Kullanıcı Blaze'i açtı + Storage bucket'ını kurdu (`gs://alljob1.firebasestorage.app`). `useFirebaseStorage=true` yapıldı, `storage.rules` yazıldı (public read / auth write + tür-boyut sınırı), firebase.json'a storage eklendi. `firebase deploy --only storage,firestore:rules,firestore:indexes` çalıştırıldı (ben) → hepsi başarılı; Oturum 16 kuralı + Oturum 19 index'leri de bununla yayınlandı. analyze 0.
+**Sıradaki adım (kullanıcı):** `flutter run -d chrome` (veya cihaz) ile foto yüklemeyi uçtan uca dene (profil/iş/sohbet fotoğrafı → gerçek Storage URL'i). Google sağlayıcısını Console'da etkinleştir. Sonra istenirse FCM/Cloud Functions.
+
+### 2026-07-08 — Oturum 19 (Maliyet/fatura optimizasyonu — detay yukarıda "Son Durum → Oturum 19")
+Kullanıcı Firebase ücretlendirme optimizasyonunu sordu (pagination/cache/görsel). Blaze'siz yapılabilenlerin hepsi uygulandı: usta aramasında profil+rating önbelleği (3 dk TTL) → loadMore artık 0 okuma; iş feed'lerinde sunucu-tarafı orderBy+limit + yeni composite index'ler; `cached_network_image` ile görsel indirme cache'i; ortak sıkı görsel sıkıştırma (1080/q70). analyze 0, 57/57 test, web build OK.
+**Sıradaki adım (kullanıcı):** `firebase deploy --only firestore:indexes,firestore:rules --project alljob1` (yeni index'ler + Oturum 16'dan bekleyen kural) → `flutter run -d chrome` ile dene. Bekleyen: Google sağlayıcısını Firebase Console'da etkinleştir.
+
+### 2026-07-03 — Oturum 17c (Çapraz mod mesaj rozeti — detay yukarıda "Son Durum → Oturum 17c")
+Kullanıcı istedi: "mesaj gelince iki modda da telefona bildirim + karşı moda mesaj gelirse ☰ üzerinde/mod geçiş düğmesinde kırmızı işaret." Rozet kısmı yapıldı (DrawerMenuButton kırmızı nokta + menüde sayılı rozet, unreadBySideProvider/otherModeUnreadProvider). FCM push Blaze planı gerektirdiği için ertelendi (yapılacaklar listesi yukarıda). analyze 0, 57/57, web build OK.
+
+### 2026-07-03 — Oturum 17b (Ortak alt bar + hamburger menü — detay yukarıda "Son Durum → Oturum 17b")
+Kullanıcı önerdi: "ortak olanlar (Keşfet/Mesajlar/Profil) alt barda kalsın, diğerleri sol üstte 3 çizgi menüye; usta da Keşfet'i görsün." Uygulandı: MainBottomBar (tek ortak bar), AppMenuDrawer (mod bazlı menü), ikincil ekranlar push sayfası. analyze 0, 56/56, web build OK.
+**Sıradaki adım (kullanıcı):** `flutter run -d chrome` ile yeni gezinmeyi dene. Kullanıcının bahsettiği diğer "kurgusal hata" düzeltmeleri sırada.
+
+### 2026-07-03 — Oturum 17 (Tek hesap, çift rol — detay yukarıda "Son Durum → Oturum 17")
+Kullanıcı "tek hesap, çift rol" kurgusunu onayladı ("evet mantıklı, sonrasında bazı değişiklikler de yaparız — kurgusal hatalar var"). Uygulandı: AppUser'da hasArtisanProfile+activeMode, rolsüz kayıt, becomeArtisan/setActiveMode, rol seçim ekranı silindi, router mod bazlı, profil ekranlarında "Hizmet Vermeye Başla"/mod geçiş kartları, kendi-kendine etkileşim guard'ları. analyze 0, 56/56 test, web build OK. Kural değişikliği gerekmedi.
+**Sıradaki adım (kullanıcı):** `flutter run -d chrome` ile dene: yeni kayıt → Profil → "Hizmet Vermeye Başla" → meslek+bölge kaydet → modlar arasında gidip gel. Kullanıcının bahsettiği "kurgusal hata" düzeltmeleri gelecek oturumda. Bekleyenler: Oturum 16 kural deploy'u + Google sağlayıcısını etkinleştirme.
+
+### 2026-07-03 — Oturum 16 (Keşfette iş ilanları paneli — detay yukarıda "Son Durum → Oturum 16")
+Kullanıcı: "ustaların hemen yanında başkalarının verdiği ilanları görelim." Yapıldı: `watchOpenJobs` + `openJobsProvider`, keşfette geniş ekranda yan panel / dar ekranda Ustalar-İlanlar geçişi, ortak `NearbyJobCard` (ctaText), ilan detayında üçüncü taraf müşteri guard'ı, jobs okuma kuralı herkese açıldı.
+**Sıradaki adım (kullanıcı):** `firebase deploy --only firestore:rules --project alljob1` (misafirin ilan görmesi için) + `flutter run -d chrome` ile dene. Oturum 15'ten bekleyen: Google sağlayıcısını Firebase Console'da etkinleştir.
+
+### 2026-07-02 — Oturum 15 (UX yenilemesi: 14 madde — detay yukarıda "Son Durum → Oturum 15")
+Kullanıcı 14 maddelik liste verdi ("tam yetki"): metin arama + detaylı arama popup, rol bazlı görünürlük, Google girişi, mahalle kaldırma, il/ilçe Tümü + 970 ilçe, müşteri profil sayfası + alt bar, mesaj avatarı→profil, usta alt bar + bildirimler ekranı + panel sadeleştirme, feed en-yeni-üstte, mesaj/favori hata teşhisi (backend REST ile doğrulandı — sorun kural deploy'u öncesindenmiş).
+**Sıradaki adım (kullanıcı):** 1) Firebase Console → Authentication → **Google sağlayıcısını etkinleştir**. 2) `flutter run -d chrome` ile akışları dene (özellikle: usta hesabıyla Mesajlarım + müşteri favoriler — bizim canlı testimizde backend sorunsuzdu). 3) İstersen Firestore konsolundan `chats/chat_PYW...__GUv...` teşhis dökümanını sil.
+
+### 2026-07-02 — Oturum 14b (revizyon: teklif → "İletişime Geç" + kart düzeni + kural deploy)
+Kullanıcı geri bildirimi sonrası iki değişiklik + deploy:
+1. **Kural deploy (yapıldı):** `firebase deploy --only firestore:rules,firestore:indexes` çalıştırıldı. İlk denemede favori/teklif PERMISSION_DENIED verdi → **kural hatası bulundu:** `submitOffer`/favori toggle yazmadan önce `get()` yapıyor; döküman yoksa kuralda `resource == null` olup `resource.data...` reddediyordu. `offers` ve `favorites` read kurallarına `resource == null ||` guard eklendi ve **yeniden deploy edildi.** Artık çalışıyor.
+2. **Teklif sistemi kaldırıldı → "İletişime Geç" (kullanıcı: "teklif olayı olmasın").** Karar: Orta seçenek — usta ilanı görüp doğrudan sohbet açar + müşteri ilanında "İlgilenen Ustalar" listelenir, müşteri birini seçip tamamlama/puanlama döngüsünü sürdürür (fiyat yok). Uygulama: `offers` altyapısı korundu ama "ilgi kaydı" olarak yeniden çerçevelendi. Usta `job_detail`'de fiyat/not formu yerine **"İletişime Geç"** (ilgi kaydı `submitOffer` + `startChat` → sohbete git) + "Geri Çek". Müşteri "Gelen Teklifler" → **"İlgilenen Ustalar"**: her kartta usta özeti (#5) + **Sohbet** + **Ustayı Seç** (fiyat gösterimi kaldırıldı). `Offer`'a `jobTitle` denormalize alanı eklendi (usta "İletişimlerim" listesi için). Metinler güncellendi (teklif→ilgilenen/iletişim): `OfferCountBadge` "N usta ilgilendi", dashboard "İletişimde", nearby kart "İletişime Geç", "Tekliflerim"→"İletişimlerim". `offerPriceLabel` kaldırıldı.
+3. **Müşteri usta kartları büyütüldü** (grid maxCrossAxisExtent 200→260, mainAxisExtent 232→296) ve **favori kalp butonu** kompaktlaştırıldı (`FavoriteButton.compact`: küçük, beyaz yarı saydam daire, kart köşesine oturuyor — artık dışarı taşmıyor).
+Doğrulama: analyze 0, 17/17 test (jobs+widget), web build OK.
+
+### 2026-07-02 — Oturum 14 (Çift taraflı pazaryeri: İş İlanları + Teklifler)
+Kullanıcı, uygulamayı statik usta rehberinden çift taraflı pazaryerine dönüştüren detaylı bir doküman + 14 madde karar verdi. Plan onaylandı (`.claude/plans/mutable-juggling-parrot.md`), 5 aşama sırayla uygulandı. Ayrıntı yukarıda "Son Durum → Oturum 14" bölümünde.
+**Yapılanlar (özet):** jobs/offers/favorites modelleri + repo (mock+firebase) + provider'lar; Firestore rules/indexes; müşteri ilan oluştur/İlanlarım; usta Yakındaki İşler feed + teklif ver/güncelle/geri çek + dashboard istatistikleri; teklif seçimi→sohbet + yaşam döngüsü stepper + iki taraflı tamamlama + puanlama + iptal; favori kalp toggle. analyze 0, 45/45 test, web build OK.
+**Sıradaki adım (kullanıcı):** `firebase deploy --only firestore:rules,firestore:indexes --project alljob1` çalıştır → `flutter run -d chrome` ile uçtan uca dene (müşteri ilan aç → usta feed → teklif → seç → sohbet → tamamla → puanla). Sonra istenirse: offerCount/rating için Cloud Functions, FCM bildirimleri, geo ölçekleme.
+
+### 2026-07-02 — Oturum 13 (Profesyonel tasarım yenilemesi)
+Kullanıcı "tasarım profesyonel görünmüyor, renkler/butonlar/kartlar kötü" dedi → kapsamlı tasarım sistemi yenilemesi yapıldı.
+
+**Yapılanlar:**
+- **Inter fontu** eklendi (assets/fonts/, 400–800 ağırlıklar; Google Fonts'tan indirildi, pubspec'e `fonts:` bölümü). Tüm tema `fontFamily: 'Inter'`.
+- **Renk paleti baştan** (`app_colors.dart`): seed türetmesi yerine elle seçilmiş palet — primary #EA580C (olgun turuncu), secondary #15304B (lacivert), ink/inkMuted/inkFaint metin tonları, semantik renkler (+surface çiftleri), premium altın, `heroGradient` + `brandGradient` gradyanları.
+- **Tema baştan yazıldı** (`app_theme.dart`): elle kurulmuş açık+koyu `ColorScheme`, Inter tipografi ölçeği (sıkı letter-spacing, güçlü başlık ağırlıkları), rafine bileşen temaları (AppBar alt çizgili beyaz, 12px input/buton radius, dolgu inputlar, kart 16px + ince kenar, chip/dialog/bottomsheet/snackbar/segmented/badge/tooltip). `AppTheme.softShadow` ortak gölge. `AppTheme.fontFamily` sabiti.
+- **`BrandMark`** widget'ı (`core/widgets/brand_mark.dart`): turuncu gradyan yuvarlatılmış kare logo rozeti — splash/giriş/başlıklarda ortak.
+- **Keşfet ekranı yeniden tasarlandı:** AppBar kaldırıldı; lacivert gradyan hero başlık (marka satırı + karşılama metni + eylemler) içinde gölgeli beyaz filtre kartı; sonuç alanında "Ustalar" başlığı + adet rozeti; boş/hata durumları ikon dairesiyle rafine.
+- **Usta kartı rötuşları:** premium rozeti altın, "Yeni" rozeti mavi `auto_awesome`, kapalı durumu onSurfaceVariant. Grid `mainAxisExtent` 232'ye çıktı.
+- **Splash:** tam ekran lacivert gradyan + BrandMark + beyaz metin/spinner.
+- **Rol seçimi:** lacivert hero (BrandMark + başlık) + gölgeli rol kartları (renkli ikon kutuları).
+- **Giriş/Kayıt:** ortalanmış (maxWidth 440) marka başlıklı düzen, form alanları gölgeli beyaz kart içinde, şeffaf AppBar (yalnız geri oku), kayıtta rol chip'i.
+
+**Doğrulama:** `flutter analyze` 0 sorun. Firebase'ten bağımsız 33/33 test geçti (`widget/availability/artisan_search/contact_masker/chat_review`). `flutter build web` başarılı.
+
+**Aynı oturum, 2. tur (kullanıcı geri bildirimi):**
+- **Arka plan beyaz yapıldı** (`AppColors.background = Colors.white`).
+- **Usta kartı tamamen yeniden yazıldı:** yumuşak gölgeli beyaz kart, canlı gradyan halkalı yuvarlak avatar (müsait=yeşil gradyan halka), fotoğraf yoksa turuncu marka gradyanı üzerinde baş harfler, amber zeminli puan rozeti (★ 4.8 (12)), renkli yüzeyli durum pill'leri. Usta profil ekranı başlık avatarı da aynı canlı halkalı stile geçirildi.
+- **SOHBET İZİN HATASI DÜZELTİLDİ** ("the caller does not have permission..."): `watchThreads`'in `array-contains` + kuraldaki `in resource.data.participants` ispatı kural motorunda güvenilir değil → **üyelik haritası desenine geçildi**: chat dökümanına `members: {uid: true}` alanı eklendi; sorgu `where('members.<uid>', isEqualTo: true)` (eşitlik → otomatik index, `orderBy` kaldırıldı, sıralama istemcide); kurallar `members[request.auth.uid] == true || uid in participants` (`isMember`). Eski dökümanlar ilk `sendMessage`'da chatId'den türetilen members ile iyileştiriliyor; müşteri "Sohbet Başlat" dediğinde de `startChat` merge'i ekliyor. Sohbet listesi hata ekranı artık gerçek hata mesajını gösteriyor.
+- **⚠️ KURAL DEPLOY EDİLMEDİ (izin gerekti):** kullanıcı çalıştırmalı → `firebase deploy --only firestore:rules --project alljob1`
+
+**Aynı oturum, 3. tur (kullanıcı: "mesajlar hâlâ yok, değerlendirmeler yansımıyor, beyaz arka plan gelmedi"):**
+- **Tema `ThemeMode.light`'a sabitlendi** (`app.dart`) — kullanıcının cihazı koyu moddaydı; `system` modu koyu temayı açıp "beyaz arka plan gelmedi" şikâyetine yol açıyordu.
+- **Değerlendirmeler Firestore'a bağlandı:** yeni `ReviewRepository` (`lib/features/review/data/review_repository.dart`; Mock + Firebase impl, `reviewRepositoryProvider`, `artisanReviewsProvider`). `ReviewScreen` artık repo üzerinden yazıyor (async + spinner + hata mesajı; chatId `FirebaseChatRepository.chatIdFor`). Usta paneli değerlendirmeleri `artisanReviewsProvider`'dan okuyor (mockDatabase bağımlılığı kalktı); hero karttaki puan/adet değerlendirmelerden hesaplanıyor.
+- **Puan toplamları CF gelene dek okumada hesaplanıyor:** `FirebaseArtisanRepository._ratingSums()` (tüm reviews tek sorgu → uid bazında sum/count) arama sonuçlarına; `getArtisanDetail` kendi reviews sorgusundan profile `copyWithRating` uyguluyor. Kurallar artisanProfiles puan alanlarını istemciden korumaya devam ediyor.
+- **Giriş ekranı zenginleştirildi:** lacivert gradyan hero (BrandMark + "Tekrar hoş geldiniz"), gölgeli form kartı, "veya" ayracı + "Yeni Hesap Oluştur" outlined butonu.
+- **Usta profil sayfası (müşteri görünümü) zenginleştirildi:** AppBar yerine tam genişlik lacivert hero (geri oku, canlı halkalı avatar, ad+doğrulama tiki, meslek, müsaitlik pill'i, beyaz Puan/Değerlendirme/Deneyim istatistik kartı); bölümler ikonlu başlıklı beyaz kartlara taşındı (`_Section`).
+- Doğrulama: analyze 0 sorun, 33/33 Firebase'siz test, web build OK.
+- **⚠️ Kural deploy'u yine izinle engellendi — kullanıcı çalıştırmalı.** Eski chat dökümanları deploy sonrası müşteri "Sohbet Başlat"a tekrar bastığında/yeni mesajda `members` alanı kazanıp listelerde görünür.
+
+**Notlar / Engeller:**
+- **ÖNCEDEN VAR OLAN test kırığı (tasarımla ilgisiz):** `artisan_login_test.dart` + `my_profile_test.dart` — Oturum 12'de `useFirebaseBackend = true` yapıldığından beri bu testler provider override kullanmadıkları için gerçek Firebase repo'larına gidip "[core/no-app] No Firebase App" hatası alıyor. Çözüm: testlerde repo provider'larını mock ile override etmek veya test ortamında bayrağı false'a çekmek.
+- Firestore'daki chats composite index'i (participants CONTAINS + updatedAt DESC) artık kullanılmıyor; zararsız, ileride temizlenebilir.
+
+### 2026-07-01 — Oturum 12 (Firebase CLI kurulumu + BAĞLANTI TAMAM)
+Kullanıcı Node kurdu (v24.18.0 / npm 11.16.0) + Firebase konsolunda `alljob1` projesini oluşturmuş. Bu oturumda uygulama tamamen Firebase'e bağlandı ve canlıya alındı.
+
+**Yapılanlar:**
+- CLI: `npm i -g firebase-tools` → 15.22.4; `dart pub global activate flutterfire_cli` → 1.4.0; `%LOCALAPPDATA%\Pub\Cache\bin` PATH'e eklendi.
+- Konsol (kullanıcı): Auth → E-posta/Şifre etkin; Firestore → default db oluşturuldu (production mode). Storage → Blaze/kart istedi, ATLANDI (sonra).
+- `firebase login` (ntflx Google hesabı). PowerShell `firebase.ps1` "running scripts disabled" hatası → `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned` ile çözüldü.
+- `flutterfire configure --project=alljob1 --platforms=android,web,ios --yes` → firebase_options.dart (web/android/ios gerçek anahtarlar, projectId alljob1) + google-services.json + firebase.json üretildi.
+- `useFirebaseBackend = true` (useFirebaseStorage = false bırakıldı). pub get + analyze temiz.
+- firebase.json'a firestore bölümü + .firebaserc yazıldı → `firebase deploy --only firestore:rules,firestore:indexes` başarılı.
+
+**ÖNEMLİ — Firebase moduna geçişin sonuçları:** Firestore BOŞ (mock seed verisi yok, 12 meslekteki demo ustalar yok). Firebase Auth BOŞ (mock demo hesapları `musteri@test.com`/`usta@test.com` ARTIK ÇALIŞMAZ). Kullanıcı uygulamada YENİ hesap kaydı yapmalı; ilk usta profili kaydedilince aramada görünür.
+
+**Sıradaki adım (kullanıcı):** `flutter run -d chrome` ile çalıştır → yeni hesap kaydet → akışı doğrula. Sonra Blaze + Storage; ardından kalan CF işleri (aşağıda).
+
+### 2026-07-01 — Oturum 11 (AŞAMA 5 — Firebase kod hazırlığı)
+Kullanıcı "evet geçelim" dedi. Makinede Node/Firebase CLI/flutterfire **kurulu değil** (yalnızca Dart). Kullanıcı "kod hazırlığını şimdi yap" seçti → tüm kod tarafı yazıldı, build mock'la yeşil.
+
+**Yapılanlar:**
+- **Tek anahtar:** `lib/core/config/backend_config.dart` → `useFirebaseBackend` (varsayılan `false`).
+- **pubspec:** firebase_core/auth, cloud_firestore, firebase_storage eklendi (`pub get` başarılı: core 3.15.2, auth 5.7.0, firestore 5.6.12, storage 12.4.10).
+- **Firebase implementasyonları** (arayüzlerin arkasında): `firebase_auth_repository`, `firebase_storage_repository`, `firebase_my_profile_repository`, `firebase_artisan_repository`, `firebase_chat_repository`.
+- **Provider'lar** bayrağa göre mock/Firebase seçiyor (auth/storage/myProfile/artisan/chat).
+- **main.dart** bayrak açıkken `Firebase.initializeApp(DefaultFirebaseOptions.currentPlatform)`.
+- **firebase_options.dart** placeholder (flutterfire üretince üzerine yazılır; kullanılırsa anlaşılır hata).
+- **firestore.rules** (katılımcı bazlı sohbet, profil sahipliği, puanlama alanı koruması) + **firestore.indexes.json** (reviews, chats).
+- **FIREBASE_KURULUM.md**: adım adım CLI kurulumu + veri modeli + kalan CF işleri.
+- `flutter analyze`: **0 sorun**. `flutter test`: **40/40**.
+
+**Sıradaki adım (kullanıcı aksiyonu):** Node + firebase-tools + flutterfire kur → Firebase projesi + `flutterfire configure` → `useFirebaseBackend = true`. Detay: FIREBASE_KURULUM.md.
+
+**Kalan CF/refactor işleri (FIREBASE_KURULUM.md §"kalan işler"):** puan hesabı (reviews onCreate CF) + `ReviewRepository` (review_screen şu an mockDatabaseProvider'a yazıyor); usta ana ekranı yorumları (mockDatabaseProvider'dan okuyor); okunmamış kesin sayı (CF); geo arama ölçekleme; FCM bildirimleri.
+
+### 2026-07-01 — Oturum 10 (Firebase öncesi rötuşlar — sırayla)
+Kullanıcı "sırayla yapalım" dedi; Firebase öncesi mock rötuş listesi sırayla yapılıyor.
+
+**#1 — Sohbet UX rötuşları (TAMAM):**
+- Okunma takibi repo'ya eklendi: `ChatRepository.markRead / unreadCount / lastReadAt`; `MockChatRepository._lastRead` (chatId→uid→zaman). `markRead` hem thread hem mesaj akışını yeniden yayıyor.
+- **Okunmamış rozeti:** sohbet listesinde adet rozeti + kalın satır; AppBar "Mesajlar" ikonunda `Badge` (`ChatIconButton`, usta + müşteri ortak). `totalUnreadProvider`.
+- **Okundu bilgisi:** gönderenin baloncuğunda tek tik (gönderildi) / çift mavi tik (okundu) — `ChatThread.otherUid` + `lastReadAt`.
+- **Tarih ayraçları:** mesaj akışında Bugün/Dün/tarih çipleri (`_DateChip`, `_sameDay`).
+
+**#2 — Premium'un aramaya etkisi (TAMAM):**
+- `AppConstants.firstYearFreePremium` bayrağı eklendi (varsayılan `true` = ilk yıl herkes görünür, demo bozulmaz).
+- `MockArtisanRepository.searchArtisans`: bayrak `false` olunca (1. yıldan sonra, PRD §3) aramada **yalnızca müsait + aktif Premium** ustalar gösteriliyor.
+
+**#3 — Sertifika yönetimi (TAMAM):**
+- Controller'a `addCertificate/removeCertificate`. Usta düzenleme panelinde "Sertifikalar ve Belgeler" bölümü (görsel yükle/sil; `_pickImage` genelleştirildi, `_pickPhoto` kaldırıldı).
+- Müşteri profilinde sertifikalar gerçek küçük resim olarak (yatay liste); dokununca tam ekran `InteractiveViewer` diyalogu (`_showCertificate`).
+
+**Doğrulama:** `flutter analyze`: **0 sorun**. `flutter test`: **40/40 geçti** (sertifika + premium + okunmamış testleri dahil).
+
+### 2026-07-01 — Oturum 9 (Aşama 4 doğrulama + değerlendirme kuralı + Premium yönetimi)
+**Yapılanlar:**
+- Önceki oturumda yazılan **Aşama 4 (Mesajlaşma)** kodu gözden geçirildi ve doğrulandı: sohbet modeli/repo, sohbet listesi + mesajlaşma ekranları, iletişim maskeleme, "Sohbet Başlat" bağlantısı, `/chats` erişim ikonları, etiket tabanlı değerlendirme ekranı — hepsi bağlı ve çalışıyor.
+- **Değerlendirme kuralı zorlandı (PRD §5, Ekran F):** `ChatRepository.hasChatBetween(customerUid, artisanUid)` eklendi; `ReviewScreen` sohbet geçmişi yoksa "Önce sohbet gerekiyor" ekranı gösteriyor (değerlendirme engelli).
+- **Premium yönetimi eklendi (PRD §6):** `MyProfileController.setPremium(bool)` (ilk yıl ücretsiz, 1 yıl geçerlilik) + usta ana ekranında `_PremiumCard` (durum + "Premium'a Geç (Ücretsiz)" / "Premium'u Kapat", geçerlilik tarihi).
+- Eski metin düzeltmesi: usta ana ekranı bildirim uyarısı "Aşama 4'te gelecek" → "yakında (FCM) gelecek".
+- `flutter analyze`: **0 sorun**. `flutter test`: **37/37 geçti** (yeni `hasChatBetween` testi dahil).
+
+**Sıradaki adım:** Aşama 5 — Firebase entegrasyonu (Auth/Firestore/Storage/FCM). Firebase öncesi mock işleri büyük ölçüde bitti.
+
+**Notlar / Engeller:**
+- Firebase hâlâ bağlı değil; Node + Firebase CLI kurulumu gerekiyor (kullanıcı en sona bırakmak istedi).
+- `ArtisanProfile.copyWith` nullable `premiumExpiresAt`'i null'a çekemiyor (?? davranışı); Premium kapatınca `isPremium=false` yetkili olduğundan sorun değil.
+
+### 2026-07-01 — Oturum 8 (usta girişi düzeltmesi)
+**Bulunan/düzeltilen hatalar (usta girişi widget testiyle yakalandı, `test/artisan_login_test.dart`):**
+1. **Yönlendirme:** Misafir keşif ekranındayken usta giriş yapınca panele GİTMİYORDU (redirect `/` için ustaya `null` dönüyordu). Kural değişti: **usta yalnızca `/panel` altında olabilir; başka yerdeyse panele yönlenir** → giriş nereden olursa olsun panele gider.
+2. **Layout:** Tema'daki `FilledButton.minimumSize: Size.fromHeight(52)` genişliği SONSUZ yapıyordu; `Row` içindeki satır-içi buton (usta ana ekranı "Tamamla") taşma/hata veriyordu. Tema `Size(64,52)` yapıldı; `AppButton` tam genişliği kendi içinde (`SizedBox(width: infinity)`) garantiliyor.
+- `flutter analyze`: 0 sorun. `flutter test`: **27/27** (yeni usta-giriş widget testi dahil).
+
+### 2026-07-01 — Oturum 7 (UX kurgu: misafir-önce + ortak DB + usta ana ekranı + tema)
+**Yapılanlar:**
+- **Ortak veritabanı:** `lib/data/local/mock_database.dart` (`MockDatabase` + `mockDatabaseProvider`). `MockArtisanRepository` ve `MockMyProfileRepository` artık AYNI veriyi kullanıyor → **kaydedilen usta profili aramada görünüyor** (regresyon testi eklendi). `saveMyProfile` artık uid/displayName/foto/profile alıyor.
+- **Misafir-önce akış (sahibinden gibi):** Açılışta direkt usta listesi (`initState`'te otomatik arama). Rotalar yeniden düzenlendi: `/`=keşif (herkese açık), `/artisan/:uid`=herkese açık profil, `/panel`(+`/edit`)=usta. Misafir iletişime geçmek isteyince ("Sohbet için giriş yap") `/login`'e yönlenir. Dashboard app bar: misafirde "Giriş Yap", müşteride çıkış.
+- **Usta ana ekranı** (`artisan_home_screen.dart`): sol üstte yuvarlak avatar→Profili Düzenle, sağ üstte bildirim+mesaj, ortada ad; gövdede hero kart, müsaitlik kartı, işler galerisi, hakkımda, hizmet bölgeleri, değerlendirmeler. Düzenleme ayrı sayfa (`/panel/edit`).
+- **Tema yenilendi:** ferah zemin (#F7F8FA), beyaz kartlar (ince kenarlı), canlı turuncu filled butonlar (radius 14), belirgin input kenarları.
+- `flutter analyze`: 0 sorun. `flutter test`: **26/26**. `flutter build web`: başarılı.
+**Sıradaki adım:** Aşama 4 — Mesajlaşma + maskeleme + etiket tabanlı değerlendirme ekranı.
+
+### 2026-07-01 — Oturum 6 (usta bulmuyor fix + modern responsive tasarım)
+**Yapılanlar:**
+- **"Usta bulmuyor" düzeltildi:** Mock veride yalnızca 3 meslek vardı. Artık 12 mesleğin tümüne + birden fazla ile (Bursa/İstanbul/Ankara/İzmir) yayılmış zengin demo verisi üretiliyor; her meslek/bölge seçiminde sonuç geliyor. `_professionNames` 12 mesleğe genişletildi. Regresyon testi eklendi ("her meslek en az bir usta").
+- **Responsive altyapı:** `core/widgets/responsive_center.dart` (`ResponsiveCenter` + `Breakpoints`). Geniş ekranda içerik ortalanır ve maks. genişlikle sınırlanır.
+- **Dashboard yeniden tasarlandı:** filtreler geniş ekranda 2 sütun; sonuçlar responsive **kart ızgarası** (1/2/3 sütun, `SliverGrid`). "Usta Bul" her zaman aktif.
+- **Usta kartı** modern/kompakt yeniden yazıldı (avatar + bilgi + müsaitlik pill'i + rozetler), grid'de taşmayacak sabit yükseklikle.
+- Usta profil ekranı ve usta paneli de `ResponsiveCenter` ile sınırlandı.
+- `flutter analyze`: 0 sorun. `flutter test`: **25/25 geçti**.
+**Sıradaki adım:** Aşama 4 — Mesajlaşma + maskeleme + etiket tabanlı değerlendirme ekranı.
+
+### 2026-07-01 — Oturum 5 (PRD v4.0 tam/son uyumu)
+**Yapılanlar:** Proje PRD v4.0'a (son/tam sürüm) göre güncellendi.
+- 1. geçiş: `PRD.md` eklendi; kredi kaldırıldı (gelir yalnızca Premium); canlı müsaitlik + çalışma takvimi modeli (`availability.dart`) + usta paneli düzenleyici; arama müsait-önce; "Yeni Usta" rozeti (15 gün); değerlendirme → hazır etiketler.
+- 2. geçiş (kullanıcı tam metni verince): `PRD.md` tam metinle yeniden yazıldı; **opsiyonel/bağımsız filtreler** (`ArtisanFilter`, searchArtisans yeni imza, "Usta Bul" her zaman aktif); değerlendirme etiketleri kesin listelerle; çalışma takvimi Firestore serileştirme şekli (gün-adlı + HH:mm).
+- `neighborhoods.json` tek test mahallesine (Dikkaldırım) indirildi.
+- 25/25 test geçti, analyze temiz.
+**Sıradaki adım:** Aşama 4 — Mesajlaşma (kredisiz) + iletişim maskeleme + etiket tabanlı değerlendirme ekranı.
+
+### 2026-07-01 — Oturum 4 (Aşama 3)
+**Yapılanlar:** Usta tarafı tamamlandı — storage soyutlaması + AppImage, MyProfile repo/controller, usta profil düzenleme paneli (profil bilgileri + çoklu hizmet bölgesi + fotoğraf yükleme). Router'daki splash takılma hatası düzeltildi. 15/15 test geçti.
+**Sıradaki adım:** Aşama 4 — Mesajlaşma (sohbet listesi + real-time mesajlaşma + kredi entegrasyonu).
+
+### 2026-07-01 — Oturum 3 (Aşama 2)
+**Yapılanlar:** Müşteri tarafı tamamlandı — usta repo soyutlaması + mock, kademeli filtre, listeleme (premium sıralama + pagination), salt-okunur usta profil sayfası. 11/11 test geçti.
+**Sıradaki adım:** Aşama 3 — Usta profil düzenleme paneli (çoklu hizmet bölgesi, fotoğraf yükleme).
+
+### 2026-07-01 — Oturum 2 (Aşama 1)
+**Yapılanlar:**
+- Tüm Aşama 1 altyapısı kuruldu (yukarıdaki Son Durum listesi). ~25 dosya.
+- Uçtan uca auth akışı + temiz mimari + testler.
+
+**Sıradaki adım:** Aşama 2 — Müşteri tarafı (filtreleme + listeleme + profil).
+
+### 2026-07-01 — Oturum 1
+- İlerleme notları defteri (`ILERLEME_NOTLARI.md`) oluşturuldu.
+
+---
+
+## 🧩 Şablon (yeni oturum eklerken kopyala)
+
+```
+### YYYY-MM-DD — Oturum N
+**Yapılanlar:**
+- ...
+
+**Sıradaki adım:**
+- ...
+
+**Notlar / Engeller:**
+- ...
+```
