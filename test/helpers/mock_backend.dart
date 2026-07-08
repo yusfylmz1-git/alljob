@@ -1,0 +1,50 @@
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:usta_cepte/features/artisan/data/artisan_providers.dart';
+import 'package:usta_cepte/features/artisan/data/mock_artisan_repository.dart';
+import 'package:usta_cepte/features/artisan/data/my_profile_repository.dart';
+import 'package:usta_cepte/features/auth/application/auth_controller.dart';
+import 'package:usta_cepte/features/auth/data/mock_auth_repository.dart';
+import 'package:usta_cepte/features/chat/data/chat_providers.dart';
+import 'package:usta_cepte/features/chat/data/chat_repository.dart';
+import 'package:usta_cepte/features/favorites/data/favorite_providers.dart';
+import 'package:usta_cepte/features/favorites/data/mock_favorite_repository.dart';
+import 'package:usta_cepte/features/jobs/data/job_providers.dart';
+import 'package:usta_cepte/features/jobs/data/mock_job_repository.dart';
+import 'package:usta_cepte/features/jobs/data/mock_offer_repository.dart';
+import 'package:usta_cepte/features/storage/storage_repository.dart';
+
+/// Tüm backend repo sağlayıcılarını bellek-içi mock uygulamalara yönlendirir.
+///
+/// Uygulama `useFirebaseBackend = true` ile derlenir; testler Firebase'e
+/// erişemeyeceğinden (başlatılmamış) bu override'lar olmadan gerçek Firebase
+/// repo'ları çağrılıp çöker. Bu liste ile testler tamamen mock üzerinde koşar.
+List<Override> mockBackendOverrides() => [
+      authRepositoryProvider.overrideWith((ref) {
+        final repo = MockAuthRepository();
+        ref.onDispose(repo.dispose);
+        return repo;
+      }),
+      artisanRepositoryProvider.overrideWith(
+        (ref) => MockArtisanRepository(ref.watch(mockDatabaseProvider)),
+      ),
+      chatRepositoryProvider.overrideWith((ref) {
+        final repo = MockChatRepository();
+        ref.onDispose(repo.dispose);
+        return repo;
+      }),
+      favoriteRepositoryProvider.overrideWith(
+        (ref) => MockFavoriteRepository(ref.watch(mockDatabaseProvider)),
+      ),
+      jobRepositoryProvider.overrideWith(
+        (ref) => MockJobRepository(ref.watch(mockDatabaseProvider)),
+      ),
+      offerRepositoryProvider.overrideWith(
+        (ref) => MockOfferRepository(ref.watch(mockDatabaseProvider)),
+      ),
+      myProfileRepositoryProvider.overrideWith(
+        (ref) => MockMyProfileRepository(ref),
+      ),
+      storageRepositoryProvider.overrideWith(
+        (ref) => MockStorageRepository(),
+      ),
+    ];

@@ -34,8 +34,11 @@ class PushService {
   PushService(this._ref);
 
   final Ref _ref;
-  final FirebaseMessaging _messaging = FirebaseMessaging.instance;
-  final FirebaseFirestore _db = FirebaseFirestore.instance;
+  // Lazy: Firebase örnekleri yalnızca ilk kullanımda (registerFor içindeki
+  // try/catch bloğunda) oluşturulur. Böylece Firebase başlatılmamış ortamlarda
+  // (ör. widget testleri) servisin kurulması hata vermez.
+  late final FirebaseMessaging _messaging = FirebaseMessaging.instance;
+  late final FirebaseFirestore _db = FirebaseFirestore.instance;
 
   String? _uid;
   bool _handlersWired = false;

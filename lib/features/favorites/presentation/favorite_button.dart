@@ -66,9 +66,16 @@ class FavoriteButton extends ConsumerWidget {
         photoUrl: photoUrl,
         createdAt: DateTime.now(),
       );
-      final added = await ref.read(favoriteRepositoryProvider).toggle(fav);
-      if (!context.mounted) return;
-      context.showInfo(added ? 'Favorilere eklendi.' : 'Favorilerden çıkarıldı.');
+      try {
+        final added = await ref.read(favoriteRepositoryProvider).toggle(fav);
+        if (!context.mounted) return;
+        context.showInfo(
+            added ? 'Favorilere eklendi.' : 'Favorilerden çıkarıldı.');
+      } catch (_) {
+        if (context.mounted) {
+          context.showError('İşlem başarısız, tekrar deneyin.');
+        }
+      }
     }
 
     final icon = Icon(

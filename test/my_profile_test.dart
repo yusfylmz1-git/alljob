@@ -6,6 +6,8 @@ import 'package:usta_cepte/data/models/user_role.dart';
 import 'package:usta_cepte/features/artisan/application/my_profile_controller.dart';
 import 'package:usta_cepte/features/auth/application/auth_controller.dart';
 
+import 'helpers/mock_backend.dart';
+
 void main() {
   final testUser = AppUser(
     uid: 'artisan_test',
@@ -23,6 +25,7 @@ void main() {
 
   ProviderContainer makeContainer() {
     final c = ProviderContainer(overrides: [
+      ...mockBackendOverrides(),
       currentUserProvider.overrideWithValue(testUser),
     ]);
     addTearDown(c.dispose);

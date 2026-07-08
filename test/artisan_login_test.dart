@@ -2,16 +2,21 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:usta_cepte/app.dart';
+import 'package:usta_cepte/core/router/app_router.dart';
+import 'package:usta_cepte/core/router/route_paths.dart';
 import 'package:usta_cepte/features/artisan/presentation/artisan_home_screen.dart';
 import 'package:usta_cepte/features/auth/application/auth_controller.dart';
 import 'package:usta_cepte/features/customer/presentation/customer_dashboard_screen.dart';
 
+import 'helpers/mock_backend.dart';
+
 void main() {
   setUpAll(() => initializeDateFormatting('tr_TR', null));
 
-  testWidgets('misafir açılışta keşfi görür; usta girişi panele götürür',
+  testWidgets('misafir keşfi görür; usta girişi + panel ana ekranı çalışır',
       (tester) async {
-    final container = ProviderContainer();
+    // Uygulama Firebase backend'iyle derlenir; testte tüm repo'ları mock'a çevir.
+    final container = ProviderContainer(overrides: mockBackendOverrides());
     addTearDown(container.dispose);
 
     await tester.pumpWidget(
@@ -21,7 +26,7 @@ void main() {
       ),
     );
 
-    // Splash çözülür → misafir keşif ekranı.
+    // Splash çözülür → misafir keşif ekranı (misafir-önce akış, Oturum 17).
     await tester.pump();
     await tester.pump(const Duration(seconds: 1));
     expect(find.byType(CustomerDashboardScreen), findsOneWidget);
@@ -36,8 +41,13 @@ void main() {
     await tester.pump(const Duration(seconds: 1)); // 600ms auth gecikmesi
     final ok = await loginFuture;
     expect(ok, isTrue);
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 1));
 
-    // Router yönlendirir + profil taslağı yüklenir (200ms) → usta ana ekranı.
+    // Misafir-önce akış: giriş, keşiften otomatik panele ATMAZ. Usta panele
+    // kendisi gider; hasArtisanProfile olduğundan router izin verir ve panel
+    // ana ekranı (profil taslağı 200ms mock'tan yüklenerek) render olur.
+    container.read(routerProvider).go(RoutePaths.panel);
     await tester.pump();
     await tester.pump(const Duration(seconds: 1));
     expect(find.byType(ArtisanHomeScreen), findsOneWidget);

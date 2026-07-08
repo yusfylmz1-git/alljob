@@ -67,10 +67,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             'Güvenliğiniz için iletişim bilgileri gizlendi. Görüşmeleri uygulama içinde sürdürün.');
       }
       _scrollToBottom();
-    } catch (e) {
+    } catch (_) {
       if (mounted) {
         _controller.text = text; // mesajı kaybetme, tekrar denenebilsin
-        context.showError('Mesaj gönderilemedi: $e');
+        context.showError('Mesaj gönderilemedi. Bağlantını kontrol edip '
+            'tekrar dene.');
       }
     }
   }
