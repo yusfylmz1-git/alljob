@@ -18,7 +18,7 @@ enum MainTab { explore, work, chats, profile }
 /// - Keşfet herkese açık (usta da keşfeti görür).
 /// - **İlanlarım/İşler** (work) moda göre gelir; misafirde gizli.
 /// - Mesajlar/Profil misafirde girişe yönlenir (router guard).
-/// - Profil hedefi aktif moda göre değişir: müşteri → /profile, usta → /panel.
+/// - Profil TEK birleşik sayfadır (/profile); içerik aktif moda göre şekillenir.
 class MainBottomBar extends ConsumerWidget {
   const MainBottomBar({super.key, required this.current});
 
@@ -43,10 +43,9 @@ class MainBottomBar extends ConsumerWidget {
         case MainTab.chats:
           context.go(RoutePaths.chats);
         case MainTab.profile:
+          // Tek birleşik profil sayfası — mod ne olursa olsun aynı yer.
           if (user == null) {
             context.push(RoutePaths.login);
-          } else if (user.isArtisan) {
-            context.go(RoutePaths.panel);
           } else {
             context.go(RoutePaths.profile);
           }

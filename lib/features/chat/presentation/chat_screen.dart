@@ -132,12 +132,19 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final isCustomer =
         user != null && thread != null && thread.artisanUid != user.uid;
 
-    // Karşı tarafın avatarı; müşteri tarafında dokununca usta profiline gider.
+    // Karşı tarafın avatarı; dokununca profili açılır: usta → herkese açık
+    // usta profili, müşteri → mini profil kartı (bottom sheet).
     final otherPhoto =
         (user != null && thread != null) ? thread.otherPhoto(user.uid) : null;
-    final VoidCallback? goOtherProfile = isCustomer
-        ? () => context.push(RoutePaths.artisanProfile(thread.artisanUid))
-        : null;
+    final VoidCallback? goOtherProfile = (user == null || thread == null)
+        ? null
+        : isCustomer
+            ? () => context.push(RoutePaths.artisanProfile(thread.artisanUid))
+            : () => _CustomerPreviewSheet.show(
+                  context,
+                  name: title,
+                  photo: otherPhoto,
+                );
 
     return Scaffold(
       appBar: AppBar(
@@ -148,9 +155,27 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              _PartyAvatar(name: title, photo: otherPhoto, size: 34),
+              _PartyAvatar(name: title, photo: otherPhoto, size: 36),
               const SizedBox(width: 10),
-              Flexible(child: Text(title, overflow: TextOverflow.ellipsis)),
+              Flexible(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(title,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                            fontSize: 16, fontWeight: FontWeight.w700)),
+                    Text(
+                      isCustomer ? 'Usta · profili gör' : 'Müşteri',
+                      style: TextStyle(
+                        fontSize: 11.5,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ],
           ),
         ),
@@ -201,6 +226,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                       final isRead = isMine &&
                           otherRead != null &&
                           !otherRead.isBefore(msg.createdAt);
+                      // Instagram tarzı gruplama: aynı göndericinin ardışık
+                      // mesajları grup sayılır; avatar yalnızca grubun SON
+                      // mesajında görünür, grup içi dikey boşluk daralır.
+                      final isLastOfGroup = i == messages.length - 1 ||
+                          messages[i + 1].senderUid != msg.senderUid ||
+                          !_sameDay(msg.createdAt, messages[i + 1].createdAt);
                       return Column(
                         children: [
                           if (showDate) _DateChip(date: msg.createdAt),
@@ -208,8 +239,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                             message: msg,
                             isMine: isMine,
                             isRead: isRead,
+                            isLastOfGroup: isLastOfGroup,
                             // Karşı tarafın mesajında avatar (#10); dokununca
-                            // (müşteriyse) usta profiline gider.
+                            // karşı tarafın profili açılır.
                             senderName: isMine ? null : title,
                             senderPhoto: isMine ? null : otherPhoto,
                             onAvatarTap: isMine ? null : goOtherProfile,
@@ -278,6 +310,7 @@ class _Bubble extends StatelessWidget {
     required this.message,
     required this.isMine,
     this.isRead = false,
+    this.isLastOfGroup = true,
     this.senderName,
     this.senderPhoto,
     this.onAvatarTap,
@@ -285,6 +318,7 @@ class _Bubble extends StatelessWidget {
   final ChatMessage message;
   final bool isMine;
   final bool isRead;
+  final bool isLastOfGroup;
   final String? senderName;
   final String? senderPhoto;
   final VoidCallback? onAvatarTap;
@@ -298,17 +332,19 @@ class _Bubble extends StatelessWidget {
 
     final bubble = Container(
         constraints: const BoxConstraints(maxWidth: 300),
-        margin: const EdgeInsets.symmetric(vertical: 4),
+        // Grup içinde daralan boşluk; grup sonunda nefes payı.
+        margin: EdgeInsets.only(top: 1.5, bottom: isLastOfGroup ? 8 : 1.5),
         padding: message.hasImage
             ? const EdgeInsets.all(4)
-            : const EdgeInsets.fromLTRB(14, 10, 14, 8),
+            : const EdgeInsets.fromLTRB(14, 9, 14, 7),
         decoration: BoxDecoration(
           color: bg,
+          // Instagram'a yakın: iyice yuvarlak; kuyruk yalnız grubun sonunda.
           borderRadius: BorderRadius.only(
-            topLeft: const Radius.circular(16),
-            topRight: const Radius.circular(16),
-            bottomLeft: Radius.circular(isMine ? 16 : 4),
-            bottomRight: Radius.circular(isMine ? 4 : 16),
+            topLeft: const Radius.circular(20),
+            topRight: const Radius.circular(20),
+            bottomLeft: Radius.circular(isMine || !isLastOfGroup ? 20 : 5),
+            bottomRight: Radius.circular(!isMine || !isLastOfGroup ? 20 : 5),
           ),
         ),
         child: Column(
@@ -358,27 +394,82 @@ class _Bubble extends StatelessWidget {
       return Align(alignment: Alignment.centerRight, child: bubble);
     }
 
-    // Karşı tarafın mesajı: başta avatar (#10), dokununca profile gider.
+    // Karşı tarafın mesajı: avatar YALNIZ grubun son mesajında (Instagram);
+    // diğerlerinde hizayı koruyan boşluk. Dokununca karşı profil açılır.
     return Align(
       alignment: Alignment.centerLeft,
       child: Row(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          Padding(
-            padding: const EdgeInsets.only(bottom: 6, right: 6),
-            child: InkWell(
-              onTap: onAvatarTap,
-              customBorder: const CircleBorder(),
-              child: _PartyAvatar(
-                name: senderName ?? '?',
-                photo: senderPhoto,
-                size: 30,
+          if (isLastOfGroup)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 10, right: 6),
+              child: InkWell(
+                onTap: onAvatarTap,
+                customBorder: const CircleBorder(),
+                child: _PartyAvatar(
+                  name: senderName ?? '?',
+                  photo: senderPhoto,
+                  size: 30,
+                ),
               ),
-            ),
-          ),
+            )
+          else
+            const SizedBox(width: 36),
           Flexible(child: bubble),
         ],
+      ),
+    );
+  }
+}
+
+/// Karşı taraf MÜŞTERİ olduğunda avatara basınca açılan mini profil kartı
+/// (müşterinin herkese açık profil sayfası yok — kimlik önizlemesi yeterli).
+class _CustomerPreviewSheet extends StatelessWidget {
+  const _CustomerPreviewSheet({required this.name, this.photo});
+  final String name;
+  final String? photo;
+
+  static Future<void> show(
+    BuildContext context, {
+    required String name,
+    String? photo,
+  }) {
+    return showModalBottomSheet(
+      context: context,
+      showDragHandle: true,
+      builder: (_) => _CustomerPreviewSheet(name: name, photo: photo),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(24, 4, 24, 28),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _PartyAvatar(name: name, photo: photo, size: 88),
+            const SizedBox(height: 14),
+            Text(name,
+                style: theme.textTheme.titleLarge
+                    ?.copyWith(fontWeight: FontWeight.w800)),
+            const SizedBox(height: 4),
+            Text('Müşteri',
+                style: theme.textTheme.bodyMedium
+                    ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+            const SizedBox(height: 16),
+            Text(
+              'Güvenliğiniz için görüşmeleri uygulama içinde sürdürün.',
+              textAlign: TextAlign.center,
+              style: theme.textTheme.bodySmall
+                  ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+            ),
+          ],
+        ),
       ),
     );
   }

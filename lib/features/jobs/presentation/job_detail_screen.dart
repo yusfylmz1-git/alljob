@@ -268,7 +268,10 @@ class _OwnerOffersSection extends ConsumerWidget {
         const SizedBox(height: 12),
         offersAsync.when(
           loading: () => const Center(child: CircularProgressIndicator()),
-          error: (e, _) => Text('Ustalar yüklenemedi.\n$e'),
+          error: (_, _) => const _NoticeCard(
+            icon: Icons.error_outline,
+            text: 'İlgilenen ustalar yüklenemedi. Lütfen tekrar deneyin.',
+          ),
           data: (offers) {
             if (offers.isEmpty) {
               return const _NoticeCard(

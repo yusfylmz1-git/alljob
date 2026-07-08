@@ -9,7 +9,15 @@ abstract interface class OfferRepository {
   Future<void> submitOffer(Offer offer);
 
   /// Bir ilana gelen teklifler (müşteri incelemesi) — canlı akış.
-  Stream<List<Offer>> watchOffersForJob(String jobId);
+  ///
+  /// [customerId] = ilan sahibinin uid'i. Firestore güvenlik kuralı okuma
+  /// iznini "ilan sahibi müşteri" koşuluna bağlar; liste sorgularında bu
+  /// koşulun SORGU FİLTRESİNDEN kanıtlanabilir olması gerekir — yalnız
+  /// jobId'yle sorgu, kural yüzünden komple permission-denied alır.
+  Stream<List<Offer>> watchOffersForJob({
+    required String jobId,
+    required String customerId,
+  });
 
   /// Ustanın verdiği teklifler (Tekliflerim) — canlı akış.
   Stream<List<Offer>> watchMyOffers(String artisanUid);

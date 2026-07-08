@@ -4,9 +4,9 @@ import 'package:intl/date_symbol_data_local.dart';
 import 'package:usta_cepte/app.dart';
 import 'package:usta_cepte/core/router/app_router.dart';
 import 'package:usta_cepte/core/router/route_paths.dart';
-import 'package:usta_cepte/features/artisan/presentation/artisan_home_screen.dart';
 import 'package:usta_cepte/features/auth/application/auth_controller.dart';
 import 'package:usta_cepte/features/customer/presentation/customer_dashboard_screen.dart';
+import 'package:usta_cepte/features/profile/presentation/profile_screen.dart';
 
 import 'helpers/mock_backend.dart';
 
@@ -44,12 +44,13 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(seconds: 1));
 
-    // Misafir-önce akış: giriş, keşiften otomatik panele ATMAZ. Usta panele
-    // kendisi gider; hasArtisanProfile olduğundan router izin verir ve panel
-    // ana ekranı (profil taslağı 200ms mock'tan yüklenerek) render olur.
+    // Misafir-önce akış: giriş, keşiften otomatik profile ATMAZ. Usta eski
+    // /panel adresine gider; router birleşik profile yönlendirir ve tek
+    // birleşik profil sayfası (usta bölümleriyle) render olur.
     container.read(routerProvider).go(RoutePaths.panel);
     await tester.pump();
     await tester.pump(const Duration(seconds: 1));
-    expect(find.byType(ArtisanHomeScreen), findsOneWidget);
+    expect(find.byType(ProfileScreen), findsOneWidget);
+    expect(find.text('DÜKKÂNIM'), findsOneWidget); // usta modu bölümü
   });
 }

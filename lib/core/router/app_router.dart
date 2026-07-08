@@ -4,7 +4,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../data/models/app_user.dart';
-import '../../features/artisan/presentation/artisan_home_screen.dart';
 import '../../features/artisan/presentation/artisan_notifications_screen.dart';
 import '../../features/artisan/presentation/artisan_profile_edit_screen.dart';
 import '../../features/artisan/presentation/premium_screen.dart';
@@ -16,13 +15,13 @@ import '../../features/chat/presentation/chat_list_screen.dart';
 import '../../features/chat/presentation/chat_screen.dart';
 import '../../features/customer/presentation/artisan_profile_screen.dart';
 import '../../features/customer/presentation/customer_dashboard_screen.dart';
-import '../../features/customer/presentation/customer_profile_screen.dart';
 import '../../features/jobs/presentation/create_job_screen.dart';
 import '../../features/jobs/presentation/job_detail_screen.dart';
 import '../../features/jobs/presentation/my_jobs_screen.dart';
 import '../../features/jobs/presentation/my_offers_screen.dart';
 import '../../features/jobs/presentation/nearby_jobs_screen.dart';
 import '../../features/favorites/presentation/favorites_screen.dart';
+import '../../features/profile/presentation/profile_screen.dart';
 import '../../features/review/presentation/review_screen.dart';
 import 'route_paths.dart';
 
@@ -50,15 +49,15 @@ final routerProvider = Provider<GoRouter>((ref) {
       }
 
       final AppUser? user = authState.valueOrNull;
-      final inArtisanMode = user?.isArtisan ?? false; // aktif arayüz modu
       final onAuthFlow =
           loc == RoutePaths.login || loc == RoutePaths.register;
 
-      // Splash çözüldü → aktif moda uygun ana ekrana geç.
-      if (loc == RoutePaths.splash) {
-        if (user == null) return RoutePaths.home;
-        return inArtisanMode ? RoutePaths.panel : RoutePaths.home;
-      }
+      // Splash çözüldü → herkes Keşfet'te başlar (tek tutarlı giriş noktası;
+      // usta kendi alanına alt bardaki Profil sekmesinden ulaşır).
+      if (loc == RoutePaths.splash) return RoutePaths.home;
+
+      // Eski usta paneli ana sayfası → birleşik profil sayfası.
+      if (loc == RoutePaths.panel) return RoutePaths.profile;
 
       // Oturum gerektiren bölgeler.
       final needsLogin = loc.startsWith(RoutePaths.panel) ||
@@ -74,10 +73,8 @@ final routerProvider = Provider<GoRouter>((ref) {
         return null;
       }
 
-      // Oturum açmışken auth ekranları → aktif modun ana ekranına.
-      if (onAuthFlow) {
-        return inArtisanMode ? RoutePaths.panel : RoutePaths.home;
-      }
+      // Oturum açmışken auth ekranları → ana ekrana.
+      if (onAuthFlow) return RoutePaths.home;
 
       // Usta paneli yalnızca usta profili açmış hesaplara açıktır. Diğer tüm
       // gezinme serbesttir — UI zaten aktif moda göre menüleri gösterir.
@@ -110,7 +107,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: RoutePaths.panel,
-        builder: (_, _) => const ArtisanHomeScreen(),
+        // Eski panel ana sayfası birleşik profile taşındı (global redirect
+        // /panel'i /profile'a çevirir); builder yalnızca alt rotalar için
+        // ebeveyn olarak durur.
+        builder: (_, _) => const ProfileScreen(),
         routes: [
           GoRoute(
             path: 'edit',
@@ -173,7 +173,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: RoutePaths.profile,
-        builder: (_, _) => const CustomerProfileScreen(),
+        builder: (_, _) => const ProfileScreen(),
       ),
     ],
     errorBuilder: (_, state) => Scaffold(

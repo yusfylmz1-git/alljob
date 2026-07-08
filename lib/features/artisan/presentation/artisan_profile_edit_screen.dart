@@ -12,7 +12,6 @@ import '../../../core/widgets/responsive_center.dart';
 import '../../../data/local/local_data_service.dart';
 import '../../../data/models/availability.dart';
 import '../../../data/models/geo_models.dart';
-import '../../auth/application/auth_controller.dart';
 import '../../auth/presentation/verification_tile.dart';
 import '../../storage/storage_repository.dart';
 import '../application/my_profile_controller.dart';
@@ -26,17 +25,11 @@ class ArtisanProfileEditScreen extends ConsumerWidget {
     final draftAsync = ref.watch(myProfileControllerProvider);
 
     return Scaffold(
-      appBar: GradientAppBar(
+      // Çıkış Yap butonu kaldırıldı — çıkış, birleşik profil sayfasında
+      // (düzenleme ekranında oturum kapatmak beklenmedik bir eylemdi).
+      appBar: const GradientAppBar(
         title: 'Profili Düzenle',
         icon: Icons.badge_outlined,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.logout),
-            tooltip: 'Çıkış Yap',
-            onPressed: () =>
-                ref.read(authControllerProvider.notifier).signOut(),
-          ),
-        ],
       ),
       body: draftAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
@@ -192,10 +185,6 @@ class _EditFormState extends ConsumerState<_EditForm> {
             ),
             const SizedBox(height: 24),
 
-            // --- Doğrulama (mavi tik) ---
-            const VerificationTile(artisanContext: true),
-            const SizedBox(height: 20),
-
             // --- Ad Soyad ---
             _Label('Ad Soyad'),
             TextFormField(
@@ -325,6 +314,11 @@ class _EditFormState extends ConsumerState<_EditForm> {
                   _controller.setScheduleDayHours(wd,
                       startMinute: startMinute, endMinute: endMinute),
             ),
+            const SizedBox(height: 24),
+
+            // --- Doğrulama (mavi tik) — form alanlarının altında, kaydetmeden
+            // bağımsız tek seferlik işlem olduğu için en sona alındı. ---
+            const VerificationTile(artisanContext: true),
             const SizedBox(height: 28),
 
             AppButton(

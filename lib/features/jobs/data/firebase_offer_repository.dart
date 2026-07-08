@@ -25,8 +25,18 @@ class FirebaseOfferRepository implements OfferRepository {
   }
 
   @override
-  Stream<List<Offer>> watchOffersForJob(String jobId) {
-    return _offers.where('jobId', isEqualTo: jobId).snapshots().map((s) {
+  Stream<List<Offer>> watchOffersForJob({
+    required String jobId,
+    required String customerId,
+  }) {
+    // customerId filtresi güvenlik kuralının sorgudan KANITLANMASI içindir
+    // (offers.read: müşteri yalnız kendi ilanının tekliflerini okuyabilir).
+    // İki eşitlik filtresi composite index gerektirmez.
+    return _offers
+        .where('jobId', isEqualTo: jobId)
+        .where('customerId', isEqualTo: customerId)
+        .snapshots()
+        .map((s) {
       final list = s.docs
           .map((d) => Offer.fromMap(d.id, d.data()))
           .where((o) => o.status != OfferStatus.withdrawn)

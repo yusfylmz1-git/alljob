@@ -27,14 +27,20 @@ class MockOfferRepository implements OfferRepository {
   }
 
   @override
-  Stream<List<Offer>> watchOffersForJob(String jobId) async* {
-    yield _forJob(jobId);
-    yield* _db.changes.map((_) => _forJob(jobId));
+  Stream<List<Offer>> watchOffersForJob({
+    required String jobId,
+    required String customerId,
+  }) async* {
+    yield _forJob(jobId, customerId);
+    yield* _db.changes.map((_) => _forJob(jobId, customerId));
   }
 
-  List<Offer> _forJob(String jobId) {
+  List<Offer> _forJob(String jobId, String customerId) {
     final list = _db.offers.values
-        .where((o) => o.jobId == jobId && o.status != OfferStatus.withdrawn)
+        .where((o) =>
+            o.jobId == jobId &&
+            o.customerId == customerId && // Firebase davranışıyla aynı
+            o.status != OfferStatus.withdrawn)
         .toList()
       // Kabul edilen en üstte, sonra en yeni.
       ..sort((a, b) {

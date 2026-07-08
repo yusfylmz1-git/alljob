@@ -128,7 +128,7 @@ class PushService {
 
   void _showForeground(RemoteMessage message) {
     final n = message.notification;
-    final chatId = message.data['chatId'] as String?;
+    final route = _routeFor(message);
     final messenger = scaffoldMessengerKey.currentState;
     if (messenger == null) return;
     messenger
@@ -140,26 +140,38 @@ class PushService {
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
           ),
-          action: chatId == null
+          action: route == null
               ? null
               : SnackBarAction(
                   label: 'Gör',
-                  onPressed: () => _goToChat(chatId),
+                  onPressed: () => _go(route),
                 ),
         ),
       );
   }
 
   void _handleNavigation(RemoteMessage message) {
-    if (message.data['type'] == 'chat') {
-      final chatId = message.data['chatId'] as String?;
-      if (chatId != null) _goToChat(chatId);
+    final route = _routeFor(message);
+    if (route != null) _go(route);
+  }
+
+  /// Bildirim verisinden hedef rota: `chat` → sohbet, `job` → ilan detayı.
+  String? _routeFor(RemoteMessage message) {
+    switch (message.data['type']) {
+      case 'chat':
+        final chatId = message.data['chatId'] as String?;
+        return chatId == null ? null : RoutePaths.chatThread(chatId);
+      case 'job':
+        final jobId = message.data['jobId'] as String?;
+        return jobId == null ? null : RoutePaths.jobDetail(jobId);
+      default:
+        return null;
     }
   }
 
-  void _goToChat(String chatId) {
+  void _go(String route) {
     try {
-      _ref.read(routerProvider).push(RoutePaths.chatThread(chatId));
+      _ref.read(routerProvider).push(route);
     } catch (e) {
       debugPrint('PushService gezinme hatası: $e');
     }

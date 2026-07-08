@@ -105,8 +105,11 @@ class UrgentBadge extends StatelessWidget {
 }
 
 /// İlan akış kartı — usta feed'i ve Keşfet "İş İlanları" panelinde ortak.
-/// Acil ilan kırmızı vurgulanır (#urgent). [ctaText] bağlama göre değişir
-/// (usta: "İletişime Geç", keşfet: "Detayı Gör").
+/// KOMPAKT düzen (liste kalabalıklaşınca ekrana çok ilan sığsın): emoji rozeti
+/// + başlık/acil + tek satır açıklama + "📍 ilçe · zaman · N ilgilendi" meta
+/// satırı. Kartın tamamı tıklanabilir; ayrı CTA satırı kaldırıldı.
+/// Acil ilan kırmızı vurgulanır (#urgent). [ctaText] geriye dönük uyum için
+/// duruyor (artık görsel olarak kullanılmıyor).
 class NearbyJobCard extends StatelessWidget {
   const NearbyJobCard({
     super.key,
@@ -119,7 +122,10 @@ class NearbyJobCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     final ago = _timeAgo(job.createdAt);
+    final offers = job.offerCount > 0 ? ' · ${job.offerCount} ilgilendi' : '';
+
     return Material(
       color: AppColors.surface,
       borderRadius: BorderRadius.circular(16),
@@ -127,83 +133,71 @@ class NearbyJobCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         onTap: () => context.push(RoutePaths.jobDetail(job.jobId)),
         child: Container(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
           decoration: BoxDecoration(
             color: AppColors.surface,
-            borderRadius: BorderRadius.circular(18),
+            borderRadius: BorderRadius.circular(16),
             border: Border.all(
                 color: job.isUrgent ? AppColors.danger : AppColors.hairline,
                 width: job.isUrgent ? 1.4 : 1),
             boxShadow: AppTheme.softShadow,
           ),
-          child: Column(
+          child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Meslek emojisi rozeti.
-                  Container(
-                    width: 46,
-                    height: 46,
-                    decoration: BoxDecoration(
-                      color: AppColors.surfaceMuted,
-                      borderRadius: BorderRadius.circular(13),
-                    ),
-                    alignment: Alignment.center,
-                    child: Text(jobCategoryEmoji(job.category),
-                        style: const TextStyle(fontSize: 22)),
-                  ),
-                  const SizedBox(width: 13),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+              // Meslek emojisi rozeti.
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: AppColors.surfaceMuted,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                alignment: Alignment.center,
+                child: Text(jobCategoryEmoji(job.category),
+                    style: const TextStyle(fontSize: 20)),
+              ),
+              const SizedBox(width: 11),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
                       children: [
-                        Row(
-                          children: [
-                            Expanded(
-                              child: Text(job.title,
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .titleMedium
-                                      ?.copyWith(fontWeight: FontWeight.w700),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis),
-                            ),
-                            if (job.isUrgent) ...[
-                              const SizedBox(width: 8),
-                              const UrgentBadge(compact: true),
-                            ],
-                          ],
+                        Expanded(
+                          child: Text(job.title,
+                              style: theme.textTheme.titleSmall
+                                  ?.copyWith(fontWeight: FontWeight.w700),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis),
                         ),
-                        const SizedBox(height: 3),
-                        Text(
-                          '📍 ${job.district} · $ago',
-                          style: Theme.of(context)
-                              .textTheme
-                              .bodySmall
-                              ?.copyWith(color: AppColors.inkMuted),
-                        ),
+                        if (job.isUrgent) ...[
+                          const SizedBox(width: 6),
+                          const UrgentBadge(compact: true),
+                        ],
                       ],
                     ),
-                  ),
-                ],
+                    const SizedBox(height: 2),
+                    Text(job.description,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.bodySmall),
+                    const SizedBox(height: 3),
+                    Text(
+                      '📍 ${job.district} · $ago$offers',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodySmall
+                          ?.copyWith(color: AppColors.inkMuted, fontSize: 11.5),
+                    ),
+                  ],
+                ),
               ),
-              const SizedBox(height: 10),
-              Text(job.description,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.bodyMedium),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  OfferCountBadge(count: job.offerCount),
-                  const Spacer(),
-                  Text(ctaText,
-                      style: const TextStyle(
-                          color: AppColors.primary, fontWeight: FontWeight.w700)),
-                  const Icon(Icons.chevron_right, color: AppColors.primary),
-                ],
+              const SizedBox(width: 4),
+              const Padding(
+                padding: EdgeInsets.only(top: 10),
+                child: Icon(Icons.chevron_right,
+                    size: 20, color: AppColors.inkMuted),
               ),
             ],
           ),

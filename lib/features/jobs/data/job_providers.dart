@@ -5,6 +5,7 @@ import '../../../data/models/job.dart';
 import '../../../data/models/offer.dart';
 import '../../artisan/application/my_profile_controller.dart';
 import '../../artisan/data/artisan_providers.dart' show mockDatabaseProvider;
+import '../../auth/application/auth_controller.dart';
 import 'firebase_job_repository.dart';
 import 'firebase_offer_repository.dart';
 import 'job_repository.dart';
@@ -41,9 +42,17 @@ final jobProvider = StreamProvider.family<Job?, String>(
   (ref, jobId) => ref.watch(jobRepositoryProvider).watchJob(jobId),
 );
 
-/// Bir ilana gelen teklifler (müşteri incelemesi).
+/// Bir ilana gelen teklifler (müşteri incelemesi). Sorgu, güvenlik kuralının
+/// gerektirdiği sahiplik kanıtı için oturumdaki kullanıcının uid'iyle filtreli
+/// (yalnız ilan sahibi bu listeyi görür; ekran zaten sahibin görünümü).
 final offersForJobProvider = StreamProvider.family<List<Offer>, String>(
-  (ref, jobId) => ref.watch(offerRepositoryProvider).watchOffersForJob(jobId),
+  (ref, jobId) {
+    final uid = ref.watch(currentUserProvider)?.uid;
+    if (uid == null) return Stream.value(const <Offer>[]);
+    return ref
+        .watch(offerRepositoryProvider)
+        .watchOffersForJob(jobId: jobId, customerId: uid);
+  },
 );
 
 /// Ustanın verdiği teklifler (Tekliflerim).

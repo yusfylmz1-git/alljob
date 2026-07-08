@@ -60,7 +60,9 @@ class AppMenuDrawer extends ConsumerWidget {
     final ok =
         await ref.read(authControllerProvider.notifier).setActiveMode(mode);
     if (ok) {
-      router.go(mode == UserRole.artisan ? RoutePaths.panel : RoutePaths.home);
+      // Mod geçişi sonrası birleşik profil sayfası — kullanıcı yeni modun
+      // menüsünü tek yerde görür.
+      router.go(RoutePaths.profile);
     } else {
       messenger.showSnackBar(
           const SnackBar(content: Text('Mod değiştirilemedi, tekrar deneyin.')));
@@ -220,16 +222,8 @@ class AppMenuDrawer extends ConsumerWidget {
             title: const Text('Bildirimler'),
             onTap: () => _open(context, RoutePaths.panelNotifications),
           ),
-          ListTile(
-            leading: const Icon(Icons.workspace_premium_outlined),
-            title: const Text('Premium'),
-            onTap: () => _open(context, RoutePaths.panelPremium),
-          ),
-          ListTile(
-            leading: const Icon(Icons.edit_outlined),
-            title: const Text('Profili Düzenle'),
-            onTap: () => _open(context, RoutePaths.panelEdit),
-          ),
+          // Premium ve Profili Düzenle artık birleşik profil sayfasında —
+          // menüde tekrar edilmez (mükerrer giriş kafa karıştırıyordu).
           const Divider(indent: 16, endIndent: 16),
           ListTile(
             leading: const Icon(Icons.swap_horiz_rounded),

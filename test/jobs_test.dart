@@ -129,7 +129,9 @@ void main() {
       await offers.submitOffer(_sampleOffer(
           jobId: jobId, artisanId: 'art_1', price: 4200)); // güncelleme
 
-      final forJob = await offers.watchOffersForJob(jobId).first;
+      final forJob = await offers
+          .watchOffersForJob(jobId: jobId, customerId: 'cust_1')
+          .first;
       expect(forJob.length, 1);
       expect(forJob.first.price, 4200);
 
@@ -149,7 +151,9 @@ void main() {
 
       await offers.withdrawOffer(jobId: jobId, artisanUid: 'art_1');
       expect((await jobs.getJob(jobId))!.offerCount, 1);
-      final visible = await offers.watchOffersForJob(jobId).first;
+      final visible = await offers
+          .watchOffersForJob(jobId: jobId, customerId: 'cust_1')
+          .first;
       expect(visible.length, 1);
       expect(visible.first.artisanId, 'art_2');
     });

@@ -486,9 +486,10 @@ class _ResultsGrid extends StatelessWidget {
               // Geniş yatay kartlar — dar ekranda tek sütun, genişte 2 sütun.
               gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
                 maxCrossAxisExtent: 520,
-                mainAxisSpacing: 12,
-                crossAxisSpacing: 12,
-                mainAxisExtent: 152,
+                mainAxisSpacing: 10,
+                crossAxisSpacing: 10,
+                // Kompakt usta kartı (tek blok satır) — eski ferah kart 152 idi.
+                mainAxisExtent: 84,
               ),
               delegate: SliverChildBuilderDelegate(
                 (context, index) {

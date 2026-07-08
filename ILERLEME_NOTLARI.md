@@ -25,7 +25,38 @@
 
 **Tarih:** 2026-07-08
 
-**Tamamlanan: AŞAMA 1–5 + PRD v4.0 + FIREBASE CANLI + ÇİFT TARAFLI PAZARYERI + OTURUM 15 (UX) + OTURUM 16 (Keşfette ilan paneli) + OTURUM 17 (TEK HESAP, ÇİFT ROL) + OTURUM 18 (TASARIM v2) + OTURUM 19 (MALİYET/FATURA OPTİMİZASYONU) + OTURUM 20 (BLAZE + STORAGE CANLI) + OTURUM 21 (CLOUD FUNCTIONS CANLI) + OTURUM 22 (FCM PUSH) + OTURUM 23 (GIT + CRASHLYTICS + GÜVENLİK) + OTURUM 24 (TELEFON DOĞRULAMA + MAVİ TİK) + OTURUM 25 (KIRIK TEST TEMİZLİĞİ — 68/68) + OTURUM 26 (PROFİL YÜKLENEMEDİ + OTURUM SIZINTISI + SMS BÖLGE DÜZELTMESİ)**
+**Tamamlanan: AŞAMA 1–5 + PRD v4.0 + FIREBASE CANLI + ÇİFT TARAFLI PAZARYERI + OTURUM 15 (UX) + OTURUM 16 (Keşfette ilan paneli) + OTURUM 17 (TEK HESAP, ÇİFT ROL) + OTURUM 18 (TASARIM v2) + OTURUM 19 (MALİYET/FATURA OPTİMİZASYONU) + OTURUM 20 (BLAZE + STORAGE CANLI) + OTURUM 21 (CLOUD FUNCTIONS CANLI) + OTURUM 22 (FCM PUSH) + OTURUM 23 (GIT + CRASHLYTICS + GÜVENLİK) + OTURUM 24 (TELEFON DOĞRULAMA + MAVİ TİK) + OTURUM 25 (KIRIK TEST TEMİZLİĞİ — 68/68) + OTURUM 26 (PROFİL YÜKLENEMEDİ + OTURUM SIZINTISI + SMS BÖLGE DÜZELTMESİ) + OTURUM 27 (TEK BİRLEŞİK PROFİL SAYFASI) + OTURUM 28 (YENİ İLAN → USTA PUSH BİLDİRİMİ, CANLI) + OTURUM 29 (MESAJLAR IG DİLİ + KOMPAKT KARTLAR)**
+
+**Oturum 28 (2026-07-08): Yeni iş ilanında aynı il + aynı meslek ustalarına push. UYGULANDI + DEPLOY EDİLDİ ✅**
+Kullanıcı: "müşteri ilan verdiği anda aynı ildeki ilgili ustalara bildirim gitsin."
+- **CF `onJobCreated` (`functions/index.js`, yeni):** `jobs/{jobId}` onCreate → status open + category/province varsa → `artisanProfiles.where(profession==category).limit(500)` (tek eşitlik, composite index/backfill GEREKMEZ) → bellek içi `serviceAreas[].province == job.province` filtresi → ilan sahibi atlanır (çift rol) → alıcıların `users/{uid}.fcmTokens`'ları `db.getAll` ile 100'lük parçalarda toplanır (token→sahip haritasıyla) → `sendEachForMulticast` 500'lük parçalarla. Başlık: "{il}'de yeni iş ilanı" (acilse 🚨 önekli), gövde: ilan başlığı · ilçe, data `{type:'job', jobId}`. Geçersiz token'lar sahibinin dizisinden `arrayRemove` ile düşülür (onMessageCreated kalıbı).
+- **`push_service.dart`:** gezinme genelleştirildi — `_routeFor`: `chat`→sohbet, `job`→ilan detayı; ön plan SnackBar "Gör" aksiyonu da aynı rotayı kullanır.
+- **DEPLOY EDİLDİ (ben):** `firebase deploy --only functions` → **onJobCreated oluşturuldu**, diğer 3 fonksiyon güncellendi. İlk 2 deploy denemesi başarısızdı: yerel DNS `cloudfunctions.googleapis.com`'u REFUSED ediyordu (okul ağı) → `ipconfig /flushdns` sonrası düzeldi. **Ders:** deploy'da `ENOTFOUND/getaddrinfo` görürsen önce DNS flush dene.
+- **Doğrulama:** `node --check` OK; `flutter analyze` 0; testler **68/68**. Gerçek push testi kullanıcıda: Android cihazda usta hesabıyla giriş (token kaydolur) → başka hesaptan aynı il+meslekte ilan ver → bildirim gelmeli; dokununca ilan detayı açılır.
+
+**Oturum 29 (2026-07-08): Mesajlar Instagram DM dili + kompakt kartlar. UYGULANDI ✅**
+Kullanıcı: "mesajlar daha prof olsun (Instagram gibi), mesajda profil fotosuna basınca profili göster; ilan/usta kartları çok büyük, fazla ilan olunca ortalık karışır."
+- **Sohbet listesi (`chat_list_screen.dart`, yeniden yazıldı):** üstte arama kutusu (ada göre filtre), kompakt satırlar (56px avatar, "ad" + "son mesaj · 3 dk" tek alt satır), okunmamışta kalın metin + Instagram tarzı **mavi nokta** (sayı rozeti yerine). Ham `$e` hata metni de temizlendi.
+- **Sohbet ekranı (`chat_screen.dart`):** (1) **Mesaj gruplama** — aynı göndericinin ardışık mesajları grup; avatar YALNIZ grubun son mesajında, grup içi boşluk 1.5px, kuyruk (köşe kırılması) yalnız grup sonunda; baloncuklar 20px radius (Instagram'a yakın). (2) **AppBar başlığı** artık avatar + ad + alt yazı ("Usta · profili gör" / "Müşteri"); dokununca karşı profil açılır. (3) **Profil açma iki yönlü:** karşı taraf usta → herkese açık usta profili (mevcut); karşı taraf MÜŞTERİ → yeni `_CustomerPreviewSheet` mini profil kartı (bottom sheet: büyük avatar+ad+Müşteri etiketi; müşterinin public profil sayfası olmadığı için önizleme yeterli). Mesaj içi avatara dokunmak da aynı yere gider.
+- **Usta kartı (`artisan_card.dart`):** iki katlı ferah kart → **tek blok kompakt satır** (44px avatar; ad+rozetler üstte, "meslek · ★4.8 (12) · 15 yıl" özet alt satırda, durum pill'i sağda). Grid `mainAxisExtent` 152→**84** (ekrana ~2 kat usta sığar).
+- **İlan kartı (`job_widgets.dart` NearbyJobCard):** dikey 3 bloklu kart → **tek satırlı kompakt** (40px emoji rozeti, başlık+acil, 1 satır açıklama, "📍 ilçe · zaman · N ilgilendi" meta). Ayrı CTA satırı kaldırıldı (kartın tamamı zaten tıklanabilir; `ctaText` parametresi geriye dönük uyum için duruyor). `OfferCountBadge` ilanlarım ekranında kullanılmaya devam ediyor.
+- **Doğrulama:** `flutter analyze` 0; testler **68/68**.
+
+**Oturum 28b (2026-07-08): "İlgilenen ustalar listelenemiyor" düzeltmesi. UYGULANDI ✅**
+- **Kök neden (Firestore kural-sorgu uyumsuzluğu):** `watchOffersForJob` yalnız `where(jobId==X)` sorguluyordu; `offers` okuma kuralı "teklifi veren usta VEYA ilan sahibi müşteri" der. Firestore liste sorgularında kural, SORGU FİLTRESİNDEN kanıtlanabilir olmalı — jobId filtresi sahipliği kanıtlamaz → sorgunun TAMAMI permission-denied → müşteri "İlgilenen Ustalar"ı hiç göremiyordu. (Mock modda görünmez; Firebase'e geçince ortaya çıktı.)
+- **Düzeltme:** sorguya `where(customerId == oturum uid)` eklendi (iki eşitlik → composite index GEREKMEZ; kural deploy'u GEREKMEZ). `OfferRepository.watchOffersForJob({jobId, customerId})` imzası (firebase+mock+testler güncellendi); `offersForJobProvider` uid'i `currentUserProvider`'dan alır. Ham `$e` sızdıran hata metni `_NoticeCard`'lı dostça mesaja çevrildi.
+- **Ders:** kural `resource.data.X == auth.uid` içeriyorsa, liste sorgusuna da `where(X == uid)` konmalı — yoksa tek tek dökümanlar okunabilse bile liste sorgusu komple reddedilir.
+- **Doğrulama:** analyze 0; testler 68/68.
+
+**Oturum 27 (2026-07-08): Tek birleşik profil sayfası — "profil sayfaları çorba" geri bildirimi. UYGULANDI ✅**
+Kullanıcı: "profil sayfalarının tasarımları çorba, müşteri/usta modları çok karışık, profesyonellik 0." Karar (AskUserQuestion): **tek birleşik profil** (Uber/Airbnb ayarlar dili), prototipsiz direkt kod.
+- **Yeni `lib/features/profile/presentation/profile_screen.dart`:** her iki modda AYNI sayfa (`/profile`). Yapı: kompakt hero (avatar + ad + mavi tik ikonu + e-posta, ustada meslek) → **belirgin Müşteri|Usta SegmentedButton mod anahtarı** (hasArtisanProfile olanlara; geçişte sayfada kalınır, içerik yeniden şekillenir) → gruplu menü satırları. Usta modu: DÜKKÂNIM (müsaitlik switch satırı premium-kapılı, Dükkânımı Gör ★puan alt yazılı, Profili Düzenle, Premium) + İŞLERİM (Yakınımdaki İşler/İletişimlerim rozetli, Bildirimler). Müşteri modu: AKTİVİTEM (İlanlarım, Favorilerim) + usta profili yoksa "Hizmet Vermeye Başla". Ortak: HESAP (telefon doğrulama satırı, e-posta, üyelik) + Çıkış. Tüm satırlar tek `_MenuRow` yapı taşından (ikon kutusu + başlık/alt yazı + rozet/değer/switch/chevron).
+- **Silinen ekranlar:** `customer_profile_screen.dart` + `artisan_home_screen.dart` (eski panel dashboard'u). Panelin işlevleri satırlara dağıldı; değerlendirme listesi/hakkımda "Dükkânımı Gör" (herkese açık profil) üzerinden.
+- **Router:** global redirect `loc == /panel → /profile` (alt rotalar `/panel/*` aynen; route-level redirect KULLANILMADI çünkü go_router'da ebeveyn redirect'i zincirdeki çocuklara da uygulanır). Splash/auth-sonrası hedef artık HEP `/` (Keşfet) — moda göre panel dallanması kalktı. `/panel` GoRoute builder'ı alt rotalar için ebeveyn olarak ProfileScreen tutar.
+- **Alt bar:** Profil sekmesi artık her modda `/profile`. **Drawer:** mod geçişi `/profile`'a götürür; usta menüsünden mükerrer Premium + Profili Düzenle satırları kaldırıldı.
+- **Edit ekranı temizliği:** "Mavi Tik Al" kartı formun en üstünden Kaydet'in üstüne taşındı; AppBar'daki beklenmedik "Çıkış Yap" ikonu kaldırıldı (çıkış profil sayfasında).
+- **Test:** `artisan_login_test` artık ProfileScreen + 'DÜKKÂNIM' bölümünü doğrular (eski ArtisanHomeScreen beklentisi yerine).
+- **Doğrulama:** `flutter analyze` 0; testler **68/68**; `flutter build web` OK.
 
 **Oturum 26 (2026-07-08): "Profil yüklenemedi" + eski oturum verisi sızıntısı + telefon doğrulama bölge engeli. UYGULANDI ✅**
 Kullanıcının 3 şikâyeti tek kod kökenine + bir Console ayarına indi:
@@ -289,6 +320,18 @@ Aşama 1 özet: Flutter projesi (Android/iOS/Web), Riverpod+GoRouter, tema, `Val
 ---
 
 ## 📜 Oturum Geçmişi (en yeni en üstte)
+
+### 2026-07-08 — Oturum 29 (Mesajlar IG dili + kompakt kartlar — detay yukarıda "Son Durum → Oturum 29")
+Sohbet listesi: arama + kompakt satır + mavi okunmamış noktası. Sohbet: mesaj gruplama (avatar grup sonunda), 20px baloncuk, appbar/avatar → profil (müşteri için mini profil sheet). Usta kartı tek satır (grid 152→84), ilan kartı tek satır. analyze 0, 68/68.
+**Sıradaki adım (kullanıcı):** hot restart → Mesajlar + Keşfet kartlarını dene; birikmiş oturumlar (27/28/28b/29) topluca commit bekliyor.
+
+### 2026-07-08 — Oturum 28 (Yeni ilan → usta push bildirimi — detay yukarıda "Son Durum → Oturum 28")
+CF `onJobCreated`: ilan verilince aynı il + aynı meslek ustalarının token'larına FCM push (ilan sahibi hariç, token temizlikli). push_service `job` tipini ilan detayına yönlendirir. Deploy EDİLDİ (DNS flush gerekti). analyze 0, 68/68.
+**Sıradaki adım (kullanıcı):** Android'de uçtan uca push testi; Oturum 27 profil tasarımını beğenince hepsini birlikte commit et.
+
+### 2026-07-08 — Oturum 27 (Tek birleşik profil sayfası — detay yukarıda "Son Durum → Oturum 27")
+Kullanıcı "profil sayfaları çorba" dedi → müşteri profili + usta paneli SİLİNDİ, yerine tek `ProfileScreen` (/profile, iki modda da): hero + Müşteri|Usta mod anahtarı + gruplu menü satırları. /panel → /profile redirect (alt rotalar duruyor); splash/auth hedefi hep Keşfet; drawer mükerrerleri temizlendi; edit ekranından çıkış ikonu kalktı, Mavi Tik kartı forma sonuna indi. analyze 0, 68/68, web build OK.
+**Sıradaki adım (kullanıcı):** hot restart → iki modda profil sekmesini, mod anahtarını ve tüm satır hedeflerini dene; tasarımı beğenmezsen ince ayar yapılır.
 
 ### 2026-07-08 — Oturum 26 (Profil yüklenemedi + oturum sızıntısı + SMS bölge — detay yukarıda "Son Durum → Oturum 26")
 `MyProfileController.build` read→watch(uid'e select) — kalıcı "Profil yüklenemedi" + hesaplar arası taslak sızıntısı düzeldi. SMS bölge izin listesi BOŞTU → REST ile TR eklendi (telefon doğrulama sunucu tarafı çalışıyor; REST testi OK); `operation-not-allowed` bölge/sağlayıcı ayrımı + `regionBlocked` mesajı. analyze 0, 68/68 test.
