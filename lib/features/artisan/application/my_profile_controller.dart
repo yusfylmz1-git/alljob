@@ -36,14 +36,24 @@ class MyProfileDraft {
 class MyProfileController extends AsyncNotifier<MyProfileDraft> {
   @override
   Future<MyProfileDraft> build() async {
-    final user = ref.read(currentUserProvider);
-    if (user == null) {
-      throw StateError('Oturum açmış usta bulunamadı');
+    // HESAP DEĞİŞİMİNİ İZLE (watch): çıkış yapıp farklı hesapla girilince
+    // taslak yeni kullanıcıyla sıfırdan kurulmalı (eski `ref.read` bunu
+    // yapmıyordu → önceki oturumun verisi ekranda kalıyordu). Yalnızca uid'i
+    // seçiyoruz ki users dökümanındaki diğer alan güncellemeleri (ör. mod
+    // geçişi, phoneVerified) kaydedilmemiş taslağı ezmesin.
+    var uid = ref.watch(currentUserProvider.select((u) => u?.uid));
+    if (uid == null) {
+      // Açılışta (web'de sayfa yenilemede) oturum henüz geri yüklenmemiş
+      // olabilir — hemen hata verme, ilk auth emisyonunu bekle.
+      uid = (await ref.read(authStateProvider.future))?.uid;
+      if (uid == null) throw StateError('Oturum açmış usta bulunamadı');
     }
-    final profile = await ref.read(myProfileRepositoryProvider).getMyProfile(user.uid);
+    final user = ref.read(currentUserProvider);
+    final profile =
+        await ref.read(myProfileRepositoryProvider).getMyProfile(uid);
     return MyProfileDraft(
-      displayName: user.displayName,
-      profilePhotoUrl: user.profilePhotoUrl,
+      displayName: user?.displayName ?? '',
+      profilePhotoUrl: user?.profilePhotoUrl,
       profile: profile,
     );
   }

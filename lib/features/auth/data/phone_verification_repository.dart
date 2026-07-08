@@ -62,6 +62,10 @@ class PhoneVerificationException implements Exception {
   static const providerDisabled = PhoneVerificationException(
       'Telefonla doğrulama henüz etkin değil. Firebase Console → Authentication '
       '→ Sign-in method → Phone sağlayıcısını etkinleştirin.');
+  static const regionBlocked = PhoneVerificationException(
+      'SMS gönderimi Türkiye (+90) için henüz açık değil. Firebase Console → '
+      'Authentication → Settings → SMS region policy bölümünden Türkiye\'ye '
+      'izin verin.');
   static const notSignedIn =
       PhoneVerificationException('Önce giriş yapmalısınız.');
   static const unknown =

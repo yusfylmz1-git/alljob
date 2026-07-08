@@ -100,7 +100,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             imageHandle: handle,
           );
       _scrollToBottom();
-    } catch (_) {
+    } catch (e, st) {
+      // TANI: gerçek hatayı terminale bas (Storage izin/CORS/ağ vb.).
+      debugPrint('[TANI][sohbet-foto] $e');
+      debugPrint('$st');
       if (mounted) context.showError('Fotoğraf gönderilemedi.');
     } finally {
       if (mounted) setState(() => _sending = false);

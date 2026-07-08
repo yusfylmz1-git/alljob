@@ -25,7 +25,22 @@
 
 **Tarih:** 2026-07-08
 
-**Tamamlanan: AŞAMA 1–5 + PRD v4.0 + FIREBASE CANLI + ÇİFT TARAFLI PAZARYERI + OTURUM 15 (UX) + OTURUM 16 (Keşfette ilan paneli) + OTURUM 17 (TEK HESAP, ÇİFT ROL) + OTURUM 18 (TASARIM v2) + OTURUM 19 (MALİYET/FATURA OPTİMİZASYONU) + OTURUM 20 (BLAZE + STORAGE CANLI) + OTURUM 21 (CLOUD FUNCTIONS CANLI) + OTURUM 22 (FCM PUSH) + OTURUM 23 (GIT + CRASHLYTICS + GÜVENLİK) + OTURUM 24 (TELEFON DOĞRULAMA + MAVİ TİK)**
+**Tamamlanan: AŞAMA 1–5 + PRD v4.0 + FIREBASE CANLI + ÇİFT TARAFLI PAZARYERI + OTURUM 15 (UX) + OTURUM 16 (Keşfette ilan paneli) + OTURUM 17 (TEK HESAP, ÇİFT ROL) + OTURUM 18 (TASARIM v2) + OTURUM 19 (MALİYET/FATURA OPTİMİZASYONU) + OTURUM 20 (BLAZE + STORAGE CANLI) + OTURUM 21 (CLOUD FUNCTIONS CANLI) + OTURUM 22 (FCM PUSH) + OTURUM 23 (GIT + CRASHLYTICS + GÜVENLİK) + OTURUM 24 (TELEFON DOĞRULAMA + MAVİ TİK) + OTURUM 25 (KIRIK TEST TEMİZLİĞİ — 68/68) + OTURUM 26 (PROFİL YÜKLENEMEDİ + OTURUM SIZINTISI + SMS BÖLGE DÜZELTMESİ)**
+
+**Oturum 26 (2026-07-08): "Profil yüklenemedi" + eski oturum verisi sızıntısı + telefon doğrulama bölge engeli. UYGULANDI ✅**
+Kullanıcının 3 şikâyeti tek kod kökenine + bir Console ayarına indi:
+- **Profil yüklenemedi + eski oturum sızıntısı (TEK KÖK NEDEN):** `MyProfileController.build` `ref.read(currentUserProvider)` kullanıyordu → provider hesap değişince ASLA yeniden kurulmuyordu. (a) Web'de sayfa yenilenince oturum geri yüklenmeden build çalışıp `StateError` fırlatıyor ve KALICI "Profil yüklenemedi" gösteriyordu; (b) çıkış + farklı hesapla girişte önceki kullanıcının taslağı ekranda kalıyordu. **Düzeltme:** `ref.watch(currentUserProvider.select((u) => u?.uid))` — yalnız uid izlenir (users dökümanının diğer alan güncellemeleri, ör. phoneVerified/mod geçişi, kaydedilmemiş taslağı ezmesin); uid null'sa `authStateProvider.future` beklenir (açılışta oturum geri yüklenmesi). **Ders (Riverpod):** provider `build()` içinde başka provider'a `ref.read` = donmuş bağımlılık; kullanıcıya bağlı state'te MUTLAKA `watch` (+select).
+- **Telefon doğrulama "aktif değil" (GERÇEK KÖK NEDEN = SMS BÖLGE POLİTİKASI):** Phone sağlayıcısı AÇIKTI, test numarası (`+905550000000`→`123456`) kayıtlıydı; ama `smsRegionConfig.allowlistOnly` BOŞTU → hiçbir ülkeye SMS izni yok. Firebase bu durumda SDK'ya sağlayıcı-kapalıyla AYNI `operation-not-allowed` kodunu döndürüyor → uygulama yanlışlıkla "sağlayıcı etkin değil" diyordu. **Düzeltme (ben, REST ile):** firebase CLI kimliğiyle `PATCH identitytoolkit v2 /projects/alljob1/config` → `smsRegionConfig.allowlistOnly.allowedRegions=["TR"]`. Doğrulama: REST `sendVerificationCode` test numarasına OK döndü. Ayrıca `_map`'e ayrım eklendi: mesajında "region" geçen `operation-not-allowed` → yeni `PhoneVerificationException.regionBlocked` (doğru Türkçe yönlendirme: Settings → SMS region policy).
+- **Doğrulama:** `flutter analyze` 0; testler **68/68**. Kullanıcı tarayıcıda hot restart sonrası test edecek: test numarası `5550000000`, kod `123456`.
+
+**Oturum 25 (2026-07-08): Kırık testlerin temizliği + hata mesajı cilası. UYGULANDI ✅**
+Kullanıcı "geçmişten kalan kırık var mı, giderelim; hatalar profesyonelce kullanıcıya bildirilsin" dedi. Uzun süredir bilinen **7 kırık test kalıcı olarak düzeltildi** → artık **68/68 yeşil**.
+- **Kök neden:** `useFirebaseBackend=true` olduğundan `artisan_login_test` + `my_profile_test` provider override'sız gerçek Firebase'e gidip çöküyordu (Firebase test ortamında başlatılmaz).
+- **Çözüm:** yeni `test/helpers/mock_backend.dart` → `mockBackendOverrides()` tüm backend repo sağlayıcılarını (auth/artisan/chat/favorite/job/offer/myProfile/storage) bellek-içi mock'a çevirir. İki test bunu kullanır.
+- **`artisan_login_test` yenilendi:** eski "giriş panele götürür" beklentisi Oturum 17 misafir-önce yönlendirmeyle bayatlamıştı (giriş, keşiften otomatik panele ATMAZ) → test artık girişten sonra panele gidip ArtisanHomeScreen'in render olduğunu doğrular.
+- **`PushService` test-güvenli:** Firebase örnekleri (`_messaging`/`_db`) artık `late` (lazy) → başlatılmamış ortamda kurulum hata vermez; `registerFor` try/catch içinde sessizce no-op.
+- **Hata mesajı cilası:** `chat_screen` "Mesaj gönderilemedi: $e" ham exception sızdırıyordu → dostça mesaj. `favorite_button` toggle'ın try/catch'i yoktu → hata geri bildirimi eklendi. (Genel tarama: diğer tüm kritik akışlar zaten `context.showError` ile dostça Türkçe mesaj gösteriyor.)
+- **Doğrulama:** `flutter analyze` **0**; testler **68/68** (artık kırık YOK); `flutter build web` OK. Commit `28eea93` + GitHub'a push edildi.
 
 **Oturum 24 (2026-07-08): Telefon doğrulama (SMS OTP) + mavi tik. UYGULANDI ✅ — deploy + Console KULLANICIYA.**
 Kullanıcı: "usta profil doldururken telefon istenebilir; telefonla doğrulayan mavi tikli olur." Karar (AskUserQuestion): **opsiyonel** (mavi tik ödülü) + **herkes** doğrulayabilir (mavi tik yine ustaya özel). `ArtisanProfile.isVerified` zaten vardı (kartta `Icons.verified`) ama hep false + istemciden yazılabiliyordu (açık). Uygulandı:
@@ -274,6 +289,14 @@ Aşama 1 özet: Flutter projesi (Android/iOS/Web), Riverpod+GoRouter, tema, `Val
 ---
 
 ## 📜 Oturum Geçmişi (en yeni en üstte)
+
+### 2026-07-08 — Oturum 26 (Profil yüklenemedi + oturum sızıntısı + SMS bölge — detay yukarıda "Son Durum → Oturum 26")
+`MyProfileController.build` read→watch(uid'e select) — kalıcı "Profil yüklenemedi" + hesaplar arası taslak sızıntısı düzeldi. SMS bölge izin listesi BOŞTU → REST ile TR eklendi (telefon doğrulama sunucu tarafı çalışıyor; REST testi OK); `operation-not-allowed` bölge/sağlayıcı ayrımı + `regionBlocked` mesajı. analyze 0, 68/68 test.
+**Sıradaki adım (kullanıcı):** hot restart → profil sayfası (çıkış/farklı hesap dahil) + telefon doğrulama (no `5550000000`, kod `123456`) uçtan uca dene.
+
+### 2026-07-08 — Oturum 25 (Kırık test temizliği + hata mesajı cilası — detay yukarıda "Son Durum → Oturum 25")
+7 eski kırık test düzeltildi (mockBackendOverrides ile Firebase repo'ları mock'a), artisan_login testi güncel yönlendirmeye göre yenilendi, PushService lazy yapıldı (test-güvenli). chat/favori hata mesajları profesyonelleştirildi. analyze 0, **68/68 test (kırık YOK)**, web build OK. Commit 28eea93 push edildi.
+**Sıradaki adım (kullanıcı):** telefon doğrulama + push'u gerçek Android cihazda uçtan uca test. Kalan opsiyonel: web FCM VAPID, Google sağlayıcısı, gerçek cursor pagination / functions ESLint / CI.
 
 ### 2026-07-08 — Oturum 24 (Telefon doğrulama + mavi tik — detay yukarıda "Son Durum → Oturum 24")
 Kullanıcı telefon doğrulamalı mavi tik istedi (opsiyonel, herkes). Firebase Phone Auth ile telefon hesaba bağlanır → jeton phone_number claim'i → kural isVerified/phoneVerified yazımını buna bağlar (güvenli tik, CF yok). PhoneVerificationRepository (mock kodu 123456) + sheet UI + ortak VerificationTile (müşteri profil + usta edit). AppUser.phoneVerified, setPhoneVerified (numara private alt-koleksiyona), markVerified. analyze 0, 61/61, web build OK.

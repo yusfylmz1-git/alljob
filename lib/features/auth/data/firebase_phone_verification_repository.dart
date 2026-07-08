@@ -1,7 +1,7 @@
 import 'dart:async';
 
 import 'package:firebase_auth/firebase_auth.dart' as fb;
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show debugPrint, kIsWeb;
 
 import 'phone_verification_repository.dart';
 
@@ -94,6 +94,9 @@ class FirebasePhoneVerificationRepository
   }
 
   PhoneVerificationException _map(fb.FirebaseAuthException e) {
+    // TANI: gerçek Firebase hata kodunu terminale bas (catch bloğu yutmasın).
+    debugPrint('[TANI][telefon] FirebaseAuthException: '
+        'code=${e.code} message=${e.message}');
     switch (e.code) {
       case 'invalid-phone-number':
         return PhoneVerificationException.invalidNumber;
@@ -106,6 +109,11 @@ class FirebasePhoneVerificationRepository
       case 'too-many-requests':
         return PhoneVerificationException.tooManyRequests;
       case 'operation-not-allowed':
+        // Aynı kod iki farklı durumda döner: (a) Phone sağlayıcısı kapalı,
+        // (b) SMS bölge politikası hedef ülkeye (+90) kapalı. Mesajdan ayırt et.
+        if ((e.message ?? '').toLowerCase().contains('region')) {
+          return PhoneVerificationException.regionBlocked;
+        }
         return PhoneVerificationException.providerDisabled;
       default:
         return PhoneVerificationException(
