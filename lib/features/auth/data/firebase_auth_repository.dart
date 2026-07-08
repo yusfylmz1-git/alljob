@@ -215,6 +215,31 @@ class FirebaseAuthRepository implements AuthRepository {
   }
 
   @override
+  Future<AppUser> setPhoneVerified(String phoneE164) async {
+    final user = _cached;
+    final fbUser = _auth.currentUser;
+    if (user == null || fbUser == null) throw AuthException.notSignedIn;
+
+    // Kural `token.phone_number` ister; telefon bağlandıktan sonra jetonu
+    // tazeleyerek claim'in kesin olarak gelmesini sağlarız.
+    await fbUser.getIdToken(true);
+
+    // Herkese açık işaret.
+    await _userDoc(user.uid)
+        .set({'phoneVerified': true}, SetOptions(merge: true));
+    // Hassas numara yalnızca sahibin okuyabildiği özel alt-koleksiyonda.
+    await _userDoc(user.uid).collection('private').doc('contact').set({
+      'phoneNumber': phoneE164,
+      'verifiedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+
+    final updated = user.copyWith(phoneVerified: true, phoneNumber: phoneE164);
+    _cached = updated;
+    _manualUpdates.add(updated);
+    return updated;
+  }
+
+  @override
   Future<void> updateUserProfile({
     String? displayName,
     String? profilePhotoUrl,

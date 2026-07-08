@@ -189,3 +189,56 @@ token diziden çıkarılır.
 Aynı projede iki hesap (A müşteri, B usta). A → B'ye mesaj at; B'nin cihazı arka
 plandayken sistem bildirimi görmeli, ön plandayken SnackBar. Bildirime dokununca
 ilgili sohbet açılmalı. B çıkış yapınca o cihaza artık bildirim gitmemeli.
+
+---
+
+## ☎️ Telefon doğrulama + Mavi tik (Oturum 24)
+
+Kullanıcı telefonunu SMS ile doğrular → hesabına `phoneVerified` işareti; usta ise
+profilinde **mavi tik** (`ArtisanProfile.isVerified`) görünür. Opsiyoneldir
+(mavi tik ödülü); hem müşteri hem usta doğrulayabilir.
+
+**Akış:** telefon mevcut hesaba **bağlanır** (`linkWithCredential` / web'de
+`linkWithPhoneNumber`). Bağlandıktan sonra kimlik jetonu `phone_number` claim'i
+taşır → Firestore kuralı `isVerified/phoneVerified=true` yazımına **yalnızca bu
+claim varsa** izin verir (kimse doğrulamadan mavi tik alamaz, CF gerekmez).
+Telefon numarası hassas veri → `users/{uid}/private/contact`'a yazılır (public
+`users` dökümanına DEĞİL).
+
+### Kod tarafı (hazır)
+- `lib/features/auth/data/phone_verification_repository.dart` (+`firebase_*`,
+  mock: test kodu `123456`).
+- `lib/features/auth/presentation/phone_verification_sheet.dart` (numara→kod
+  alttan açılır sayfa) + `verification_tile.dart` (müşteri profil + usta edit).
+- `AppUser.phoneVerified`; `AuthRepository.setPhoneVerified` +
+  `MyProfileRepository.markVerified`.
+- `firestore.rules`: `users` (phoneVerified) + `artisanProfiles` (isVerified)
+  yazımı `token.phone_number` şartına bağlandı.
+
+### ⚠️ KULLANICI AKSİYONLARI
+1. **Firestore kurallarını deploy et** (mavi tik guard'ları):
+   ```bash
+   firebase deploy --only firestore:rules --project alljob1
+   ```
+2. **Phone sağlayıcısını etkinleştir:** Firebase Console → Authentication →
+   Sign-in method → **Phone** → Enable.
+3. **Android:** telefon doğrulama SHA parmak izi ister. Debug için:
+   ```bash
+   cd android && ./gradlew signingReport
+   ```
+   Çıkan **SHA-1 + SHA-256**'yı Firebase Console → Project Settings → Android
+   uygulaması → "Add fingerprint"e ekle. (İstersen ben `signingReport`'u
+   çalıştırıp değerleri veririm.)
+4. **Ücretsiz test için:** Console → Authentication → Sign-in method → Phone →
+   "Phone numbers for testing" bölümüne kurgusal numara + kod ekle (ör.
+   `+90 555 000 0000` → `123456`) — gerçek SMS harcamadan denenir.
+5. **Web:** `signInWithPhoneNumber`/`linkWithPhoneNumber` görünmez reCAPTCHA
+   kullanır; `localhost` ve alan adın Authentication → Settings → Authorized
+   domains'te olmalı (Google için zaten eklendiyse tamam). VAPID **gerekmez**
+   (o yalnız FCM push için).
+6. Gerçek SMS = Blaze (sende var). iOS APNs Windows'ta yapılamaz.
+
+### Test
+Giriş yap → Profil (müşteri) veya Usta Profili Düzenle → "Telefonu Doğrula" →
+numara gir → gelen kodu (veya test kodunu) gir → doğrulanınca yeşil "Doğrulanmış"
+kartı; usta kartlarında/profilinde mavi tik görünür.

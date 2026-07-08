@@ -16,6 +16,7 @@ import '../../../data/models/job.dart';
 import '../../../data/models/user_role.dart';
 import '../../auth/application/auth_controller.dart';
 import '../../auth/data/auth_repository.dart';
+import '../../auth/presentation/verification_tile.dart';
 import '../../favorites/data/favorite_providers.dart';
 import '../../jobs/data/job_providers.dart';
 
@@ -42,6 +43,8 @@ class CustomerProfileScreen extends ConsumerWidget {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       _StatsCard(uid: user.uid),
+                      const SizedBox(height: 14),
+                      const VerificationTile(),
                       const SizedBox(height: 14),
                       _ArtisanModeCard(user: user),
                       const SizedBox(height: 14),

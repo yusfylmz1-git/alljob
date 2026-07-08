@@ -14,6 +14,7 @@ class AppUser {
     required this.createdAt,
     this.hasArtisanProfile = false,
     this.activeMode = UserRole.customer,
+    this.phoneVerified = false,
     this.phoneNumber,
     this.profilePhotoUrl,
   });
@@ -29,7 +30,15 @@ class AppUser {
   /// Aktif arayüz modu. Usta modu yalnızca [hasArtisanProfile] ise geçerlidir.
   final UserRole activeMode;
 
+  /// Hesap telefon numarasıyla doğrulandı mı? (SMS OTP → hesaba bağlı telefon.)
+  /// Ustalarda "mavi tik"in (ArtisanProfile.isVerified) ön şartıdır; müşteride
+  /// "doğrulanmış hesap" göstergesi olarak kullanılır. Yalnızca gerçek doğrulama
+  /// sonrası `true` yazılabilir (Firestore kuralı `token.phone_number` ister).
+  final bool phoneVerified;
+
   /// Yalnızca ustalar için; müşteriye asla gösterilmez (PRD §6).
+  /// GÜVENLİK: herkese açık `users` dökümanına yazılmaz (bkz. toMap); yalnızca
+  /// sahibin okuyabildiği `users/{uid}/private/*` alt-koleksiyonunda saklanır.
   final String? phoneNumber;
   final String? profilePhotoUrl;
 
@@ -43,6 +52,7 @@ class AppUser {
     String? profilePhotoUrl,
     bool? hasArtisanProfile,
     UserRole? activeMode,
+    bool? phoneVerified,
   }) {
     return AppUser(
       uid: uid,
@@ -51,6 +61,7 @@ class AppUser {
       createdAt: createdAt,
       hasArtisanProfile: hasArtisanProfile ?? this.hasArtisanProfile,
       activeMode: activeMode ?? this.activeMode,
+      phoneVerified: phoneVerified ?? this.phoneVerified,
       phoneNumber: phoneNumber ?? this.phoneNumber,
       profilePhotoUrl: profilePhotoUrl ?? this.profilePhotoUrl,
     );
@@ -63,6 +74,7 @@ class AppUser {
         'activeMode': activeMode.apiValue,
         // Geriye dönük uyum: eski istemciler `role` okur.
         'role': activeMode.apiValue,
+        'phoneVerified': phoneVerified,
         'createdAt': createdAt.toIso8601String(),
         'profilePhotoURL': profilePhotoUrl,
         // GÜVENLİK: `phoneNumber` gibi hassas iletişim bilgileri bu HERKESE
@@ -82,6 +94,7 @@ class AppUser {
       activeMode: UserRole.fromString(map['activeMode'] as String?) ??
           legacyRole ??
           UserRole.customer,
+      phoneVerified: (map['phoneVerified'] as bool?) ?? false,
       createdAt: _parseDate(map['createdAt']),
       phoneNumber: map['phoneNumber'] as String?,
       profilePhotoUrl: map['profilePhotoURL'] as String?,

@@ -40,6 +40,12 @@ abstract interface class AuthRepository {
 
   Future<void> sendPasswordReset(String email);
 
+  /// Telefon SMS doğrulaması başarıyla tamamlanıp numara hesaba bağlandıktan
+  /// SONRA çağrılır: `users` dökümanına `phoneVerified=true` yazar ve numarayı
+  /// yalnızca sahibin okuyabildiği `users/{uid}/private/contact` alanına kaydeder.
+  /// (Mavi tik'in ArtisanProfile tarafı [MyProfileRepository.markVerified] ile.)
+  Future<AppUser> setPhoneVerified(String phoneE164);
+
   /// Oturum açmış kullanıcının görünen ad / profil fotoğrafını günceller.
   Future<void> updateUserProfile({String? displayName, String? profilePhotoUrl});
 

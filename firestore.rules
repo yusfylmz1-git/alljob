@@ -20,15 +20,25 @@ service cloud.firestore {
     // `phoneNumber` yazamaz (aşağıdaki `!hasAny` guard'ı). Hassas veri, yalnızca
     // sahibinin okuyabildiği `users/{uid}/private/*` alt-koleksiyonuna yazılır.
     match /users/{uid} {
+      // `phoneVerified` yalnızca gerçek SMS doğrulaması sonrası (kimlik jetonu
+      // doğrulanmış telefon taşırken) true yazılabilir — istemci keyfî olarak
+      // kendini "doğrulanmış" yapamaz.
+      function phoneClaimOkFor(field) {
+        return request.resource.data.get(field, false) != true
+          || request.auth.token.phone_number != null;
+      }
+
       allow read: if true;
       // create'te resource null olduğundan doğrudan yazılan anahtarlara bakılır.
       allow create: if isSelf(uid)
-        && !request.resource.data.keys().hasAny(['phoneNumber']);
+        && !request.resource.data.keys().hasAny(['phoneNumber'])
+        && phoneClaimOkFor('phoneVerified');
       // update'te yalnızca DEĞİŞEN anahtarlara bakılır (diff): dokunulmayan eski
       // bir alan güncellemeyi bloklamaz; ama phoneNumber eklenemez/değiştirilemez.
       allow update: if isSelf(uid)
         && !request.resource.data.diff(resource.data)
-              .affectedKeys().hasAny(['phoneNumber']);
+              .affectedKeys().hasAny(['phoneNumber'])
+        && phoneClaimOkFor('phoneVerified');
       allow delete: if false;
 
       // Hassas/özel kullanıcı verisi — YALNIZCA sahibi okur/yazar.
@@ -42,14 +52,24 @@ service cloud.firestore {
     // Create ve update ayrı: create'te `resource` null olduğu için diff yerine
     // doğrudan yazılan anahtarlara bakılır (null.data erişimi kuralı hataya
     // düşürüp ilk kaydı reddediyordu).
+    // `isVerified` (mavi tik) yalnızca gerçek telefon doğrulaması sonrası
+    // (jetonda doğrulanmış telefon varken) true yazılabilir — usta kendini
+    // keyfî olarak "mavi tikli" yapamaz.
     match /artisanProfiles/{uid} {
+      function verifiedClaimOk() {
+        return request.resource.data.get('isVerified', false) != true
+          || request.auth.token.phone_number != null;
+      }
+
       allow read: if true;
       allow create: if isSelf(uid)
         && !request.resource.data.keys()
-              .hasAny(['averageRating','totalReviews','totalRatingSum']);
+              .hasAny(['averageRating','totalReviews','totalRatingSum'])
+        && verifiedClaimOk();
       allow update: if isSelf(uid)
         && !request.resource.data.diff(resource.data)
-              .affectedKeys().hasAny(['averageRating','totalReviews','totalRatingSum']);
+              .affectedKeys().hasAny(['averageRating','totalReviews','totalRatingSum'])
+        && verifiedClaimOk();
       allow delete: if false;
     }
 

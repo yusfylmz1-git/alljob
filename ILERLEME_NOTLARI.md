@@ -25,7 +25,26 @@
 
 **Tarih:** 2026-07-08
 
-**Tamamlanan: AŞAMA 1–5 + PRD v4.0 + FIREBASE CANLI + ÇİFT TARAFLI PAZARYERI + OTURUM 15 (UX) + OTURUM 16 (Keşfette ilan paneli) + OTURUM 17 (TEK HESAP, ÇİFT ROL) + OTURUM 18 (TASARIM v2) + OTURUM 19 (MALİYET/FATURA OPTİMİZASYONU) + OTURUM 20 (BLAZE + STORAGE CANLI) + OTURUM 21 (CLOUD FUNCTIONS CANLI) + OTURUM 22 (FCM PUSH BİLDİRİMLERİ)**
+**Tamamlanan: AŞAMA 1–5 + PRD v4.0 + FIREBASE CANLI + ÇİFT TARAFLI PAZARYERI + OTURUM 15 (UX) + OTURUM 16 (Keşfette ilan paneli) + OTURUM 17 (TEK HESAP, ÇİFT ROL) + OTURUM 18 (TASARIM v2) + OTURUM 19 (MALİYET/FATURA OPTİMİZASYONU) + OTURUM 20 (BLAZE + STORAGE CANLI) + OTURUM 21 (CLOUD FUNCTIONS CANLI) + OTURUM 22 (FCM PUSH) + OTURUM 23 (GIT + CRASHLYTICS + GÜVENLİK) + OTURUM 24 (TELEFON DOĞRULAMA + MAVİ TİK)**
+
+**Oturum 24 (2026-07-08): Telefon doğrulama (SMS OTP) + mavi tik. UYGULANDI ✅ — deploy + Console KULLANICIYA.**
+Kullanıcı: "usta profil doldururken telefon istenebilir; telefonla doğrulayan mavi tikli olur." Karar (AskUserQuestion): **opsiyonel** (mavi tik ödülü) + **herkes** doğrulayabilir (mavi tik yine ustaya özel). `ArtisanProfile.isVerified` zaten vardı (kartta `Icons.verified`) ama hep false + istemciden yazılabiliyordu (açık). Uygulandı:
+- **Doğrulama = Firebase Phone Auth + hesaba BAĞLAMA:** telefon mevcut e-posta/Google hesabına `linkWithCredential` (web'de `linkWithPhoneNumber`) ile bağlanır → jeton `phone_number` claim'i taşır. `lib/features/auth/data/phone_verification_repository.dart` (arayüz + `firebase_*` web/mobil ayrımı + mock kodu `123456`). `sendCode`→`PhoneVerificationSession`→`confirmCode` (link + `getIdToken(true)`).
+- **Güvenli mavi tik (kilit nokta):** `firestore.rules` — `artisanProfiles.isVerified=true` ve `users.phoneVerified=true` yazımı YALNIZCA `request.auth.token.phone_number != null` iken (helper `verifiedClaimOk`/`phoneClaimOkFor`). Kimse doğrulamadan tik alamaz; CF gerekmez.
+- **Model/repo:** `AppUser.phoneVerified` (public users doc, kural korumalı; toMap yazar). `AuthRepository.setPhoneVerified` (users.phoneVerified=true + numarayı `users/{uid}/private/contact`'a yazar — Oturum 23'te kurulan hassas alt-koleksiyon) + `MyProfileRepository.markVerified` (yalnız profil dökümanı VARSA isVerified=true; müşteride no-op). Mock+Firebase impl.
+- **UI:** `phone_verification_sheet.dart` (numara→kod, +90 önekli, TR 10 hane), ortak `verification_tile.dart` — müşteri profilinde "Telefonunu Doğrula", usta düzenlemede "Mavi Tik Al"; doğrulanınca yeşil "Doğrulanmış" kartı.
+- **Test:** `test/phone_verification_test.dart` (4 test: geçersiz numara, roundtrip, yanlış kod, setPhoneVerified).
+- **Doğrulama:** `flutter analyze` **0**; testler **61/61** (yeni 4 dahil; 7 bilinen Firebase kırığı ayrı); `flutter build web` OK.
+- ⚠️ **KULLANICI AKSİYONLARI:** (1) **`firebase deploy --only firestore:rules --project alljob1`** (mavi tik guard'ları). (2) Console → Authentication → **Phone sağlayıcısını etkinleştir**. (3) Android: `cd android && ./gradlew signingReport` → SHA-1+SHA-256'yı Firebase'e ekle (ben çalıştırabilirim). (4) Test için Console'a kurgusal test numarası ekle. Detay: `FIREBASE_KURULUM.md` "Telefon doğrulama".
+
+**Oturum 23 (2026-07-08): Profesyonelleşme — Git deposu + Crashlytics + güvenlik düzeltmesi. UYGULANDI ✅**
+Kullanıcı profesyonel yazılım standartları (katmanlı mimari, SOLID, performans, güvenlik, hata yönetimi, CI/CD) listeledi + "sen öner". Dürüst röntgen: mimari/performans/lint zaten iyi; gerçek açıklar = (a) proje **git deposu bile değildi**, (b) merkezi loglama yok, (c) `users` dökümanında telefon sızıntısı. "Hepsini sırayla yap" dedi, tam yetki. Yapılanlar:
+- **GIT (temel açık):** `git init -b main` + `.gitignore` genişletildi (`functions/node_modules`, firebase logları, `*.env`) + `.gitattributes` (LF normalizasyon) + **2 commit**: ilk commit (191 dosya, tüm proje) + profesyonelleşme commit'i. `google-services.json` commit'lendi (kurallarla korunuyor, gizli değil). **NOT: uzak (GitHub) depo YOK** — istenirse `gh repo create` ile bağlanır.
+- **CRASHLYTICS (merkezi loglama):** `firebase_crashlytics ^4.1.3`. `main.dart`: `FlutterError.onError = recordFlutterFatalError` + `PlatformDispatcher.instance.onError → recordError(fatal:true)`. **Web'de desteklenmez → `!kIsWeb` guard.** Android Gradle: `com.google.firebase.crashlytics` plugin (settings + app build.gradle.kts, v3.0.2). Ücretsiz (Blaze gerekmez).
+- **GÜVENLİK (telefon sızıntısı):** `AppUser.phoneNumber` `users/{uid}` HERKESE AÇIK dökümanına yazılıyordu (`allow read: if true`); Firestore alan-bazlı okuma kısıtlayamaz → tüm döküman sızar. Düzeltme: (1) `AppUser.toMap`'ten `phoneNumber` çıkarıldı (artık public dökümana yazılmıyor); (2) kural: public dökümana `phoneNumber` yazımı YASAK (create: `!keys().hasAny`; update: `!diff().affectedKeys().hasAny` — dokunulmayan eski alan güncellemeyi bloklamaz); (3) sahibe özel `users/{uid}/private/{doc}` alt-koleksiyonu (`read,write: if isSelf`) — hassas veri buraya. `phoneNumber` şu an hiçbir yerde SET edilmiyordu (hep null), bu yüzden davranış kırılmadı.
+- **Doğrulama:** `flutter analyze` **0**; Firebase'siz testler **57/57**; `flutter build web` başarılı.
+- ⚠️ **KULLANICI AKSİYONU:** (1) **`firebase deploy --only firestore:rules --project alljob1`** — yeni users guard + private alt-koleksiyon kuralı canlıya. (2) Crashlytics: gerçek cihazda `flutter run` → test çökmesi at (`FirebaseCrashlytics.instance.crash()`) → Console'da göründüğünü doğrula. (3) İstersen GitHub uzak deposu bağla.
+- ⏭️ **Önerilen sonraki (ertelendi):** gerçek cursor pagination (`startAfter`+`areaKeys[]`), functions ESLint, CI pipeline. Domain katmanı/tam DDD bu ölçekte önerilmedi (fazla mühendislik).
 
 **Oturum 22 (2026-07-08): FCM push bildirimleri (yeni sohbet mesajı). UYGULANDI ✅ — deploy KULLANICIYA kaldı.**
 Yeni sohbet mesajı gelince alıcının cihaz(lar)ına push bildirimi. Kod tarafı uçtan uca hazır.
@@ -255,6 +274,14 @@ Aşama 1 özet: Flutter projesi (Android/iOS/Web), Riverpod+GoRouter, tema, `Val
 ---
 
 ## 📜 Oturum Geçmişi (en yeni en üstte)
+
+### 2026-07-08 — Oturum 24 (Telefon doğrulama + mavi tik — detay yukarıda "Son Durum → Oturum 24")
+Kullanıcı telefon doğrulamalı mavi tik istedi (opsiyonel, herkes). Firebase Phone Auth ile telefon hesaba bağlanır → jeton phone_number claim'i → kural isVerified/phoneVerified yazımını buna bağlar (güvenli tik, CF yok). PhoneVerificationRepository (mock kodu 123456) + sheet UI + ortak VerificationTile (müşteri profil + usta edit). AppUser.phoneVerified, setPhoneVerified (numara private alt-koleksiyona), markVerified. analyze 0, 61/61, web build OK.
+**Sıradaki adım (kullanıcı):** `firebase deploy --only firestore:rules --project alljob1` + Console'da Phone sağlayıcısını aç + Android SHA parmak izlerini ekle (ben signingReport çalıştırabilirim) + test numarası ekle. (Bekleyen: Oturum 22 `firebase deploy --only functions`; Google sağlayıcısı.)
+
+### 2026-07-08 — Oturum 23 (Git + Crashlytics + güvenlik — detay yukarıda "Son Durum → Oturum 23")
+Kullanıcı profesyonel standartlar listeledi + "sen öner". Röntgen sonucu gerçek açıklar giderildi: git init + 2 commit (+.gitignore/.gitattributes), firebase_crashlytics (main.dart hata yakalama, web'de kapalı, Android gradle plugin), users telefon sızıntısı (toMap'ten çıkar + kural yasağı + private alt-koleksiyon). analyze 0, 57/57, web build OK.
+**Sıradaki adım (kullanıcı):** `firebase deploy --only firestore:rules --project alljob1` (yeni users kuralı). Crashlytics'i gerçek cihazda doğrula. İstersen GitHub remote bağla. (Bekleyen: Oturum 22'nin `firebase deploy --only functions`; Google sağlayıcısı.)
 
 ### 2026-07-08 — Oturum 22 (FCM push bildirimleri — detay yukarıda "Son Durum → Oturum 22")
 Kullanıcı: "FCM push ile devam edelim, eksik bir şey kalmasın." Uygulandı: CF `onMessageCreated` (yeni mesaj → alıcının `fcmTokens`'larına push + geçersiz token temizliği), Flutter `PushService` (izin/token kaydı-silme/ön plan SnackBar/tıklayınca sohbete gitme), `main.dart` arka plan işleyicisi, `app.dart` giriş→token / `auth_controller` çıkış→token silme, `web/firebase-messaging-sw.js`, `firebase_messaging` paketi. Kurallar değişmedi. analyze 0, 57/57, web build OK.

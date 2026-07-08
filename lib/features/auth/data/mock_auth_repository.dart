@@ -140,6 +140,17 @@ class MockAuthRepository implements AuthRepository {
   }
 
   @override
+  Future<AppUser> setPhoneVerified(String phoneE164) async {
+    await _delay();
+    final user = _current;
+    if (user == null) throw AuthException.notSignedIn;
+    final updated = user.copyWith(phoneVerified: true, phoneNumber: phoneE164);
+    _store(updated);
+    _emit(updated);
+    return updated;
+  }
+
+  @override
   Future<void> updateUserProfile({
     String? displayName,
     String? profilePhotoUrl,

@@ -13,6 +13,7 @@ import '../../../data/local/local_data_service.dart';
 import '../../../data/models/availability.dart';
 import '../../../data/models/geo_models.dart';
 import '../../auth/application/auth_controller.dart';
+import '../../auth/presentation/verification_tile.dart';
 import '../../storage/storage_repository.dart';
 import '../application/my_profile_controller.dart';
 
@@ -190,6 +191,10 @@ class _EditFormState extends ConsumerState<_EditForm> {
               ),
             ),
             const SizedBox(height: 24),
+
+            // --- Doğrulama (mavi tik) ---
+            const VerificationTile(artisanContext: true),
+            const SizedBox(height: 20),
 
             // --- Ad Soyad ---
             _Label('Ad Soyad'),
