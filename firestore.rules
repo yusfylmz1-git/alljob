@@ -13,11 +13,28 @@ service cloud.firestore {
     }
 
     // users — herkes okuyabilir (profil adı/foto herkese açık); yalnızca sahibi yazar.
-    // NOT: telefon/e-posta gibi hassas alanlar istemciye gösterilmez (UI zaten göstermez).
+    //
+    // GÜVENLİK: Firestore alan-bazlı okuma kısıtlaması yapamaz — okuma izni
+    // varsa TÜM döküman döner. Bu yüzden HASSAS iletişim bilgileri (telefon
+    // numarası vb.) bu herkese açık dökümana KONULAMAZ; owner dahil kimse
+    // `phoneNumber` yazamaz (aşağıdaki `!hasAny` guard'ı). Hassas veri, yalnızca
+    // sahibinin okuyabildiği `users/{uid}/private/*` alt-koleksiyonuna yazılır.
     match /users/{uid} {
       allow read: if true;
-      allow create, update: if isSelf(uid);
+      // create'te resource null olduğundan doğrudan yazılan anahtarlara bakılır.
+      allow create: if isSelf(uid)
+        && !request.resource.data.keys().hasAny(['phoneNumber']);
+      // update'te yalnızca DEĞİŞEN anahtarlara bakılır (diff): dokunulmayan eski
+      // bir alan güncellemeyi bloklamaz; ama phoneNumber eklenemez/değiştirilemez.
+      allow update: if isSelf(uid)
+        && !request.resource.data.diff(resource.data)
+              .affectedKeys().hasAny(['phoneNumber']);
       allow delete: if false;
+
+      // Hassas/özel kullanıcı verisi — YALNIZCA sahibi okur/yazar.
+      match /private/{doc} {
+        allow read, write: if isSelf(uid);
+      }
     }
 
     // artisanProfiles — herkese açık (misafir de görebilir, PRD §2); sahibi yazar.

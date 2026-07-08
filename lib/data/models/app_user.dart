@@ -64,8 +64,10 @@ class AppUser {
         // Geriye dönük uyum: eski istemciler `role` okur.
         'role': activeMode.apiValue,
         'createdAt': createdAt.toIso8601String(),
-        'phoneNumber': phoneNumber,
         'profilePhotoURL': profilePhotoUrl,
+        // GÜVENLİK: `phoneNumber` gibi hassas iletişim bilgileri bu HERKESE
+        // AÇIK dökümana YAZILMAZ (kural da yasaklar). Gerekince yalnızca sahibin
+        // okuyabildiği `users/{uid}/private/*` alt-koleksiyonunda saklanmalıdır.
       };
 
   factory AppUser.fromMap(String uid, Map<String, dynamic> map) {

@@ -1,5 +1,9 @@
+import 'dart:ui';
+
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/date_symbol_data_local.dart';
@@ -33,6 +37,20 @@ Future<void> main() async {
     );
     // Arka plan mesaj işleyicisi runApp'ten ÖNCE kaydedilmelidir.
     FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+
+    // Merkezi hata raporlama (Crashlytics). Web'de desteklenmez → yalnız mobil.
+    // Kullanıcıya "beyaz ekran"/sessiz çökme yerine, hatalar arka planda
+    // kaydedilip geliştiriciye raporlanır.
+    if (!kIsWeb) {
+      final crashlytics = FirebaseCrashlytics.instance;
+      // Yakalanmayan Flutter (widget/derleme/sync) hatalarını raporla.
+      FlutterError.onError = crashlytics.recordFlutterFatalError;
+      // Yakalanmayan async / platform (isolate) hatalarını raporla.
+      PlatformDispatcher.instance.onError = (error, stack) {
+        crashlytics.recordError(error, stack, fatal: true);
+        return true;
+      };
+    }
   }
 
   runApp(const ProviderScope(child: UstaCepteApp()));
