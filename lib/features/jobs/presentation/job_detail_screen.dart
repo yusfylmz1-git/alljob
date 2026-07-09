@@ -479,6 +479,11 @@ class _AssignedCard extends ConsumerWidget {
             status == JobStatus.inProgress) &&
         !myConfirmed;
 
+    // Şikayet açık: yaşam döngüsü donar; stepper yerine sorun paneli.
+    if (status == JobStatus.disputed) {
+      return _DisputePanel(job: job, isOwner: isOwner);
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -588,25 +593,293 @@ class _AssignedCard extends ConsumerWidget {
                   text: 'İş tamamlandı ve değerlendirildi. Teşekkürler!',
                 ),
 
-              // Müşteri iptal (tamamlanmadan önce, #11)
+              // Müşteri iptal (tamamlanmadan önce, #11) + sorun bildirme
+              // (iki taraf da; tamamlandıktan sonra puanlamaya dek açık).
               if (isOwner &&
-                  (status == JobStatus.workerSelected ||
-                      status == JobStatus.inProgress)) ...[
+                      (status == JobStatus.workerSelected ||
+                          status == JobStatus.inProgress) ||
+                  status.canDispute) ...[
                 const SizedBox(height: 6),
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: TextButton.icon(
-                    style: TextButton.styleFrom(foregroundColor: AppColors.danger),
-                    onPressed: () => _cancelJob(context, ref, job),
-                    icon: const Icon(Icons.cancel_outlined, size: 18),
-                    label: const Text('İlanı İptal Et'),
-                  ),
+                Wrap(
+                  spacing: 4,
+                  children: [
+                    if (isOwner &&
+                        (status == JobStatus.workerSelected ||
+                            status == JobStatus.inProgress))
+                      TextButton.icon(
+                        style: TextButton.styleFrom(
+                            foregroundColor: AppColors.danger),
+                        onPressed: () => _cancelJob(context, ref, job),
+                        icon: const Icon(Icons.cancel_outlined, size: 18),
+                        label: const Text('İlanı İptal Et'),
+                      ),
+                    if (status.canDispute)
+                      TextButton.icon(
+                        style: TextButton.styleFrom(
+                            foregroundColor: AppColors.warning),
+                        onPressed: () => _reportDispute(context, ref, job,
+                            byCustomer: isOwner),
+                        icon: const Icon(Icons.report_gmailerrorred_outlined,
+                            size: 18),
+                        label: const Text('Sorun Bildir'),
+                      ),
+                  ],
                 ),
               ],
             ],
           ),
         ),
       ],
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Anlaşmazlık (şikayet) akışı
+// ---------------------------------------------------------------------------
+
+/// İş `disputed` durumundayken gösterilen panel: kim, neden, ne zaman bildirdi;
+/// şikayeti açan taraf geri çekebilir; sohbet açık kalır (çözüm için).
+class _DisputePanel extends ConsumerWidget {
+  const _DisputePanel({required this.job, required this.isOwner});
+  final Job job;
+  final bool isOwner;
+
+  bool get _raisedByMe =>
+      (job.disputedBy == JobDisputeParty.customer && isOwner) ||
+      (job.disputedBy == JobDisputeParty.artisan && !isOwner);
+
+  Future<void> _withdraw(BuildContext context, WidgetRef ref) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Şikayeti geri çek'),
+        content: const Text(
+            'Şikayetinizi geri çekmek istiyor musunuz? İş kaldığı yerden '
+            'devam eder ve karşı taraf bilgilendirilir.'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Vazgeç')),
+          FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Geri Çek')),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    try {
+      await ref.read(jobRepositoryProvider).withdrawDispute(job.jobId);
+      if (context.mounted) context.showInfo('Şikayet geri çekildi.');
+    } catch (_) {
+      if (context.mounted) {
+        context.showError('İşlem başarısız, tekrar deneyin.');
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final raiserLabel = job.disputedBy == JobDisputeParty.customer
+        ? 'Müşteri'
+        : 'Usta';
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.danger.withValues(alpha: 0.4)),
+        boxShadow: AppTheme.softShadow,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: AppColors.dangerSurface,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(Icons.report_gmailerrorred,
+                    color: AppColors.danger),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text('Sorun Bildirildi',
+                    style: Theme.of(context)
+                        .textTheme
+                        .titleMedium
+                        ?.copyWith(fontWeight: FontWeight.w800)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            _raisedByMe
+                ? 'Bu iş için sorun bildirdiniz. Sorun çözülene kadar iş '
+                    'beklemede; anlaşırsanız şikayeti geri çekebilirsiniz.'
+                : '$raiserLabel bu iş için sorun bildirdi. Sorun çözülene '
+                    'kadar iş beklemede. Sohbet üzerinden anlaşmayı '
+                    'deneyebilirsiniz.',
+            style: Theme.of(context).textTheme.bodyMedium,
+          ),
+          const SizedBox(height: 10),
+          if (job.disputeReason != null)
+            _MetaRow(
+                icon: Icons.label_outline,
+                text: 'Neden: ${job.disputeReason!.labelTR}'),
+          if (job.disputeNote != null && job.disputeNote!.isNotEmpty)
+            _MetaRow(icon: Icons.notes, text: job.disputeNote!),
+          if (job.disputedAt != null)
+            _MetaRow(
+                icon: Icons.schedule,
+                text: 'Bildirim tarihi: ${_formatDate(job.disputedAt!)}'),
+          const SizedBox(height: 12),
+          if (job.chatId != null)
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                onPressed: () =>
+                    context.push(RoutePaths.chatThread(job.chatId!)),
+                icon: const Icon(Icons.chat_bubble_outline),
+                label: const Text('Sohbete Git'),
+              ),
+            ),
+          if (_raisedByMe) ...[
+            const SizedBox(height: 8),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: () => _withdraw(context, ref),
+                icon: const Icon(Icons.undo, size: 18),
+                label: const Text('Şikayeti Geri Çek'),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// Neden + not alıp şikayet açar.
+Future<void> _reportDispute(BuildContext context, WidgetRef ref, Job job,
+    {required bool byCustomer}) async {
+  final result = await showModalBottomSheet<(JobDisputeReason, String)>(
+    context: context,
+    isScrollControlled: true,
+    builder: (_) => const _DisputeSheet(),
+  );
+  if (result == null) return;
+  try {
+    await ref.read(jobRepositoryProvider).reportDispute(
+          jobId: job.jobId,
+          byCustomer: byCustomer,
+          reason: result.$1,
+          note: result.$2,
+        );
+    if (context.mounted) {
+      context.showInfo('Sorun bildirildi. Karşı taraf bilgilendirildi.');
+    }
+  } catch (_) {
+    if (context.mounted) {
+      context.showError('Sorun bildirilemedi, lütfen tekrar deneyin.');
+    }
+  }
+}
+
+/// Şikayet formu: neden seçimi (zorunlu) + kısa açıklama (opsiyonel).
+class _DisputeSheet extends StatefulWidget {
+  const _DisputeSheet();
+
+  @override
+  State<_DisputeSheet> createState() => _DisputeSheetState();
+}
+
+class _DisputeSheetState extends State<_DisputeSheet> {
+  JobDisputeReason? _reason;
+  final _noteController = TextEditingController();
+
+  @override
+  void dispose() {
+    _noteController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      // Klavye açılınca formun görünür kalması için.
+      padding:
+          EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      child: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Sorun Bildir',
+                  style: Theme.of(context)
+                      .textTheme
+                      .titleMedium
+                      ?.copyWith(fontWeight: FontWeight.w800)),
+              const SizedBox(height: 4),
+              Text(
+                'İş, sorun çözülene kadar beklemeye alınır ve karşı taraf '
+                'bilgilendirilir.',
+                style: Theme.of(context)
+                    .textTheme
+                    .bodySmall
+                    ?.copyWith(color: AppColors.inkMuted),
+              ),
+              const SizedBox(height: 8),
+              RadioGroup<JobDisputeReason>(
+                groupValue: _reason,
+                onChanged: (v) => setState(() => _reason = v),
+                child: Column(
+                  children: [
+                    for (final r in JobDisputeReason.values)
+                      RadioListTile<JobDisputeReason>(
+                        value: r,
+                        title: Text(r.labelTR,
+                            style: const TextStyle(fontSize: 14)),
+                        dense: true,
+                        contentPadding: EdgeInsets.zero,
+                      ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: _noteController,
+                maxLines: 3,
+                maxLength: 300,
+                decoration: const InputDecoration(
+                  labelText: 'Kısa açıklama (opsiyonel)',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 8),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  style:
+                      FilledButton.styleFrom(backgroundColor: AppColors.danger),
+                  onPressed: _reason == null
+                      ? null
+                      : () => Navigator.pop(
+                          context, (_reason!, _noteController.text)),
+                  icon: const Icon(Icons.report_gmailerrorred_outlined),
+                  label: const Text('Sorunu Bildir'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
@@ -669,6 +942,7 @@ class _LifecycleStepper extends StatelessWidget {
       JobStatus.inProgress => 2,
       JobStatus.completed => 3,
       JobStatus.rated => 4,
+      JobStatus.disputed => -1, // _AssignedCard disputed'ı stepper'dan önce ele alır
       JobStatus.cancelled => -1,
       JobStatus.expired => -1,
     };

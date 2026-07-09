@@ -31,6 +31,16 @@ const REGION = "europe-west1";
 // Mock paritesi: mock_job_repository.confirmDone aynı sayıyı kullanır.
 const AUTO_COMPLETE_DAYS = 3;
 
+// Şikayet nedeni kodlarının Türkçe karşılıkları (istemci JobDisputeReason
+// enum'u ile birebir — bildirim gövdesinde kullanılır).
+const DISPUTE_REASON_TR = {
+  notCompleted: "İş yapılmadı / yarım bırakıldı",
+  qualityIssue: "İş kötü veya özensiz yapıldı",
+  paymentIssue: "Ücret / ödeme anlaşmazlığı",
+  communicationIssue: "Ulaşılamıyor / iletişim sorunu",
+  other: "Diğer",
+};
+
 /**
  * Tek bir kullanıcıya (tüm kayıtlı cihazlarına) push gönderir; kayıtsız/geçersiz
  * token'ları kullanıcının dizisinden temizler (onMessageCreated ile aynı kalıp).
@@ -476,10 +486,14 @@ exports.onJobWritten = onDocumentWritten(
       const jobId = event.params.jobId;
 
       // 1) completed'a ilk geçiş → completedJobs +1.
+      //    `disputed`dan dönüş sayılmaz: disputed→completed yalnızca şikayet
+      //    geri çekişiyle olur ve iş completed'dan disputed'a giderken sayaç
+      //    zaten artmıştı (çift artış olmasın).
       const doneStates = ["completed", "rated"];
       const wasDone = !!before && doneStates.includes(before.status);
       const isDone = doneStates.includes(after.status);
-      if (!wasDone && isDone && after.selectedArtisanId) {
+      const fromDispute = !!before && before.status === "disputed";
+      if (!wasDone && !fromDispute && isDone && after.selectedArtisanId) {
         try {
           await db.collection("artisanProfiles")
               .doc(after.selectedArtisanId)
@@ -509,6 +523,48 @@ exports.onJobWritten = onDocumentWritten(
         });
         await sendPushToUid(after.selectedArtisanId, selTitle, selBody,
             {type: "job", jobId});
+      }
+
+      // 2b) Şikayet açıldı/geri çekildi → KARŞI tarafa bildirim + push.
+      //     (disputed'a geçişte autoCompleteAt varsa zamanlanmış CF onu
+      //     "aktif değil" diye kendisi temizler; iş otomatik TAMAMLANMAZ.)
+      const wasDisputed = !!before && before.status === "disputed";
+      const isDisputed = after.status === "disputed";
+      if (!wasDisputed && isDisputed) {
+        const raiser = after.disputedBy === "customer" ? "Müşteri" : "Usta";
+        const recipient = after.disputedBy === "customer" ?
+          after.selectedArtisanId :
+          after.customerId;
+        if (recipient) {
+          const reasonTr = DISPUTE_REASON_TR[after.disputeReason] || "Diğer";
+          const dTitle = "⚠️ İşle ilgili sorun bildirildi";
+          const dBody = `"${after.title || "İş"}" için ${raiser.toLowerCase()} ` +
+            `sorun bildirdi: ${reasonTr}. İş, sorun çözülene dek beklemede.`;
+          await saveNotification(recipient, `job_${jobId}`, {
+            type: "job",
+            title: dTitle,
+            body: dBody,
+            jobId,
+          });
+          await sendPushToUid(recipient, dTitle, dBody, {type: "job", jobId});
+        }
+      }
+      if (wasDisputed && !isDisputed) {
+        const recipient = before.disputedBy === "customer" ?
+          after.selectedArtisanId :
+          after.customerId;
+        if (recipient) {
+          const wTitle = "Sorun bildirimi geri çekildi";
+          const wBody = `"${after.title || "İş"}" için bildirilen sorun geri ` +
+            "çekildi; iş kaldığı yerden devam ediyor.";
+          await saveNotification(recipient, `job_${jobId}`, {
+            type: "job",
+            title: wTitle,
+            body: wBody,
+            jobId,
+          });
+          await sendPushToUid(recipient, wTitle, wBody, {type: "job", jobId});
+        }
       }
 
       // 3) Tek taraflı tamamlama onayı YENİ geldi → son tarih + push.

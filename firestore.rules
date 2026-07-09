@@ -179,6 +179,39 @@ service cloud.firestore {
               && request.resource.data.artisanConfirmedDone == true);
       }
 
+      // Anlaşmazlık (şikayet) alanları bu güncellemede DEĞİŞMİYOR mu?
+      function disputeKeysUnchanged() {
+        return !request.resource.data.diff(resource.data).affectedKeys()
+            .hasAny(['disputedBy', 'disputeReason', 'disputeNote',
+                     'disputedAt', 'statusBeforeDispute']);
+      }
+
+      // Şikayet akışı doğrulaması ([role]: 'customer' | 'artisan'). Üç geçerli hal:
+      //  A) Şikayetle ilgisiz güncelleme: durum disputed değil ve dispute
+      //     alanlarına dokunulmuyor.
+      //  B) Şikayet açma: yalnız aktif/tamamlanmış işte, bildiren taraf kendi
+      //     rolünü yazar, önceki durum statusBeforeDispute'a birebir kopyalanır
+      //     (geri çekişte dönülecek durum sahtelenemez).
+      //  C) Geri çekme: yalnız şikayeti AÇAN taraf, durum saklanan önceki
+      //     duruma döner ve dispute alanları silinir. disputed'dayken başka
+      //     hiçbir güncelleme (onay bayrağı dahil) yapılamaz — yaşam döngüsü donar.
+      function disputeOk(role) {
+        return (request.resource.data.status != 'disputed'
+                && resource.data.status != 'disputed'
+                && disputeKeysUnchanged())
+          || (resource.data.status in ['workerSelected', 'inProgress', 'completed']
+                && request.resource.data.status == 'disputed'
+                && request.resource.data.disputedBy == role
+                && request.resource.data.disputeReason is string
+                && request.resource.data.statusBeforeDispute == resource.data.status)
+          || (resource.data.status == 'disputed'
+                && resource.data.disputedBy == role
+                && request.resource.data.status == resource.data.statusBeforeDispute
+                && !request.resource.data.keys().hasAny(
+                    ['disputedBy', 'disputeReason', 'disputeNote',
+                     'disputedAt', 'statusBeforeDispute']));
+      }
+
       allow read: if true;
       allow create: if isSignedIn()
         && request.resource.data.customerId == request.auth.uid
@@ -189,17 +222,28 @@ service cloud.firestore {
       // Sahip: yalnızca yaşam döngüsü alanları (ilan içeriği yayından sonra
       // değişmez), KARŞI TARAFIN onayını değiştiremez (artisanConfirmedDone
       // listede yok; confirmDone tx'i alanı değiştirmeden yazar → diff'e girmez)
-      // ve ilan 'open'a GERİ döndürülemez. Usta: yalnız durum + kendi onayı;
-      // durumu ancak inProgress/completed'a taşıyabilir.
+      // ve ilan 'open'a GERİ döndürülemez. Usta: yalnız durum + kendi onayı +
+      // şikayet; durumu ancak inProgress/completed/disputed'a (veya şikayet
+      // geri çekişinde saklanan önceki duruma) taşıyabilir.
       allow update: if completedHasBothConfirms()
         && ((isJobOwner()
               && changedOnly(['status', 'selectedOfferId', 'selectedArtisanId',
-                    'chatId', 'customerConfirmedDone', 'cancelReason'])
-              && request.resource.data.status != 'open')
+                    'chatId', 'customerConfirmedDone', 'cancelReason',
+                    'disputedBy', 'disputeReason', 'disputeNote',
+                    'disputedAt', 'statusBeforeDispute'])
+              && request.resource.data.status != 'open'
+              && disputeOk('customer'))
             || (isSelectedArtisan()
-                && changedOnly(['status', 'artisanConfirmedDone'])
+                && changedOnly(['status', 'artisanConfirmedDone',
+                      'disputedBy', 'disputeReason', 'disputeNote',
+                      'disputedAt', 'statusBeforeDispute'])
                 && (request.resource.data.status == resource.data.status
-                    || request.resource.data.status in ['inProgress', 'completed'])));
+                    || request.resource.data.status
+                        in ['inProgress', 'completed', 'disputed']
+                    || (resource.data.status == 'disputed'
+                        && request.resource.data.status
+                            == resource.data.statusBeforeDispute))
+                && disputeOk('artisan')));
       allow delete: if false;
     }
 

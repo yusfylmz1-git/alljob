@@ -56,6 +56,21 @@ abstract interface class JobRepository {
     required JobCancelReason reason,
   });
 
+  /// Taraflardan biri işle ilgili sorun bildirir → ilan `disputed` olur,
+  /// yaşam döngüsü donar (önceki durum `statusBeforeDispute`'ta saklanır).
+  /// Yalnızca workerSelected/inProgress/completed durumlarında çağrılabilir;
+  /// aksi halde [StateError] fırlatır.
+  Future<void> reportDispute({
+    required String jobId,
+    required bool byCustomer,
+    required JobDisputeReason reason,
+    String? note,
+  });
+
+  /// Sorunu bildiren taraf şikayetini geri çeker → ilan şikayet öncesi
+  /// durumuna döner, dispute alanları temizlenir.
+  Future<void> withdrawDispute(String jobId);
+
   /// Puanlama sonrası ilan `rated` olur.
   Future<void> markRated(String jobId);
 }

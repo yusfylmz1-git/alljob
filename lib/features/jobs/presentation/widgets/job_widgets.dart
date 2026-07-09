@@ -53,6 +53,7 @@ class JobStatusChip extends StatelessWidget {
       JobStatus.inProgress => (AppColors.warning, AppColors.warningSurface),
       JobStatus.completed => (AppColors.success, AppColors.successSurface),
       JobStatus.rated => (AppColors.success, AppColors.successSurface),
+      JobStatus.disputed => (AppColors.danger, AppColors.dangerSurface),
       JobStatus.cancelled => (AppColors.inkMuted, AppColors.surfaceMuted),
       JobStatus.expired => (AppColors.inkMuted, AppColors.surfaceMuted),
     };

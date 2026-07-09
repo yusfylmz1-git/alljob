@@ -199,4 +199,57 @@ class FirebaseJobRepository implements JobRepository {
   Future<void> markRated(String jobId) async {
     await _jobs.doc(jobId).update({'status': JobStatus.rated.apiValue});
   }
+
+  @override
+  Future<void> reportDispute({
+    required String jobId,
+    required bool byCustomer,
+    required JobDisputeReason reason,
+    String? note,
+  }) async {
+    // Transaction: `statusBeforeDispute` o anki durumdan okunmalı (kural,
+    // eski durumla birebir eşleşmesini doğrular).
+    await _db.runTransaction((tx) async {
+      final ref = _jobs.doc(jobId);
+      final snap = await tx.get(ref);
+      if (!snap.exists) throw StateError('İlan bulunamadı');
+      final job = Job.fromMap(snap.id, snap.data()!);
+      if (!job.status.canDispute) {
+        throw StateError('Bu durumda sorun bildirilemez');
+      }
+      tx.update(ref, {
+        'status': JobStatus.disputed.apiValue,
+        'disputedBy': (byCustomer
+                ? JobDisputeParty.customer
+                : JobDisputeParty.artisan)
+            .apiValue,
+        'disputeReason': reason.apiValue,
+        if (note != null && note.trim().isNotEmpty)
+          'disputeNote': note.trim(),
+        'disputedAt': DateTime.now().toIso8601String(),
+        'statusBeforeDispute': job.status.apiValue,
+      });
+    });
+  }
+
+  @override
+  Future<void> withdrawDispute(String jobId) async {
+    await _db.runTransaction((tx) async {
+      final ref = _jobs.doc(jobId);
+      final snap = await tx.get(ref);
+      if (!snap.exists) throw StateError('İlan bulunamadı');
+      final job = Job.fromMap(snap.id, snap.data()!);
+      if (job.status != JobStatus.disputed || job.statusBeforeDispute == null) {
+        throw StateError('Geri çekilecek bir şikayet yok');
+      }
+      tx.update(ref, {
+        'status': job.statusBeforeDispute!.apiValue,
+        'disputedBy': FieldValue.delete(),
+        'disputeReason': FieldValue.delete(),
+        'disputeNote': FieldValue.delete(),
+        'disputedAt': FieldValue.delete(),
+        'statusBeforeDispute': FieldValue.delete(),
+      });
+    });
+  }
 }

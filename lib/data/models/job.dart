@@ -40,13 +40,14 @@ enum JobDuration {
 }
 
 /// İlan yaşam döngüsü (#4): Open → (Teklif geldi) → Worker Selected →
-/// In Progress → Completed → Rated. Ayrıca iptal ve süre dolumu.
+/// In Progress → Completed → Rated. Ayrıca iptal, süre dolumu ve anlaşmazlık.
 enum JobStatus {
   open, // teklif topluyor
   workerSelected, // usta seçildi, sohbet açıldı, iş henüz başlamadı
   inProgress, // iş sürüyor
   completed, // iki taraf da onayladı
   rated, // müşteri puanladı
+  disputed, // taraflardan biri sorun bildirdi (yaşam döngüsü donar)
   cancelled, // müşteri iptal etti
   expired; // süresi doldu
 
@@ -65,7 +66,15 @@ enum JobStatus {
       this == JobStatus.workerSelected ||
       this == JobStatus.inProgress ||
       this == JobStatus.completed ||
-      this == JobStatus.rated;
+      this == JobStatus.rated ||
+      this == JobStatus.disputed;
+
+  /// Bu durumda taraflardan biri sorun bildirebilir mi? (rated/cancelled
+  /// sonrası bildirilemez; open'da henüz karşı taraf yok.)
+  bool get canDispute =>
+      this == JobStatus.workerSelected ||
+      this == JobStatus.inProgress ||
+      this == JobStatus.completed;
 
   String get labelTR => switch (this) {
         JobStatus.open => 'Açık',
@@ -73,8 +82,50 @@ enum JobStatus {
         JobStatus.inProgress => 'İş Sürüyor',
         JobStatus.completed => 'Tamamlandı',
         JobStatus.rated => 'Değerlendirildi',
+        JobStatus.disputed => 'Sorun Bildirildi',
         JobStatus.cancelled => 'İptal Edildi',
         JobStatus.expired => 'Süresi Doldu',
+      };
+}
+
+/// Sorunu bildiren taraf.
+enum JobDisputeParty {
+  customer,
+  artisan;
+
+  String get apiValue => name;
+
+  static JobDisputeParty? fromString(String? v) {
+    for (final e in JobDisputeParty.values) {
+      if (e.name == v) return e;
+    }
+    return null;
+  }
+}
+
+/// Sorun bildirme nedeni (iki taraf için de anlamlı genel başlıklar).
+enum JobDisputeReason {
+  notCompleted,
+  qualityIssue,
+  paymentIssue,
+  communicationIssue,
+  other;
+
+  String get apiValue => name;
+
+  static JobDisputeReason? fromString(String? v) {
+    for (final e in JobDisputeReason.values) {
+      if (e.name == v) return e;
+    }
+    return null;
+  }
+
+  String get labelTR => switch (this) {
+        JobDisputeReason.notCompleted => 'İş yapılmadı / yarım bırakıldı',
+        JobDisputeReason.qualityIssue => 'İş kötü veya özensiz yapıldı',
+        JobDisputeReason.paymentIssue => 'Ücret / ödeme anlaşmazlığı',
+        JobDisputeReason.communicationIssue => 'Ulaşılamıyor / iletişim sorunu',
+        JobDisputeReason.other => 'Diğer',
       };
 }
 
@@ -129,6 +180,11 @@ class Job {
     this.chatId,
     this.cancelReason,
     this.autoCompleteAt,
+    this.disputedBy,
+    this.disputeReason,
+    this.disputeNote,
+    this.disputedAt,
+    this.statusBeforeDispute,
   });
 
   final String jobId;
@@ -169,6 +225,15 @@ class Job {
   /// (toMap'e girmez), yalnızca gösterir.
   final DateTime? autoCompleteAt;
 
+  // Anlaşmazlık (şikayet) alanları: yalnızca `reportDispute`/`withdrawDispute`
+  // repo metodları yazar (toMap'e girmez — ilan oluştururken set edilemez).
+  // `statusBeforeDispute` şikayet geri çekilince dönülecek durumu saklar.
+  final JobDisputeParty? disputedBy;
+  final JobDisputeReason? disputeReason;
+  final String? disputeNote;
+  final DateTime? disputedAt;
+  final JobStatus? statusBeforeDispute;
+
   final DateTime createdAt;
   final DateTime expiresAt;
 
@@ -205,6 +270,12 @@ class Job {
     JobCancelReason? cancelReason,
     DateTime? expiresAt,
     DateTime? autoCompleteAt,
+    JobDisputeParty? disputedBy,
+    JobDisputeReason? disputeReason,
+    String? disputeNote,
+    DateTime? disputedAt,
+    JobStatus? statusBeforeDispute,
+    bool clearDispute = false, // withdraw: null=koru kalıbı silmeye yetmez
   }) {
     return Job(
       jobId: jobId,
@@ -231,6 +302,14 @@ class Job {
       artisanConfirmedDone: artisanConfirmedDone ?? this.artisanConfirmedDone,
       cancelReason: cancelReason ?? this.cancelReason,
       autoCompleteAt: autoCompleteAt ?? this.autoCompleteAt,
+      disputedBy: clearDispute ? null : (disputedBy ?? this.disputedBy),
+      disputeReason:
+          clearDispute ? null : (disputeReason ?? this.disputeReason),
+      disputeNote: clearDispute ? null : (disputeNote ?? this.disputeNote),
+      disputedAt: clearDispute ? null : (disputedAt ?? this.disputedAt),
+      statusBeforeDispute: clearDispute
+          ? null
+          : (statusBeforeDispute ?? this.statusBeforeDispute),
       createdAt: createdAt,
       expiresAt: expiresAt ?? this.expiresAt,
     );
@@ -288,6 +367,16 @@ class Job {
       cancelReason: JobCancelReason.fromString(map['cancelReason'] as String?),
       autoCompleteAt: map['autoCompleteAt'] != null
           ? DateTime.tryParse(map['autoCompleteAt'].toString())
+          : null,
+      disputedBy: JobDisputeParty.fromString(map['disputedBy'] as String?),
+      disputeReason:
+          JobDisputeReason.fromString(map['disputeReason'] as String?),
+      disputeNote: map['disputeNote'] as String?,
+      disputedAt: map['disputedAt'] != null
+          ? DateTime.tryParse(map['disputedAt'].toString())
+          : null,
+      statusBeforeDispute: map['statusBeforeDispute'] != null
+          ? JobStatus.fromString(map['statusBeforeDispute'] as String?)
           : null,
       createdAt: DateTime.tryParse(map['createdAt']?.toString() ?? '') ??
           DateTime.now(),

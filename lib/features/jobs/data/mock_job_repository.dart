@@ -183,4 +183,42 @@ class MockJobRepository implements JobRepository {
     _db.jobs[jobId] = job.copyWith(status: JobStatus.rated);
     _db.notify();
   }
+
+  @override
+  Future<void> reportDispute({
+    required String jobId,
+    required bool byCustomer,
+    required JobDisputeReason reason,
+    String? note,
+  }) async {
+    final job = _db.jobs[jobId];
+    if (job == null) throw StateError('İlan bulunamadı');
+    if (!job.status.canDispute) {
+      throw StateError('Bu durumda sorun bildirilemez');
+    }
+    _db.jobs[jobId] = job.copyWith(
+      status: JobStatus.disputed,
+      disputedBy:
+          byCustomer ? JobDisputeParty.customer : JobDisputeParty.artisan,
+      disputeReason: reason,
+      disputeNote: (note != null && note.trim().isNotEmpty) ? note.trim() : null,
+      disputedAt: DateTime.now(),
+      statusBeforeDispute: job.status,
+    );
+    _db.notify();
+  }
+
+  @override
+  Future<void> withdrawDispute(String jobId) async {
+    final job = _db.jobs[jobId];
+    if (job == null) throw StateError('İlan bulunamadı');
+    if (job.status != JobStatus.disputed || job.statusBeforeDispute == null) {
+      throw StateError('Geri çekilecek bir şikayet yok');
+    }
+    _db.jobs[jobId] = job.copyWith(
+      status: job.statusBeforeDispute,
+      clearDispute: true,
+    );
+    _db.notify();
+  }
 }

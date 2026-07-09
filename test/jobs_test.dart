@@ -283,6 +283,99 @@ void main() {
       expect(db.artisans['artisan_0']!.profile.completedJobs, before + 1);
     });
 
+    test('sorun bildir → disputed; geri çek → önceki duruma dönüş', () async {
+      final db = MockDatabase();
+      final jobs = MockJobRepository(db);
+      final jobId = await jobs.createJob(_sampleJob());
+      await jobs.markStarted(jobId);
+
+      await jobs.reportDispute(
+        jobId: jobId,
+        byCustomer: true,
+        reason: JobDisputeReason.qualityIssue,
+        note: '  Boya akmış.  ',
+      );
+      final disputed = (await jobs.getJob(jobId))!;
+      expect(disputed.status, JobStatus.disputed);
+      expect(disputed.disputedBy, JobDisputeParty.customer);
+      expect(disputed.disputeReason, JobDisputeReason.qualityIssue);
+      expect(disputed.disputeNote, 'Boya akmış.'); // trim'lenir
+      expect(disputed.disputedAt, isNotNull);
+      expect(disputed.statusBeforeDispute, JobStatus.inProgress);
+
+      await jobs.withdrawDispute(jobId);
+      final restored = (await jobs.getJob(jobId))!;
+      expect(restored.status, JobStatus.inProgress);
+      expect(restored.disputedBy, isNull);
+      expect(restored.disputeReason, isNull);
+      expect(restored.disputeNote, isNull);
+      expect(restored.statusBeforeDispute, isNull);
+    });
+
+    test('açık ilanda veya ikinci kez sorun bildirilemez', () async {
+      final db = MockDatabase();
+      final jobs = MockJobRepository(db);
+      final jobId = await jobs.createJob(_sampleJob());
+
+      // open: karşı taraf yok → bildirilemez.
+      expect(
+        () => jobs.reportDispute(
+            jobId: jobId,
+            byCustomer: true,
+            reason: JobDisputeReason.other),
+        throwsStateError,
+      );
+
+      await jobs.markStarted(jobId);
+      await jobs.reportDispute(
+          jobId: jobId,
+          byCustomer: false,
+          reason: JobDisputeReason.paymentIssue);
+      // disputed'dayken tekrar bildirilemez.
+      expect(
+        () => jobs.reportDispute(
+            jobId: jobId,
+            byCustomer: true,
+            reason: JobDisputeReason.other),
+        throwsStateError,
+      );
+      // Şikayet yokken geri çekilemez.
+      await jobs.withdrawDispute(jobId);
+      expect(() => jobs.withdrawDispute(jobId), throwsStateError);
+    });
+
+    test('dispute alanları toMap ile yazılmaz (yalnız repo metodları yazar)',
+        () async {
+      final db = MockDatabase();
+      final jobs = MockJobRepository(db);
+      final jobId = await jobs.createJob(_sampleJob());
+      await jobs.markStarted(jobId);
+      await jobs.reportDispute(
+          jobId: jobId,
+          byCustomer: true,
+          reason: JobDisputeReason.notCompleted);
+
+      final disputed = (await jobs.getJob(jobId))!;
+      final map = disputed.toMap();
+      expect(map.containsKey('disputedBy'), isFalse);
+      expect(map.containsKey('disputeReason'), isFalse);
+      expect(map.containsKey('statusBeforeDispute'), isFalse);
+
+      // fromMap ham Firestore verisinden alanları okuyabilir.
+      final parsed = Job.fromMap('j', {
+        ...map,
+        'status': 'disputed',
+        'disputedBy': 'artisan',
+        'disputeReason': 'paymentIssue',
+        'disputedAt': DateTime.now().toIso8601String(),
+        'statusBeforeDispute': 'completed',
+      });
+      expect(parsed.status, JobStatus.disputed);
+      expect(parsed.disputedBy, JobDisputeParty.artisan);
+      expect(parsed.disputeReason, JobDisputeReason.paymentIssue);
+      expect(parsed.statusBeforeDispute, JobStatus.completed);
+    });
+
     test('müşteri iptali → cancelled + neden', () async {
       final db = MockDatabase();
       final jobs = MockJobRepository(db);
