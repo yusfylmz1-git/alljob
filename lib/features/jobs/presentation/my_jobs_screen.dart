@@ -6,6 +6,7 @@ import '../../../core/router/route_paths.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/snackbar_helper.dart';
+import '../../../core/widgets/app_menu_drawer.dart';
 import '../../../core/widgets/gradient_app_bar.dart';
 import '../../../core/widgets/responsive_center.dart';
 import '../../../core/widgets/role_bottom_bar.dart';
@@ -131,17 +132,29 @@ class _MyJobsScreenState extends ConsumerState<MyJobsScreen> {
               )
             : GradientAppBar(
                 title: 'İlanlarım',
+                subtitle: () {
+                  final jobs = jobsAsync?.valueOrNull;
+                  if (jobs == null || jobs.isEmpty) return null;
+                  final open = jobs
+                      .where((j) => j.effectiveStatus == JobStatus.open)
+                      .length;
+                  return open > 0
+                      ? '$open açık · ${jobs.length} ilan'
+                      : '${jobs.length} ilan';
+                }(),
                 icon: Icons.campaign_outlined,
                 actions: [
-                  IconButton(
-                    icon: const Icon(Icons.delete_outline),
-                    tooltip: 'İlan sil',
-                    onPressed: deletableIds.isEmpty
-                        ? null
-                        : () => setState(() => _selectionMode = true),
-                  ),
+                  // Pasif (gri) ikon gradyan üzerinde kötü durur — silinecek
+                  // ilan yokken çöp kutusu hiç gösterilmez.
+                  if (deletableIds.isNotEmpty)
+                    IconButton(
+                      icon: const Icon(Icons.delete_outline),
+                      tooltip: 'İlan sil',
+                      onPressed: () => setState(() => _selectionMode = true),
+                    ),
                 ],
               ),
+        drawer: const AppMenuDrawer(),
         bottomNavigationBar: const MainBottomBar(current: MainTab.work),
         floatingActionButton: _selectionMode
             ? null

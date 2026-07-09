@@ -8,6 +8,7 @@ import '../../features/auth/data/auth_repository.dart';
 import '../../features/chat/data/chat_providers.dart';
 import '../router/route_paths.dart';
 import '../theme/app_colors.dart';
+import '../utils/snackbar_helper.dart';
 import 'brand_mark.dart';
 
 /// ☰ menü düğmesi (hero başlıklarında kullanılır). Karşı moda okunmamış mesaj
@@ -54,24 +55,24 @@ class AppMenuDrawer extends ConsumerWidget {
 
   Future<void> _switchMode(
       BuildContext context, WidgetRef ref, UserRole mode) async {
-    // Drawer async işlem sonunda kapanmış olabilir; router'ı önce yakala.
+    // Drawer async işlem sonunda kapanmış olabilir; kalıcı bağlamları
+    // (router + kök navigator) önce yakala.
     final router = GoRouter.of(context);
-    final messenger = ScaffoldMessenger.of(context);
+    final nav = Navigator.of(context, rootNavigator: true);
     final ok =
         await ref.read(authControllerProvider.notifier).setActiveMode(mode);
     if (ok) {
       // Mod geçişi sonrası birleşik profil sayfası — kullanıcı yeni modun
       // menüsünü tek yerde görür.
       router.go(RoutePaths.profile);
-    } else {
-      messenger.showSnackBar(
-          const SnackBar(content: Text('Mod değiştirilemedi, tekrar deneyin.')));
+    } else if (nav.mounted) {
+      nav.context.showError('Mod değiştirilemedi, tekrar deneyin.');
     }
   }
 
   Future<void> _becomeArtisan(BuildContext context, WidgetRef ref) async {
     final router = GoRouter.of(context);
-    final messenger = ScaffoldMessenger.of(context);
+    final nav = Navigator.of(context, rootNavigator: true);
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -95,9 +96,8 @@ class AppMenuDrawer extends ConsumerWidget {
     final ok = await ref.read(authControllerProvider.notifier).becomeArtisan();
     if (ok) {
       router.go(RoutePaths.panelEdit);
-    } else {
-      messenger.showSnackBar(
-          SnackBar(content: Text(AuthException.unknown.message)));
+    } else if (nav.mounted) {
+      nav.context.showError(AuthException.unknown.message);
     }
   }
 

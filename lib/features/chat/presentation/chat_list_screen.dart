@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 
 import '../../../core/router/route_paths.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/utils/snackbar_helper.dart';
 import '../../../core/widgets/app_image.dart';
 import '../../../core/widgets/app_menu_drawer.dart';
 import '../../../core/widgets/gradient_app_bar.dart';
@@ -74,15 +75,12 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
     }
     if (!mounted) return;
     _exitSelection();
-    final messenger = ScaffoldMessenger.of(context);
-    messenger.hideCurrentSnackBar();
-    messenger.showSnackBar(SnackBar(
-      content: Text(failed > 0
-          ? '$failed sohbet silinemedi, tekrar deneyin.'
-          : count == 1
-              ? 'Sohbet silindi.'
-              : '$count sohbet silindi.'),
-    ));
+    if (failed > 0) {
+      context.showError('$failed sohbet silinemedi, tekrar deneyin.');
+    } else {
+      context
+          .showInfo(count == 1 ? 'Sohbet silindi.' : '$count sohbet silindi.');
+    }
   }
 
   @override
@@ -139,13 +137,14 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
               title: 'Mesajlar',
               icon: Icons.chat_bubble_outline_rounded,
               actions: [
-                IconButton(
-                  icon: const Icon(Icons.delete_outline),
-                  tooltip: 'Sohbet sil',
-                  onPressed: allIds.isEmpty
-                      ? null
-                      : () => setState(() => _selectionMode = true),
-                ),
+                // Pasif (gri) ikon gradyan üzerinde kötü durur — sohbet
+                // yokken çöp kutusu hiç gösterilmez.
+                if (allIds.isNotEmpty)
+                  IconButton(
+                    icon: const Icon(Icons.delete_outline),
+                    tooltip: 'Sohbet sil',
+                    onPressed: () => setState(() => _selectionMode = true),
+                  ),
               ],
             ),
       drawer: const AppMenuDrawer(),

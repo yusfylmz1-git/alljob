@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/router/route_paths.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/snackbar_helper.dart';
+import '../../../core/widgets/app_menu_drawer.dart';
 import '../../../core/widgets/gradient_app_bar.dart';
 import '../../../core/widgets/responsive_center.dart';
 import '../../../core/widgets/role_bottom_bar.dart';
@@ -34,6 +35,7 @@ class NearbyJobsScreen extends ConsumerWidget {
           ),
         ],
       ),
+      drawer: const AppMenuDrawer(),
       bottomNavigationBar: const MainBottomBar(current: MainTab.work),
       body: !available
           ? const _NotAvailableNotice()

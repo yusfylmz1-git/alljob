@@ -7,9 +7,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/config/backend_config.dart';
-import '../../../core/globals.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/router/route_paths.dart';
+import '../../../core/utils/snackbar_helper.dart';
 
 /// Web push için VAPID (Voluntary Application Server Identification) anahtarı.
 ///
@@ -129,25 +129,21 @@ class PushService {
   void _showForeground(RemoteMessage message) {
     final n = message.notification;
     final route = _routeFor(message);
-    final messenger = scaffoldMessengerKey.currentState;
-    if (messenger == null) return;
-    messenger
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          content: Text(
-            n?.title != null ? '${n!.title}: ${n.body ?? ''}' : (n?.body ?? 'Yeni mesaj'),
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-          ),
-          action: route == null
-              ? null
-              : SnackBarAction(
-                  label: 'Gör',
-                  onPressed: () => _go(route),
-                ),
-        ),
-      );
+    // Üstten inen bildirim kartı (sistem bildirimi görünümü); dokununca
+    // ilgili ekrana gider. Overlay için router'ın navigator bağlamı kullanılır.
+    final ctx = _ref
+        .read(routerProvider)
+        .routerDelegate
+        .navigatorKey
+        .currentContext;
+    if (ctx == null) return;
+    TopToast.show(
+      ctx,
+      title: n?.title ?? 'Yeni bildirim',
+      message: n?.body ?? '',
+      icon: Icons.notifications_active_outlined,
+      onTap: route == null ? null : () => _go(route),
+    );
   }
 
   void _handleNavigation(RemoteMessage message) {
