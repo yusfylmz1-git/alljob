@@ -1,4 +1,6 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
@@ -16,6 +18,9 @@ import '../data/chat_providers.dart';
 
 /// Ekran E — Gerçek zamanlı sohbet. Metin + fotoğraf. İletişim bilgisi
 /// paylaşımı otomatik maskelenir ve gönderen uyarılır (PRD §5).
+///
+/// Liste `reverse: true` çalışır: sohbet AÇILIR AÇILMAZ en son mesaj görünür
+/// ve yeni mesaj gelince liste dipte kalır (WhatsApp/Instagram davranışı).
 class ChatScreen extends ConsumerStatefulWidget {
   const ChatScreen({super.key, required this.chatId});
   final String chatId;
@@ -24,10 +29,19 @@ class ChatScreen extends ConsumerStatefulWidget {
   ConsumerState<ChatScreen> createState() => _ChatScreenState();
 }
 
+/// Yüklenmesi süren (henüz gönderilmemiş) fotoğraf: balon hemen çizilir,
+/// üstünde yükleme göstergesi döner (WhatsApp modeli). Hata olursa balona
+/// dokunarak tekrar denenir.
+class _PendingUpload {
+  _PendingUpload(this.bytes);
+  final Uint8List bytes;
+  bool failed = false;
+}
+
 class _ChatScreenState extends ConsumerState<ChatScreen> {
   final _controller = TextEditingController();
   final _scroll = ScrollController();
-  bool _sending = false;
+  final List<_PendingUpload> _pending = [];
   int _markedCount = -1;
 
   @override
@@ -79,41 +93,168 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   Future<void> _sendPhoto() async {
     final user = ref.read(currentUserProvider);
     if (user == null) return;
+    final XFile? file;
     try {
-      final file = await ImagePicker().pickImage(
+      file = await ImagePicker().pickImage(
           source: ImageSource.gallery,
           maxWidth: AppConstants.imagePickMaxWidth,
           imageQuality: AppConstants.imagePickImageQuality);
-      if (file == null) return;
-      final bytes = await file.readAsBytes();
-      if (bytes.length > AppConstants.maxPhotoSizeBytes) {
-        if (mounted) context.showError('Görsel 5 MB\'dan küçük olmalı.');
-        return;
-      }
-      setState(() => _sending = true);
+    } catch (e) {
+      debugPrint('[TANI][sohbet-foto-secim] $e');
+      if (mounted) context.showError('Fotoğraf seçilemedi.');
+      return;
+    }
+    if (file == null) return;
+    final bytes = await file.readAsBytes();
+    if (bytes.length > AppConstants.maxPhotoSizeBytes) {
+      if (mounted) context.showError('Görsel 5 MB\'dan küçük olmalı.');
+      return;
+    }
+    // Balon HEMEN görünür; yükleme arka planda sürer (giriş kilitlenmez,
+    // kullanıcı bu sırada yazabilir veya başka fotoğraf seçebilir).
+    final item = _PendingUpload(bytes);
+    setState(() => _pending.add(item));
+    _scrollToBottom();
+    await _startUpload(item, user.uid);
+  }
+
+  Future<void> _startUpload(_PendingUpload item, String uid) async {
+    try {
       final handle = await ref
           .read(storageRepositoryProvider)
-          .uploadImage(pathHint: 'chat/${user.uid}', bytes: bytes);
+          .uploadImage(pathHint: 'chat/$uid', bytes: item.bytes);
       await ref.read(chatRepositoryProvider).sendMessage(
             chatId: widget.chatId,
-            senderUid: user.uid,
+            senderUid: uid,
             imageHandle: handle,
           );
+      if (mounted) setState(() => _pending.remove(item));
       _scrollToBottom();
     } catch (e, st) {
       // TANI: gerçek hatayı terminale bas (Storage izin/CORS/ağ vb.).
       debugPrint('[TANI][sohbet-foto] $e');
       debugPrint('$st');
-      if (mounted) context.showError('Fotoğraf gönderilemedi.');
-    } finally {
-      if (mounted) setState(() => _sending = false);
+      if (mounted) {
+        setState(() => item.failed = true);
+        context.showError(
+            'Fotoğraf gönderilemedi. Balona dokunup tekrar deneyin.');
+      }
     }
   }
 
+  /// Başarısız yüklemeye dokununca: tekrar dene / kaldır.
+  Future<void> _pendingTapped(_PendingUpload item) async {
+    if (!item.failed) return; // yükleme sürüyor
+    final user = ref.read(currentUserProvider);
+    if (user == null) return;
+    final action = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.refresh),
+              title: const Text('Tekrar dene'),
+              onTap: () => Navigator.pop(ctx, 'retry'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.delete_outline),
+              title: const Text('Kaldır'),
+              onTap: () => Navigator.pop(ctx, 'remove'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (!mounted) return;
+    if (action == 'retry') {
+      setState(() => item.failed = false);
+      await _startUpload(item, user.uid);
+    } else if (action == 'remove') {
+      setState(() => _pending.remove(item));
+    }
+  }
+
+  /// Mesaja uzun basınca: kopyala (metin) / sil (kendi mesajı).
+  Future<void> _showMessageActions(ChatMessage msg, bool isMine) async {
+    final canCopy = !msg.deleted && (msg.text?.isNotEmpty ?? false);
+    final canDelete = isMine && !msg.deleted;
+    if (!canCopy && !canDelete) return;
+
+    final action = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (canCopy)
+              ListTile(
+                leading: const Icon(Icons.copy_outlined),
+                title: const Text('Kopyala'),
+                onTap: () => Navigator.pop(ctx, 'copy'),
+              ),
+            if (canDelete)
+              ListTile(
+                leading: const Icon(Icons.delete_outline, color: Colors.red),
+                title: const Text('Mesajı sil',
+                    style: TextStyle(color: Colors.red)),
+                onTap: () => Navigator.pop(ctx, 'delete'),
+              ),
+          ],
+        ),
+      ),
+    );
+    if (!mounted || action == null) return;
+
+    if (action == 'copy') {
+      await Clipboard.setData(ClipboardData(text: msg.text!));
+      if (mounted) context.showInfo('Kopyalandı.');
+      return;
+    }
+
+    // Silme: onay iste (geri alınamaz; karşı taraf "Bu mesaj silindi" görür).
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Mesajı sil'),
+        content: const Text('Mesaj herkes için silinir; yerinde '
+            '"Bu mesaj silindi" görünür.'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Vazgeç')),
+          FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Sil')),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    try {
+      await ref.read(chatRepositoryProvider).deleteMessage(
+            chatId: widget.chatId,
+            messageId: msg.id,
+            senderUid: msg.senderUid,
+          );
+    } catch (_) {
+      if (mounted) context.showError('Mesaj silinemedi, tekrar deneyin.');
+    }
+  }
+
+  void _openImage(String handle) {
+    Navigator.of(context, rootNavigator: true).push(
+      MaterialPageRoute(builder: (_) => _ImageViewerPage(handle: handle)),
+    );
+  }
+
   void _scrollToBottom() {
+    // reverse listede "en alt" = offset 0.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_scroll.hasClients) {
-        _scroll.animateTo(_scroll.position.maxScrollExtent,
+        _scroll.animateTo(0,
             duration: const Duration(milliseconds: 250), curve: Curves.easeOut);
       }
     });
@@ -203,7 +344,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                 ),
               ),
               data: (messages) {
-                if (messages.isEmpty) {
+                if (messages.isEmpty && _pending.isEmpty) {
                   return const _EmptyChat();
                 }
                 _maybeMarkRead(messages.length);
@@ -216,22 +357,35 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                   maxWidth: 760,
                   child: ListView.builder(
                     controller: _scroll,
+                    // Sohbet dipten başlar; yeni mesajda dipte kalır.
+                    reverse: true,
                     padding: const EdgeInsets.all(16),
-                    itemCount: messages.length,
+                    itemCount: messages.length + _pending.length,
                     itemBuilder: (context, i) {
-                      final msg = messages[i];
+                      // reverse: i=0 EN ALTTA. Önce bekleyen yüklemeler
+                      // (en yenisi dipte), sonra gerçek mesajlar.
+                      if (i < _pending.length) {
+                        final p = _pending[_pending.length - 1 - i];
+                        return _PendingImageBubble(
+                          item: p,
+                          onTap: () => _pendingTapped(p),
+                        );
+                      }
+                      // Kronolojik dizin: liste ters çizildiği için çevrilir.
+                      final j = messages.length - 1 - (i - _pending.length);
+                      final msg = messages[j];
                       final isMine = msg.senderUid == user?.uid;
-                      final showDate = i == 0 ||
-                          !_sameDay(messages[i - 1].createdAt, msg.createdAt);
+                      final showDate = j == 0 ||
+                          !_sameDay(messages[j - 1].createdAt, msg.createdAt);
                       final isRead = isMine &&
                           otherRead != null &&
                           !otherRead.isBefore(msg.createdAt);
                       // Instagram tarzı gruplama: aynı göndericinin ardışık
                       // mesajları grup sayılır; avatar yalnızca grubun SON
                       // mesajında görünür, grup içi dikey boşluk daralır.
-                      final isLastOfGroup = i == messages.length - 1 ||
-                          messages[i + 1].senderUid != msg.senderUid ||
-                          !_sameDay(msg.createdAt, messages[i + 1].createdAt);
+                      final isLastOfGroup = j == messages.length - 1 ||
+                          messages[j + 1].senderUid != msg.senderUid ||
+                          !_sameDay(msg.createdAt, messages[j + 1].createdAt);
                       return Column(
                         children: [
                           if (showDate) _DateChip(date: msg.createdAt),
@@ -245,6 +399,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                             senderName: isMine ? null : title,
                             senderPhoto: isMine ? null : otherPhoto,
                             onAvatarTap: isMine ? null : goOtherProfile,
+                            onLongPress: () =>
+                                _showMessageActions(msg, isMine),
+                            onImageTap: msg.hasImage
+                                ? () => _openImage(msg.imageHandle!)
+                                : null,
                           ),
                         ],
                       );
@@ -256,7 +415,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           ),
           _InputBar(
             controller: _controller,
-            sending: _sending,
             onSend: _sendText,
             onPhoto: _sendPhoto,
           ),
@@ -314,6 +472,8 @@ class _Bubble extends StatelessWidget {
     this.senderName,
     this.senderPhoto,
     this.onAvatarTap,
+    this.onLongPress,
+    this.onImageTap,
   });
   final ChatMessage message;
   final bool isMine;
@@ -322,6 +482,8 @@ class _Bubble extends StatelessWidget {
   final String? senderName;
   final String? senderPhoto;
   final VoidCallback? onAvatarTap;
+  final VoidCallback? onLongPress;
+  final VoidCallback? onImageTap;
 
   @override
   Widget build(BuildContext context) {
@@ -330,7 +492,9 @@ class _Bubble extends StatelessWidget {
     final fg = isMine ? scheme.onPrimary : scheme.onSurface;
     final time = DateFormat('HH:mm').format(message.createdAt);
 
-    final bubble = Container(
+    final bubble = GestureDetector(
+      onLongPress: onLongPress,
+      child: Container(
         constraints: const BoxConstraints(maxWidth: 300),
         // Grup içinde daralan boşluk; grup sonunda nefes payı.
         margin: EdgeInsets.only(top: 1.5, bottom: isLastOfGroup ? 8 : 1.5),
@@ -351,16 +515,36 @@ class _Bubble extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.end,
           mainAxisSize: MainAxisSize.min,
           children: [
+            if (message.deleted)
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.block, size: 14, color: fg.withValues(alpha: 0.6)),
+                  const SizedBox(width: 5),
+                  Text('Bu mesaj silindi',
+                      style: TextStyle(
+                          color: fg.withValues(alpha: 0.6),
+                          fontStyle: FontStyle.italic)),
+                ],
+              ),
             if (message.hasImage)
-              ClipRRect(
-                borderRadius: BorderRadius.circular(12),
-                child: SizedBox(
-                  width: 220,
-                  height: 220,
-                  child: AppImage(handle: message.imageHandle!),
+              GestureDetector(
+                onTap: onImageTap,
+                child: Hero(
+                  tag: 'chat-img-${message.id}',
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: SizedBox(
+                      width: 220,
+                      height: 220,
+                      child: AppImage(handle: message.imageHandle!),
+                    ),
+                  ),
                 ),
               ),
-            if (message.text != null && message.text!.isNotEmpty)
+            if (!message.deleted &&
+                message.text != null &&
+                message.text!.isNotEmpty)
               Padding(
                 padding: EdgeInsets.only(top: message.hasImage ? 6 : 0),
                 child: Text(message.text!, style: TextStyle(color: fg)),
@@ -373,7 +557,7 @@ class _Bubble extends StatelessWidget {
                   Text(time,
                       style: TextStyle(
                           fontSize: 10, color: fg.withValues(alpha: 0.7))),
-                  if (isMine) ...[
+                  if (isMine && !message.deleted) ...[
                     const SizedBox(width: 4),
                     Icon(
                       isRead ? Icons.done_all : Icons.done,
@@ -388,7 +572,8 @@ class _Bubble extends StatelessWidget {
             ),
           ],
         ),
-      );
+      ),
+    );
 
     if (isMine) {
       return Align(alignment: Alignment.centerRight, child: bubble);
@@ -419,6 +604,102 @@ class _Bubble extends StatelessWidget {
             const SizedBox(width: 36),
           Flexible(child: bubble),
         ],
+      ),
+    );
+  }
+}
+
+/// Yüklenmekte olan fotoğraf balonu: görsel hemen görünür, üstünde karartma +
+/// dönen gösterge (WhatsApp). Hata olursa uyarı ikonu; dokununca tekrar
+/// dene / kaldır seçenekleri.
+class _PendingImageBubble extends StatelessWidget {
+  const _PendingImageBubble({required this.item, required this.onTap});
+  final _PendingUpload item;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Align(
+      alignment: Alignment.centerRight,
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          margin: const EdgeInsets.only(top: 1.5, bottom: 8),
+          padding: const EdgeInsets.all(4),
+          decoration: BoxDecoration(
+            color: scheme.primary,
+            borderRadius: const BorderRadius.only(
+              topLeft: Radius.circular(20),
+              topRight: Radius.circular(20),
+              bottomLeft: Radius.circular(20),
+              bottomRight: Radius.circular(5),
+            ),
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: SizedBox(
+              width: 220,
+              height: 220,
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  Image.memory(item.bytes, fit: BoxFit.cover),
+                  Container(color: Colors.black38),
+                  Center(
+                    child: item.failed
+                        ? Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: const [
+                              Icon(Icons.error_outline,
+                                  color: Colors.white, size: 34),
+                              SizedBox(height: 6),
+                              Text('Gönderilemedi\nDokun: tekrar dene',
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600)),
+                            ],
+                          )
+                        : const SizedBox(
+                            width: 36,
+                            height: 36,
+                            child: CircularProgressIndicator(
+                                color: Colors.white, strokeWidth: 3),
+                          ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Fotoğrafa dokununca açılan tam ekran görüntüleyici (yakınlaştırılabilir).
+class _ImageViewerPage extends StatelessWidget {
+  const _ImageViewerPage({required this.handle});
+  final String handle;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(
+        backgroundColor: Colors.black,
+        foregroundColor: Colors.white,
+        elevation: 0,
+      ),
+      body: SafeArea(
+        child: InteractiveViewer(
+          maxScale: 5,
+          child: Center(
+            child: AppImage(handle: handle, fit: BoxFit.contain),
+          ),
+        ),
       ),
     );
   }
@@ -514,12 +795,10 @@ class _PartyAvatar extends StatelessWidget {
 class _InputBar extends StatelessWidget {
   const _InputBar({
     required this.controller,
-    required this.sending,
     required this.onSend,
     required this.onPhoto,
   });
   final TextEditingController controller;
-  final bool sending;
   final VoidCallback onSend;
   final VoidCallback onPhoto;
 
@@ -535,7 +814,7 @@ class _InputBar extends StatelessWidget {
             children: [
               IconButton(
                 icon: const Icon(Icons.photo_camera_back_outlined),
-                onPressed: sending ? null : onPhoto,
+                onPressed: onPhoto,
                 tooltip: 'Fotoğraf gönder',
               ),
               Expanded(
@@ -554,7 +833,7 @@ class _InputBar extends StatelessWidget {
               ),
               const SizedBox(width: 6),
               FilledButton(
-                onPressed: sending ? null : onSend,
+                onPressed: onSend,
                 style: FilledButton.styleFrom(
                   shape: const CircleBorder(),
                   padding: const EdgeInsets.all(14),

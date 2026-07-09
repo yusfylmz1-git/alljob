@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:usta_cepte/data/local/mock_database.dart';
+import 'package:usta_cepte/data/models/chat.dart';
 import 'package:usta_cepte/features/chat/data/chat_repository.dart';
 
 void main() {
@@ -58,6 +59,35 @@ void main() {
       repo.markRead(chatId: chatId, uid: 'a1');
       expect(repo.unreadCount(chatId: chatId, uid: 'a1'), 0);
       expect(repo.lastReadAt(chatId: chatId, uid: 'a1'), isNotNull);
+    });
+
+    test('mesaj silme: içerik kalkar, önizleme güncellenir, '
+        'başkasının mesajı silinemez', () async {
+      final repo = MockChatRepository();
+      final chatId = repo.startChat(
+        customerUid: 'c1', customerName: 'M', artisanUid: 'a1', artisanName: 'U');
+      await repo.sendMessage(chatId: chatId, senderUid: 'c1', text: 'İlk');
+      await repo.sendMessage(chatId: chatId, senderUid: 'c1', text: 'Gizli no');
+      var msgs = await repo.watchMessages(chatId).first;
+      final lastId = msgs.last.id;
+
+      // Başkası (usta) müşterinin mesajını silemez.
+      await repo.deleteMessage(
+          chatId: chatId, messageId: lastId, senderUid: 'a1');
+      msgs = await repo.watchMessages(chatId).first;
+      expect(msgs.last.deleted, isFalse);
+
+      // Gönderen silebilir: içerik kalkar, bayrak konur, önizleme değişir.
+      await repo.deleteMessage(
+          chatId: chatId, messageId: lastId, senderUid: 'c1');
+      msgs = await repo.watchMessages(chatId).first;
+      expect(msgs.last.deleted, isTrue);
+      expect(msgs.last.text, isNull);
+      expect(msgs.last.hasImage, isFalse);
+      expect(repo.getThread(chatId)!.lastMessage, ChatMessage.deletedPreview);
+
+      // Son OLMAYAN mesaj silinince önizleme değişmez.
+      expect(msgs.first.deleted, isFalse);
     });
 
     test('hasChatBetween sohbet geçmişini doğrular (PRD §5)', () {

@@ -7,6 +7,7 @@ class ChatMessage {
     required this.createdAt,
     this.text,
     this.imageHandle,
+    this.deleted = false,
   });
 
   final String id;
@@ -16,7 +17,14 @@ class ChatMessage {
   final String? imageHandle;
   final DateTime createdAt;
 
-  bool get hasImage => imageHandle != null;
+  /// Gönderen mesajı sildi (yumuşak silme): içerik kaldırılır, yerinde
+  /// "Bu mesaj silindi" gösterilir (WhatsApp modeli).
+  final bool deleted;
+
+  bool get hasImage => imageHandle != null && !deleted;
+
+  /// Sohbet listesi önizlemesinde silinen mesaj için gösterilen metin.
+  static const deletedPreview = 'Bu mesaj silindi';
 }
 
 /// İki kullanıcı (müşteri + usta) arasındaki sohbet başlığı/özeti.

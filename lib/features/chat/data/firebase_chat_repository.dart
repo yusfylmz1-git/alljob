@@ -108,6 +108,7 @@ class FirebaseChatRepository implements ChatRepository {
                   senderUid: (d.data()['senderUid'] as String?) ?? '',
                   text: d.data()['text'] as String?,
                   imageHandle: d.data()['imageHandle'] as String?,
+                  deleted: (d.data()['deleted'] as bool?) ?? false,
                   createdAt: (d.data()['createdAt'] as Timestamp?)?.toDate() ??
                       DateTime.now(),
                 ))
@@ -225,6 +226,36 @@ class FirebaseChatRepository implements ChatRepository {
     }, SetOptions(merge: true));
 
     return wasMasked;
+  }
+
+  @override
+  Future<void> deleteMessage({
+    required String chatId,
+    required String messageId,
+    required String senderUid,
+  }) async {
+    // Yumuşak silme: içerik alanları kaldırılır, `deleted` bayrağı kalır.
+    // Kural yalnızca göndereni ve yalnızca bu üç alanı değiştirmeye yetkilendirir.
+    await _chats.doc(chatId).collection('messages').doc(messageId).update({
+      'deleted': true,
+      'text': FieldValue.delete(),
+      'imageHandle': FieldValue.delete(),
+    });
+
+    // Silinen SON mesajsa sohbet listesindeki önizleme de eski içeriği
+    // sızdırmasın (1 ek okuma; silme nadir bir işlem).
+    final last = await _chats
+        .doc(chatId)
+        .collection('messages')
+        .orderBy('createdAt', descending: true)
+        .limit(1)
+        .get();
+    if (last.docs.isNotEmpty && last.docs.first.id == messageId) {
+      await _chats.doc(chatId).set(
+        {'lastMessage': ChatMessage.deletedPreview},
+        SetOptions(merge: true),
+      );
+    }
   }
 
   /// `chat_<customerUid>__<artisanUid>` biçimindeki kimlikten üyelik haritası

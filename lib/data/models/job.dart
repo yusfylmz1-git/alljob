@@ -247,6 +247,24 @@ class Job {
   final DateTime createdAt;
   final DateTime expiresAt;
 
+  /// Yayından sonra ilan içeriğinin (başlık/açıklama/bütçe) düzenlenebildiği
+  /// pencere. Kural tarafında yalnız `open` durumu doğrulanır (createdAt ISO
+  /// string olduğundan kural zaman aritmetiği yapamaz); süre istemcide kesilir.
+  static const editWindow = Duration(hours: 1);
+
+  /// İlan içeriği ŞU AN düzenlenebilir mi? Yalnız açık (süresi dolmamış) ilan,
+  /// yayınlandıktan sonra [editWindow] içinde.
+  bool canEditAt(DateTime now) =>
+      status == JobStatus.open &&
+      !isExpiredAt(now) &&
+      now.difference(createdAt) < editWindow;
+
+  bool get canEditNow => canEditAt(DateTime.now());
+
+  /// İlan silinebilir mi? Bir ustaya bağlanmamış (open/expired/cancelled)
+  /// ilanlar silinebilir; aktif/tamamlanmış işler kayıt olarak kalır.
+  bool get canDelete => !status.isAssigned;
+
   /// Açık ilan süresi dolmuş mu? (okuma anında `expired` gibi gösterilir).
   bool isExpiredAt(DateTime now) =>
       status == JobStatus.open && now.isAfter(expiresAt);

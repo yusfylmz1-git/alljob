@@ -185,6 +185,42 @@ class MockJobRepository implements JobRepository {
   }
 
   @override
+  Future<void> updateJobContent({
+    required String jobId,
+    required String title,
+    required String description,
+    double? budget,
+  }) async {
+    final job = _db.jobs[jobId];
+    if (job == null) throw StateError('İlan bulunamadı');
+    if (job.status != JobStatus.open) {
+      throw StateError('Yalnızca açık ilan düzenlenebilir');
+    }
+    // copyWith null'u "koru" sayar; bütçe kaldırılabilsin diye map üzerinden.
+    _db.jobs[jobId] = Job.fromMap(jobId, {
+      ...job.toMap(),
+      'title': title,
+      'description': description,
+      'budget': budget,
+    });
+    _db.notify();
+  }
+
+  @override
+  Future<void> deleteJob(String jobId) async {
+    final job = _db.jobs[jobId];
+    if (job == null) return; // zaten yok — silinmiş say
+    if (!job.canDelete) {
+      throw StateError('Ustaya bağlanmış ilan silinemez');
+    }
+    _db.jobs.remove(jobId);
+    // CF paritesi: ilan silinince bağlı teklifler de temizlenir (ustanın
+    // listesinde hayalet kayıt kalmasın).
+    _db.offers.removeWhere((_, o) => o.jobId == jobId);
+    _db.notify();
+  }
+
+  @override
   Future<void> reportDispute({
     required String jobId,
     required bool byCustomer,

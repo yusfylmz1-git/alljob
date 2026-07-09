@@ -45,6 +45,15 @@ abstract interface class ChatRepository {
     String? text,
     String? imageHandle,
   });
+
+  /// [senderUid], KENDİ mesajını siler (yumuşak silme): içerik kaldırılır,
+  /// yerinde "Bu mesaj silindi" görünür. Silinen mesaj son mesajsa sohbet
+  /// listesi önizlemesi de güncellenir.
+  Future<void> deleteMessage({
+    required String chatId,
+    required String messageId,
+    required String senderUid,
+  });
 }
 
 /// Bellek içi, gerçek-zamanlı taklit eden uygulama.
@@ -186,6 +195,43 @@ class MockChatRepository implements ChatRepository {
       _threadsTick.add(null);
     }
     return wasMasked;
+  }
+
+  @override
+  Future<void> deleteMessage({
+    required String chatId,
+    required String messageId,
+    required String senderUid,
+  }) async {
+    final list = _messages[chatId];
+    if (list == null) return;
+    final i = list.indexWhere((m) => m.id == messageId);
+    if (i < 0 || list[i].senderUid != senderUid) return;
+    list[i] = ChatMessage(
+      id: list[i].id,
+      chatId: chatId,
+      senderUid: senderUid,
+      createdAt: list[i].createdAt,
+      deleted: true,
+    );
+    _ctrl(chatId).add(List.unmodifiable(list));
+
+    // Silinen son mesajsa liste önizlemesini de değiştir.
+    final t = _threads[chatId];
+    if (t != null && i == list.length - 1) {
+      _threads[chatId] = ChatThread(
+        id: t.id,
+        customerUid: t.customerUid,
+        artisanUid: t.artisanUid,
+        customerName: t.customerName,
+        artisanName: t.artisanName,
+        customerPhotoUrl: t.customerPhotoUrl,
+        artisanPhotoUrl: t.artisanPhotoUrl,
+        updatedAt: t.updatedAt,
+        lastMessage: ChatMessage.deletedPreview,
+      );
+      _threadsTick.add(null);
+    }
   }
 
   void dispose() {

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/constants/app_constants.dart';
 import '../../../core/router/route_paths.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_theme.dart';
@@ -251,16 +252,30 @@ class _OwnerOffersSection extends ConsumerWidget {
       return _AssignedCard(job: job, isOwner: true);
     }
     if (job.effectiveStatus == JobStatus.expired) {
-      return const _NoticeCard(
-        icon: Icons.timer_off_outlined,
-        text: 'Bu ilanın süresi doldu. Yeni bir ilan verebilirsiniz.',
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const _NoticeCard(
+            icon: Icons.timer_off_outlined,
+            text: 'Bu ilanın süresi doldu. Yeni bir ilan verebilirsiniz.',
+          ),
+          const SizedBox(height: 8),
+          _DeleteJobButton(job: job),
+        ],
       );
     }
     if (job.status == JobStatus.cancelled) {
-      return _NoticeCard(
-        icon: Icons.cancel_outlined,
-        text:
-            'İlan iptal edildi${job.cancelReason != null ? ' (${job.cancelReason!.labelTR})' : ''}.',
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _NoticeCard(
+            icon: Icons.cancel_outlined,
+            text:
+                'İlan iptal edildi${job.cancelReason != null ? ' (${job.cancelReason!.labelTR})' : ''}.',
+          ),
+          const SizedBox(height: 8),
+          _DeleteJobButton(job: job),
+        ],
       );
     }
 
@@ -304,16 +319,220 @@ class _OwnerOffersSection extends ConsumerWidget {
           },
         ),
         const SizedBox(height: 8),
-        Align(
-          alignment: Alignment.centerLeft,
-          child: TextButton.icon(
-            style: TextButton.styleFrom(foregroundColor: AppColors.danger),
-            onPressed: () => _cancelJob(context, ref, job),
-            icon: const Icon(Icons.cancel_outlined, size: 18),
-            label: const Text('İlanı İptal Et'),
-          ),
+        Wrap(
+          spacing: 4,
+          children: [
+            // Yayından sonra 1 saatlik düzenleme penceresi (Job.editWindow).
+            if (job.canEditNow)
+              TextButton.icon(
+                onPressed: () => _editJob(context, ref, job),
+                icon: const Icon(Icons.edit_outlined, size: 18),
+                label: const Text('Düzenle'),
+              ),
+            TextButton.icon(
+              style: TextButton.styleFrom(foregroundColor: AppColors.danger),
+              onPressed: () => _cancelJob(context, ref, job),
+              icon: const Icon(Icons.cancel_outlined, size: 18),
+              label: const Text('İlanı İptal Et'),
+            ),
+            TextButton.icon(
+              style: TextButton.styleFrom(foregroundColor: AppColors.danger),
+              onPressed: () => _deleteJob(context, ref, job),
+              icon: const Icon(Icons.delete_outline, size: 18),
+              label: const Text('İlanı Sil'),
+            ),
+          ],
         ),
       ],
+    );
+  }
+}
+
+/// İptal edilmiş / süresi dolmuş ilan için "İlanı Sil" düğmesi.
+class _DeleteJobButton extends ConsumerWidget {
+  const _DeleteJobButton({required this.job});
+  final Job job;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: TextButton.icon(
+        style: TextButton.styleFrom(foregroundColor: AppColors.danger),
+        onPressed: () => _deleteJob(context, ref, job),
+        icon: const Icon(Icons.delete_outline, size: 18),
+        label: const Text('İlanı Sil'),
+      ),
+    );
+  }
+}
+
+/// Onay isteyip ilanı kalıcı olarak siler; başarıda detaydan çıkar.
+Future<void> _deleteJob(BuildContext context, WidgetRef ref, Job job) async {
+  final confirmed = await showDialog<bool>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: const Text('İlanı sil'),
+      content: const Text('İlan kalıcı olarak silinecek. Bu işlem geri '
+          'alınamaz. Devam edilsin mi?'),
+      actions: [
+        TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Vazgeç')),
+        FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: AppColors.danger),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Sil')),
+      ],
+    ),
+  );
+  if (confirmed != true) return;
+  try {
+    await ref.read(jobRepositoryProvider).deleteJob(job.jobId);
+    if (context.mounted) {
+      context.showInfo('İlan silindi.');
+      if (context.canPop()) context.pop();
+    }
+  } catch (_) {
+    if (context.mounted) {
+      context.showError('İlan silinemedi, tekrar deneyin.');
+    }
+  }
+}
+
+/// Düzenleme formunu açar; kaydında içerik güncellenir (yalnız açık ilan,
+/// yayından sonra 1 saat — [Job.canEditNow]).
+Future<void> _editJob(BuildContext context, WidgetRef ref, Job job) async {
+  final result = await showModalBottomSheet<(String, String)>(
+    context: context,
+    isScrollControlled: true,
+    builder: (_) => _EditJobSheet(job: job),
+  );
+  if (result == null) return;
+  // Pencere sheet açıkken kapanmış olabilir — son kez kontrol et.
+  if (!job.canEditNow) {
+    if (context.mounted) {
+      context.showError('Düzenleme süresi doldu (ilan yayınlandıktan sonra '
+          '1 saat).');
+    }
+    return;
+  }
+  try {
+    await ref.read(jobRepositoryProvider).updateJobContent(
+          jobId: job.jobId,
+          title: result.$1,
+          description: result.$2,
+          budget: job.budget,
+        );
+    if (context.mounted) context.showSuccess('İlan güncellendi.');
+  } catch (_) {
+    if (context.mounted) {
+      context.showError('İlan güncellenemedi, tekrar deneyin.');
+    }
+  }
+}
+
+/// Başlık + açıklama düzenleme formu (ilan verme ekranıyla aynı sınırlar).
+class _EditJobSheet extends StatefulWidget {
+  const _EditJobSheet({required this.job});
+  final Job job;
+
+  @override
+  State<_EditJobSheet> createState() => _EditJobSheetState();
+}
+
+class _EditJobSheetState extends State<_EditJobSheet> {
+  final _formKey = GlobalKey<FormState>();
+  late final _titleController = TextEditingController(text: widget.job.title);
+  late final _descController =
+      TextEditingController(text: widget.job.description);
+
+  @override
+  void dispose() {
+    _titleController.dispose();
+    _descController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      // Klavye açılınca formun görünür kalması için.
+      padding:
+          EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      child: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+          child: Form(
+            key: _formKey,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('İlanı Düzenle',
+                    style: Theme.of(context)
+                        .textTheme
+                        .titleMedium
+                        ?.copyWith(fontWeight: FontWeight.w800)),
+                const SizedBox(height: 4),
+                Text(
+                  'İlanlar yayınlandıktan sonra 1 saat boyunca düzenlenebilir.',
+                  style: Theme.of(context)
+                      .textTheme
+                      .bodySmall
+                      ?.copyWith(color: AppColors.inkMuted),
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: _titleController,
+                  maxLength: AppConstants.maxJobTitleLength,
+                  textCapitalization: TextCapitalization.sentences,
+                  decoration: const InputDecoration(
+                    labelText: 'İlan Başlığı',
+                    prefixIcon: Icon(Icons.title),
+                  ),
+                  validator: (v) => (v == null || v.trim().length < 5)
+                      ? 'En az 5 karakter girin.'
+                      : null,
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: _descController,
+                  maxLines: 4,
+                  maxLength: AppConstants.maxJobDescriptionLength,
+                  textCapitalization: TextCapitalization.sentences,
+                  decoration: const InputDecoration(
+                    labelText: 'Açıklama',
+                    alignLabelWithHint: true,
+                  ),
+                  validator: (v) => (v == null || v.trim().length < 10)
+                      ? 'En az 10 karakter girin.'
+                      : null,
+                ),
+                const SizedBox(height: 8),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton.icon(
+                    onPressed: () {
+                      if (!(_formKey.currentState?.validate() ?? false)) {
+                        return;
+                      }
+                      Navigator.pop(
+                          context,
+                          (
+                            _titleController.text.trim(),
+                            _descController.text.trim()
+                          ));
+                    },
+                    icon: const Icon(Icons.save_outlined),
+                    label: const Text('Kaydet'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

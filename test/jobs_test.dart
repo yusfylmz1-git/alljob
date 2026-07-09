@@ -555,4 +555,69 @@ void main() {
       expect(followers.first.customerName, isNotEmpty);
     });
   });
+
+  group('İlan düzenleme + silme', () {
+    test('canEdit: yalnız açık ilan, yayından sonra 1 saat', () {
+      final now = DateTime.now();
+      final fresh = _sampleJob(createdAt: now);
+      expect(fresh.canEditAt(now.add(const Duration(minutes: 59))), isTrue);
+      expect(fresh.canEditAt(now.add(const Duration(minutes: 61))), isFalse);
+      // Ustaya bağlanmış ilan pencere içinde bile düzenlenemez.
+      final assigned = fresh.copyWith(status: JobStatus.workerSelected);
+      expect(assigned.canEditAt(now.add(const Duration(minutes: 5))), isFalse);
+    });
+
+    test('updateJobContent açık ilanın içeriğini günceller', () async {
+      final db = MockDatabase();
+      final repo = MockJobRepository(db);
+      final id = await repo.createJob(_sampleJob());
+
+      await repo.updateJobContent(
+        jobId: id,
+        title: 'Yeni başlık',
+        description: 'Yeni ve daha ayrıntılı açıklama.',
+        budget: null, // bütçe beklentisi kaldırılabilir
+      );
+      final job = db.jobs[id]!;
+      expect(job.title, 'Yeni başlık');
+      expect(job.budget, isNull);
+      expect(job.status, JobStatus.open); // yaşam döngüsü değişmez
+
+      // Açık olmayan ilan düzenlenemez (kural paritesi).
+      db.jobs[id] = job.copyWith(status: JobStatus.workerSelected);
+      expect(
+        () => repo.updateJobContent(
+            jobId: id, title: 'x', description: 'y'),
+        throwsStateError,
+      );
+    });
+
+    test('deleteJob: bağlanmamış ilanı ve tekliflerini siler', () async {
+      final db = MockDatabase();
+      final jobs = MockJobRepository(db);
+      final offers = MockOfferRepository(db);
+      final id = await jobs.createJob(_sampleJob());
+      await offers.submitOffer(_sampleOffer(jobId: id, artisanId: 'a1'));
+
+      await jobs.deleteJob(id);
+      expect(db.jobs.containsKey(id), isFalse);
+      // CF paritesi: bağlı teklifler de temizlenir.
+      expect(db.offers.values.where((o) => o.jobId == id), isEmpty);
+    });
+
+    test('deleteJob: ustaya bağlanmış ilan silinemez', () async {
+      final db = MockDatabase();
+      final repo = MockJobRepository(db);
+      final id = await repo.createJob(_sampleJob());
+      db.jobs[id] = db.jobs[id]!.copyWith(status: JobStatus.inProgress);
+
+      expect(() => repo.deleteJob(id), throwsStateError);
+      expect(db.jobs.containsKey(id), isTrue);
+
+      // İptal edilen ilan silinebilir.
+      db.jobs[id] = db.jobs[id]!.copyWith(status: JobStatus.cancelled);
+      await repo.deleteJob(id);
+      expect(db.jobs.containsKey(id), isFalse);
+    });
+  });
 }

@@ -209,6 +209,31 @@ class FirebaseJobRepository implements JobRepository {
   }
 
   @override
+  Future<void> updateJobContent({
+    required String jobId,
+    required String title,
+    required String description,
+    double? budget,
+  }) async {
+    // Kural: sahip, yalnız `open` ilanın yalnız bu içerik alanlarını yazabilir.
+    await _jobs.doc(jobId).update({
+      'title': title,
+      'description': description,
+      'budget': budget,
+    });
+  }
+
+  @override
+  Future<void> deleteJob(String jobId) async {
+    final job = await getJob(jobId);
+    if (job == null) return; // zaten yok — silinmiş say
+    if (!job.canDelete) {
+      throw StateError('Ustaya bağlanmış ilan silinemez');
+    }
+    await _jobs.doc(jobId).delete();
+  }
+
+  @override
   Future<void> reportDispute({
     required String jobId,
     required bool byCustomer,

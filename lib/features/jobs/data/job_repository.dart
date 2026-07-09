@@ -73,4 +73,20 @@ abstract interface class JobRepository {
 
   /// Puanlama sonrası ilan `rated` olur.
   Future<void> markRated(String jobId);
+
+  /// İlan içeriğini günceller (başlık/açıklama/bütçe). Yalnızca `open`
+  /// durumdaki ilanlar için (kural da bunu doğrular); 1 saatlik düzenleme
+  /// penceresi ([Job.editWindow]) UI/istemcide kesilir. [budget] null ise
+  /// bütçe beklentisi kaldırılır.
+  Future<void> updateJobContent({
+    required String jobId,
+    required String title,
+    required String description,
+    double? budget,
+  });
+
+  /// İlanı kalıcı olarak siler. Yalnızca bir ustaya bağlanmamış
+  /// (open/expired/cancelled) ilanlar silinebilir ([Job.canDelete]); değilse
+  /// [StateError] fırlatır. Bağlı teklifleri canlıda CF temizler.
+  Future<void> deleteJob(String jobId);
 }

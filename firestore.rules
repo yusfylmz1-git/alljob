@@ -113,11 +113,20 @@ service cloud.firestore {
         }
 
         allow read: if memberOfChat();
-        // Yalnızca gönderen kendi mesajını oluşturabilir; mesaj değiştirilemez.
+        // Yalnızca gönderen kendi mesajını oluşturabilir.
         allow create: if isSignedIn()
           && request.resource.data.senderUid == request.auth.uid
           && memberOfChat();
-        allow update, delete: if false;
+        // Yumuşak silme: YALNIZ gönderen, YALNIZ `deleted=true` + içerik
+        // alanlarının kaldırılması şeklinde güncelleyebilir (mesaj içeriği
+        // değiştirilemez, başkasının mesajı silinemez, silme geri alınamaz).
+        allow update: if isSignedIn()
+          && resource.data.senderUid == request.auth.uid
+          && request.resource.data.deleted == true
+          && request.resource.data.diff(resource.data).affectedKeys()
+              .hasOnly(['deleted', 'text', 'imageHandle'])
+          && !request.resource.data.keys().hasAny(['text', 'imageHandle']);
+        allow delete: if false;
       }
     }
 
@@ -233,6 +242,13 @@ service cloud.firestore {
                     'disputedAt', 'statusBeforeDispute'])
               && request.resource.data.status != 'open'
               && disputeOk('customer'))
+            // Sahip, AÇIK ilanın içeriğini düzenleyebilir (yalnız bu üç alan;
+            // yaşam döngüsü/sayaç alanlarına dokunamaz). 1 saatlik pencere
+            // istemcide kesilir (createdAt ISO string — kural zaman
+            // aritmetiği yapamaz); asıl koruma "yalnız open + yalnız içerik".
+            || (isJobOwner()
+                && resource.data.status == 'open'
+                && changedOnly(['title', 'description', 'budget']))
             || (isSelectedArtisan()
                 && changedOnly(['status', 'artisanConfirmedDone',
                       'disputedBy', 'disputeReason', 'disputeNote',
@@ -244,7 +260,11 @@ service cloud.firestore {
                         && request.resource.data.status
                             == resource.data.statusBeforeDispute))
                 && disputeOk('artisan')));
-      allow delete: if false;
+      // Sahip, ustaya BAĞLANMAMIŞ ilanı silebilir (open=açık/süresi dolmuş,
+      // cancelled=iptal). Aktif/tamamlanmış işler kayıt olarak kalır.
+      // Bağlı teklifleri `onJobWritten` CF temizler.
+      allow delete: if isJobOwner()
+        && resource.data.status in ['open', 'cancelled'];
     }
 
     // offers — ilanlara verilen teklifler. Döküman ID'si = jobId__artisanId

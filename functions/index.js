@@ -501,7 +501,22 @@ exports.onJobWritten = onDocumentWritten(
       const before =
         event.data && event.data.before && event.data.before.data();
       const after = event.data && event.data.after && event.data.after.data();
-      if (!after) return; // silinme (kurallar delete'e izin vermez)
+      if (!after) {
+        // İlan silindi (kural: sahibi, ustaya bağlanmamış ilanı silebilir).
+        // Bağlı teklifleri temizle — ustanın listesinde hayalet kayıt kalmasın.
+        // (Teklif silinmesi onOfferWritten'ı tetikler; o da ilan yoksa
+        // offerCount güncellemesini zaten atlar.)
+        const orphans = await db.collection("offers")
+            .where("jobId", "==", event.params.jobId)
+            .get();
+        if (orphans.empty) return;
+        const batch = db.batch();
+        orphans.forEach((d) => batch.delete(d.ref));
+        await batch.commit();
+        logger.info(
+            `job ${event.params.jobId} silindi; ${orphans.size} teklif temizlendi`);
+        return;
+      }
       const jobId = event.params.jobId;
 
       // 1) completed'a ilk geçiş → completedJobs +1.
