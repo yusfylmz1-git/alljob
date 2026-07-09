@@ -4,7 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../data/models/app_user.dart';
-import '../../features/artisan/presentation/artisan_notifications_screen.dart';
+import '../../features/notifications/presentation/notifications_screen.dart';
 import '../../features/artisan/presentation/artisan_profile_edit_screen.dart';
 import '../../features/artisan/presentation/premium_screen.dart';
 import '../../features/auth/application/auth_controller.dart';
@@ -65,6 +65,7 @@ final routerProvider = Provider<GoRouter>((ref) {
           loc.startsWith(RoutePaths.reviewBase) ||
           loc.startsWith(RoutePaths.jobsBase) ||
           loc.startsWith(RoutePaths.favorites) ||
+          loc.startsWith(RoutePaths.notifications) ||
           loc.startsWith(RoutePaths.profile);
 
       // Misafir: keşif + profilleri gezebilir; korunan bölgeler girişe yönlenir.
@@ -130,9 +131,14 @@ final routerProvider = Provider<GoRouter>((ref) {
           ),
           GoRoute(
             path: 'notifications',
-            builder: (_, _) => const ArtisanNotificationsScreen(),
+            // Eski bağlantılar için: birleşik bildirim merkezine gider.
+            builder: (_, _) => const NotificationsScreen(),
           ),
         ],
+      ),
+      GoRoute(
+        path: RoutePaths.notifications,
+        builder: (_, _) => const NotificationsScreen(),
       ),
       GoRoute(
         path: RoutePaths.chats,

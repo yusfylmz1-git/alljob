@@ -13,8 +13,14 @@ final favoriteRepositoryProvider = Provider<FavoriteRepository>((ref) {
   return MockFavoriteRepository(ref.watch(mockDatabaseProvider));
 });
 
-/// Müşterinin favori ustaları (Favorilerim).
+/// Müşterinin takip ettiği ustalar (Takip Ettiklerim).
 final favoritesProvider = StreamProvider.family<List<Favorite>, String>(
   (ref, customerUid) =>
       ref.watch(favoriteRepositoryProvider).watchFavorites(customerUid),
+);
+
+/// Ustayı takip eden müşteriler — bildirim ekranı "Sizi Takip Edenler".
+final followersProvider = StreamProvider.family<List<Favorite>, String>(
+  (ref, artisanUid) =>
+      ref.watch(favoriteRepositoryProvider).watchFollowers(artisanUid),
 );

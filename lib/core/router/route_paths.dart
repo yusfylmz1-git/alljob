@@ -36,6 +36,10 @@ class RoutePaths {
   // Müşteri profil sayfası (oturum açmış müşteri)
   static const String profile = '/profile';
 
+  // Bildirim merkezi (oturum açmış herkes — iki rol tek ekran).
+  // `/panel/notifications` eski bağlantılar için aynı ekrana gider.
+  static const String notifications = '/notifications';
+
   // Usta: yakındaki işler + iletişimler + premium + bildirimler
   static const String panelJobs = '/panel/jobs';
   static const String panelOffers = '/panel/offers';

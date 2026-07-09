@@ -38,6 +38,43 @@ class FirebaseFavoriteRepository implements FavoriteRepository {
   }
 
   @override
+  Stream<List<Favorite>> watchFollowers(String artisanUid) {
+    // `artisanUid` eşitlik filtresi kural ispatı için zorunlu (kural: usta
+    // yalnızca KENDİ takipçilerini okuyabilir).
+    return _favorites
+        .where('artisanUid', isEqualTo: artisanUid)
+        .snapshots()
+        .asyncMap((s) async {
+      final list = s.docs.map((d) => Favorite.fromMap(d.id, d.data())).toList()
+        ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      // Eski kayıtlar müşteri snapshot'ı taşımaz → adı/fotoyu herkese açık
+      // `users` dökümanından tamamla (önbellekli; kayıt sayısı sınırlı).
+      return Future.wait(list.map((f) async {
+        if (f.customerName.isNotEmpty) return f;
+        final cached = _customerCache[f.customerUid];
+        if (cached != null) {
+          return f.copyWith(
+              customerName: cached.$1, customerPhotoUrl: cached.$2);
+        }
+        try {
+          final u =
+              await _db.collection('users').doc(f.customerUid).get();
+          final name = (u.data()?['displayName'] as String?) ?? 'Kullanıcı';
+          final photo = u.data()?['profilePhotoURL'] as String?;
+          _customerCache[f.customerUid] = (name, photo);
+          return f.copyWith(customerName: name, customerPhotoUrl: photo);
+        } catch (_) {
+          return f.copyWith(customerName: 'Kullanıcı');
+        }
+      }));
+    });
+  }
+
+  /// customerUid → (ad, foto) — takipçi listesi her snapshot'ta users'ı
+  /// yeniden okumasın diye.
+  final Map<String, (String, String?)> _customerCache = {};
+
+  @override
   Future<bool> isFavorite({
     required String customerUid,
     required String artisanUid,

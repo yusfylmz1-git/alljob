@@ -45,6 +45,18 @@ service cloud.firestore {
       match /private/{doc} {
         allow read, write: if isSelf(uid);
       }
+
+      // Uygulama içi bildirim merkezi — kayıtları YALNIZCA Cloud Functions
+      // yazar (Admin SDK kuralları aşar). Sahibi okur ve sadece `read`
+      // alanını true yapabilir; sahte bildirim enjekte edilemez/silinemez.
+      match /notifications/{notifId} {
+        allow read: if isSelf(uid);
+        allow update: if isSelf(uid)
+          && request.resource.data.diff(resource.data)
+              .affectedKeys().hasOnly(['read'])
+          && request.resource.data.read == true;
+        allow create, delete: if false;
+      }
     }
 
     // artisanProfiles — herkese açık (misafir de görebilir, PRD §2); sahibi yazar.
@@ -226,14 +238,17 @@ service cloud.firestore {
       allow delete: if false;
     }
 
-    // favorites — müşterinin favori ustaları (#14). Döküman ID'si =
-    // customerUid__artisanUid. Yalnızca sahibi müşteri erişir. Toggle =
+    // favorites — müşterinin takip ettiği ("Takip Et") ustalar (#14). Döküman
+    // ID'si = customerUid__artisanUid. Müşteri kendi listesini, USTA da kendi
+    // takipçilerini okuyabilir (bildirim ekranı "Sizi Takip Edenler" — ürün
+    // kararı: takip, ustaya görünürdür; UI dili de "Takip Et"). Toggle =
     // create/delete (update yok).
     match /favorites/{favId} {
-      // resource == null: favori eklerken "önce oku" adımı (var olmayan döküman).
+      // resource == null: takip eklerken "önce oku" adımı (var olmayan döküman).
       allow read: if isSignedIn()
         && (resource == null
-            || resource.data.customerUid == request.auth.uid);
+            || resource.data.customerUid == request.auth.uid
+            || resource.data.artisanUid == request.auth.uid);
       allow create: if isSignedIn()
         && request.resource.data.customerUid == request.auth.uid;
       allow delete: if isSignedIn()

@@ -9,6 +9,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/widgets/app_menu_drawer.dart';
 import '../../../core/widgets/brand_mark.dart';
+import '../../../core/widgets/notification_bell.dart';
 import '../../../core/widgets/responsive_center.dart';
 import '../../../core/widgets/role_bottom_bar.dart';
 import '../../../core/widgets/skeleton.dart';
@@ -237,6 +238,8 @@ class _HeroHeader extends ConsumerWidget {
                     ),
                   ),
                   const Spacer(),
+                  // Sağ üst: bildirim merkezi (girişli kullanıcıda görünür).
+                  const NotificationBell(),
                   if (user == null)
                     TextButton.icon(
                       style: TextButton.styleFrom(

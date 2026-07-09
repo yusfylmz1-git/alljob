@@ -374,5 +374,28 @@ void main() {
       expect(removed, isFalse);
       expect(await favs.isFavorite(customerUid: 'c1', artisanUid: 'a1'), isFalse);
     });
+
+    test('watchFollowers ustayı takip eden müşterileri döner', () async {
+      final db = MockDatabase();
+      final favs = MockFavoriteRepository(db);
+      Favorite fav(String customer, String artisan) => Favorite(
+            customerUid: customer,
+            artisanUid: artisan,
+            artisanName: 'Usta',
+            professionNameTR: 'Boyacı Ustası',
+            rating: 4.8,
+            totalReviews: 20,
+            customerName: 'Müşteri $customer',
+            createdAt: DateTime.now(),
+          );
+      await favs.toggle(fav('c1', 'a1'));
+      await favs.toggle(fav('c2', 'a1'));
+      await favs.toggle(fav('c1', 'a2')); // başka ustanın takipçisi
+
+      final followers = await favs.watchFollowers('a1').first;
+      expect(followers.length, 2);
+      expect(followers.map((f) => f.customerUid), containsAll(['c1', 'c2']));
+      expect(followers.first.customerName, isNotEmpty);
+    });
   });
 }

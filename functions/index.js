@@ -77,6 +77,35 @@ async function sendPushToUid(uid, title, body, data) {
   }
 }
 
+// Uygulama içi bildirim merkezi kayıtlarının saklama süresi (gün) — Firestore
+// TTL politikası `expireAt` alanına bağlanır (Console → TTL: notifications).
+const NOTIFICATION_TTL_DAYS = 30;
+
+/**
+ * Uygulama içi bildirim merkezine kayıt yazar (`users/{uid}/notifications`).
+ * Push'tan BAĞIMSIZ çağrılır: cihaz token'ı olmayan kullanıcı da uygulama
+ * içinde bildirimi görür. Kurallar bu alt-koleksiyonu istemci yazımına kapatır
+ * (yalnızca `read` güncellenebilir) — sahte bildirim enjekte edilemez.
+ *
+ * [docId] deterministik verilir (ör. `chat_{chatId}`, `job_{jobId}`): aynı
+ * kaynağın yeni olayı eski kaydın ÜZERİNE yazar → Instagram tarzı, sohbet/ilan
+ * başına tek satır; `read` false'a döner ve satır listenin başına çıkar.
+ */
+async function saveNotification(uid, docId, notif) {
+  try {
+    await db.collection("users").doc(uid)
+        .collection("notifications").doc(docId).set({
+          ...notif,
+          read: false,
+          createdAt: new Date().toISOString(),
+          expireAt: admin.firestore.Timestamp.fromMillis(
+              Date.now() + NOTIFICATION_TTL_DAYS * 24 * 3600 * 1000),
+        });
+  } catch (e) {
+    logger.warn(`Notification save failed for ${uid}/${docId}: ${e}`);
+  }
+}
+
 /**
  * Yeni bir değerlendirme oluşunca ustanın puan toplamlarını günceller.
  *
@@ -180,6 +209,21 @@ exports.onMessageCreated = onDocumentCreated(
       const recipientUid = participants.find((p) => p && p !== senderUid);
       if (!recipientUid) return;
 
+      // Bildirim başlığı = gönderenin adı; gövde = mesaj (foto ise etiket).
+      const senderName = senderUid === chat.customerUid ?
+        chat.customerName :
+        chat.artisanName;
+      const body = msg.imageHandle ? "📷 Fotoğraf" : (msg.text || "Yeni mesaj");
+
+      // Uygulama içi bildirim merkezi (sohbet başına tek kayıt, push'tan
+      // bağımsız — token'sız kullanıcı da görsün).
+      await saveNotification(recipientUid, `chat_${chatId}`, {
+        type: "chat",
+        title: senderName || "Yeni mesaj",
+        body,
+        chatId,
+      });
+
       // Alıcının token'ları.
       const userSnap = await db.collection("users").doc(recipientUid).get();
       const tokens = (userSnap.exists &&
@@ -187,12 +231,6 @@ exports.onMessageCreated = onDocumentCreated(
         userSnap.data().fcmTokens :
         [];
       if (tokens.length === 0) return;
-
-      // Bildirim başlığı = gönderenin adı; gövde = mesaj (foto ise etiket).
-      const senderName = senderUid === chat.customerUid ?
-        chat.customerName :
-        chat.artisanName;
-      const body = msg.imageHandle ? "📷 Fotoğraf" : (msg.text || "Yeni mesaj");
 
       const payload = {
         tokens,
@@ -297,6 +335,43 @@ exports.onJobCreated = onDocumentCreated(
         return;
       }
 
+      // Not: il adına ek ("'de/'da") ünlü uyumu gerektirdiğinden ekli kalıp
+      // kullanılmaz ("İstanbul'de" gibi hatalar oluşuyordu).
+      const urgent = job.isUrgent === true;
+      const title = urgent ?
+        `🚨 ${province} bölgesinde acil iş ilanı` :
+        `${province} bölgesinde yeni iş ilanı`;
+      const district = job.district ? ` · ${job.district}` : "";
+      const body = `${job.title || "Yeni ilan"}${district}`;
+
+      // Uygulama içi bildirim merkezi: eşleşen HER ustaya kayıt (push'tan
+      // bağımsız). 500 işlem/batch sınırına karşı parçalı yazım.
+      const expireAt = admin.firestore.Timestamp.fromMillis(
+          Date.now() + NOTIFICATION_TTL_DAYS * 24 * 3600 * 1000);
+      const nowIso = new Date().toISOString();
+      for (let i = 0; i < recipientUids.length; i += 450) {
+        const batch = db.batch();
+        for (const uid of recipientUids.slice(i, i + 450)) {
+          batch.set(
+              db.collection("users").doc(uid)
+                  .collection("notifications").doc(`job_${jobId}`),
+              {
+                type: "job",
+                title,
+                body,
+                jobId,
+                read: false,
+                createdAt: nowIso,
+                expireAt,
+              });
+        }
+        try {
+          await batch.commit();
+        } catch (e) {
+          logger.warn(`Job ${jobId}: notification batch failed: ${e}`);
+        }
+      }
+
       // Alıcıların token'larını topla (token → sahip eşlemesiyle; temizlik
       // için hangi token kimin dizisinde biliniyor olmalı).
       const tokens = [];
@@ -322,15 +397,6 @@ exports.onJobCreated = onDocumentCreated(
         logger.info(`Job ${jobId}: matching artisans have no tokens`);
         return;
       }
-
-      // Not: il adına ek ("'de/'da/'te/'ta") ünlü uyumu gerektirdiğinden ekli
-      // kalıp kullanılmaz ("İstanbul'de" gibi hatalar oluşuyordu).
-      const urgent = job.isUrgent === true;
-      const title = urgent ?
-        `🚨 ${province} bölgesinde acil iş ilanı` :
-        `${province} bölgesinde yeni iş ilanı`;
-      const district = job.district ? ` · ${job.district}` : "";
-      const body = `${job.title || "Yeni ilan"}${district}`;
 
       // FCM multicast en fazla 500 token kabul eder → parça parça gönder.
       const invalidByOwner = new Map(); // uid → [token]
@@ -428,7 +494,24 @@ exports.onJobWritten = onDocumentWritten(
         }
       }
 
-      // 2) Tek taraflı tamamlama onayı YENİ geldi → son tarih + push.
+      // 2) Usta seçildi (open → workerSelected) → seçilen ustaya haber ver.
+      //    (Bu ana kadar seçilen usta push almıyordu — eksik bildirimdi.)
+      if (before && before.status === "open" &&
+          after.status === "workerSelected" && after.selectedArtisanId) {
+        const selTitle = "🎉 Bir iş için seçildiniz";
+        const selBody = `"${after.title || "İş"}" için müşteri sizi seçti. ` +
+          "Detayları sohbetten konuşabilirsiniz.";
+        await saveNotification(after.selectedArtisanId, `job_${jobId}`, {
+          type: "job",
+          title: selTitle,
+          body: selBody,
+          jobId,
+        });
+        await sendPushToUid(after.selectedArtisanId, selTitle, selBody,
+            {type: "job", jobId});
+      }
+
+      // 3) Tek taraflı tamamlama onayı YENİ geldi → son tarih + push.
       const custNew = after.customerConfirmedDone === true &&
         !(before && before.customerConfirmedDone === true);
       const artNew = after.artisanConfirmedDone === true &&
@@ -446,14 +529,17 @@ exports.onJobWritten = onDocumentWritten(
 
         const recipient = custNew ? after.selectedArtisanId : after.customerId;
         if (recipient) {
-          await sendPushToUid(
-              recipient,
-              "İş tamamlama onayınız bekleniyor",
-              `"${after.title || "İş"}" karşı tarafça tamamlandı olarak ` +
-              `işaretlendi. ${AUTO_COMPLETE_DAYS} gün içinde yanıt ` +
-              "vermezseniz iş otomatik tamamlanacak.",
-              {type: "job", jobId},
-          );
+          const cTitle = "İş tamamlama onayınız bekleniyor";
+          const cBody = `"${after.title || "İş"}" karşı tarafça tamamlandı ` +
+            `olarak işaretlendi. ${AUTO_COMPLETE_DAYS} gün içinde yanıt ` +
+            "vermezseniz iş otomatik tamamlanacak.";
+          await saveNotification(recipient, `job_${jobId}`, {
+            type: "job",
+            title: cTitle,
+            body: cBody,
+            jobId,
+          });
+          await sendPushToUid(recipient, cTitle, cBody, {type: "job", jobId});
         }
       }
     },
@@ -509,13 +595,17 @@ exports.autoCompleteJobs = onSchedule(
           j.selectedArtisanId :
           j.customerId;
         if (silentParty) {
-          await sendPushToUid(
-              silentParty,
-              "İş otomatik tamamlandı",
-              `"${j.title || "İş"}", karşı tarafın onayı ve yanıt süresinin ` +
-              "dolması nedeniyle tamamlandı olarak işaretlendi.",
-              {type: "job", jobId: d.id},
-          );
+          const aTitle = "İş otomatik tamamlandı";
+          const aBody = `"${j.title || "İş"}", karşı tarafın onayı ve yanıt ` +
+            "süresinin dolması nedeniyle tamamlandı olarak işaretlendi.";
+          await saveNotification(silentParty, `job_${d.id}`, {
+            type: "job",
+            title: aTitle,
+            body: aBody,
+            jobId: d.id,
+          });
+          await sendPushToUid(silentParty, aTitle, aBody,
+              {type: "job", jobId: d.id});
         }
       }
       logger.info(

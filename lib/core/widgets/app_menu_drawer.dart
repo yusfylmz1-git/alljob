@@ -189,7 +189,7 @@ class AppMenuDrawer extends ConsumerWidget {
           ),
           ListTile(
             leading: const Icon(Icons.favorite_border),
-            title: const Text('Favorilerim'),
+            title: const Text('Takip Ettiklerim'),
             onTap: () => _open(context, RoutePaths.favorites),
           ),
           const Divider(indent: 16, endIndent: 16),

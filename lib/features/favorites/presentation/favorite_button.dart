@@ -64,13 +64,18 @@ class FavoriteButton extends ConsumerWidget {
         rating: rating,
         totalReviews: totalReviews,
         photoUrl: photoUrl,
+        // Ustanın "Sizi Takip Edenler" listesi için müşteri snapshot'ı —
+        // takip, ustaya adla görünür (ürün kararı; UI dili de "Takip Et").
+        customerName: user.displayName,
+        customerPhotoUrl: user.profilePhotoUrl,
         createdAt: DateTime.now(),
       );
       try {
         final added = await ref.read(favoriteRepositoryProvider).toggle(fav);
         if (!context.mounted) return;
-        context.showInfo(
-            added ? 'Favorilere eklendi.' : 'Favorilerden çıkarıldı.');
+        context.showInfo(added
+            ? 'Ustayı takip ediyorsunuz.'
+            : 'Takipten çıkarıldı.');
       } catch (_) {
         if (context.mounted) {
           context.showError('İşlem başarısız, tekrar deneyin.');
@@ -111,14 +116,14 @@ class FavoriteButton extends ConsumerWidget {
         elevation: 1,
         child: IconButton(
           icon: icon,
-          tooltip: isFav ? 'Favorilerden çıkar' : 'Favorilere ekle',
+          tooltip: isFav ? 'Takipten çık' : 'Takip Et',
           onPressed: onTap,
         ),
       );
     }
     return IconButton(
       icon: icon,
-      tooltip: isFav ? 'Favorilerden çıkar' : 'Favorilere ekle',
+      tooltip: isFav ? 'Takipten çık' : 'Takip Et',
       onPressed: onTap,
     );
   }

@@ -8,6 +8,7 @@ import '../../../core/utils/validators.dart';
 import '../../../core/widgets/app_button.dart';
 import '../../../core/widgets/app_image.dart';
 import '../../../core/widgets/gradient_app_bar.dart';
+import '../../../core/widgets/notification_bell.dart';
 import '../../../core/widgets/responsive_center.dart';
 import '../../../data/local/local_data_service.dart';
 import '../../../data/models/availability.dart';
@@ -31,6 +32,7 @@ class ArtisanProfileEditScreen extends ConsumerWidget {
       appBar: const GradientAppBar(
         title: 'Profili Düzenle',
         icon: Icons.badge_outlined,
+        actions: [NotificationBell(), SizedBox(width: 4)],
       ),
       body: draftAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),

@@ -36,6 +36,20 @@ class MockFavoriteRepository implements FavoriteRepository {
   }
 
   @override
+  Stream<List<Favorite>> watchFollowers(String artisanUid) async* {
+    yield _followers(artisanUid);
+    yield* _db.changes.map((_) => _followers(artisanUid));
+  }
+
+  List<Favorite> _followers(String artisanUid) {
+    final list = _db.favorites.values
+        .where((f) => f.artisanUid == artisanUid)
+        .toList()
+      ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    return list;
+  }
+
+  @override
   Future<bool> isFavorite({
     required String customerUid,
     required String artisanUid,

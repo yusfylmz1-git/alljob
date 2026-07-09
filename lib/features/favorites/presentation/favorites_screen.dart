@@ -22,7 +22,7 @@ class FavoritesScreen extends ConsumerWidget {
     final user = ref.watch(currentUserProvider);
     return Scaffold(
       appBar: const GradientAppBar(
-        title: 'Favorilerim',
+        title: 'Takip Ettiklerim',
         icon: Icons.favorite_border_rounded,
       ),
       body: user == null
@@ -141,14 +141,15 @@ class _EmptyFavorites extends StatelessWidget {
                   size: 34, color: AppColors.onPrimaryContainer),
             ),
             const SizedBox(height: 16),
-            Text('Henüz favoriniz yok',
+            Text('Henüz kimseyi takip etmiyorsunuz',
                 style: Theme.of(context)
                     .textTheme
                     .titleMedium
                     ?.copyWith(fontWeight: FontWeight.w700)),
             const SizedBox(height: 6),
             Text(
-              'Beğendiğiniz ustaları favorilere ekleyin, sonra kolayca ulaşın.',
+              'Beğendiğiniz ustaları kalp ile takip edin, sonra kolayca ulaşın. '
+              'Takip ettiğinizi usta da görür.',
               textAlign: TextAlign.center,
               style: Theme.of(context)
                   .textTheme
