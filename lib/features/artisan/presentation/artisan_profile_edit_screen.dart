@@ -12,6 +12,7 @@ import '../../../core/widgets/responsive_center.dart';
 import '../../../data/local/local_data_service.dart';
 import '../../../data/models/availability.dart';
 import '../../../data/models/geo_models.dart';
+import '../../auth/application/auth_controller.dart';
 import '../../auth/presentation/verification_tile.dart';
 import '../../storage/storage_repository.dart';
 import '../application/my_profile_controller.dart';
@@ -75,8 +76,11 @@ class _EditFormState extends ConsumerState<_EditForm> {
         if (mounted) context.showError('Görsel 5 MB\'dan küçük olmalı.');
         return;
       }
+      final uid = ref.read(currentUserProvider)?.uid;
+      if (uid == null) return;
+      // Yol uid ile başlar: Storage kuralı yalnızca kendi klasörüne yazmaya izin verir.
       final handle = await ref.read(storageRepositoryProvider).uploadImage(
-            pathHint: pathHint,
+            pathHint: '$pathHint/$uid',
             bytes: bytes,
           );
       onHandle(handle);

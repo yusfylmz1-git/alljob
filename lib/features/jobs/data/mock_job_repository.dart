@@ -105,6 +105,7 @@ class MockJobRepository implements JobRepository {
     required String jobId,
     required String offerId,
     required String artisanId,
+    required String customerId,
     required String chatId,
   }) async {
     final job = _db.jobs[jobId];

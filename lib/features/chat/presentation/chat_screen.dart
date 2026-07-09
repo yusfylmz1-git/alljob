@@ -93,7 +93,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       setState(() => _sending = true);
       final handle = await ref
           .read(storageRepositoryProvider)
-          .uploadImage(pathHint: 'chat', bytes: bytes);
+          .uploadImage(pathHint: 'chat/${user.uid}', bytes: bytes);
       await ref.read(chatRepositoryProvider).sendMessage(
             chatId: widget.chatId,
             senderUid: user.uid,

@@ -63,9 +63,12 @@ class _CreateJobScreenState extends ConsumerState<CreateJobScreen> {
         if (mounted) context.showError('Görsel 5 MB\'dan küçük olmalı.');
         return;
       }
+      final uid = ref.read(currentUserProvider)?.uid;
+      if (uid == null) return;
+      // Yol uid ile başlar: Storage kuralı yalnızca kendi klasörüne yazmaya izin verir.
       final handle = await ref
           .read(storageRepositoryProvider)
-          .uploadImage(pathHint: 'job', bytes: bytes);
+          .uploadImage(pathHint: 'job/$uid', bytes: bytes);
       if (mounted) setState(() => _photos.add(handle));
     } catch (_) {
       if (mounted) context.showError('Görsel seçilemedi.');

@@ -59,7 +59,11 @@ class _ReviewScreenState extends ConsumerState<ReviewScreen> {
     } catch (_) {
       if (mounted) {
         setState(() => _sending = false);
-        context.showError('Değerlendirme gönderilemedi. Tekrar deneyin.');
+        // En olası neden: aynı usta daha önce değerlendirilmiş (kural, müşteri
+        // başına tek değerlendirmeye izin verir); diğer olasılık ağ hatası.
+        context.showError(
+            'Değerlendirme gönderilemedi. Bir ustayı yalnızca bir kez '
+            'değerlendirebilirsiniz; sorun sürerse tekrar deneyin.');
       }
       return;
     }

@@ -32,11 +32,14 @@ abstract interface class JobRepository {
 
   /// Müşteri bir teklifi seçer (#6): ilan `workerSelected` olur, seçilen teklif
   /// `accepted`, diğer teklifler `rejected`; [chatId] ilana yazılır (sohbet
-  /// çağıran tarafından açılmış olmalıdır).
+  /// çağıran tarafından açılmış olmalıdır). [customerId] = ilan sahibi;
+  /// Firestore `offers` liste sorgusunun kural ispatı için zorunlu (kural
+  /// `customerId == auth.uid` ister; filtresiz sorgu komple reddedilir).
   Future<void> selectOffer({
     required String jobId,
     required String offerId,
     required String artisanId,
+    required String customerId,
     required String chatId,
   });
 

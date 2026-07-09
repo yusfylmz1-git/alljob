@@ -35,13 +35,15 @@ class MockReviewRepository implements ReviewRepository {
     required int rating,
     required List<String> tags,
   }) async {
-    _db.addReview(
+    final added = _db.addReview(
       artisanUid: artisanUid,
       customerUid: customerUid,
       customerName: customerName,
       rating: rating,
       tags: tags,
     );
+    // Firestore kuralıyla parite: ikinci değerlendirme reddedilir.
+    if (!added) throw StateError('already-reviewed');
   }
 
   @override
@@ -72,7 +74,7 @@ class FirebaseReviewRepository implements ReviewRepository {
     required List<String> tags,
   }) async {
     final review = Review(
-      id: '',
+      id: chatId,
       artisanUid: artisanUid,
       customerUid: customerUid,
       customerDisplayName: customerName,
@@ -81,7 +83,10 @@ class FirebaseReviewRepository implements ReviewRepository {
       tags: tags,
       createdAt: DateTime.now(),
     );
-    await _reviews.add(review.toMap());
+    // Döküman ID'si = chatId (chat_{müşteri}__{usta}): güvenlik kuralı bu
+    // formatı ve sohbetin varlığını doğrular; bir müşteri bir ustayı yalnızca
+    // 1 kez değerlendirebilir (ikinci deneme update sayılır → kural reddeder).
+    await _reviews.doc(chatId).set(review.toMap());
   }
 
   @override

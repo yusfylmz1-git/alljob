@@ -221,6 +221,7 @@ void main() {
         jobId: jobId,
         offerId: Offer.idFor(jobId, 'art_1'),
         artisanId: 'art_1',
+        customerId: 'cust_1',
         chatId: 'chat_abc',
       );
 

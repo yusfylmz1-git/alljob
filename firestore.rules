@@ -107,12 +107,26 @@ service cloud.firestore {
       }
     }
 
-    // reviews — herkes okuyabilir; yalnızca ilgili müşteri kendi değerlendirmesini
-    // oluşturur (PRD §5: sohbet geçmişi gerekliliği Cloud Functions ile de doğrulanmalı).
+    // reviews — herkes okuyabilir. Oluşturma artık SUNUCUDA doğrulanır:
+    //  - Yazan, dökümandaki müşteri olmalı (customerUID == auth.uid).
+    //  - Döküman ID'si deterministik: chat_{müşteriUid}__{ustaUid} → bir müşteri
+    //    bir ustayı EN FAZLA 1 kez değerlendirebilir (puan şişirme/spam kapalı).
+    //  - Aynı ID'li sohbet dökümanı VAR olmalı (PRD §5 "sohbet geçmişi şartı"
+    //    artık kuralda; istemcideki kontrol yalnızca UX).
+    //  - Kendini değerlendirmek yasak; puan 1..5 tam sayı.
+    // update/delete kapalı → `onReviewCreated` CF artımlı toplamları güvenle tutar.
     match /reviews/{reviewId} {
       allow read: if true;
       allow create: if isSignedIn()
-        && request.resource.data.customerUID == request.auth.uid;
+        && request.resource.data.customerUID == request.auth.uid
+        && request.resource.data.artisanUID is string
+        && request.resource.data.artisanUID != request.auth.uid
+        && reviewId == 'chat_' + request.auth.uid + '__'
+            + request.resource.data.artisanUID
+        && exists(/databases/$(database)/documents/chats/$(reviewId))
+        && request.resource.data.rating is int
+        && request.resource.data.rating >= 1
+        && request.resource.data.rating <= 5;
       allow update, delete: if false;
     }
 
@@ -143,12 +157,35 @@ service cloud.firestore {
         return isSignedIn() && resource.data.selectedArtisanId == request.auth.uid;
       }
 
+      // `completed` yazılıyorsa iki tarafın onayı da (yeni veride) true olmalı —
+      // tek taraf işi kendi başına "tamamlandı" yapamaz (#10, sayaç bütünlüğü).
+      function completedHasBothConfirms() {
+        return request.resource.data.status != 'completed'
+          || (request.resource.data.customerConfirmedDone == true
+              && request.resource.data.artisanConfirmedDone == true);
+      }
+
       allow read: if true;
       allow create: if isSignedIn()
-        && request.resource.data.customerId == request.auth.uid;
-      allow update: if isJobOwner()
-        || (isSelectedArtisan()
-            && changedOnly(['status', 'artisanConfirmedDone']));
+        && request.resource.data.customerId == request.auth.uid
+        && request.resource.data.status == 'open'
+        && request.resource.data.offerCount == 0
+        && request.resource.data.customerConfirmedDone == false
+        && request.resource.data.artisanConfirmedDone == false;
+      // Sahip: yalnızca yaşam döngüsü alanları (ilan içeriği yayından sonra
+      // değişmez), KARŞI TARAFIN onayını değiştiremez (artisanConfirmedDone
+      // listede yok; confirmDone tx'i alanı değiştirmeden yazar → diff'e girmez)
+      // ve ilan 'open'a GERİ döndürülemez. Usta: yalnız durum + kendi onayı;
+      // durumu ancak inProgress/completed'a taşıyabilir.
+      allow update: if completedHasBothConfirms()
+        && ((isJobOwner()
+              && changedOnly(['status', 'selectedOfferId', 'selectedArtisanId',
+                    'chatId', 'customerConfirmedDone', 'cancelReason'])
+              && request.resource.data.status != 'open')
+            || (isSelectedArtisan()
+                && changedOnly(['status', 'artisanConfirmedDone'])
+                && (request.resource.data.status == resource.data.status
+                    || request.resource.data.status in ['inProgress', 'completed'])));
       allow delete: if false;
     }
 
@@ -160,12 +197,25 @@ service cloud.firestore {
     match /offers/{offerId} {
       // resource == null: var olmayan bir dökümanın get()'i (teklif verirken
       // "önce oku" adımı) — kuralın null.data'ya düşüp reddetmesini önler.
+      // Teklifin bağlı olduğu ilan (create'te 1 ek okuma — kabul edilebilir).
+      function jobOf(jobId) {
+        return get(/databases/$(database)/documents/jobs/$(jobId)).data;
+      }
+
       allow read: if isSignedIn()
         && (resource == null
             || resource.data.artisanId == request.auth.uid
             || resource.data.customerId == request.auth.uid);
+      // ID formatı jobId__artisanId KURALLA garanti (usta başına ilan başına tek
+      // teklif; rastgele ID ile sayaç şişirilemez). `customerId` ilanın GERÇEK
+      // sahibi olmalı (yanlış customerId, müşterinin teklifi hiç görememesine
+      // yol açardı) ve ilan hâlâ teklif topluyor olmalı.
       allow create: if isSignedIn()
-        && request.resource.data.artisanId == request.auth.uid;
+        && request.resource.data.artisanId == request.auth.uid
+        && offerId == request.resource.data.jobId + '__' + request.auth.uid
+        && request.resource.data.customerId
+            == jobOf(request.resource.data.jobId).customerId
+        && jobOf(request.resource.data.jobId).status == 'open';
       allow update: if (isSignedIn()
             && resource.data.artisanId == request.auth.uid)
         || (isSignedIn()

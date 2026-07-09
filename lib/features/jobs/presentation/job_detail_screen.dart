@@ -208,12 +208,20 @@ class _OwnerOffersSection extends ConsumerWidget {
     if (confirmed != true) return;
 
     final chatId = _chatIdFor(ref, offer);
-    await ref.read(jobRepositoryProvider).selectOffer(
-          jobId: job.jobId,
-          offerId: offer.offerId,
-          artisanId: offer.artisanId,
-          chatId: chatId,
-        );
+    try {
+      await ref.read(jobRepositoryProvider).selectOffer(
+            jobId: job.jobId,
+            offerId: offer.offerId,
+            artisanId: offer.artisanId,
+            customerId: job.customerId,
+            chatId: chatId,
+          );
+    } catch (_) {
+      if (context.mounted) {
+        context.showError('Usta seçilemedi, lütfen tekrar deneyin.');
+      }
+      return;
+    }
     if (!context.mounted) return;
     context.showSuccess('Usta seçildi.');
     context.push(RoutePaths.chatThread(chatId));

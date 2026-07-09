@@ -99,5 +99,38 @@ void main() {
       expect(rec.reviews.first.rating, 5);
       expect(rec.reviews.first.tags, contains('Temiz işçilik'));
     });
+
+    test('aynı müşteri aynı ustayı 2. kez değerlendiremez (kural paritesi)', () {
+      final db = MockDatabase();
+      final first = db.addReview(
+        artisanUid: 'artisan_0',
+        customerUid: 'c1',
+        customerName: 'Müşteri',
+        rating: 5,
+        tags: const [],
+      );
+      expect(first, isTrue);
+
+      final countAfterFirst = db.artisans['artisan_0']!.profile.totalReviews;
+      final second = db.addReview(
+        artisanUid: 'artisan_0',
+        customerUid: 'c1',
+        customerName: 'Müşteri',
+        rating: 1,
+        tags: const [],
+      );
+      expect(second, isFalse);
+      expect(db.artisans['artisan_0']!.profile.totalReviews, countAfterFirst);
+
+      // Farklı müşteri hâlâ değerlendirebilir.
+      final other = db.addReview(
+        artisanUid: 'artisan_0',
+        customerUid: 'c2',
+        customerName: 'Diğer',
+        rating: 4,
+        tags: const [],
+      );
+      expect(other, isTrue);
+    });
   });
 }

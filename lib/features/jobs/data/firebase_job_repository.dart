@@ -125,6 +125,7 @@ class FirebaseJobRepository implements JobRepository {
     required String jobId,
     required String offerId,
     required String artisanId,
+    required String customerId,
     required String chatId,
   }) async {
     final batch = _db.batch();
@@ -136,8 +137,14 @@ class FirebaseJobRepository implements JobRepository {
       'chatId': chatId,
     });
 
-    final offersSnap =
-        await _offers.where('jobId', isEqualTo: jobId).get();
+    // `customerId` filtresi kural ispatı için zorunlu: `offers` okuma kuralı
+    // sahipliği sorgu filtresinden kanıtlayamazsa liste sorgusunun TAMAMI
+    // permission-denied olur (bkz. watchOffersForJob'daki aynı ders).
+    // İki eşitlik filtresi → composite index gerekmez.
+    final offersSnap = await _offers
+        .where('jobId', isEqualTo: jobId)
+        .where('customerId', isEqualTo: customerId)
+        .get();
     for (final d in offersSnap.docs) {
       final status = OfferStatus.fromString(d.data()['status'] as String?);
       if (status == OfferStatus.withdrawn) continue;

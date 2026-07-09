@@ -272,10 +272,12 @@ exports.onJobCreated = onDocumentCreated(
         return;
       }
 
+      // Not: il adına ek ("'de/'da/'te/'ta") ünlü uyumu gerektirdiğinden ekli
+      // kalıp kullanılmaz ("İstanbul'de" gibi hatalar oluşuyordu).
       const urgent = job.isUrgent === true;
       const title = urgent ?
-        `🚨 ${province}'de acil iş ilanı` :
-        `${province}'de yeni iş ilanı`;
+        `🚨 ${province} bölgesinde acil iş ilanı` :
+        `${province} bölgesinde yeni iş ilanı`;
       const district = job.district ? ` · ${job.district}` : "";
       const body = `${job.title || "Yeni ilan"}${district}`;
 

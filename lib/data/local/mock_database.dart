@@ -70,7 +70,7 @@ class MockDatabase {
   /// İş sonu değerlendirmesi ekler ve ustanın ortalama puanını günceller
   /// (mock'ta Cloud Functions'ın yerine geçer, PRD §5). Etiketler serbest
   /// metin değil, hazır etiketlerdir.
-  void addReview({
+  bool addReview({
     required String artisanUid,
     required String customerUid,
     required String customerName,
@@ -78,7 +78,10 @@ class MockDatabase {
     required List<String> tags,
   }) {
     final rec = artisans[artisanUid];
-    if (rec == null) return;
+    if (rec == null) return false;
+    // Firestore kuralı ile parite: bir müşteri bir ustayı yalnızca 1 kez
+    // değerlendirebilir (döküman ID'si = chat_{müşteri}__{usta}).
+    if (rec.reviews.any((r) => r.customerUid == customerUid)) return false;
     final review = Review(
       id: 'rev_${DateTime.now().millisecondsSinceEpoch}',
       artisanUid: artisanUid,
@@ -99,6 +102,7 @@ class MockDatabase {
       totalReviews: totalReviews,
       totalRatingSum: totalRatingSum,
     );
+    return true;
   }
 
   /// Ustanın kendi profilini kaydeder/günceller (upsert). Puanlama alanları
