@@ -161,6 +161,33 @@ class _CreateJobScreenState extends ConsumerState<CreateJobScreen> {
                 value: _category,
                 onChanged: (c) => setState(() => _category = c),
               ),
+              if (_category == kQuickSupportCategory) ...[
+                const SizedBox(height: 8),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: AppColors.warningSurface,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.bolt, color: AppColors.warning, size: 20),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          'Hızlı Destek: montaj, taşıma, ufak tamirat gibi '
+                          'ayak işleri için. İlanınız meslek filtresi olmadan '
+                          'ilçenizdeki TÜM ustalara bildirilir.',
+                          style: Theme.of(context)
+                              .textTheme
+                              .bodySmall
+                              ?.copyWith(fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
               const SizedBox(height: 16),
 
               _Label('Konum'),
@@ -303,9 +330,18 @@ class _CategoryDropdown extends ConsumerWidget {
         isExpanded: true,
         decoration: const InputDecoration(prefixIcon: Icon(Icons.handyman_outlined)),
         hint: const Text('Kategori seçin'),
-        items: professions
-            .map((p) => DropdownMenuItem(value: p.code, child: Text(p.nameTR)))
-            .toList(),
+        // En üstte Hızlı Destek (ayak işleri; meslek gerektirmez). "Diğer"
+        // usta MESLEĞİDİR, ilan kategorisi olamaz (Hızlı Destek onu kapsar).
+        items: [
+          const DropdownMenuItem(
+            value: kQuickSupportCategory,
+            child: Text('⚡ Hızlı Destek (ayak işleri)'),
+          ),
+          ...professions
+              .where((p) => p.code != kOtherProfession)
+              .map((p) =>
+                  DropdownMenuItem(value: p.code, child: Text(p.nameTR))),
+        ],
         onChanged: onChanged,
       ),
     );

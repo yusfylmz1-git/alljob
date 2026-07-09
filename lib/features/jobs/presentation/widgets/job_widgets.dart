@@ -34,6 +34,8 @@ String jobCategoryEmoji(String category) {
       return '🌿';
     case 'cleaner':
       return '🧽';
+    case 'quick_support':
+      return '⚡';
     default:
       return '🔧';
   }

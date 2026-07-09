@@ -10,5 +10,6 @@
   { "code": "white_goods", "nameTR": "Beyaz Eşya Tamiri", "icon": "kitchen" },
   { "code": "mover", "nameTR": "Nakliyat / Evden Eve", "icon": "local_shipping" },
   { "code": "gardener", "nameTR": "Bahçıvan", "icon": "yard" },
-  { "code": "cleaner", "nameTR": "Temizlik", "icon": "cleaning_services" }
+  { "code": "cleaner", "nameTR": "Temizlik", "icon": "cleaning_services" },
+  { "code": "other", "nameTR": "Diğer / Hızlı Destek", "icon": "handyman" }
 ]

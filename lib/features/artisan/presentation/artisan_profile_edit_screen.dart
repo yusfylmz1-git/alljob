@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../../core/constants/app_constants.dart';
+import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/snackbar_helper.dart';
 import '../../../core/utils/validators.dart';
 import '../../../core/widgets/app_button.dart';
@@ -13,6 +14,7 @@ import '../../../core/widgets/responsive_center.dart';
 import '../../../data/local/local_data_service.dart';
 import '../../../data/models/availability.dart';
 import '../../../data/models/geo_models.dart';
+import '../../../data/models/job.dart' show kOtherProfession;
 import '../../auth/application/auth_controller.dart';
 import '../../auth/presentation/verification_tile.dart';
 import '../../storage/storage_repository.dart';
@@ -211,6 +213,33 @@ class _EditFormState extends ConsumerState<_EditForm> {
                 if (code != null) _controller.setProfession(code);
               },
             ),
+            if (profile.profession == kOtherProfession) ...[
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppColors.warningSurface,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.bolt, color: AppColors.warning, size: 20),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        '"Diğer" seçtiğinizde yalnızca bölgenizdeki ⚡ Hızlı '
+                        'Destek (ayak işleri) ilanları size bildirilir; '
+                        'meslek ilanları gelmez.',
+                        style: Theme.of(context)
+                            .textTheme
+                            .bodySmall
+                            ?.copyWith(fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
             const SizedBox(height: 16),
 
             // --- Deneyim ---

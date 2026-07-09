@@ -387,6 +387,70 @@ void main() {
     });
   });
 
+  group('Hızlı Destek (ayak işleri)', () {
+    const areas = [
+      ServiceArea(
+          province: 'Bursa', district: 'Osmangazi', neighborhood: 'Dikkaldırım'),
+    ];
+
+    test('hızlı destek ilanı ilçedeki HER meslekten ustayla eşleşir', () {
+      final job = _sampleJob(category: kQuickSupportCategory);
+      // Meslek fark etmez: boyacı da, "Diğer" de eşleşir.
+      expect(
+          job.matchesArtisan(professionCode: 'painter', serviceAreas: areas),
+          isTrue);
+      expect(
+          job.matchesArtisan(
+              professionCode: kOtherProfession, serviceAreas: areas),
+          isTrue);
+      // Ama ilçe eşleşmesi ŞART.
+      expect(
+        job.matchesArtisan(
+          professionCode: 'painter',
+          serviceAreas: const [
+            ServiceArea(province: 'Bursa', district: 'Nilüfer'),
+          ],
+        ),
+        isFalse,
+      );
+    });
+
+    test('"Diğer" ustası YALNIZCA hızlı destek ilanlarını görür', () async {
+      final db = MockDatabase();
+      final jobs = MockJobRepository(db);
+      final quickId =
+          await jobs.createJob(_sampleJob(category: kQuickSupportCategory));
+      await jobs.createJob(_sampleJob(category: 'painter'));
+
+      final feed = await jobs
+          .watchNearbyJobs(
+              professionCode: kOtherProfession, serviceAreas: areas)
+          .first;
+      expect(feed.map((j) => j.jobId), contains(quickId));
+      expect(feed.every((j) => j.category == kQuickSupportCategory), isTrue);
+    });
+
+    test('normal usta feed\'inde kendi mesleği + hızlı destek birlikte görünür',
+        () async {
+      final db = MockDatabase();
+      final jobs = MockJobRepository(db);
+      final quickId =
+          await jobs.createJob(_sampleJob(category: kQuickSupportCategory));
+      final paintId = await jobs.createJob(_sampleJob(category: 'painter'));
+      await jobs.createJob(_sampleJob(category: 'plumber')); // başka meslek
+
+      final feed = await jobs
+          .watchNearbyJobs(professionCode: 'painter', serviceAreas: areas)
+          .first;
+      expect(feed.map((j) => j.jobId), containsAll([quickId, paintId]));
+      expect(
+          feed.every((j) =>
+              j.category == 'painter' ||
+              j.category == kQuickSupportCategory),
+          isTrue);
+    });
+  });
+
   group('Süre dolumu (#2)', () {
     test('süresi geçmiş açık ilan expired sayılır ve feed dışıdır', () async {
       final db = MockDatabase();

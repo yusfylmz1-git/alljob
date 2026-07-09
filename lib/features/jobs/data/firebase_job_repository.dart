@@ -48,10 +48,18 @@ class FirebaseJobRepository implements JobRepository {
     required List<ServiceArea> serviceAreas,
   }) {
     // Sunucuda kategori+durum eşitliği + createdAt DESC sıralı ilk N ilan
-    // (composite index: jobs category,status,createdAt). Böylece koleksiyon
-    // büyüdükçe okuma sayısı sabit kalır. Coğrafi eşleşme/süre dolumu istemcide.
+    // (composite index: jobs category,status,createdAt; `whereIn` aynı index'i
+    // çoklu eşitlik olarak kullanır). Böylece koleksiyon büyüdükçe okuma
+    // sayısı sabit kalır. Coğrafi eşleşme/süre dolumu istemcide.
+    //
+    // Hızlı Destek: her usta kendi mesleğinin YANINDA quick_support
+    // ilanlarını da alır; "Diğer" mesleği yalnızca quick_support'la eşleşir
+    // (istemcideki matchesArtisan da aynı kuralı uygular).
+    final categories = professionCode == kOtherProfession
+        ? [kQuickSupportCategory]
+        : {professionCode, kQuickSupportCategory}.toList();
     return _jobs
-        .where('category', isEqualTo: professionCode)
+        .where('category', whereIn: categories)
         .where('status', isEqualTo: JobStatus.open.apiValue)
         .orderBy('createdAt', descending: true)
         .limit(AppConstants.nearbyJobsFetchCap)

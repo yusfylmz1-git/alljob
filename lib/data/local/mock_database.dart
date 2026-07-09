@@ -9,7 +9,9 @@ import '../models/job.dart';
 import '../models/offer.dart';
 import '../models/review.dart';
 
-/// Meslek kodu → Türkçe ad (professions.json ile aynı). Mock görüntüleme için.
+/// Meslek/kategori kodu → Türkçe ad. Meslekler professions.json ile aynı;
+/// `quick_support` yalnızca İLAN kategorisidir (usta mesleği değildir,
+/// görüntüleme için burada).
 const kProfessionNames = <String, String>{
   'painter': 'Boyacı Ustası',
   'plumber': 'Tesisatçı',
@@ -23,6 +25,8 @@ const kProfessionNames = <String, String>{
   'mover': 'Nakliyat / Evden Eve',
   'gardener': 'Bahçıvan',
   'cleaner': 'Temizlik',
+  'other': 'Diğer / Hızlı Destek',
+  'quick_support': 'Hızlı Destek',
 };
 
 /// Bir ustanın bellek içi kaydı (users + artisanProfiles + reviews birleşimi).
@@ -199,8 +203,10 @@ class MockDatabase {
 
     // Genel veri: HER meslekten, birden fazla il/ilçede ustalar. Böylece
     // kullanıcı hangi meslek/bölgeyi seçerse seçsin sonuç bulur.
+    // `quick_support` ilan kategorisidir, usta mesleği DEĞİL → seed'e girmez.
     var idx = 200;
     for (final prof in kProfessionNames.keys) {
+      if (prof == kQuickSupportCategory) continue;
       for (var j = 0; j < 6; j++) {
         final area = _generalAreas[idx % _generalAreas.length];
         _add(

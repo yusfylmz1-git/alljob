@@ -1,5 +1,15 @@
 import 'geo_models.dart';
 
+/// "Hızlı Destek" ilan kategorisi (ayak işleri / küçük görevler): meslek
+/// gerektirmez, İLÇEDEKİ TÜM ustalarla eşleşir. Usta mesleği olarak SEÇİLEMEZ
+/// (professions.json'da yok); yalnızca ilan kategorisidir.
+/// CF paritesi: functions/index.js QUICK_SUPPORT_CATEGORY.
+const kQuickSupportCategory = 'quick_support';
+
+/// "Diğer / Hızlı Destek" mesleği: bu mesleği seçen usta YALNIZCA Hızlı
+/// Destek ilanlarını görür/alır (klasik meslek ilanları ona gitmez).
+const kOtherProfession = 'other';
+
 /// İş ilanı fiyat tipi (#8): sabit fiyat beklentisi veya "keşif gerekli".
 enum JobPriceType {
   fixed,
@@ -389,13 +399,21 @@ class Job {
   /// Meslek eşleşmeli; ilan konumu ustanın hizmet bölgelerinden biriyle
   /// örtüşmeli (il+ilçe; mahalle verilmişse ve usta o mahalleyi de seçmişse
   /// daha spesifik eşleşir, ama ilçe düzeyi eşleşmesi yeterlidir).
+  ///
+  /// Hızlı Destek istisnaları:
+  ///  - İlan [kQuickSupportCategory] ise meslek ARANMAZ — ilçedeki her usta
+  ///    ("Diğer" dahil) eşleşir.
+  ///  - Usta mesleği [kOtherProfession] ise YALNIZCA Hızlı Destek ilanları
+  ///    eşleşir (klasik meslek ilanları ona gitmez).
   bool matchesArtisan({
     required String professionCode,
     required List<ServiceArea> serviceAreas,
   }) {
-    if (professionCode != category) return false;
-    return serviceAreas.any(
+    final areaMatch = serviceAreas.any(
       (a) => a.province == province && a.district == district,
     );
+    if (category == kQuickSupportCategory) return areaMatch;
+    if (professionCode == kOtherProfession) return false;
+    return professionCode == category && areaMatch;
   }
 }
