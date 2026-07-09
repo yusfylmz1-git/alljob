@@ -44,6 +44,59 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   final List<_PendingUpload> _pending = [];
   int _markedCount = -1;
 
+  /// Çoklu silme modu: üst bardaki çöp kutusuyla açılır; kutucuklarla seçilen
+  /// KENDİ mesajları topluca silinir (başkasının mesajı seçilemez).
+  bool _selectionMode = false;
+  final Set<String> _selected = {};
+
+  void _exitSelection() => setState(() {
+        _selectionMode = false;
+        _selected.clear();
+      });
+
+  void _toggleSelected(String id) => setState(() {
+        if (!_selected.remove(id)) _selected.add(id);
+      });
+
+  Future<void> _deleteSelected(String uid) async {
+    final count = _selected.length;
+    if (count == 0) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('$count mesajı sil'),
+        content: const Text('Seçilen mesajlar herkes için silinir; yerlerinde '
+            '"Bu mesaj silindi" görünür.'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Vazgeç')),
+          FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Sil')),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    final repo = ref.read(chatRepositoryProvider);
+    var failed = 0;
+    for (final id in _selected.toList()) {
+      try {
+        await repo.deleteMessage(
+            chatId: widget.chatId, messageId: id, senderUid: uid);
+      } catch (_) {
+        failed++;
+      }
+    }
+    if (!mounted) return;
+    _exitSelection();
+    if (failed > 0) {
+      context.showError('$failed mesaj silinemedi, tekrar deneyin.');
+    } else {
+      context.showInfo(count == 1 ? 'Mesaj silindi.' : '$count mesaj silindi.');
+    }
+  }
+
   @override
   void dispose() {
     _controller.dispose();
@@ -287,8 +340,50 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                   photo: otherPhoto,
                 );
 
-    return Scaffold(
-      appBar: AppBar(
+    // Çoklu silmede seçilebilecek mesajlar: kendi, henüz silinmemiş olanlar.
+    final myDeletableIds = user == null
+        ? const <String>[]
+        : [
+            for (final m
+                in messagesAsync.valueOrNull ?? const <ChatMessage>[])
+              if (m.senderUid == user.uid && !m.deleted) m.id
+          ];
+
+    final appBar = _selectionMode
+        ? AppBar(
+            leading: IconButton(
+              icon: const Icon(Icons.close),
+              tooltip: 'Vazgeç',
+              onPressed: _exitSelection,
+            ),
+            title: Text('${_selected.length} seçildi'),
+            actions: [
+              IconButton(
+                icon: const Icon(Icons.select_all),
+                tooltip: 'Tümünü seç',
+                onPressed: myDeletableIds.isEmpty
+                    ? null
+                    : () => setState(() {
+                          // Hepsi seçiliyse seçim kalkar (ikinci basış).
+                          if (_selected.length == myDeletableIds.length) {
+                            _selected.clear();
+                          } else {
+                            _selected
+                              ..clear()
+                              ..addAll(myDeletableIds);
+                          }
+                        }),
+              ),
+              IconButton(
+                icon: const Icon(Icons.delete_outline),
+                tooltip: 'Seçilenleri sil',
+                onPressed: _selected.isEmpty || user == null
+                    ? null
+                    : () => _deleteSelected(user.uid),
+              ),
+            ],
+          )
+        : AppBar(
         titleSpacing: 0,
         title: InkWell(
           onTap: goOtherProfile,
@@ -321,6 +416,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           ),
         ),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.delete_outline),
+            tooltip: 'Mesaj sil',
+            onPressed: myDeletableIds.isEmpty
+                ? null
+                : () => setState(() => _selectionMode = true),
+          ),
           if (isCustomer)
             TextButton.icon(
               icon: const Icon(Icons.star_outline, size: 18),
@@ -329,7 +431,16 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                   context.push(RoutePaths.review(thread.artisanUid)),
             ),
         ],
-      ),
+      );
+
+    return PopScope(
+      // Geri tuşu seçim modunda ekrandan çıkmasın, seçimi kapatsın.
+      canPop: !_selectionMode,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _exitSelection();
+      },
+      child: Scaffold(
+      appBar: appBar,
       body: Column(
         children: [
           Expanded(
@@ -386,25 +497,57 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                       final isLastOfGroup = j == messages.length - 1 ||
                           messages[j + 1].senderUid != msg.senderUid ||
                           !_sameDay(msg.createdAt, messages[j + 1].createdAt);
+                      // Seçim modunda seçilebilirlik: kendi, silinmemiş mesaj.
+                      final selectable = isMine && !msg.deleted;
+                      final bubble = _Bubble(
+                        message: msg,
+                        isMine: isMine,
+                        isRead: isRead,
+                        isLastOfGroup: isLastOfGroup,
+                        // Karşı tarafın mesajında avatar (#10); dokununca
+                        // karşı tarafın profili açılır.
+                        senderName: isMine ? null : title,
+                        senderPhoto: isMine ? null : otherPhoto,
+                        onAvatarTap:
+                            isMine || _selectionMode ? null : goOtherProfile,
+                        // Seçim modunda dokunuşlar seçimi yönetir; menü ve
+                        // tam ekran foto devre dışı kalır.
+                        onLongPress: _selectionMode
+                            ? (selectable
+                                ? () => _toggleSelected(msg.id)
+                                : null)
+                            : () => _showMessageActions(msg, isMine),
+                        onImageTap: _selectionMode
+                            ? (selectable
+                                ? () => _toggleSelected(msg.id)
+                                : null)
+                            : (msg.hasImage
+                                ? () => _openImage(msg.imageHandle!)
+                                : null),
+                      );
                       return Column(
                         children: [
                           if (showDate) _DateChip(date: msg.createdAt),
-                          _Bubble(
-                            message: msg,
-                            isMine: isMine,
-                            isRead: isRead,
-                            isLastOfGroup: isLastOfGroup,
-                            // Karşı tarafın mesajında avatar (#10); dokununca
-                            // karşı tarafın profili açılır.
-                            senderName: isMine ? null : title,
-                            senderPhoto: isMine ? null : otherPhoto,
-                            onAvatarTap: isMine ? null : goOtherProfile,
-                            onLongPress: () =>
-                                _showMessageActions(msg, isMine),
-                            onImageTap: msg.hasImage
-                                ? () => _openImage(msg.imageHandle!)
-                                : null,
-                          ),
+                          if (!_selectionMode)
+                            bubble
+                          else
+                            // Kutucuk + balon: dokununca seçim değişir.
+                            InkWell(
+                              onTap: selectable
+                                  ? () => _toggleSelected(msg.id)
+                                  : null,
+                              child: Row(
+                                children: [
+                                  Checkbox(
+                                    value: _selected.contains(msg.id),
+                                    onChanged: selectable
+                                        ? (_) => _toggleSelected(msg.id)
+                                        : null,
+                                  ),
+                                  Expanded(child: bubble),
+                                ],
+                              ),
+                            ),
                         ],
                       );
                     },
@@ -413,12 +556,15 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               },
             ),
           ),
-          _InputBar(
-            controller: _controller,
-            onSend: _sendText,
-            onPhoto: _sendPhoto,
-          ),
+          // Seçim modunda giriş çubuğu gizlenir (WhatsApp davranışı).
+          if (!_selectionMode)
+            _InputBar(
+              controller: _controller,
+              onSend: _sendText,
+              onPhoto: _sendPhoto,
+            ),
         ],
+      ),
       ),
     );
   }

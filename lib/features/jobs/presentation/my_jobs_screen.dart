@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/router/route_paths.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../core/utils/snackbar_helper.dart';
 import '../../../core/widgets/gradient_app_bar.dart';
 import '../../../core/widgets/responsive_center.dart';
 import '../../../core/widgets/role_bottom_bar.dart';
@@ -15,66 +16,205 @@ import '../../auth/application/auth_controller.dart';
 import '../data/job_providers.dart';
 import 'widgets/job_widgets.dart';
 
-/// Müşterinin kendi iş ilanları (İlanlarım).
-class MyJobsScreen extends ConsumerWidget {
+/// Müşterinin kendi iş ilanları (İlanlarım). Üst bardaki çöp kutusuyla çoklu
+/// seçim modu açılır: ustaya bağlanmamış ilanlar kutucuklarla seçilip topluca
+/// silinebilir ("Tümünü seç" dahil).
+class MyJobsScreen extends ConsumerStatefulWidget {
   const MyJobsScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<MyJobsScreen> createState() => _MyJobsScreenState();
+}
+
+class _MyJobsScreenState extends ConsumerState<MyJobsScreen> {
+  bool _selectionMode = false;
+  final Set<String> _selected = {};
+
+  void _exitSelection() => setState(() {
+        _selectionMode = false;
+        _selected.clear();
+      });
+
+  void _toggleSelected(String id) => setState(() {
+        if (!_selected.remove(id)) _selected.add(id);
+      });
+
+  Future<void> _deleteSelected() async {
+    final count = _selected.length;
+    if (count == 0) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('$count ilanı sil'),
+        content: const Text('Seçilen ilanlar kalıcı olarak silinecek. '
+            'Bu işlem geri alınamaz. Devam edilsin mi?'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Vazgeç')),
+          FilledButton(
+              style: FilledButton.styleFrom(backgroundColor: AppColors.danger),
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Sil')),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    final repo = ref.read(jobRepositoryProvider);
+    var failed = 0;
+    for (final id in _selected.toList()) {
+      try {
+        await repo.deleteJob(id);
+      } catch (_) {
+        failed++;
+      }
+    }
+    if (!mounted) return;
+    _exitSelection();
+    if (failed > 0) {
+      context.showError('$failed ilan silinemedi, tekrar deneyin.');
+    } else {
+      context.showInfo(count == 1 ? 'İlan silindi.' : '$count ilan silindi.');
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final user = ref.watch(currentUserProvider);
-    return Scaffold(
-      appBar: const GradientAppBar(
-        title: 'İlanlarım',
-        icon: Icons.campaign_outlined,
-      ),
-      bottomNavigationBar: const MainBottomBar(current: MainTab.work),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => context.push(RoutePaths.newJob),
-        icon: const Icon(Icons.add),
-        label: const Text('Yeni İlan'),
-      ),
-      body: user == null
-          ? const Center(child: Text('Oturum bulunamadı.'))
-          : ref.watch(myJobsProvider(user.uid)).when(
-                loading: () => const SkeletonList(),
-                error: (e, _) => Center(child: Text('İlanlar yüklenemedi.\n$e')),
-                data: (jobs) => jobs.isEmpty
-                    ? const _EmptyJobs()
-                    : ResponsiveCenter(
-                        maxWidth: 720,
-                        child: ListView.separated(
-                          padding: const EdgeInsets.all(16),
-                          itemCount: jobs.length,
-                          separatorBuilder: (_, _) => const SizedBox(height: 12),
-                          itemBuilder: (_, i) => _JobCard(job: jobs[i]),
-                        ),
-                      ),
+    final jobsAsync =
+        user == null ? null : ref.watch(myJobsProvider(user.uid));
+    // Silinebilir ilanlar: ustaya bağlanmamış olanlar (Job.canDelete).
+    final deletableIds = [
+      for (final j in jobsAsync?.valueOrNull ?? const <Job>[])
+        if (j.canDelete) j.jobId
+    ];
+
+    return PopScope(
+      // Geri tuşu seçim modunda ekrandan çıkmasın, seçimi kapatsın.
+      canPop: !_selectionMode,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _exitSelection();
+      },
+      child: Scaffold(
+        appBar: _selectionMode
+            ? GradientAppBar(
+                title: '${_selected.length} seçildi',
+                icon: Icons.delete_outline,
+                actions: [
+                  IconButton(
+                    icon: const Icon(Icons.select_all),
+                    tooltip: 'Tümünü seç',
+                    onPressed: deletableIds.isEmpty
+                        ? null
+                        : () => setState(() {
+                              // Hepsi seçiliyse seçim kalkar (ikinci basış).
+                              if (_selected.length == deletableIds.length) {
+                                _selected.clear();
+                              } else {
+                                _selected
+                                  ..clear()
+                                  ..addAll(deletableIds);
+                              }
+                            }),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.delete_outline),
+                    tooltip: 'Seçilenleri sil',
+                    onPressed: _selected.isEmpty ? null : _deleteSelected,
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close),
+                    tooltip: 'Vazgeç',
+                    onPressed: _exitSelection,
+                  ),
+                ],
+              )
+            : GradientAppBar(
+                title: 'İlanlarım',
+                icon: Icons.campaign_outlined,
+                actions: [
+                  IconButton(
+                    icon: const Icon(Icons.delete_outline),
+                    tooltip: 'İlan sil',
+                    onPressed: deletableIds.isEmpty
+                        ? null
+                        : () => setState(() => _selectionMode = true),
+                  ),
+                ],
               ),
+        bottomNavigationBar: const MainBottomBar(current: MainTab.work),
+        floatingActionButton: _selectionMode
+            ? null
+            : FloatingActionButton.extended(
+                onPressed: () => context.push(RoutePaths.newJob),
+                icon: const Icon(Icons.add),
+                label: const Text('Yeni İlan'),
+              ),
+        body: user == null
+            ? const Center(child: Text('Oturum bulunamadı.'))
+            : jobsAsync!.when(
+                  loading: () => const SkeletonList(),
+                  error: (e, _) =>
+                      Center(child: Text('İlanlar yüklenemedi.\n$e')),
+                  data: (jobs) => jobs.isEmpty
+                      ? const _EmptyJobs()
+                      : ResponsiveCenter(
+                          maxWidth: 720,
+                          child: ListView.separated(
+                            padding: const EdgeInsets.all(16),
+                            itemCount: jobs.length,
+                            separatorBuilder: (_, _) =>
+                                const SizedBox(height: 12),
+                            itemBuilder: (_, i) {
+                              final job = jobs[i];
+                              return _JobCard(
+                                job: job,
+                                selectionMode: _selectionMode,
+                                selected: _selected.contains(job.jobId),
+                                onToggle: job.canDelete
+                                    ? () => _toggleSelected(job.jobId)
+                                    : null,
+                                // Uzun basış da seçim modunu açar (Android
+                                // alışkanlığı) — yalnız silinebilir ilanlarda.
+                                onEnterSelection: job.canDelete
+                                    ? () => setState(() {
+                                          _selectionMode = true;
+                                          _selected.add(job.jobId);
+                                        })
+                                    : null,
+                              );
+                            },
+                          ),
+                        ),
+                ),
+      ),
     );
   }
 }
 
 class _JobCard extends StatelessWidget {
-  const _JobCard({required this.job});
+  const _JobCard({
+    required this.job,
+    this.selectionMode = false,
+    this.selected = false,
+    this.onToggle,
+    this.onEnterSelection,
+  });
   final Job job;
+  final bool selectionMode;
+  final bool selected;
+
+  /// Seçim modunda karta/kutucuğa dokununca; null = bu ilan silinemez
+  /// (ustaya bağlı), kutucuk devre dışı görünür.
+  final VoidCallback? onToggle;
+
+  /// Normal modda uzun basınca seçim modunu açar (silinebilir ilanlarda).
+  final VoidCallback? onEnterSelection;
 
   @override
   Widget build(BuildContext context) {
     final status = job.effectiveStatus;
-    return Material(
-      color: AppColors.surface,
-      borderRadius: BorderRadius.circular(16),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(16),
-        onTap: () => context.push(RoutePaths.jobDetail(job.jobId)),
-        child: Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: AppColors.border),
-            boxShadow: AppTheme.softShadow,
-          ),
-          child: Column(
+    final content = Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
@@ -121,7 +261,41 @@ class _JobCard extends StatelessWidget {
                 ],
               ),
             ],
+          );
+
+    return Material(
+      color: selected ? AppColors.primaryContainer : AppColors.surface,
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        // Seçim modunda dokunuş seçimi değiştirir; normalde detaya gider.
+        onTap: selectionMode
+            ? onToggle
+            : () => context.push(RoutePaths.jobDetail(job.jobId)),
+        onLongPress: selectionMode ? null : onEnterSelection,
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+                color: selected ? AppColors.primary : AppColors.border),
+            boxShadow: AppTheme.softShadow,
           ),
+          child: !selectionMode
+              ? content
+              : Row(
+                  children: [
+                    Checkbox(
+                      value: selected,
+                      // null onToggle: ustaya bağlı ilan — silinemez,
+                      // kutucuk devre dışı görünür.
+                      onChanged:
+                          onToggle == null ? null : (_) => onToggle!(),
+                    ),
+                    const SizedBox(width: 4),
+                    Expanded(child: content),
+                  ],
+                ),
         ),
       ),
     );
