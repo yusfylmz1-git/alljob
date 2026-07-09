@@ -27,6 +27,9 @@ class FirebaseChatRepository implements ChatRepository {
   final Map<String, ({DateTime? at, String? sender})> _lastMsgMeta = {};
   final Map<String, Map<String, DateTime>> _lastRead = {};
 
+  /// chatId → (uid → sohbeti sildiği an). Tek taraflı sohbet silme filtresi.
+  final Map<String, Map<String, DateTime>> _clearedAt = {};
+
   /// startChat'in `chats/{chatId}` yazımı devam ediyor olabilir. Mesaj gönderme
   /// kuralı bu dökümanın var olmasına bağlı (participants kontrolü), bu yüzden
   /// mesaj yazmadan önce ilgili yazımı bekleriz (yarış durumunu önler).
@@ -87,6 +90,12 @@ class FirebaseChatRepository implements ChatRepository {
           sender: doc.data()['lastMessageSenderUid'] as String?,
         );
         _lastRead[doc.id] = _readMap(doc.data()['lastRead']);
+        _clearedAt[doc.id] = _readMap(doc.data()['clearedAt']);
+        // Kullanıcının sildiği sohbet, silme anından sonra yeni mesaj
+        // gelmediyse listeye girmez (önbelleğe girer — aktif işin "Sohbete
+        // Git" akışı çalışmaya devam etsin).
+        final cleared = _clearedAt[doc.id]?[uid];
+        if (cleared != null && !t.updatedAt.isAfter(cleared)) continue;
         list.add(t);
       }
       list.sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
@@ -257,6 +266,24 @@ class FirebaseChatRepository implements ChatRepository {
       );
     }
   }
+
+  @override
+  Future<void> deleteThreadForMe({
+    required String chatId,
+    required String uid,
+  }) async {
+    final now = DateTime.now();
+    (_clearedAt[chatId] ??= {})[uid] = now; // önbelleği hemen güncelle
+    // Üye, sohbet dökümanını zaten güncelleyebilir (kural değişikliği
+    // gerekmez); karşı tarafın clearedAt'i korunur (nokta yolu merge).
+    await _chats.doc(chatId).set({
+      'clearedAt': {uid: Timestamp.fromDate(now)},
+    }, SetOptions(merge: true));
+  }
+
+  @override
+  DateTime? clearedAt({required String chatId, required String uid}) =>
+      _clearedAt[chatId]?[uid];
 
   /// `chat_<customerUid>__<artisanUid>` biçimindeki kimlikten üyelik haritası
   /// türetir; biçim beklenmedikse null döner.

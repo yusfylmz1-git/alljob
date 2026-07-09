@@ -17,7 +17,9 @@ import '../data/chat_providers.dart';
 
 /// Sohbet listesi — müşteri ve usta için ortak (Instagram DM dili):
 /// üstte arama kutusu, kompakt satırlar (ad + "mesaj · zaman"), okunmamışta
-/// kalın metin + mavi nokta.
+/// kalın metin + mavi nokta. Üst bardaki çöp kutusuyla çoklu seçim modu:
+/// seçilen sohbetler YALNIZCA bu kullanıcı için silinir (karşı taraf
+/// etkilenmez; karşı taraf yazarsa sohbet boş olarak yeniden belirir).
 class ChatListScreen extends ConsumerStatefulWidget {
   const ChatListScreen({super.key});
 
@@ -27,17 +29,125 @@ class ChatListScreen extends ConsumerStatefulWidget {
 
 class _ChatListScreenState extends ConsumerState<ChatListScreen> {
   String _query = '';
+  bool _selectionMode = false;
+  final Set<String> _selected = {};
+
+  void _exitSelection() => setState(() {
+        _selectionMode = false;
+        _selected.clear();
+      });
+
+  void _toggleSelected(String id) => setState(() {
+        if (!_selected.remove(id)) _selected.add(id);
+      });
+
+  Future<void> _deleteSelected(String uid) async {
+    final count = _selected.length;
+    if (count == 0) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(count == 1 ? 'Sohbeti sil' : '$count sohbeti sil'),
+        content: const Text(
+            'Sohbet yalnızca sizin listenizden silinir; karşı taraf sohbeti '
+            'görmeye devam eder. Karşı taraf yeni mesaj yazarsa sohbet boş '
+            'olarak yeniden görünür.'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Vazgeç')),
+          FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Sil')),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    final repo = ref.read(chatRepositoryProvider);
+    var failed = 0;
+    for (final id in _selected.toList()) {
+      try {
+        await repo.deleteThreadForMe(chatId: id, uid: uid);
+      } catch (_) {
+        failed++;
+      }
+    }
+    if (!mounted) return;
+    _exitSelection();
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.hideCurrentSnackBar();
+    messenger.showSnackBar(SnackBar(
+      content: Text(failed > 0
+          ? '$failed sohbet silinemedi, tekrar deneyin.'
+          : count == 1
+              ? 'Sohbet silindi.'
+              : '$count sohbet silindi.'),
+    ));
+  }
 
   @override
   Widget build(BuildContext context) {
     final user = ref.watch(currentUserProvider);
     final threadsAsync = ref.watch(myThreadsProvider);
+    final allIds = [
+      for (final t in threadsAsync.valueOrNull ?? const <ChatThread>[]) t.id
+    ];
 
-    return Scaffold(
-      appBar: const GradientAppBar(
-        title: 'Mesajlar',
-        icon: Icons.chat_bubble_outline_rounded,
-      ),
+    return PopScope(
+      // Geri tuşu seçim modunda ekrandan çıkmasın, seçimi kapatsın.
+      canPop: !_selectionMode,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _exitSelection();
+      },
+      child: Scaffold(
+      appBar: _selectionMode
+          ? GradientAppBar(
+              title: '${_selected.length} seçildi',
+              icon: Icons.delete_outline,
+              actions: [
+                IconButton(
+                  icon: const Icon(Icons.select_all),
+                  tooltip: 'Tümünü seç',
+                  onPressed: allIds.isEmpty
+                      ? null
+                      : () => setState(() {
+                            // Hepsi seçiliyse seçim kalkar (ikinci basış).
+                            if (_selected.length == allIds.length) {
+                              _selected.clear();
+                            } else {
+                              _selected
+                                ..clear()
+                                ..addAll(allIds);
+                            }
+                          }),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.delete_outline),
+                  tooltip: 'Seçilenleri sil',
+                  onPressed: _selected.isEmpty || user == null
+                      ? null
+                      : () => _deleteSelected(user.uid),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.close),
+                  tooltip: 'Vazgeç',
+                  onPressed: _exitSelection,
+                ),
+              ],
+            )
+          : GradientAppBar(
+              title: 'Mesajlar',
+              icon: Icons.chat_bubble_outline_rounded,
+              actions: [
+                IconButton(
+                  icon: const Icon(Icons.delete_outline),
+                  tooltip: 'Sohbet sil',
+                  onPressed: allIds.isEmpty
+                      ? null
+                      : () => setState(() => _selectionMode = true),
+                ),
+              ],
+            ),
       drawer: const AppMenuDrawer(),
       bottomNavigationBar: const MainBottomBar(current: MainTab.chats),
       body: threadsAsync.when(
@@ -105,6 +215,14 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
                             myUid: user.uid,
                             unread: repo.unreadCount(
                                 chatId: visible[i].id, uid: user.uid),
+                            selectionMode: _selectionMode,
+                            selected: _selected.contains(visible[i].id),
+                            onToggle: () => _toggleSelected(visible[i].id),
+                            // Uzun basış da seçim modunu açar (WhatsApp).
+                            onEnterSelection: () => setState(() {
+                              _selectionMode = true;
+                              _selected.add(visible[i].id);
+                            }),
                           ),
                         ),
                 ),
@@ -113,17 +231,30 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
           );
         },
       ),
+      ),
     );
   }
 }
 
 /// Instagram DM satırı: avatar · (ad / mesaj · zaman) · mavi nokta.
+/// Seçim modunda solda kutucuk belirir; dokunuş seçimi değiştirir.
 class _ThreadTile extends StatelessWidget {
-  const _ThreadTile(
-      {required this.thread, required this.myUid, this.unread = 0});
+  const _ThreadTile({
+    required this.thread,
+    required this.myUid,
+    this.unread = 0,
+    this.selectionMode = false,
+    this.selected = false,
+    this.onToggle,
+    this.onEnterSelection,
+  });
   final ChatThread thread;
   final String myUid;
   final int unread;
+  final bool selectionMode;
+  final bool selected;
+  final VoidCallback? onToggle;
+  final VoidCallback? onEnterSelection;
 
   static String _timeLabel(DateTime t) {
     final diff = DateTime.now().difference(t);
@@ -143,11 +274,24 @@ class _ThreadTile extends StatelessWidget {
     final preview = thread.lastMessage ?? 'Sohbeti başlatın';
 
     return InkWell(
-      onTap: () => context.push(RoutePaths.chatThread(thread.id)),
-      child: Padding(
+      onTap: selectionMode
+          ? onToggle
+          : () => context.push(RoutePaths.chatThread(thread.id)),
+      onLongPress: selectionMode ? null : onEnterSelection,
+      child: Container(
+        color: selected
+            ? theme.colorScheme.primaryContainer.withValues(alpha: 0.45)
+            : null,
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
         child: Row(
           children: [
+            if (selectionMode) ...[
+              Checkbox(
+                value: selected,
+                onChanged: onToggle == null ? null : (_) => onToggle!(),
+              ),
+              const SizedBox(width: 4),
+            ],
             CircleAvatar(
               radius: 28,
               backgroundColor: theme.colorScheme.primaryContainer,

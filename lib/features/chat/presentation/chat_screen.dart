@@ -340,12 +340,26 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                   photo: otherPhoto,
                 );
 
+    // Kullanıcı bu sohbeti listesinden sildiyse, silme anından önceki
+    // mesajlar ona artık gösterilmez (tek taraflı sohbet silme).
+    final cleared = user == null
+        ? null
+        : ref
+            .read(chatRepositoryProvider)
+            .clearedAt(chatId: widget.chatId, uid: user.uid);
+    List<ChatMessage> visibleOf(List<ChatMessage> all) => cleared == null
+        ? all
+        : [
+            for (final m in all)
+              if (m.createdAt.isAfter(cleared)) m
+          ];
+
     // Çoklu silmede seçilebilecek mesajlar: kendi, henüz silinmemiş olanlar.
     final myDeletableIds = user == null
         ? const <String>[]
         : [
-            for (final m
-                in messagesAsync.valueOrNull ?? const <ChatMessage>[])
+            for (final m in visibleOf(
+                messagesAsync.valueOrNull ?? const <ChatMessage>[]))
               if (m.senderUid == user.uid && !m.deleted) m.id
           ];
 
@@ -454,7 +468,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                       style: const TextStyle(color: Colors.red)),
                 ),
               ),
-              data: (messages) {
+              data: (allMessages) {
+                final messages = visibleOf(allMessages);
                 if (messages.isEmpty && _pending.isEmpty) {
                   return const _EmptyChat();
                 }

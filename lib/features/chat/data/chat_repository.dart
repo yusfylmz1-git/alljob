@@ -54,6 +54,16 @@ abstract interface class ChatRepository {
     required String messageId,
     required String senderUid,
   });
+
+  /// Sohbeti YALNIZCA [uid] için siler (WhatsApp "Sohbeti sil"): karşı
+  /// tarafın listesi/geçmişi etkilenmez. Sohbet [uid]'in listesinden düşer;
+  /// karşı taraf yeni mesaj yazarsa yeniden belirir ama silme anından önceki
+  /// mesajlar [uid]'e artık gösterilmez ([clearedAt] filtresi).
+  Future<void> deleteThreadForMe({required String chatId, required String uid});
+
+  /// [uid]'in bu sohbeti en son sildiği an; bu andan eski mesajlar ona
+  /// gösterilmez. Hiç silmediyse null.
+  DateTime? clearedAt({required String chatId, required String uid});
 }
 
 /// Bellek içi, gerçek-zamanlı taklit eden uygulama.
@@ -65,6 +75,9 @@ class MockChatRepository implements ChatRepository {
 
   /// chatId → (uid → en son okuma anı). Okunmamış sayısı ve okundu bilgisi için.
   final Map<String, Map<String, DateTime>> _lastRead = {};
+
+  /// chatId → (uid → sohbeti sildiği an). Tek taraflı sohbet silme.
+  final Map<String, Map<String, DateTime>> _clearedAt = {};
 
   int _seq = 0;
 
@@ -82,7 +95,13 @@ class MockChatRepository implements ChatRepository {
   }
 
   List<ChatThread> _threadsFor(String uid) {
-    final list = _threads.values.where((t) => t.involves(uid)).toList()
+    final list = _threads.values.where((t) {
+      if (!t.involves(uid)) return false;
+      // Kullanıcının sildiği sohbet, silme anından sonra yeni mesaj
+      // gelmediyse listede görünmez.
+      final cleared = _clearedAt[t.id]?[uid];
+      return cleared == null || t.updatedAt.isAfter(cleared);
+    }).toList()
       ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
     return list;
   }
@@ -233,6 +252,19 @@ class MockChatRepository implements ChatRepository {
       _threadsTick.add(null);
     }
   }
+
+  @override
+  Future<void> deleteThreadForMe({
+    required String chatId,
+    required String uid,
+  }) async {
+    (_clearedAt[chatId] ??= {})[uid] = DateTime.now();
+    _threadsTick.add(null);
+  }
+
+  @override
+  DateTime? clearedAt({required String chatId, required String uid}) =>
+      _clearedAt[chatId]?[uid];
 
   void dispose() {
     for (final c in _msgControllers.values) {

@@ -90,6 +90,28 @@ void main() {
       expect(msgs.first.deleted, isFalse);
     });
 
+    test('sohbeti benden sil: listeden düşer, karşı tarafta kalır, '
+        'yeni mesajla boş döner', () async {
+      final repo = MockChatRepository();
+      final chatId = repo.startChat(
+        customerUid: 'c1', customerName: 'M', artisanUid: 'a1', artisanName: 'U');
+      await repo.sendMessage(chatId: chatId, senderUid: 'a1', text: 'Eski');
+
+      await repo.deleteThreadForMe(chatId: chatId, uid: 'c1');
+      // Silen tarafın listesinden düşer; karşı tarafta durur.
+      expect(await repo.watchThreads('c1').first, isEmpty);
+      expect(await repo.watchThreads('a1').first, hasLength(1));
+      // Silme anı kaydedilir → eski mesajlar UI'da filtrelenir.
+      expect(repo.clearedAt(chatId: chatId, uid: 'c1'), isNotNull);
+      expect(repo.clearedAt(chatId: chatId, uid: 'a1'), isNull);
+
+      // Karşı taraf yeni mesaj yazınca sohbet yeniden belirir. (Küçük bekleme:
+      // silme ile mesaj aynı zaman damgasına denk gelirse "sonra" sayılmaz.)
+      await Future<void>.delayed(const Duration(milliseconds: 5));
+      await repo.sendMessage(chatId: chatId, senderUid: 'a1', text: 'Yeni');
+      expect(await repo.watchThreads('c1').first, hasLength(1));
+    });
+
     test('hasChatBetween sohbet geçmişini doğrular (PRD §5)', () {
       final repo = MockChatRepository();
       expect(
