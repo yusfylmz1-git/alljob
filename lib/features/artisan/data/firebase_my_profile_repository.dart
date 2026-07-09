@@ -40,6 +40,7 @@ class FirebaseMyProfileRepository implements MyProfileRepository {
       ..remove('averageRating')
       ..remove('totalReviews')
       ..remove('totalRatingSum')
+      ..remove('completedJobs')
       ..['displayName'] = displayName
       ..['profilePhotoURL'] = profilePhotoUrl;
 

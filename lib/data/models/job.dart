@@ -128,6 +128,7 @@ class Job {
     this.selectedArtisanId,
     this.chatId,
     this.cancelReason,
+    this.autoCompleteAt,
   });
 
   final String jobId;
@@ -161,6 +162,12 @@ class Job {
   final bool artisanConfirmedDone;
 
   final JobCancelReason? cancelReason; // (#11)
+
+  /// Tek taraf "işi tamamladım" dediğinde CF (`onJobWritten`) tarafından
+  /// yazılan son tarih: karşı taraf bu tarihe kadar yanıt vermezse zamanlanmış
+  /// CF (`autoCompleteJobs`) işi otomatik `completed` yapar. İstemci YAZMAZ
+  /// (toMap'e girmez), yalnızca gösterir.
+  final DateTime? autoCompleteAt;
 
   final DateTime createdAt;
   final DateTime expiresAt;
@@ -197,6 +204,7 @@ class Job {
     bool? artisanConfirmedDone,
     JobCancelReason? cancelReason,
     DateTime? expiresAt,
+    DateTime? autoCompleteAt,
   }) {
     return Job(
       jobId: jobId,
@@ -222,6 +230,7 @@ class Job {
           customerConfirmedDone ?? this.customerConfirmedDone,
       artisanConfirmedDone: artisanConfirmedDone ?? this.artisanConfirmedDone,
       cancelReason: cancelReason ?? this.cancelReason,
+      autoCompleteAt: autoCompleteAt ?? this.autoCompleteAt,
       createdAt: createdAt,
       expiresAt: expiresAt ?? this.expiresAt,
     );
@@ -277,6 +286,9 @@ class Job {
       customerConfirmedDone: (map['customerConfirmedDone'] as bool?) ?? false,
       artisanConfirmedDone: (map['artisanConfirmedDone'] as bool?) ?? false,
       cancelReason: JobCancelReason.fromString(map['cancelReason'] as String?),
+      autoCompleteAt: map['autoCompleteAt'] != null
+          ? DateTime.tryParse(map['autoCompleteAt'].toString())
+          : null,
       createdAt: DateTime.tryParse(map['createdAt']?.toString() ?? '') ??
           DateTime.now(),
       expiresAt: DateTime.tryParse(map['expiresAt']?.toString() ?? '') ??

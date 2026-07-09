@@ -151,7 +151,16 @@ class MockJobRepository implements JobRepository {
       customerConfirmedDone: customerDone,
       artisanConfirmedDone: artisanDone,
       status: bothDone ? JobStatus.completed : job.status,
+      // CF paritesi: tek taraflı onayda karşı tarafa 3 günlük yanıt süresi
+      // başlar (canlıda `onJobWritten` yazar, süre dolunca `autoCompleteJobs`
+      // işi tamamlar). Sayı functions/index.js AUTO_COMPLETE_DAYS ile eş.
+      autoCompleteAt: bothDone
+          ? null // copyWith null'u "koru" sayar; bothDone'da alan zaten kullanılmaz
+          : job.autoCompleteAt ?? DateTime.now().add(const Duration(days: 3)),
     );
+    if (bothDone && job.selectedArtisanId != null) {
+      _db.incrementCompletedJobs(job.selectedArtisanId!);
+    }
     _db.notify();
   }
 

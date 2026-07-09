@@ -16,6 +16,7 @@ class ArtisanProfile {
     required this.averageRating,
     required this.totalReviews,
     required this.totalRatingSum,
+    this.completedJobs = 0,
     required this.isPremium,
     required this.alwaysAvailable,
     required this.manualPause,
@@ -37,6 +38,10 @@ class ArtisanProfile {
   final double averageRating;
   final int totalReviews;
   final int totalRatingSum;
+
+  /// Tamamlanan iş sayısı — yalnızca Cloud Functions günceller (`onJobWritten`,
+  /// iş `completed` durumuna İLK geçtiğinde +1). İstemci yazamaz (kural).
+  final int completedJobs;
 
   // Monetizasyon — gelir modeli yalnızca Premium üyeliğe dayanır (PRD §6).
   final bool isPremium;
@@ -125,6 +130,7 @@ class ArtisanProfile {
       averageRating: averageRating,
       totalReviews: totalReviews,
       totalRatingSum: totalRatingSum,
+      completedJobs: completedJobs,
       isPremium: isPremium ?? this.isPremium,
       premiumExpiresAt: premiumExpiresAt ?? this.premiumExpiresAt,
       alwaysAvailable: alwaysAvailable ?? this.alwaysAvailable,
@@ -134,12 +140,13 @@ class ArtisanProfile {
     );
   }
 
-  /// Yalnızca puanlama alanlarını günceller (mock'ta Cloud Functions yerine).
-  /// Normal [copyWith] bu alanları kasıtlı olarak korur.
+  /// Yalnızca puanlama/sayaç alanlarını günceller (mock'ta Cloud Functions
+  /// yerine). Normal [copyWith] bu alanları kasıtlı olarak korur.
   ArtisanProfile copyWithRating({
     required double averageRating,
     required int totalReviews,
     required int totalRatingSum,
+    int? completedJobs,
   }) {
     return ArtisanProfile(
       uid: uid,
@@ -153,6 +160,7 @@ class ArtisanProfile {
       averageRating: averageRating,
       totalReviews: totalReviews,
       totalRatingSum: totalRatingSum,
+      completedJobs: completedJobs ?? this.completedJobs,
       isPremium: isPremium,
       premiumExpiresAt: premiumExpiresAt,
       alwaysAvailable: alwaysAvailable,
@@ -173,6 +181,7 @@ class ArtisanProfile {
         'averageRating': averageRating,
         'totalReviews': totalReviews,
         'totalRatingSum': totalRatingSum,
+        'completedJobs': completedJobs,
         'isPremium': isPremium,
         'premiumExpiresAt': premiumExpiresAt?.toIso8601String(),
         'alwaysAvailable': alwaysAvailable,
@@ -196,6 +205,7 @@ class ArtisanProfile {
       averageRating: (map['averageRating'] as num?)?.toDouble() ?? 0,
       totalReviews: (map['totalReviews'] as num?)?.toInt() ?? 0,
       totalRatingSum: (map['totalRatingSum'] as num?)?.toInt() ?? 0,
+      completedJobs: (map['completedJobs'] as num?)?.toInt() ?? 0,
       isPremium: (map['isPremium'] as bool?) ?? false,
       premiumExpiresAt: map['premiumExpiresAt'] != null
           ? DateTime.tryParse(map['premiumExpiresAt'].toString())

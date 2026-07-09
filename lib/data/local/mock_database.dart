@@ -105,6 +105,19 @@ class MockDatabase {
     return true;
   }
 
+  /// İş `completed` olduğunda usta sayacını artırır (CF `onJobWritten` paritesi).
+  void incrementCompletedJobs(String artisanUid) {
+    final rec = artisans[artisanUid];
+    if (rec == null) return;
+    final p = rec.profile;
+    rec.profile = p.copyWithRating(
+      averageRating: p.averageRating,
+      totalReviews: p.totalReviews,
+      totalRatingSum: p.totalRatingSum,
+      completedJobs: p.completedJobs + 1,
+    );
+  }
+
   /// Ustanın kendi profilini kaydeder/günceller (upsert). Puanlama alanları
   /// profilde korunur; displayName/foto users tarafından gelir.
   void upsertArtisan({

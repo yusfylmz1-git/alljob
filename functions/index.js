@@ -17,6 +17,7 @@ const {
   onDocumentCreated,
   onDocumentWritten,
 } = require("firebase-functions/v2/firestore");
+const {onSchedule} = require("firebase-functions/v2/scheduler");
 const {logger} = require("firebase-functions");
 const admin = require("firebase-admin");
 
@@ -25,6 +26,56 @@ const db = admin.firestore();
 
 // Fonksiyonları Firestore veritabanına yakın bölgede çalıştır (gecikme/maliyet).
 const REGION = "europe-west1";
+
+// Tek taraf "işi tamamladım" dedikten sonra karşı tarafın yanıt süresi (gün).
+// Mock paritesi: mock_job_repository.confirmDone aynı sayıyı kullanır.
+const AUTO_COMPLETE_DAYS = 3;
+
+/**
+ * Tek bir kullanıcıya (tüm kayıtlı cihazlarına) push gönderir; kayıtsız/geçersiz
+ * token'ları kullanıcının dizisinden temizler (onMessageCreated ile aynı kalıp).
+ */
+async function sendPushToUid(uid, title, body, data) {
+  const userSnap = await db.collection("users").doc(uid).get();
+  const tokens = (userSnap.exists && Array.isArray(userSnap.data().fcmTokens)) ?
+    userSnap.data().fcmTokens :
+    [];
+  if (tokens.length === 0) return;
+
+  let resp;
+  try {
+    resp = await admin.messaging().sendEachForMulticast({
+      tokens,
+      notification: {title, body},
+      data,
+      android: {priority: "high", notification: {sound: "default"}},
+      apns: {payload: {aps: {sound: "default", badge: 1}}},
+    });
+  } catch (e) {
+    logger.error(`Push failed for ${uid}: ${e}`);
+    return;
+  }
+
+  const invalid = [];
+  resp.responses.forEach((r, i) => {
+    if (r.success) return;
+    const code = r.error && r.error.code;
+    if (code === "messaging/registration-token-not-registered" ||
+        code === "messaging/invalid-argument" ||
+        code === "messaging/invalid-registration-token") {
+      invalid.push(tokens[i]);
+    }
+  });
+  if (invalid.length > 0) {
+    try {
+      await db.collection("users").doc(uid).update({
+        fcmTokens: admin.firestore.FieldValue.arrayRemove(...invalid),
+      });
+    } catch (e) {
+      logger.warn(`Token cleanup skipped for ${uid}: ${e}`);
+    }
+  }
+}
 
 /**
  * Yeni bir değerlendirme oluşunca ustanın puan toplamlarını günceller.
@@ -330,5 +381,144 @@ exports.onJobCreated = onDocumentCreated(
           `Job ${jobId} (${category}/${province}): ` +
           `${recipientUids.length} artisan, ${success}/${tokens.length} push ok`,
       );
+    },
+);
+
+/**
+ * İş yaşam döngüsü tetikleyicisi (#tamamlama-mühendisliği):
+ *
+ * 1) İş `completed`/`rated` durumuna İLK geçtiğinde ustanın profilindeki
+ *    `completedJobs` sayacını +1 artırır. Kurallar bu alanı istemciye kapatır;
+ *    ayrıca kural gereği `completed` ancak İKİ tarafın onayı da true iken
+ *    yazılabildiğinden sayaç şişirilemez.
+ *
+ * 2) Tek taraf "işi tamamladım" dediğinde (onay bayrakları XOR) ilana
+ *    `autoCompleteAt` son tarihini yazar ve KARŞI tarafa push gönderir.
+ *    Süre dolunca `autoCompleteJobs` zamanlanmış fonksiyonu işi tamamlar —
+ *    "unutulan iş sonsuza dek inProgress kalır" sorunu böyle çözülür.
+ *
+ * Döngü güvenliği: bu fonksiyonun kendi `autoCompleteAt` yazımı tetiklenmeyi
+ * yeniler ama onay bayrakları değişmediği için her iki dal da atlanır.
+ */
+exports.onJobWritten = onDocumentWritten(
+    {document: "jobs/{jobId}", region: REGION},
+    async (event) => {
+      const before =
+        event.data && event.data.before && event.data.before.data();
+      const after = event.data && event.data.after && event.data.after.data();
+      if (!after) return; // silinme (kurallar delete'e izin vermez)
+      const jobId = event.params.jobId;
+
+      // 1) completed'a ilk geçiş → completedJobs +1.
+      const doneStates = ["completed", "rated"];
+      const wasDone = !!before && doneStates.includes(before.status);
+      const isDone = doneStates.includes(after.status);
+      if (!wasDone && isDone && after.selectedArtisanId) {
+        try {
+          await db.collection("artisanProfiles")
+              .doc(after.selectedArtisanId)
+              .update({
+                completedJobs: admin.firestore.FieldValue.increment(1),
+              });
+          logger.info(`completedJobs +1 for ${after.selectedArtisanId}`);
+        } catch (e) {
+          // Profil yoksa atla (zararsız).
+          logger.warn(
+              `completedJobs skipped for ${after.selectedArtisanId}: ${e}`);
+        }
+      }
+
+      // 2) Tek taraflı tamamlama onayı YENİ geldi → son tarih + push.
+      const custNew = after.customerConfirmedDone === true &&
+        !(before && before.customerConfirmedDone === true);
+      const artNew = after.artisanConfirmedDone === true &&
+        !(before && before.artisanConfirmedDone === true);
+      const oneSided = (after.customerConfirmedDone === true) !==
+        (after.artisanConfirmedDone === true);
+      const active = after.status === "workerSelected" ||
+        after.status === "inProgress";
+      if ((custNew || artNew) && oneSided && active && !after.autoCompleteAt) {
+        const deadline = new Date(
+            Date.now() + AUTO_COMPLETE_DAYS * 24 * 3600 * 1000).toISOString();
+        await db.collection("jobs").doc(jobId).update({
+          autoCompleteAt: deadline,
+        });
+
+        const recipient = custNew ? after.selectedArtisanId : after.customerId;
+        if (recipient) {
+          await sendPushToUid(
+              recipient,
+              "İş tamamlama onayınız bekleniyor",
+              `"${after.title || "İş"}" karşı tarafça tamamlandı olarak ` +
+              `işaretlendi. ${AUTO_COMPLETE_DAYS} gün içinde yanıt ` +
+              "vermezseniz iş otomatik tamamlanacak.",
+              {type: "job", jobId},
+          );
+        }
+      }
+    },
+);
+
+/**
+ * Süresi dolan tek taraflı onayları kapatır: `autoCompleteAt <= şimdi` olan
+ * ilanlardan hâlâ aktif (workerSelected/inProgress) ve tek taraflı onaylı
+ * olanları `completed` yapar (onay bayrakları true'ya çekilir; `completedJobs`
+ * artışını onJobWritten üstlenir), onay vermemiş tarafa bilgi push'u gönderir.
+ * Uygun olmayanların (iptal/zaten tamam) süresi temizlenir.
+ *
+ * `autoCompleteAt` yalnızca bu dosyadaki CF'lerce UTC ISO string yazılır →
+ * tek alanlı aralık sorgusu, composite index gerekmez.
+ */
+exports.autoCompleteJobs = onSchedule(
+    {schedule: "every 6 hours", region: REGION, timeZone: "Europe/Istanbul"},
+    async () => {
+      const nowIso = new Date().toISOString();
+      const snap = await db.collection("jobs")
+          .where("autoCompleteAt", "<=", nowIso)
+          .limit(300)
+          .get();
+      if (snap.empty) return;
+
+      let completed = 0;
+      for (const d of snap.docs) {
+        const j = d.data();
+        const oneSided = (j.customerConfirmedDone === true) !==
+          (j.artisanConfirmedDone === true);
+        const active = j.status === "workerSelected" ||
+          j.status === "inProgress";
+
+        if (!(active && oneSided)) {
+          // İptal edilmiş/tamamlanmış vb. — bayat son tarihi temizle.
+          await d.ref.update({
+            autoCompleteAt: admin.firestore.FieldValue.delete(),
+          });
+          continue;
+        }
+
+        await d.ref.update({
+          status: "completed",
+          customerConfirmedDone: true,
+          artisanConfirmedDone: true,
+          autoCompletedBySystem: true, // denetim izi
+          autoCompleteAt: admin.firestore.FieldValue.delete(),
+        });
+        completed += 1;
+
+        // Onay vermeyen tarafa bilgi ver (müşteriyse değerlendirme yapabilir).
+        const silentParty = j.customerConfirmedDone === true ?
+          j.selectedArtisanId :
+          j.customerId;
+        if (silentParty) {
+          await sendPushToUid(
+              silentParty,
+              "İş otomatik tamamlandı",
+              `"${j.title || "İş"}", karşı tarafın onayı ve yanıt süresinin ` +
+              "dolması nedeniyle tamamlandı olarak işaretlendi.",
+              {type: "job", jobId: d.id},
+          );
+        }
+      }
+      logger.info(
+          `autoCompleteJobs: ${snap.size} aday, ${completed} tamamlandı`);
     },
 );

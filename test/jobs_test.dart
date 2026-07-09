@@ -245,13 +245,42 @@ void main() {
       expect((await jobs.getJob(jobId))!.status, JobStatus.inProgress);
 
       await jobs.confirmDone(jobId: jobId, byCustomer: false);
-      expect((await jobs.getJob(jobId))!.status, JobStatus.inProgress); // tek taraf
+      final oneSided = (await jobs.getJob(jobId))!;
+      expect(oneSided.status, JobStatus.inProgress); // tek taraf
+      // Tek taraflı onay otomatik tamamlama süresini başlatır (CF paritesi).
+      expect(oneSided.autoCompleteAt, isNotNull);
 
       await jobs.confirmDone(jobId: jobId, byCustomer: true);
       expect((await jobs.getJob(jobId))!.status, JobStatus.completed);
 
       await jobs.markRated(jobId);
       expect((await jobs.getJob(jobId))!.status, JobStatus.rated);
+    });
+
+    test('iş tamamlanınca seçili ustanın completedJobs sayacı artar', () async {
+      final db = MockDatabase();
+      final jobs = MockJobRepository(db);
+      final jobId = await jobs.createJob(_sampleJob());
+      await jobs.selectOffer(
+        jobId: jobId,
+        offerId: Offer.idFor(jobId, 'artisan_0'),
+        artisanId: 'artisan_0', // seed'de var olan usta
+        customerId: 'cust_1',
+        chatId: 'chat_x',
+      );
+      final before = db.artisans['artisan_0']!.profile.completedJobs;
+
+      await jobs.confirmDone(jobId: jobId, byCustomer: true);
+      // Tek taraf: sayaç henüz artmaz.
+      expect(db.artisans['artisan_0']!.profile.completedJobs, before);
+
+      await jobs.confirmDone(jobId: jobId, byCustomer: false);
+      expect((await jobs.getJob(jobId))!.status, JobStatus.completed);
+      expect(db.artisans['artisan_0']!.profile.completedJobs, before + 1);
+
+      // rated'a geçiş sayacı İKİNCİ kez artırmaz.
+      await jobs.markRated(jobId);
+      expect(db.artisans['artisan_0']!.profile.completedJobs, before + 1);
     });
 
     test('müşteri iptali → cancelled + neden', () async {

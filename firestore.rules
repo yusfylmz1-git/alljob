@@ -64,11 +64,13 @@ service cloud.firestore {
       allow read: if true;
       allow create: if isSelf(uid)
         && !request.resource.data.keys()
-              .hasAny(['averageRating','totalReviews','totalRatingSum'])
+              .hasAny(['averageRating','totalReviews','totalRatingSum',
+                       'completedJobs'])
         && verifiedClaimOk();
       allow update: if isSelf(uid)
         && !request.resource.data.diff(resource.data)
-              .affectedKeys().hasAny(['averageRating','totalReviews','totalRatingSum'])
+              .affectedKeys().hasAny(['averageRating','totalReviews',
+                       'totalRatingSum','completedJobs'])
         && verifiedClaimOk();
       allow delete: if false;
     }

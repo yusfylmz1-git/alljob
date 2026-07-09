@@ -547,6 +547,18 @@ class _AssignedCard extends ConsumerWidget {
                         : 'İşi Tamamladım'),
                   ),
                 ),
+                // Tek taraf onayladıysa geri sayım bilgisi (autoCompleteAt'i
+                // CF yazar; süre dolunca iş otomatik tamamlanır).
+                if (job.autoCompleteAt != null &&
+                    job.customerConfirmedDone != job.artisanConfirmedDone) ...[
+                  const SizedBox(height: 8),
+                  _InlineNotice(
+                    icon: Icons.schedule,
+                    text: 'Karşı taraf '
+                        '${_formatDate(job.autoCompleteAt!)} tarihine kadar '
+                        'yanıt vermezse iş otomatik tamamlanacak.',
+                  ),
+                ],
               ],
 
               // Tamamlandı → müşteri değerlendirir
@@ -598,6 +610,9 @@ class _AssignedCard extends ConsumerWidget {
     );
   }
 }
+
+String _formatDate(DateTime d) =>
+    '${d.day.toString().padLeft(2, '0')}.${d.month.toString().padLeft(2, '0')}.${d.year}';
 
 /// İptal nedeni seçtirip ilanı iptal eder (#11).
 Future<void> _cancelJob(BuildContext context, WidgetRef ref, Job job) async {

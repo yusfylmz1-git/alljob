@@ -354,6 +354,12 @@ class _HeroHeader extends StatelessWidget {
                         label: 'Değerlendirme',
                       ),
                       _statDivider(theme),
+                      // Yalnızca CF yazar (onJobWritten) → güvenilir sayı.
+                      _Stat(
+                        value: '${profile.completedJobs}',
+                        label: 'Tamamlanan İş',
+                      ),
+                      _statDivider(theme),
                       _Stat(
                         value: '${profile.experienceYears} yıl',
                         label: 'Deneyim',
