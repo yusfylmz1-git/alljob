@@ -17,3 +17,12 @@ const bool useFirebaseBackend = true;
 /// (`gs://alljob1.firebasestorage.app`) kurdu. Kurallar `storage.rules`'da;
 /// deploy: `firebase deploy --only storage --project alljob1`.
 const bool useFirebaseStorage = true;
+
+/// App Check — Web için reCAPTCHA v3 site anahtarı.
+///
+/// Boşken web'de App Check etkinleştirilMEZ (mobil etkilenmez). Doldurmak
+/// için: https://www.google.com/recaptcha/admin → v3 anahtarı oluştur
+/// (alan adları: alljob1.web.app, alljob1.firebaseapp.com, localhost) →
+/// site anahtarını buraya yaz + Console'da App Check web uygulaması
+/// kaydında aynı anahtarın GİZLİ anahtarını gir.
+const String kAppCheckWebRecaptchaKey = '';

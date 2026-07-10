@@ -38,6 +38,7 @@ dependencies:
   # Uzak görselleri diske önbelleğe alır (Storage bant genişliği/fatura):
   # aynı foto her kaydırmada yeniden inmez.
   cached_network_image: ^3.4.1
+  firebase_app_check: ^0.3.2+10
 
 dev_dependencies:
   flutter_test:

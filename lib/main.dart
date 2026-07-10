@@ -1,9 +1,10 @@
 import 'dart:ui';
 
+import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show kDebugMode, kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/date_symbol_data_local.dart';
@@ -18,9 +19,7 @@ import 'firebase_options.dart';
 /// yapmaya gerek yok; işleyicinin varlığı FCM tarafından zorunludur.
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 }
 
 Future<void> main() async {
@@ -35,6 +34,26 @@ Future<void> main() async {
     await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,
     );
+    // App Check: isteklerin GERÇEK uygulamadan geldiğini kanıtlar (bot/script
+    // trafiğine karşı). Debug derlemede Debug sağlayıcı (logcat'e basılan
+    // jeton Console'a eklenmeli), sürümde Play Integrity. Web yalnız reCAPTCHA
+    // anahtarı doluysa etkinleşir. NOT: Console'da zorlama (enforce) AÇILANA
+    // kadar jetonsuz istekler de kabul edilir — eski build'ler kırılmaz.
+    if (!kIsWeb) {
+      await FirebaseAppCheck.instance.activate(
+        androidProvider: kDebugMode
+            ? AndroidProvider.debug
+            : AndroidProvider.playIntegrity,
+        appleProvider: kDebugMode
+            ? AppleProvider.debug
+            : AppleProvider.appAttestWithDeviceCheckFallback,
+      );
+    } else if (kAppCheckWebRecaptchaKey.isNotEmpty) {
+      await FirebaseAppCheck.instance.activate(
+        webProvider: ReCaptchaV3Provider(kAppCheckWebRecaptchaKey),
+      );
+    }
+
     // Arka plan mesaj işleyicisi runApp'ten ÖNCE kaydedilmelidir.
     FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
 

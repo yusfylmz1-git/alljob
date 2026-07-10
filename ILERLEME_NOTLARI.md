@@ -23,9 +23,18 @@
 
 ## ✅ Son Durum (EN SON BURAYI OKU)
 
-**Tarih:** 2026-07-09
+**Tarih:** 2026-07-10
 
 **Tamamlanan: AŞAMA 1–5 + PRD v4.0 + FIREBASE CANLI + ÇİFT TARAFLI PAZARYERI + OTURUM 15 (UX) + OTURUM 16 (Keşfette ilan paneli) + OTURUM 17 (TEK HESAP, ÇİFT ROL) + OTURUM 18 (TASARIM v2) + OTURUM 19 (MALİYET/FATURA OPTİMİZASYONU) + OTURUM 20 (BLAZE + STORAGE CANLI) + OTURUM 21 (CLOUD FUNCTIONS CANLI) + OTURUM 22 (FCM PUSH) + OTURUM 23 (GIT + CRASHLYTICS + GÜVENLİK) + OTURUM 24 (TELEFON DOĞRULAMA + MAVİ TİK) + OTURUM 25 (KIRIK TEST TEMİZLİĞİ — 68/68) + OTURUM 26 (PROFİL YÜKLENEMEDİ + OTURUM SIZINTISI + SMS BÖLGE DÜZELTMESİ) + OTURUM 27 (TEK BİRLEŞİK PROFİL SAYFASI) + OTURUM 28 (YENİ İLAN → USTA PUSH BİLDİRİMİ, CANLI) + OTURUM 29 (MESAJLAR IG DİLİ + KOMPAKT KARTLAR)**
+
+**Oturum 37 (2026-07-10): App Check (Oturum 31 güvenlik denetiminin son maddesi). İSTEMCİ HAZIR + Play Integrity KAYITLI ✅ (zorlama KAPALI — bilinçli; 85/85 test)**
+Kullanıcı "devam" dedi; AskUserQuestion ile App Check seçildi.
+- **İstemci (`main.dart`):** `firebase_app_check` **0.3.2+10** eklendi (firebase_core 3.x ile uyumlu; 0.4.x core 4 ister — MAJOR Firebase yükseltmesi ayrı iş). `Firebase.initializeApp`'ten hemen sonra `activate`: Android'de `kDebugMode ? debug : playIntegrity`, Apple'da `debug : appAttestWithDeviceCheckFallback`; **web yalnız `kAppCheckWebRecaptchaKey` doluysa** etkinleşir (sabit `backend_config.dart`'ta, şu an BOŞ → web'de App Check yok, uygulama normal çalışır).
+- **Sunucu kaydı (REST ile, Console'suz — Oturum 26 yöntemi):** firebase CLI refresh token'ı → OAuth access token (`oauth2.googleapis.com/token`, CLI'nin public client id/secret'ı) → `firebaseappcheck.googleapis.com/v1` PATCH `apps/{androidAppId}/playIntegrityConfig` (tokenTtl 3600s) + `serviceusage` ile `playintegrity.googleapis.com` API'si ETKİNLEŞTİRİLDİ. Bu kalıp App Check yönetimi için çalışıyor; ileride debug token eklemek için de kullanılabilir (`POST .../apps/{app}/debugTokens`).
+- **ZORLAMA (enforce) BİLİNÇLİ OLARAK KAPALI:** `services/{firestore|firebasestorage|identitytoolkit}.googleapis.com` enforcementMode boş (=OFF) doğrulandı. Jetonsuz istekler hâlâ kabul ediliyor → eski build'ler KIRILMAZ. Zorlamayı açma sırası (İLERİDE, acele etme): (1) kullanıcı yeni build'i cihazda çalıştırır, logcat'te `DebugAppCheckProvider`'ın bastığı debug token'ı Console → App Check → Apps → Android → "Manage debug tokens"a ekler (veya bana verir, REST ile eklerim); (2) Console → App Check metriklerinde "verified" trafik oranı izlenir; (3) trafiğin tamamı yeni build'lerden gelince Firestore + Storage için Enforce açılır. ERKEN AÇILIRSA eski sürüm kullanan herkes permission-denied yer.
+- **Web için bekleyen:** reCAPTCHA v3 site anahtarı (https://www.google.com/recaptcha/admin → v3, alanlar: alljob1.web.app, alljob1.firebaseapp.com, localhost) → site anahtarı `kAppCheckWebRecaptchaKey`'e, gizli anahtar Console'daki web uygulaması App Check kaydına. Anahtar oluşturma otomatikleştirilemiyor (Google hesabıyla manuel).
+- **Doğrulama:** analyze 0; **85/85 test**; `flutter build web` OK. Kural/CF değişikliği YOK → deploy gerekmedi. Testlerde `PushService.registerFor` "no-app" logu zararsız (Oturum 25'teki bilinçli no-op).
+- Not: Play Integrity yalnız Play'den dağıtılan/imzalı sürümlerde tam çalışır; debug build'ler debug provider kullanır (tasarım gereği). iOS tarafı Windows'ta test edilemez (APNs gibi bekliyor).
 
 **Oturum 36 (2026-07-09): Sohbet profesyonelleştirme (WhatsApp/IG) + mesaj silme + ilan silme/düzenleme. CANLIDA ✅ (kurallar + 6 fonksiyon deploy, 84/84 test)**
 Kullanıcı: mesaj/ilan silme yok, ilanı yayından sonra düzenleme (1 saat) yok; sohbet en alta odaklanmıyor; foto gönderirken uygulama donmuş gibi — WhatsApp gibi yüklenirken balonda loading göstergesi istendi.
