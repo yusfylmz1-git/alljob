@@ -4,6 +4,9 @@ class RoutePaths {
 
   static const String splash = '/splash';
 
+  // İlk açılış tanıtımı (yalnızca bir kez, oturum yokken).
+  static const String onboarding = '/onboarding';
+
   // Herkese açık keşif (misafir + müşteri) — uygulamanın ana ekranı.
   static const String home = '/';
 

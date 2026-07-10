@@ -11,6 +11,7 @@ import 'package:intl/date_symbol_data_local.dart';
 
 import 'app.dart';
 import 'core/config/backend_config.dart';
+import 'features/onboarding/onboarding_state.dart';
 import 'firebase_options.dart';
 
 /// Uygulama arka planda/kapalıyken gelen push mesajlarını işler. Ayrı bir
@@ -72,5 +73,15 @@ Future<void> main() async {
     }
   }
 
-  runApp(const ProviderScope(child: UstaCepteApp()));
+  // Onboarding yalnızca ilk açılışta gösterilir; "görüldü" bilgisi cihazdan
+  // okunup provider'a override ile verilir (testler override'sız çalıştığı
+  // için varsayılan "görüldü" kalır ve akışa hiç girmez).
+  final seenOnboarding = await readOnboardingSeen();
+
+  runApp(ProviderScope(
+    overrides: [
+      onboardingSeenProvider.overrideWith((ref) => seenOnboarding),
+    ],
+    child: const UstaCepteApp(),
+  ));
 }

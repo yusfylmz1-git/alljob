@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 
+import 'tap_scale.dart';
+
 /// Yükleme durumu yönetimi olan birincil buton.
 /// `isLoading` true iken buton devre dışı kalır ve spinner gösterir —
 /// böylece çift gönderim (double-submit) hataları önlenir.
+/// Basılınca hafifçe yaylanır (TapScale) — uygulama genel "canlılık" dili.
 class AppButton extends StatelessWidget {
   const AppButton({
     super.key,
@@ -49,7 +52,10 @@ class AppButton extends StatelessWidget {
 
     // Birincil CTA her zaman tam genişlik olsun (tema artık genişliği
     // sonsuz yapmıyor; genişliği burada garanti ediyoruz).
-    return SizedBox(width: double.infinity, child: button);
+    return TapScale(
+      enabled: effectiveOnPressed != null,
+      child: SizedBox(width: double.infinity, child: button),
+    );
   }
 }
 

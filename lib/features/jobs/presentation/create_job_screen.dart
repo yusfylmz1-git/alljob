@@ -136,7 +136,8 @@ class _CreateJobScreenState extends ConsumerState<CreateJobScreen> {
     try {
       await ref.read(jobRepositoryProvider).createJob(job);
       if (!mounted) return;
-      context.showSuccess('İlanınız yayınlandı.');
+      context.showSuccess(
+          'İlanınız yayında 🎉 Bölgenizdeki ustalar haberdar ediliyor.');
       context.go(RoutePaths.myJobs);
     } catch (_) {
       if (!mounted) return;

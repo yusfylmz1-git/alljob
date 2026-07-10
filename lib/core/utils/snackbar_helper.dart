@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../theme/app_colors.dart';
 import '../theme/app_theme.dart';
@@ -10,13 +11,22 @@ import '../theme/app_theme.dart';
 /// SnackBar yerine ÜSTTEN süzülen kısa bir bildirim (toast) kullanır:
 /// yukarıdan iner, birkaç saniye durur, dokunarak veya yukarı çekerek de
 /// kapatılabilir. Alttaki yüzen gezinme çubuğunu ve giriş alanlarını örtmez.
+/// Başarı/hata anları hafif titreşimle desteklenir (web'de sessizce yok sayılır).
 extension SnackbarHelper on BuildContext {
-  void showSuccess(String message) => TopToast.show(this,
-      message: message,
-      color: AppColors.success,
-      icon: Icons.check_circle_outline);
-  void showError(String message) => TopToast.show(this,
-      message: message, color: AppColors.danger, icon: Icons.error_outline);
+  void showSuccess(String message) {
+    HapticFeedback.lightImpact();
+    TopToast.show(this,
+        message: message,
+        color: AppColors.success,
+        icon: Icons.check_circle_outline);
+  }
+
+  void showError(String message) {
+    HapticFeedback.mediumImpact();
+    TopToast.show(this,
+        message: message, color: AppColors.danger, icon: Icons.error_outline);
+  }
+
   void showInfo(String message) => TopToast.show(this,
       message: message, color: AppColors.secondary, icon: Icons.info_outline);
 }

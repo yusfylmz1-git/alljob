@@ -21,6 +21,8 @@ import '../../features/jobs/presentation/my_jobs_screen.dart';
 import '../../features/jobs/presentation/my_offers_screen.dart';
 import '../../features/jobs/presentation/nearby_jobs_screen.dart';
 import '../../features/favorites/presentation/favorites_screen.dart';
+import '../../features/onboarding/onboarding_state.dart';
+import '../../features/onboarding/presentation/onboarding_screen.dart';
 import '../../features/profile/presentation/profile_screen.dart';
 import '../../features/review/presentation/review_screen.dart';
 import 'route_paths.dart';
@@ -52,9 +54,22 @@ final routerProvider = Provider<GoRouter>((ref) {
       final onAuthFlow =
           loc == RoutePaths.login || loc == RoutePaths.register;
 
+      // İlk açılış: oturum yok + onboarding görülmemiş → tanıtım akışı.
+      // (Varsayılan "görüldü"; gerçek değer main.dart override'ı ile gelir.)
+      final seenOnboarding = ref.read(onboardingSeenProvider);
+
       // Splash çözüldü → herkes Keşfet'te başlar (tek tutarlı giriş noktası;
       // usta kendi alanına alt bardaki Profil sekmesinden ulaşır).
-      if (loc == RoutePaths.splash) return RoutePaths.home;
+      if (loc == RoutePaths.splash) {
+        return (user == null && !seenOnboarding)
+            ? RoutePaths.onboarding
+            : RoutePaths.home;
+      }
+
+      // Onboarding yalnızca ilk açılışta: görüldüyse/oturum varsa ana ekrana.
+      if (loc == RoutePaths.onboarding) {
+        return (user != null || seenOnboarding) ? RoutePaths.home : null;
+      }
 
       // Eski usta paneli ana sayfası → birleşik profil sayfası.
       if (loc == RoutePaths.panel) return RoutePaths.profile;
@@ -88,6 +103,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: RoutePaths.splash,
         builder: (_, _) => const SplashScreen(),
+      ),
+      GoRoute(
+        path: RoutePaths.onboarding,
+        builder: (_, _) => const OnboardingScreen(),
       ),
       GoRoute(
         path: RoutePaths.home,
