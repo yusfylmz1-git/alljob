@@ -37,6 +37,37 @@ class _ReviewScreenState extends ConsumerState<ReviewScreen> {
 
   bool _sending = false;
 
+  /// Müşteri bu ustayı daha önce değerlendirmişse true: form önceki puan ve
+  /// etiketlerle ön-dolu gelir, gönderim mevcut kaydı GÜNCELLER.
+  bool _isUpdate = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadExisting();
+  }
+
+  Future<void> _loadExisting() async {
+    final user = ref.read(currentUserProvider);
+    if (user == null) return;
+    try {
+      final existing = await ref.read(reviewRepositoryProvider).getMyReview(
+            customerUid: user.uid,
+            artisanUid: widget.artisanUid,
+            chatId: FirebaseChatRepository.chatIdFor(
+                user.uid, widget.artisanUid),
+          );
+      if (existing == null || !mounted) return;
+      setState(() {
+        _isUpdate = true;
+        _rating = existing.rating;
+        _tags
+          ..clear()
+          ..addAll(existing.tags);
+      });
+    } catch (_) {/* ön-dolgu kritik değil; form boş kalır */}
+  }
+
   Future<void> _submit() async {
     if (_rating == 0) {
       context.showError('Lütfen 1–5 arası puan verin.');
@@ -59,11 +90,7 @@ class _ReviewScreenState extends ConsumerState<ReviewScreen> {
     } catch (_) {
       if (mounted) {
         setState(() => _sending = false);
-        // En olası neden: aynı usta daha önce değerlendirilmiş (kural, müşteri
-        // başına tek değerlendirmeye izin verir); diğer olasılık ağ hatası.
-        context.showError(
-            'Değerlendirme gönderilemedi. Bir ustayı yalnızca bir kez '
-            'değerlendirebilirsiniz; sorun sürerse tekrar deneyin.');
+        context.showError('Değerlendirme gönderilemedi, tekrar deneyin.');
       }
       return;
     }
@@ -79,7 +106,9 @@ class _ReviewScreenState extends ConsumerState<ReviewScreen> {
     ref.invalidate(artisanDetailProvider(widget.artisanUid));
     ref.invalidate(artisanReviewsProvider(widget.artisanUid));
 
-    context.showSuccess('Değerlendirmeniz için teşekkürler!');
+    context.showSuccess(_isUpdate
+        ? 'Değerlendirmeniz güncellendi.'
+        : 'Değerlendirmeniz için teşekkürler!');
     if (context.canPop()) context.pop();
   }
 
@@ -132,6 +161,32 @@ class _ReviewScreenState extends ConsumerState<ReviewScreen> {
         child: ListView(
           padding: const EdgeInsets.all(20),
           children: [
+            if (_isUpdate) ...[
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppColors.infoSurface,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.edit_outlined,
+                        color: AppColors.info, size: 20),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'Bu ustayı daha önce değerlendirdiniz. Gönderdiğinizde '
+                        'önceki değerlendirmeniz güncellenir.',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                            color: AppColors.info,
+                            fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+            ],
             Text('İşi nasıl buldunuz?',
                 style: theme.textTheme.titleMedium
                     ?.copyWith(fontWeight: FontWeight.w700)),
@@ -158,7 +213,9 @@ class _ReviewScreenState extends ConsumerState<ReviewScreen> {
             ),
             const SizedBox(height: 28),
             AppButton(
-              label: 'Değerlendirmeyi Gönder',
+              label: _isUpdate
+                  ? 'Değerlendirmeyi Güncelle'
+                  : 'Değerlendirmeyi Gönder',
               icon: Icons.send_rounded,
               isLoading: _sending,
               onPressed: _submit,

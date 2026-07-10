@@ -122,21 +122,31 @@ async function saveNotification(uid, docId, notif) {
 }
 
 /**
- * Yeni bir değerlendirme oluşunca ustanın puan toplamlarını günceller.
- *
- * `reviews` yalnızca create edilir (kurallar update/delete'i engeller), bu
- * yüzden artımlı (increment) güncelleme güvenlidir — tüm reviews'ı yeniden
- * okumaya gerek yok. Ortalama = toplam / adet.
+ * Bir değerlendirme yazıldığında (oluşturma VEYA güncelleme) ustanın puan
+ * toplamlarını DELTA ile günceller. Müşteri başına usta başına tek döküman
+ * (ID = chatId) olduğundan: create → sayaç+1, toplam+puan; update → sayaç
+ * sabit, toplam += (yeni−eski). Silme kurallarda kapalı ama savunmacı olarak
+ * ele alınır (sayaç−1, toplam−eski). Yalnız etiket değişimi toplamları
+ * etkilemez → erken çıkış.
  */
-exports.onReviewCreated = onDocumentCreated(
+exports.onReviewWritten = onDocumentWritten(
     {document: "reviews/{reviewId}", region: REGION},
     async (event) => {
-      const data = event.data && event.data.data();
-      if (!data) return;
+      const beforeSnap = event.data && event.data.before;
+      const afterSnap = event.data && event.data.after;
+      const before =
+        beforeSnap && beforeSnap.exists ? beforeSnap.data() : null;
+      const after = afterSnap && afterSnap.exists ? afterSnap.data() : null;
 
-      const artisanUid = data.artisanUID;
-      const rating = Number(data.rating) || 0;
-      if (!artisanUid || rating <= 0) return;
+      const artisanUid = (after && after.artisanUID) ||
+        (before && before.artisanUID);
+      if (!artisanUid) return;
+
+      const oldRating = before ? (Number(before.rating) || 0) : 0;
+      const newRating = after ? (Number(after.rating) || 0) : 0;
+      const countDelta = (after ? 1 : 0) - (before ? 1 : 0);
+      const sumDelta = newRating - oldRating;
+      if (countDelta === 0 && sumDelta === 0) return;
 
       const ref = db.collection("artisanProfiles").doc(artisanUid);
       try {
@@ -144,15 +154,20 @@ exports.onReviewCreated = onDocumentCreated(
           const snap = await tx.get(ref);
           if (!snap.exists) return; // profil yoksa atla
           const cur = snap.data() || {};
-          const totalReviews = (Number(cur.totalReviews) || 0) + 1;
-          const totalRatingSum = (Number(cur.totalRatingSum) || 0) + rating;
+          const totalReviews =
+            Math.max(0, (Number(cur.totalReviews) || 0) + countDelta);
+          const totalRatingSum =
+            Math.max(0, (Number(cur.totalRatingSum) || 0) + sumDelta);
           tx.update(ref, {
             totalReviews,
             totalRatingSum,
-            averageRating: totalRatingSum / totalReviews,
+            averageRating:
+              totalReviews > 0 ? totalRatingSum / totalReviews : 0,
           });
         });
-        logger.info(`Rating updated for artisan ${artisanUid} (+${rating})`);
+        logger.info(
+            `Rating updated for artisan ${artisanUid} ` +
+            `(count ${countDelta}, sum ${sumDelta})`);
       } catch (e) {
         logger.error(`Rating update failed for ${artisanUid}: ${e}`);
       }

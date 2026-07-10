@@ -71,9 +71,11 @@ class MockDatabase {
 
   List<ArtisanRecord> get all => artisans.values.toList();
 
-  /// İş sonu değerlendirmesi ekler ve ustanın ortalama puanını günceller
-  /// (mock'ta Cloud Functions'ın yerine geçer, PRD §5). Etiketler serbest
-  /// metin değil, hazır etiketlerdir.
+  /// İş sonu değerlendirmesi ekler; aynı müşteri aynı ustayı ikinci kez
+  /// değerlendirirse MEVCUT kaydı günceller (Firestore kural paritesi:
+  /// müşteri başına usta başına tek döküman). Ortalama puanı CF
+  /// `onReviewWritten` gibi delta ile işler. Döner: true = yeni eklendi,
+  /// false = mevcut kayıt güncellendi.
   bool addReview({
     required String artisanUid,
     required String customerUid,
@@ -82,12 +84,12 @@ class MockDatabase {
     required List<String> tags,
   }) {
     final rec = artisans[artisanUid];
-    if (rec == null) return false;
-    // Firestore kuralı ile parite: bir müşteri bir ustayı yalnızca 1 kez
-    // değerlendirebilir (döküman ID'si = chat_{müşteri}__{usta}).
-    if (rec.reviews.any((r) => r.customerUid == customerUid)) return false;
+    if (rec == null) throw StateError('artisan-not-found');
+    final p = rec.profile;
+    final old =
+        rec.reviews.where((r) => r.customerUid == customerUid).firstOrNull;
     final review = Review(
-      id: 'rev_${DateTime.now().millisecondsSinceEpoch}',
+      id: old?.id ?? 'rev_${DateTime.now().millisecondsSinceEpoch}',
       artisanUid: artisanUid,
       customerUid: customerUid,
       customerDisplayName: customerName,
@@ -96,9 +98,22 @@ class MockDatabase {
       tags: tags,
       createdAt: DateTime.now(),
     );
-    rec.reviews = [review, ...rec.reviews];
 
-    final p = rec.profile;
+    if (old != null) {
+      // Güncelleme: sayaç sabit, toplam eski−yeni farkı kadar oynar;
+      // güncellenen kayıt listenin başına çıkar (en yeni önce).
+      rec.reviews = [review, ...rec.reviews.where((r) => r != old)];
+      final totalRatingSum = p.totalRatingSum - old.rating + rating;
+      rec.profile = p.copyWithRating(
+        averageRating:
+            p.totalReviews > 0 ? totalRatingSum / p.totalReviews : 0,
+        totalReviews: p.totalReviews,
+        totalRatingSum: totalRatingSum,
+      );
+      return false;
+    }
+
+    rec.reviews = [review, ...rec.reviews];
     final totalReviews = p.totalReviews + 1;
     final totalRatingSum = p.totalRatingSum + rating;
     rec.profile = p.copyWithRating(

@@ -152,29 +152,40 @@ void main() {
       expect(rec.reviews.first.tags, contains('Temiz işçilik'));
     });
 
-    test('aynı müşteri aynı ustayı 2. kez değerlendiremez (kural paritesi)', () {
+    test('aynı müşterinin 2. değerlendirmesi mevcut kaydı günceller', () {
       final db = MockDatabase();
       final first = db.addReview(
         artisanUid: 'artisan_0',
         customerUid: 'c1',
         customerName: 'Müşteri',
         rating: 5,
-        tags: const [],
+        tags: const ['Temiz işçilik'],
       );
-      expect(first, isTrue);
+      expect(first, isTrue); // yeni kayıt
 
-      final countAfterFirst = db.artisans['artisan_0']!.profile.totalReviews;
+      final rec = db.artisans['artisan_0']!;
+      final countAfterFirst = rec.profile.totalReviews;
+      final sumAfterFirst = rec.profile.totalRatingSum;
+
       final second = db.addReview(
         artisanUid: 'artisan_0',
         customerUid: 'c1',
         customerName: 'Müşteri',
         rating: 1,
-        tags: const [],
+        tags: const ['Geç geldi'],
       );
-      expect(second, isFalse);
-      expect(db.artisans['artisan_0']!.profile.totalReviews, countAfterFirst);
+      expect(second, isFalse); // güncelleme, yeni kayıt değil
+      // Sayaç sabit kalır; toplam eski puan çıkıp yenisi girerek oynar.
+      expect(rec.profile.totalReviews, countAfterFirst);
+      expect(rec.profile.totalRatingSum, sumAfterFirst - 5 + 1);
+      // Müşterinin TEK kaydı var ve yeni puan/etiketleri taşıyor.
+      final mine =
+          rec.reviews.where((r) => r.customerUid == 'c1').toList();
+      expect(mine.length, 1);
+      expect(mine.single.rating, 1);
+      expect(mine.single.tags, contains('Geç geldi'));
 
-      // Farklı müşteri hâlâ değerlendirebilir.
+      // Farklı müşteri yeni kayıt ekler (sayaç artar).
       final other = db.addReview(
         artisanUid: 'artisan_0',
         customerUid: 'c2',
@@ -183,6 +194,7 @@ void main() {
         tags: const [],
       );
       expect(other, isTrue);
+      expect(rec.profile.totalReviews, countAfterFirst + 1);
     });
   });
 }

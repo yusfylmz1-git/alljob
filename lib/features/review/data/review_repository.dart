@@ -9,6 +9,8 @@ import '../../artisan/data/artisan_providers.dart';
 /// Değerlendirme yazma/okuma soyutlaması. Mock'ta [MockDatabase]'e,
 /// Firebase'de `reviews` koleksiyonuna gider.
 abstract class ReviewRepository {
+  /// Değerlendirme yazar. Aynı müşteri aynı ustayı ikinci kez
+  /// değerlendirirse MEVCUT kayıt güncellenir (yeni kayıt açılmaz).
   Future<void> addReview({
     required String artisanUid,
     required String customerUid,
@@ -16,6 +18,14 @@ abstract class ReviewRepository {
     required String chatId,
     required int rating,
     required List<String> tags,
+  });
+
+  /// Bu müşterinin bu ustaya daha önce verdiği değerlendirme (yoksa null) —
+  /// değerlendirme ekranı formu ön-doldurup "güncelleme" dilinde konuşur.
+  Future<Review?> getMyReview({
+    required String customerUid,
+    required String artisanUid,
+    required String chatId,
   });
 
   /// Ustanın aldığı değerlendirmeler (en yeni önce).
@@ -35,15 +45,24 @@ class MockReviewRepository implements ReviewRepository {
     required int rating,
     required List<String> tags,
   }) async {
-    final added = _db.addReview(
+    // İkinci değerlendirme mevcut kaydı günceller (Firestore paritesi).
+    _db.addReview(
       artisanUid: artisanUid,
       customerUid: customerUid,
       customerName: customerName,
       rating: rating,
       tags: tags,
     );
-    // Firestore kuralıyla parite: ikinci değerlendirme reddedilir.
-    if (!added) throw StateError('already-reviewed');
+  }
+
+  @override
+  Future<Review?> getMyReview({
+    required String customerUid,
+    required String artisanUid,
+    required String chatId,
+  }) async {
+    final reviews = _db.artisans[artisanUid]?.reviews ?? const <Review>[];
+    return reviews.where((r) => r.customerUid == customerUid).firstOrNull;
   }
 
   @override
@@ -83,10 +102,24 @@ class FirebaseReviewRepository implements ReviewRepository {
       tags: tags,
       createdAt: DateTime.now(),
     );
-    // Döküman ID'si = chatId (chat_{müşteri}__{usta}): güvenlik kuralı bu
-    // formatı ve sohbetin varlığını doğrular; bir müşteri bir ustayı yalnızca
-    // 1 kez değerlendirebilir (ikinci deneme update sayılır → kural reddeder).
+    // Döküman ID'si = chatId (chat_{müşteri}__{usta}): müşteri başına usta
+    // başına TEK döküman. İlk gönderim create; sonrakiler AYNI dökümanın
+    // üzerine yazar (kural yalnız rating/tags/createdAt/ad değişimine izin
+    // verir). Ortalamayı CF `onReviewWritten` delta ile işler.
     await _reviews.doc(chatId).set(review.toMap());
+  }
+
+  @override
+  Future<Review?> getMyReview({
+    required String customerUid,
+    required String artisanUid,
+    required String chatId,
+  }) async {
+    // Döküman ID'si deterministik olduğundan tek get yeter (sorgu gerekmez).
+    final snap = await _reviews.doc(chatId).get();
+    final data = snap.data();
+    if (data == null) return null;
+    return Review.fromMap(snap.id, data);
   }
 
   @override
