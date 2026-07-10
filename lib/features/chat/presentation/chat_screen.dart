@@ -455,6 +455,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       },
       child: Scaffold(
       appBar: appBar,
+      // Klavye inset'ini Scaffold'a bırakMIYORUZ: varsayılan davranış klavye
+      // animasyonunun HER karesinde tüm gövdeyi yeniden ölçer (mesaj listesi
+      // dahil) ve açılışı hantallaştırır. Bunun yerine en alttaki tek yaprak
+      // widget (_KeyboardSpacer) inset'i dinler ve yumuşak eğriyle yükselir —
+      // inset'i tek seferde zıplatan cihazlarda bile WhatsApp gibi süzülür.
+      resizeToAvoidBottomInset: false,
       body: Column(
         children: [
           Expanded(
@@ -485,6 +491,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                     controller: _scroll,
                     // Sohbet dipten başlar; yeni mesajda dipte kalır.
                     reverse: true,
+                    // Eski mesajlara kaydırınca klavye kapanır (WhatsApp).
+                    keyboardDismissBehavior:
+                        ScrollViewKeyboardDismissBehavior.onDrag,
                     padding: const EdgeInsets.all(16),
                     itemCount: messages.length + _pending.length,
                     itemBuilder: (context, i) {
@@ -578,6 +587,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               onSend: _sendText,
               onPhoto: _sendPhoto,
             ),
+          // Klavye yüksekliği kadar animasyonlu boşluk (resizeToAvoidBottomInset
+          // false olduğundan giriş çubuğunu klavyenin üstünde bu tutar).
+          const _KeyboardSpacer(),
         ],
       ),
       ),
@@ -585,8 +597,32 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   }
 }
 
+/// Klavye yüksekliği kadar boşluk bırakan, inset değişimini yumuşatan yaprak
+/// widget. MediaQuery.viewInsetsOf'a YALNIZ bu widget abone olur → klavye
+/// açılırken ekranın geri kalanında widget rebuild'i tetiklenmez; yükseklik
+/// kısa bir eğriyle hedefe süzülür (inset'i tek karede zıplatan cihazlarda
+/// sert sıçrama yerine akıcı kayma).
+class _KeyboardSpacer extends StatelessWidget {
+  const _KeyboardSpacer();
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 160),
+      curve: Curves.easeOutCubic,
+      height: MediaQuery.viewInsetsOf(context).bottom,
+    );
+  }
+}
+
 bool _sameDay(DateTime a, DateTime b) =>
     a.year == b.year && a.month == b.month && a.day == b.day;
+
+// Balon/ayraç başına her build'de yeniden yaratılmasın diye modül düzeyinde
+// tek sefer kurulan biçimlendiriciler (liste kaydırılırken ufak ama bedava
+// kazanç).
+final DateFormat _timeFmt = DateFormat('HH:mm');
+final DateFormat _dayFmt = DateFormat('d MMMM yyyy', 'tr_TR');
 
 /// Mesaj akışında gün ayracı (Bugün / Dün / tarih).
 class _DateChip extends StatelessWidget {
@@ -600,7 +636,7 @@ class _DateChip extends StatelessWidget {
     final diff = today.difference(that).inDays;
     if (diff == 0) return 'Bugün';
     if (diff == 1) return 'Dün';
-    return DateFormat('d MMMM yyyy', 'tr_TR').format(date);
+    return _dayFmt.format(date);
   }
 
   @override
@@ -651,7 +687,7 @@ class _Bubble extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     final bg = isMine ? scheme.primary : scheme.surfaceContainerHighest;
     final fg = isMine ? scheme.onPrimary : scheme.onSurface;
-    final time = DateFormat('HH:mm').format(message.createdAt);
+    final time = _timeFmt.format(message.createdAt);
 
     final bubble = GestureDetector(
       onLongPress: onLongPress,
