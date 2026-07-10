@@ -63,25 +63,37 @@ class _EditFormState extends ConsumerState<_EditForm> {
   MyProfileController get _controller =>
       ref.read(myProfileControllerProvider.notifier);
 
+  /// Şu an yüklemesi süren hedef ('profile' | 'work' | 'certificate');
+  /// null = yükleme yok. İlgili alanda spinner gösterilir, ikinci tık yutulur.
+  String? _uploading;
+
   /// Galeriden görsel seçip yükler; elde edilen handle [onHandle]'a verilir.
   Future<void> _pickImage({
     required String pathHint,
     required void Function(String handle) onHandle,
   }) async {
+    if (_uploading != null) return; // aynı anda tek yükleme
+    final XFile? file;
     try {
-      final file = await ImagePicker().pickImage(
+      file = await ImagePicker().pickImage(
         source: ImageSource.gallery,
         maxWidth: AppConstants.imagePickMaxWidth,
         imageQuality: AppConstants.imagePickImageQuality,
       );
-      if (file == null) return;
-      final bytes = await file.readAsBytes();
-      if (bytes.length > AppConstants.maxPhotoSizeBytes) {
-        if (mounted) context.showError('Görsel 5 MB\'dan küçük olmalı.');
-        return;
-      }
-      final uid = ref.read(currentUserProvider)?.uid;
-      if (uid == null) return;
+    } catch (_) {
+      if (mounted) context.showError('Görsel seçilemedi.');
+      return;
+    }
+    if (file == null) return;
+    final bytes = await file.readAsBytes();
+    if (bytes.length > AppConstants.maxPhotoSizeBytes) {
+      if (mounted) context.showError('Görsel 5 MB\'dan küçük olmalı.');
+      return;
+    }
+    final uid = ref.read(currentUserProvider)?.uid;
+    if (uid == null) return;
+    setState(() => _uploading = pathHint);
+    try {
       // Yol uid ile başlar: Storage kuralı yalnızca kendi klasörüne yazmaya izin verir.
       final handle = await ref.read(storageRepositoryProvider).uploadImage(
             pathHint: '$pathHint/$uid',
@@ -89,7 +101,12 @@ class _EditFormState extends ConsumerState<_EditForm> {
           );
       onHandle(handle);
     } catch (_) {
-      if (mounted) context.showError('Görsel seçilemedi.');
+      if (mounted) {
+        context.showError(
+            'Görsel yüklenemedi. Bağlantınızı kontrol edip tekrar deneyin.');
+      }
+    } finally {
+      if (mounted) setState(() => _uploading = null);
     }
   }
 
@@ -169,6 +186,24 @@ class _EditFormState extends ConsumerState<_EditForm> {
                       ),
                     ),
                   ),
+                  // Yükleme sürerken avatar üstünde karartma + spinner
+                  // (WhatsApp foto balonuyla aynı dil).
+                  if (_uploading == 'profile')
+                    const Positioned.fill(
+                      child: ClipOval(
+                        child: ColoredBox(
+                          color: Colors.black38,
+                          child: Center(
+                            child: SizedBox(
+                              width: 28,
+                              height: 28,
+                              child: CircularProgressIndicator(
+                                  strokeWidth: 3, color: Colors.white),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
                   Positioned(
                     right: 0,
                     bottom: 0,
@@ -306,6 +341,7 @@ class _EditFormState extends ConsumerState<_EditForm> {
             const SizedBox(height: 8),
             _WorkPhotos(
               handles: profile.workPhotos,
+              uploading: _uploading == 'work',
               onAdd: () => _pickImage(
                   pathHint: 'work', onHandle: _controller.addWorkPhoto),
               onRemove: _controller.removeWorkPhoto,
@@ -324,6 +360,7 @@ class _EditFormState extends ConsumerState<_EditForm> {
             const SizedBox(height: 8),
             _WorkPhotos(
               handles: profile.certificates,
+              uploading: _uploading == 'certificate',
               onAdd: () => _pickImage(
                   pathHint: 'certificate',
                   onHandle: _controller.addCertificate),
@@ -515,11 +552,15 @@ class _WorkPhotos extends StatelessWidget {
     required this.handles,
     required this.onAdd,
     required this.onRemove,
+    this.uploading = false,
   });
 
   final List<String> handles;
   final VoidCallback onAdd;
   final ValueChanged<String> onRemove;
+
+  /// true iken ekleme kutucuğu spinner gösterir ve tıklamayı yutar.
+  final bool uploading;
 
   @override
   Widget build(BuildContext context) {
@@ -528,7 +569,7 @@ class _WorkPhotos extends StatelessWidget {
       child: ListView(
         scrollDirection: Axis.horizontal,
         children: [
-          _AddTile(onTap: onAdd),
+          _AddTile(onTap: onAdd, loading: uploading),
           for (final h in handles) ...[
             const SizedBox(width: 8),
             _PhotoTile(handle: h, onRemove: () => onRemove(h)),
@@ -540,14 +581,15 @@ class _WorkPhotos extends StatelessWidget {
 }
 
 class _AddTile extends StatelessWidget {
-  const _AddTile({required this.onTap});
+  const _AddTile({required this.onTap, this.loading = false});
   final VoidCallback onTap;
+  final bool loading;
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     return InkWell(
-      onTap: onTap,
+      onTap: loading ? null : onTap,
       borderRadius: BorderRadius.circular(12),
       child: Container(
         width: 92,
@@ -556,7 +598,15 @@ class _AddTile extends StatelessWidget {
           borderRadius: BorderRadius.circular(12),
           border: Border.all(color: scheme.outlineVariant),
         ),
-        child: Icon(Icons.add_a_photo_outlined, color: scheme.primary),
+        child: loading
+            ? const Center(
+                child: SizedBox(
+                  width: 22,
+                  height: 22,
+                  child: CircularProgressIndicator(strokeWidth: 2.5),
+                ),
+              )
+            : Icon(Icons.add_a_photo_outlined, color: scheme.primary),
       ),
     );
   }

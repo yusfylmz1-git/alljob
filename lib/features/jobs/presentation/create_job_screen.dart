@@ -47,32 +47,48 @@ class _CreateJobScreenState extends ConsumerState<CreateJobScreen> {
     super.dispose();
   }
 
+  /// Yüklemesi süren fotoğraf var mı? (ekleme kutucuğunda spinner)
+  bool _uploadingPhoto = false;
+
   Future<void> _pickPhoto() async {
+    if (_uploadingPhoto) return; // aynı anda tek yükleme
     if (_photos.length >= AppConstants.maxJobPhotos) {
       context.showInfo('En fazla ${AppConstants.maxJobPhotos} fotoğraf ekleyebilirsiniz.');
       return;
     }
+    final XFile? file;
     try {
-      final file = await ImagePicker().pickImage(
+      file = await ImagePicker().pickImage(
         source: ImageSource.gallery,
         maxWidth: AppConstants.imagePickMaxWidth,
         imageQuality: AppConstants.imagePickImageQuality,
       );
-      if (file == null) return;
-      final bytes = await file.readAsBytes();
-      if (bytes.length > AppConstants.maxPhotoSizeBytes) {
-        if (mounted) context.showError('Görsel 5 MB\'dan küçük olmalı.');
-        return;
-      }
-      final uid = ref.read(currentUserProvider)?.uid;
-      if (uid == null) return;
+    } catch (_) {
+      if (mounted) context.showError('Görsel seçilemedi.');
+      return;
+    }
+    if (file == null) return;
+    final bytes = await file.readAsBytes();
+    if (bytes.length > AppConstants.maxPhotoSizeBytes) {
+      if (mounted) context.showError('Görsel 5 MB\'dan küçük olmalı.');
+      return;
+    }
+    final uid = ref.read(currentUserProvider)?.uid;
+    if (uid == null) return;
+    setState(() => _uploadingPhoto = true);
+    try {
       // Yol uid ile başlar: Storage kuralı yalnızca kendi klasörüne yazmaya izin verir.
       final handle = await ref
           .read(storageRepositoryProvider)
           .uploadImage(pathHint: 'job/$uid', bytes: bytes);
       if (mounted) setState(() => _photos.add(handle));
     } catch (_) {
-      if (mounted) context.showError('Görsel seçilemedi.');
+      if (mounted) {
+        context.showError(
+            'Görsel yüklenemedi. Bağlantınızı kontrol edip tekrar deneyin.');
+      }
+    } finally {
+      if (mounted) setState(() => _uploadingPhoto = false);
     }
   }
 
@@ -274,6 +290,7 @@ class _CreateJobScreenState extends ConsumerState<CreateJobScreen> {
                   const SizedBox(height: 4),
                   _JobPhotos(
                     handles: _photos,
+                    uploading: _uploadingPhoto,
                     onAdd: _pickPhoto,
                     onRemove: (h) => setState(() => _photos.remove(h)),
                   ),
@@ -552,10 +569,18 @@ class _LocationPicker extends ConsumerWidget {
 }
 
 class _JobPhotos extends StatelessWidget {
-  const _JobPhotos({required this.handles, required this.onAdd, required this.onRemove});
+  const _JobPhotos({
+    required this.handles,
+    required this.onAdd,
+    required this.onRemove,
+    this.uploading = false,
+  });
   final List<String> handles;
   final VoidCallback onAdd;
   final ValueChanged<String> onRemove;
+
+  /// true iken ekleme kutucuğu spinner gösterir ve tıklamayı yutar.
+  final bool uploading;
 
   @override
   Widget build(BuildContext context) {
@@ -565,7 +590,7 @@ class _JobPhotos extends StatelessWidget {
         scrollDirection: Axis.horizontal,
         children: [
           InkWell(
-            onTap: onAdd,
+            onTap: uploading ? null : onAdd,
             borderRadius: BorderRadius.circular(12),
             child: Container(
               width: 92,
@@ -575,21 +600,30 @@ class _JobPhotos extends StatelessWidget {
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(color: AppColors.borderStrong),
               ),
-              child: const Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.add_a_photo_outlined, color: AppColors.primary),
-                  SizedBox(height: 4),
-                  Text(
-                    'Ekle',
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.inkMuted,
+              child: uploading
+                  ? const Center(
+                      child: SizedBox(
+                        width: 22,
+                        height: 22,
+                        child: CircularProgressIndicator(strokeWidth: 2.5),
+                      ),
+                    )
+                  : const Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.add_a_photo_outlined,
+                            color: AppColors.primary),
+                        SizedBox(height: 4),
+                        Text(
+                          'Ekle',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.inkMuted,
+                          ),
+                        ),
+                      ],
                     ),
-                  ),
-                ],
-              ),
             ),
           ),
           for (final h in handles) ...[
