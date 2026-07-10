@@ -10,6 +10,7 @@ import '../../../core/widgets/gradient_app_bar.dart';
 import '../../../core/widgets/responsive_center.dart';
 import '../../../core/widgets/role_bottom_bar.dart';
 import '../../../core/widgets/skeleton.dart';
+import '../../../core/widgets/status_views.dart';
 import '../../artisan/application/my_profile_controller.dart';
 import '../data/job_providers.dart';
 import 'widgets/job_widgets.dart';
@@ -41,7 +42,9 @@ class NearbyJobsScreen extends ConsumerWidget {
           ? const _NotAvailableNotice()
           : ref.watch(nearbyJobsProvider).when(
             loading: () => const SkeletonList(),
-            error: (e, _) => Center(child: Text('İşler yüklenemedi.\n$e')),
+            error: (_, _) => const ErrorView(
+                message: 'İşler yüklenemedi. Bağlantınızı kontrol edip '
+                    'tekrar deneyin.'),
             data: (jobs) => jobs.isEmpty
                 ? const _EmptyNearby()
                 : ResponsiveCenter(

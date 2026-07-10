@@ -15,6 +15,15 @@ class SplashScreen extends StatelessWidget {
     return Scaffold(
       body: Container(
         decoration: const BoxDecoration(gradient: AppColors.heroGradient),
+        // GradientAppBar ile aynı markasal turuncu ışık — açılıştan itibaren
+        // tutarlı tek görsel dil.
+        foregroundDecoration: const BoxDecoration(
+          gradient: RadialGradient(
+            center: Alignment(0.9, -1.1),
+            radius: 1.3,
+            colors: [Color(0x33EA580C), Color(0x00EA580C)],
+          ),
+        ),
         child: Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,

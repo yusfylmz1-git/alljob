@@ -9,8 +9,10 @@ import 'package:intl/intl.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/router/route_paths.dart';
 import '../../../core/utils/snackbar_helper.dart';
+import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/app_image.dart';
 import '../../../core/widgets/responsive_center.dart';
+import '../../../core/widgets/status_views.dart';
 import '../../../data/models/chat.dart';
 import '../../auth/application/auth_controller.dart';
 import '../../storage/storage_repository.dart';
@@ -465,15 +467,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         children: [
           Expanded(
             child: messagesAsync.when(
-              loading: () => const Center(child: CircularProgressIndicator()),
-              error: (e, _) => Center(
-                child: Padding(
-                  padding: const EdgeInsets.all(24),
-                  child: Text('Mesajlar yüklenemedi:\n$e',
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(color: Colors.red)),
-                ),
-              ),
+              loading: () => const LoadingView(),
+              error: (_, _) => const ErrorView(
+                  message: 'Mesajlar yüklenemedi. Bağlantınızı kontrol edip '
+                      'tekrar deneyin.'),
               data: (allMessages) {
                 final messages = visibleOf(allMessages);
                 if (messages.isEmpty && _pending.isEmpty) {
@@ -1050,15 +1047,36 @@ class _EmptyChat extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(32),
-        child: Text(
-          'Sohbeti başlatın. İletişim bilgileri (telefon, e-posta, sosyal medya) '
-          'güvenliğiniz için otomatik gizlenir.',
-          textAlign: TextAlign.center,
-          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: Theme.of(context).colorScheme.onSurfaceVariant),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 72,
+              height: 72,
+              decoration: const BoxDecoration(
+                color: AppColors.primaryContainer,
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.forum_outlined,
+                  size: 32, color: AppColors.onPrimaryContainer),
+            ),
+            const SizedBox(height: 16),
+            Text('Sohbeti başlatın',
+                style: theme.textTheme.titleMedium
+                    ?.copyWith(fontWeight: FontWeight.w700)),
+            const SizedBox(height: 6),
+            Text(
+              'İletişim bilgileri (telefon, e-posta, sosyal medya) '
+              'güvenliğiniz için otomatik gizlenir.',
+              textAlign: TextAlign.center,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant, height: 1.5),
+            ),
+          ],
         ),
       ),
     );

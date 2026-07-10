@@ -7,6 +7,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/app_image.dart';
 import '../../../core/widgets/gradient_app_bar.dart';
 import '../../../core/widgets/responsive_center.dart';
+import '../../../core/widgets/status_views.dart';
 import '../../../data/models/app_notification.dart';
 import '../../../data/models/favorite.dart';
 import '../../auth/application/auth_controller.dart';
@@ -57,9 +58,10 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
         icon: Icons.notifications_none_rounded,
       ),
       body: notifsAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (_, _) => const Center(
-            child: Text('Bildirimler yüklenemedi. Tekrar deneyin.')),
+        loading: () => const LoadingView(),
+        error: (_, _) => const ErrorView(
+            message: 'Bildirimler yüklenemedi. Bağlantınızı kontrol edip '
+                'tekrar deneyin.'),
         data: (items) {
           _markVisibleRead(user.uid, items);
           if (items.isEmpty && followers.isEmpty) {

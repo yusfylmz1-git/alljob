@@ -10,6 +10,7 @@ import '../../../core/widgets/app_button.dart';
 import '../../../core/widgets/app_image.dart';
 import '../../../core/widgets/rating_stars.dart';
 import '../../../core/widgets/responsive_center.dart';
+import '../../../core/widgets/status_views.dart';
 import '../../../data/models/review.dart';
 import '../../artisan/data/artisan_providers.dart';
 import '../../artisan/data/artisan_repository.dart';
@@ -30,10 +31,10 @@ class ArtisanProfileScreen extends ConsumerWidget {
 
     return Scaffold(
       body: detailAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (_, _) => const Center(
-          child: Text('Profil yüklenemedi. Lütfen tekrar deneyin.'),
-        ),
+        loading: () => const LoadingView(),
+        error: (_, _) => const ErrorView(
+            message: 'Profil yüklenemedi. Bağlantınızı kontrol edip '
+                'tekrar deneyin.'),
         data: (detail) {
           if (detail == null) {
             return const Center(child: Text('Usta bulunamadı.'));

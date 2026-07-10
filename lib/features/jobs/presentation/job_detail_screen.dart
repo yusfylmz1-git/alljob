@@ -10,6 +10,7 @@ import '../../../core/utils/snackbar_helper.dart';
 import '../../../core/widgets/app_image.dart';
 import '../../../core/widgets/gradient_app_bar.dart';
 import '../../../core/widgets/responsive_center.dart';
+import '../../../core/widgets/status_views.dart';
 import '../../../data/local/mock_database.dart' show kProfessionNames;
 import '../../../data/models/job.dart';
 import '../../../data/models/offer.dart';
@@ -34,8 +35,10 @@ class JobDetailScreen extends ConsumerWidget {
         icon: Icons.description_outlined,
       ),
       body: jobAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(child: Text('İlan yüklenemedi.\n$e')),
+        loading: () => const LoadingView(),
+        error: (_, _) => const ErrorView(
+            message: 'İlan yüklenemedi. Bağlantınızı kontrol edip '
+                'tekrar deneyin.'),
         data: (job) {
           if (job == null) {
             return const Center(child: Text('İlan bulunamadı.'));
@@ -290,7 +293,7 @@ class _OwnerOffersSection extends ConsumerWidget {
                 ?.copyWith(fontWeight: FontWeight.w800)),
         const SizedBox(height: 12),
         offersAsync.when(
-          loading: () => const Center(child: CircularProgressIndicator()),
+          loading: () => const LoadingView(compact: true),
           error: (_, _) => const _NoticeCard(
             icon: Icons.error_outline,
             text: 'İlgilenen ustalar yüklenemedi. Lütfen tekrar deneyin.',

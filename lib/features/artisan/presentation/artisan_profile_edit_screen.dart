@@ -11,6 +11,7 @@ import '../../../core/widgets/app_image.dart';
 import '../../../core/widgets/gradient_app_bar.dart';
 import '../../../core/widgets/notification_bell.dart';
 import '../../../core/widgets/responsive_center.dart';
+import '../../../core/widgets/status_views.dart';
 import '../../../data/local/local_data_service.dart';
 import '../../../data/models/availability.dart';
 import '../../../data/models/geo_models.dart';
@@ -37,9 +38,10 @@ class ArtisanProfileEditScreen extends ConsumerWidget {
         actions: [NotificationBell(), SizedBox(width: 4)],
       ),
       body: draftAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (_, _) =>
-            const Center(child: Text('Profil yüklenemedi. Tekrar deneyin.')),
+        loading: () => const LoadingView(),
+        error: (_, _) => const ErrorView(
+            message: 'Profil yüklenemedi. Bağlantınızı kontrol edip '
+                'tekrar deneyin.'),
         data: (_) => const _EditForm(),
       ),
     );

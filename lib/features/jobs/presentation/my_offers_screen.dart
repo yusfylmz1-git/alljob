@@ -8,6 +8,7 @@ import '../../../core/theme/app_theme.dart';
 import '../../../core/widgets/gradient_app_bar.dart';
 import '../../../core/widgets/responsive_center.dart';
 import '../../../core/widgets/skeleton.dart';
+import '../../../core/widgets/status_views.dart';
 import '../../../data/models/offer.dart';
 import '../../auth/application/auth_controller.dart';
 import '../data/job_providers.dart';
@@ -28,7 +29,9 @@ class MyOffersScreen extends ConsumerWidget {
           ? const Center(child: Text('Oturum bulunamadı.'))
           : ref.watch(myOffersProvider(user.uid)).when(
                 loading: () => const SkeletonList(),
-                error: (e, _) => Center(child: Text('Liste yüklenemedi.\n$e')),
+                error: (_, _) => const ErrorView(
+                    message: 'Liste yüklenemedi. Bağlantınızı kontrol edip '
+                        'tekrar deneyin.'),
                 data: (offers) {
                   final active =
                       offers.where((o) => o.status != OfferStatus.withdrawn).toList();

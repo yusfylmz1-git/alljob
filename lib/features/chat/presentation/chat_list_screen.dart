@@ -12,6 +12,7 @@ import '../../../core/widgets/gradient_app_bar.dart';
 import '../../../core/widgets/responsive_center.dart';
 import '../../../core/widgets/role_bottom_bar.dart';
 import '../../../core/widgets/skeleton.dart';
+import '../../../core/widgets/status_views.dart';
 import '../../../data/models/chat.dart';
 import '../../auth/application/auth_controller.dart';
 import '../data/chat_providers.dart';
@@ -151,12 +152,9 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
       bottomNavigationBar: const MainBottomBar(current: MainTab.chats),
       body: threadsAsync.when(
         loading: () => const SkeletonList(),
-        error: (_, _) => const Center(
-          child: Padding(
-            padding: EdgeInsets.all(32),
-            child: Text('Mesajlar yüklenemedi. Lütfen tekrar deneyin.'),
-          ),
-        ),
+        error: (_, _) => const ErrorView(
+            message: 'Mesajlar yüklenemedi. Bağlantınızı kontrol edip '
+                'tekrar deneyin.'),
         data: (threads) {
           if (user == null) return const SizedBox.shrink();
           if (threads.isEmpty) return const _Empty();

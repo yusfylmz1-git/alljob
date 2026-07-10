@@ -9,6 +9,7 @@ import '../../../core/widgets/app_image.dart';
 import '../../../core/widgets/gradient_app_bar.dart';
 import '../../../core/widgets/responsive_center.dart';
 import '../../../core/widgets/skeleton.dart';
+import '../../../core/widgets/status_views.dart';
 import '../../../data/models/favorite.dart';
 import '../../auth/application/auth_controller.dart';
 import '../data/favorite_providers.dart';
@@ -29,7 +30,9 @@ class FavoritesScreen extends ConsumerWidget {
           ? const Center(child: Text('Oturum bulunamadı.'))
           : ref.watch(favoritesProvider(user.uid)).when(
                 loading: () => const SkeletonList(),
-                error: (e, _) => Center(child: Text('Favoriler yüklenemedi.\n$e')),
+                error: (_, _) => const ErrorView(
+                    message: 'Takip listesi yüklenemedi. Bağlantınızı '
+                        'kontrol edip tekrar deneyin.'),
                 data: (favs) => favs.isEmpty
                     ? const _EmptyFavorites()
                     : ResponsiveCenter(

@@ -11,6 +11,7 @@ import '../../../core/widgets/gradient_app_bar.dart';
 import '../../../core/widgets/responsive_center.dart';
 import '../../../core/widgets/role_bottom_bar.dart';
 import '../../../core/widgets/skeleton.dart';
+import '../../../core/widgets/status_views.dart';
 import '../../../data/local/mock_database.dart' show kProfessionNames;
 import '../../../data/models/job.dart';
 import '../../auth/application/auth_controller.dart';
@@ -164,8 +165,9 @@ class _MyJobsScreenState extends ConsumerState<MyJobsScreen> {
             ? const Center(child: Text('Oturum bulunamadı.'))
             : jobsAsync!.when(
                   loading: () => const SkeletonList(),
-                  error: (e, _) =>
-                      Center(child: Text('İlanlar yüklenemedi.\n$e')),
+                  error: (_, _) => const ErrorView(
+                      message: 'İlanlar yüklenemedi. Bağlantınızı kontrol '
+                          'edip tekrar deneyin.'),
                   data: (jobs) => jobs.isEmpty
                       ? const _EmptyJobs()
                       : ResponsiveCenter(
