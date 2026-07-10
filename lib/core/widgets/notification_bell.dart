@@ -5,7 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../features/auth/application/auth_controller.dart';
 import '../../features/notifications/data/notification_repository.dart';
 import '../router/route_paths.dart';
-import '../theme/app_colors.dart';
+import '../theme/app_palette.dart';
 
 /// Sağ üst bildirim zili: okunmamış bildirim varsa kırmızı sayı rozeti
 /// gösterir (Instagram dili), dokununca bildirim merkezine gider.
@@ -38,7 +38,7 @@ class NotificationBell extends ConsumerWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
                 constraints: const BoxConstraints(minWidth: 16),
                 decoration: BoxDecoration(
-                  color: AppColors.danger,
+                  color: context.palette.danger,
                   borderRadius: BorderRadius.circular(9),
                   border: Border.all(color: Colors.white, width: 1.2),
                 ),

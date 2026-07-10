@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/router/route_paths.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_palette.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/snackbar_helper.dart';
 import '../../../core/widgets/app_menu_drawer.dart';
@@ -55,7 +56,8 @@ class _MyJobsScreenState extends ConsumerState<MyJobsScreen> {
               onPressed: () => Navigator.pop(ctx, false),
               child: const Text('Vazgeç')),
           FilledButton(
-              style: FilledButton.styleFrom(backgroundColor: AppColors.danger),
+              style: FilledButton.styleFrom(
+                  backgroundColor: ctx.palette.danger),
               onPressed: () => Navigator.pop(ctx, true),
               child: const Text('Sil')),
         ],
@@ -262,6 +264,7 @@ class _JobCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final status = job.effectiveStatus;
+    final palette = context.palette;
     final content = Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -292,7 +295,7 @@ class _JobCard extends StatelessWidget {
                 style: Theme.of(context)
                     .textTheme
                     .bodySmall
-                    ?.copyWith(color: AppColors.inkMuted),
+                    ?.copyWith(color: palette.inkMuted),
               ),
               const SizedBox(height: 12),
               Row(
@@ -305,14 +308,14 @@ class _JobCard extends StatelessWidget {
                       label: 'Usta seçildi',
                     ),
                   const Spacer(),
-                  const Icon(Icons.chevron_right, color: AppColors.inkFaint),
+                  Icon(Icons.chevron_right, color: palette.inkFaint),
                 ],
               ),
             ],
           );
 
     return Material(
-      color: selected ? AppColors.primaryContainer : AppColors.surface,
+      color: selected ? palette.primaryContainer : palette.card,
       borderRadius: BorderRadius.circular(16),
       child: InkWell(
         borderRadius: BorderRadius.circular(16),
@@ -326,7 +329,7 @@ class _JobCard extends StatelessWidget {
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
-                color: selected ? AppColors.primary : AppColors.border),
+                color: selected ? palette.primary : palette.border),
             boxShadow: AppTheme.softShadow,
           ),
           child: !selectionMode
@@ -357,20 +360,21 @@ class _InfoChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
-        color: AppColors.surfaceMuted,
+        color: palette.surfaceMuted,
         borderRadius: BorderRadius.circular(999),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 14, color: AppColors.inkMuted),
+          Icon(icon, size: 14, color: palette.inkMuted),
           const SizedBox(width: 4),
           Text(label,
-              style: const TextStyle(
-                  color: AppColors.inkMuted,
+              style: TextStyle(
+                  color: palette.inkMuted,
                   fontWeight: FontWeight.w700,
                   fontSize: 12)),
         ],
@@ -393,12 +397,12 @@ class _EmptyJobs extends StatelessWidget {
             Container(
               width: 72,
               height: 72,
-              decoration: const BoxDecoration(
-                color: AppColors.primaryContainer,
+              decoration: BoxDecoration(
+                color: context.palette.primaryContainer,
                 shape: BoxShape.circle,
               ),
-              child: const Icon(Icons.campaign_outlined,
-                  size: 34, color: AppColors.onPrimaryContainer),
+              child: Icon(Icons.campaign_outlined,
+                  size: 34, color: context.palette.onPrimaryContainer),
             ),
             const SizedBox(height: 16),
             Text('Henüz ilanınız yok',
@@ -413,7 +417,7 @@ class _EmptyJobs extends StatelessWidget {
               style: Theme.of(context)
                   .textTheme
                   .bodyMedium
-                  ?.copyWith(color: AppColors.inkMuted),
+                  ?.copyWith(color: context.palette.inkMuted),
             ),
             const SizedBox(height: 20),
             FilledButton.icon(

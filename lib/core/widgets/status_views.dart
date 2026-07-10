@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../theme/app_colors.dart';
+import '../theme/app_palette.dart';
 
 /// Uygulama genelinde TEK yükleme/hata durum dili.
 ///
@@ -39,7 +39,7 @@ class LoadingView extends StatelessWidget {
                 style: Theme.of(context)
                     .textTheme
                     .bodySmall
-                    ?.copyWith(color: AppColors.inkMuted),
+                    ?.copyWith(color: context.palette.inkMuted),
               ),
             ],
           ],
@@ -75,11 +75,11 @@ class ErrorView extends StatelessWidget {
             Container(
               width: 64,
               height: 64,
-              decoration: const BoxDecoration(
-                color: AppColors.surfaceMuted,
+              decoration: BoxDecoration(
+                color: context.palette.surfaceMuted,
                 shape: BoxShape.circle,
               ),
-              child: Icon(icon, size: 30, color: AppColors.inkMuted),
+              child: Icon(icon, size: 30, color: context.palette.inkMuted),
             ),
             const SizedBox(height: 16),
             Text(
@@ -93,7 +93,7 @@ class ErrorView extends StatelessWidget {
               message,
               textAlign: TextAlign.center,
               style: theme.textTheme.bodyMedium
-                  ?.copyWith(color: AppColors.inkMuted, height: 1.5),
+                  ?.copyWith(color: context.palette.inkMuted, height: 1.5),
             ),
           ],
         ),

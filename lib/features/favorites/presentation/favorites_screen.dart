@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/router/route_paths.dart';
-import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_palette.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/widgets/app_image.dart';
 import '../../../core/widgets/gradient_app_bar.dart';
@@ -55,8 +55,9 @@ class _FavoriteTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
     return Material(
-      color: AppColors.surface,
+      color: palette.card,
       borderRadius: BorderRadius.circular(16),
       child: InkWell(
         borderRadius: BorderRadius.circular(16),
@@ -65,22 +66,22 @@ class _FavoriteTile extends StatelessWidget {
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: AppColors.border),
+            border: Border.all(color: palette.border),
             boxShadow: AppTheme.softShadow,
           ),
           child: Row(
             children: [
               CircleAvatar(
                 radius: 26,
-                backgroundColor: AppColors.primaryContainer,
+                backgroundColor: palette.primaryContainer,
                 child: ClipOval(
                   child: SizedBox(
                     width: 52,
                     height: 52,
                     child: fav.photoUrl != null
                         ? AppImage(handle: fav.photoUrl)
-                        : const Icon(Icons.person,
-                            color: AppColors.onPrimaryContainer),
+                        : Icon(Icons.person,
+                            color: palette.onPrimaryContainer),
                   ),
                 ),
               ),
@@ -99,12 +100,12 @@ class _FavoriteTile extends StatelessWidget {
                         style: Theme.of(context)
                             .textTheme
                             .bodySmall
-                            ?.copyWith(color: AppColors.inkMuted)),
+                            ?.copyWith(color: palette.inkMuted)),
                     const SizedBox(height: 4),
                     Row(
                       children: [
-                        const Icon(Icons.star_rounded,
-                            size: 15, color: AppColors.star),
+                        Icon(Icons.star_rounded,
+                            size: 15, color: palette.star),
                         const SizedBox(width: 2),
                         Text('${fav.rating.toStringAsFixed(1)} (${fav.totalReviews})',
                             style: Theme.of(context).textTheme.bodySmall),
@@ -113,7 +114,7 @@ class _FavoriteTile extends StatelessWidget {
                   ],
                 ),
               ),
-              const Icon(Icons.chevron_right, color: AppColors.inkFaint),
+              Icon(Icons.chevron_right, color: palette.inkFaint),
             ],
           ),
         ),
@@ -136,12 +137,12 @@ class _EmptyFavorites extends StatelessWidget {
             Container(
               width: 72,
               height: 72,
-              decoration: const BoxDecoration(
-                color: AppColors.primaryContainer,
+              decoration: BoxDecoration(
+                color: context.palette.primaryContainer,
                 shape: BoxShape.circle,
               ),
-              child: const Icon(Icons.favorite_border,
-                  size: 34, color: AppColors.onPrimaryContainer),
+              child: Icon(Icons.favorite_border,
+                  size: 34, color: context.palette.onPrimaryContainer),
             ),
             const SizedBox(height: 16),
             Text('Henüz kimseyi takip etmiyorsunuz',
@@ -157,7 +158,7 @@ class _EmptyFavorites extends StatelessWidget {
               style: Theme.of(context)
                   .textTheme
                   .bodyMedium
-                  ?.copyWith(color: AppColors.inkMuted),
+                  ?.copyWith(color: context.palette.inkMuted),
             ),
           ],
         ),

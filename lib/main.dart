@@ -11,6 +11,7 @@ import 'package:intl/date_symbol_data_local.dart';
 
 import 'app.dart';
 import 'core/config/backend_config.dart';
+import 'core/theme/theme_mode_state.dart';
 import 'features/onboarding/onboarding_state.dart';
 import 'firebase_options.dart';
 
@@ -78,9 +79,13 @@ Future<void> main() async {
   // için varsayılan "görüldü" kalır ve akışa hiç girmez).
   final seenOnboarding = await readOnboardingSeen();
 
+  // Tema tercihi (Sistem/Açık/Koyu) cihazdan okunur; kayıt yoksa Sistem.
+  final themeMode = await readThemeMode();
+
   runApp(ProviderScope(
     overrides: [
       onboardingSeenProvider.overrideWith((ref) => seenOnboarding),
+      themeModeProvider.overrideWith((ref) => themeMode),
     ],
     child: const UstaCepteApp(),
   ));

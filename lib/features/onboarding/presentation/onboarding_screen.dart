@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/router/route_paths.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_palette.dart';
 import '../../../core/widgets/app_button.dart';
 import '../onboarding_state.dart';
 
@@ -71,7 +72,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   Widget build(BuildContext context) {
     final last = _index == _pages.length - 1;
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: context.palette.background,
       body: SafeArea(
         child: Column(
           children: [
@@ -124,8 +125,8 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                     height: 8,
                     decoration: BoxDecoration(
                       color: i == _index
-                          ? AppColors.primary
-                          : AppColors.borderStrong,
+                          ? context.palette.primary
+                          : context.palette.borderStrong,
                       borderRadius: BorderRadius.circular(999),
                     ),
                   ),
@@ -182,8 +183,8 @@ class _OnboardingPage extends StatelessWidget {
                 Container(
                   width: 200,
                   height: 200,
-                  decoration: const BoxDecoration(
-                    color: AppColors.primaryContainer,
+                  decoration: BoxDecoration(
+                    color: context.palette.primaryContainer,
                     shape: BoxShape.circle,
                   ),
                 ),
@@ -209,15 +210,15 @@ class _OnboardingPage extends StatelessWidget {
                   child: Container(
                     padding: const EdgeInsets.all(9),
                     decoration: BoxDecoration(
-                      color: AppColors.surface,
+                      color: context.palette.card,
                       shape: BoxShape.circle,
-                      border: Border.all(color: AppColors.border),
+                      border: Border.all(color: context.palette.border),
                       boxShadow: const [
                         BoxShadow(color: Color(0x1A101828), blurRadius: 10),
                       ],
                     ),
                     child: Icon(data.accentIcon,
-                        size: 20, color: AppColors.secondary),
+                        size: 20, color: context.palette.secondary),
                   ),
                 ),
               ],
@@ -237,7 +238,7 @@ class _OnboardingPage extends StatelessWidget {
             data.body,
             textAlign: TextAlign.center,
             style: theme.textTheme.bodyLarge?.copyWith(
-              color: AppColors.inkMuted,
+              color: context.palette.inkMuted,
               height: 1.55,
             ),
           ),

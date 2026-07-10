@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../theme/app_colors.dart';
+import '../theme/app_palette.dart';
 
 /// Yükleme sırasında içeriğin yerini tutan yumuşak "shimmer" iskeleti.
 ///
@@ -47,6 +47,10 @@ class _SkeletonState extends State<Skeleton>
 
   @override
   Widget build(BuildContext context) {
+    // Tema-farkındalıklı shimmer: açıkta gri tonlar, koyuda zeminden bir
+    // kademe açık katmanlar (border, surfaceMuted'dan hafifçe ayrışır).
+    final base = context.palette.surfaceMuted;
+    final highlight = context.palette.border;
     return AnimatedBuilder(
       animation: _controller,
       builder: (context, _) {
@@ -62,11 +66,7 @@ class _SkeletonState extends State<Skeleton>
             gradient: LinearGradient(
               begin: Alignment(-1 - 2 * t, 0),
               end: Alignment(1 - 2 * t, 0),
-              colors: const [
-                Color(0xFFEEF0F3),
-                Color(0xFFF7F8FA),
-                Color(0xFFEEF0F3),
-              ],
+              colors: [base, highlight, base],
               stops: const [0.25, 0.5, 0.75],
             ),
           ),
@@ -106,9 +106,9 @@ class _SkeletonCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
+        color: context.palette.card,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppColors.hairline),
+        border: Border.all(color: context.palette.hairline),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -131,7 +131,7 @@ class _SkeletonCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 14),
-          Container(height: 1, color: AppColors.hairline),
+          Container(height: 1, color: context.palette.hairline),
           const SizedBox(height: 12),
           const Skeleton(width: 180, height: 11),
         ],

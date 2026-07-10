@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 
 import '../../../core/router/route_paths.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_palette.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/widgets/app_button.dart';
 import '../../../core/widgets/app_image.dart';
@@ -347,7 +348,7 @@ class _HeroHeader extends StatelessWidget {
                         value: profile.averageRating.toStringAsFixed(1),
                         label: 'Puan',
                         icon: Icons.star_rounded,
-                        iconColor: AppColors.star,
+                        iconColor: context.palette.star,
                       ),
                       _statDivider(theme),
                       _Stat(
@@ -494,11 +495,11 @@ class _Section extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(7),
                 decoration: BoxDecoration(
-                  color: AppColors.primaryContainer,
+                  color: context.palette.primaryContainer,
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child:
-                    Icon(icon, size: 18, color: AppColors.onPrimaryContainer),
+                child: Icon(icon,
+                    size: 18, color: context.palette.onPrimaryContainer),
               ),
               const SizedBox(width: 10),
               Text(title,
@@ -585,7 +586,8 @@ class _ReviewTagChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isNegative = ReviewTags.isNegative(tag);
-    final color = isNegative ? AppColors.danger : AppColors.success;
+    final color =
+        isNegative ? context.palette.danger : context.palette.success;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(

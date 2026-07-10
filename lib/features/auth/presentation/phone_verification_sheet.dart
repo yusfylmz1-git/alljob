@@ -158,10 +158,8 @@ class _PhoneVerificationSheetState
             _step == _Step.phone
                 ? 'Numaranı doğrulayan hesaplar mavi tik (doğrulanmış) rozeti alır.'
                 : '$_sentTo numarasına gönderilen 6 haneli kodu gir.',
-            style: Theme.of(context)
-                .textTheme
-                .bodyMedium
-                ?.copyWith(color: Colors.black54),
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant),
           ),
           const SizedBox(height: 20),
           if (_step == _Step.phone)

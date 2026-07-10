@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'app_colors.dart';
+import 'app_palette.dart';
 
 /// Uygulamanın açık ve koyu temaları.
 ///
@@ -138,6 +139,7 @@ class AppTheme {
       scaffoldBackgroundColor: scaffoldBg,
       splashFactory: InkSparkle.splashFactory,
       visualDensity: VisualDensity.standard,
+      extensions: [isLight ? AppPalette.light : AppPalette.dark],
     );
 
     return base.copyWith(

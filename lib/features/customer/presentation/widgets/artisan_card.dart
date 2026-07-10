@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/theme/app_palette.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../artisan/data/artisan_repository.dart';
 
@@ -30,8 +31,9 @@ class ArtisanCard extends StatelessWidget {
       if (artisan.experienceYears > 0) '${artisan.experienceYears} yıl',
     ].join(' · ');
 
+    final palette = context.palette;
     return Material(
-      color: AppColors.surface,
+      color: palette.card,
       borderRadius: BorderRadius.circular(16),
       child: InkWell(
         onTap: onTap,
@@ -39,9 +41,9 @@ class ArtisanCard extends StatelessWidget {
         hoverColor: scheme.primary.withValues(alpha: 0.03),
         child: Ink(
           decoration: BoxDecoration(
-            color: AppColors.surface,
+            color: palette.card,
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: AppColors.hairline),
+            border: Border.all(color: palette.hairline),
             boxShadow: AppTheme.softShadow,
           ),
           child: Padding(
@@ -70,13 +72,13 @@ class ArtisanCard extends StatelessWidget {
                           ),
                           if (artisan.isVerified) ...[
                             const SizedBox(width: 4),
-                            const Icon(Icons.verified,
-                                size: 15, color: AppColors.verified),
+                            Icon(Icons.verified,
+                                size: 15, color: palette.verified),
                           ],
                           if (artisan.isPremium) ...[
                             const SizedBox(width: 4),
-                            const Icon(Icons.workspace_premium,
-                                size: 15, color: AppColors.premium),
+                            Icon(Icons.workspace_premium,
+                                size: 15, color: palette.premium),
                           ],
                         ],
                       ),
@@ -124,7 +126,7 @@ class _RingedAvatar extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(2),
         decoration: BoxDecoration(
-          color: scheme.surface,
+          color: context.palette.card,
           shape: BoxShape.circle,
         ),
         child: _AvatarContent(
@@ -158,7 +160,7 @@ class _AvatarContent extends StatelessWidget {
     if (photoUrl != null) {
       return CircleAvatar(
         radius: diameter / 2,
-        backgroundColor: AppColors.surfaceMuted,
+        backgroundColor: context.palette.surfaceMuted,
         foregroundImage: NetworkImage(photoUrl!),
       );
     }
@@ -192,11 +194,12 @@ class _StatusPill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final palette = context.palette;
     if (isNew) {
       return _pill(
         theme,
-        color: AppColors.info,
-        surface: AppColors.infoSurface,
+        color: palette.info,
+        surface: palette.infoSurface,
         icon: Icons.auto_awesome_rounded,
         label: 'Yeni',
       );
@@ -204,8 +207,8 @@ class _StatusPill extends StatelessWidget {
     if (isAvailable) {
       return _pill(
         theme,
-        color: AppColors.success,
-        surface: AppColors.successSurface,
+        color: palette.success,
+        surface: palette.successSurface,
         dot: true,
         label: 'Müsait',
       );

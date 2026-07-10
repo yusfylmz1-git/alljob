@@ -4,7 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import '../../../core/router/route_paths.dart';
-import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_palette.dart';
 import '../../../core/utils/snackbar_helper.dart';
 import '../../../core/widgets/app_image.dart';
 import '../../../core/widgets/app_menu_drawer.dart';
@@ -201,7 +201,7 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
                             style: Theme.of(context)
                                 .textTheme
                                 .bodyMedium
-                                ?.copyWith(color: AppColors.inkMuted),
+                                ?.copyWith(color: context.palette.inkMuted),
                           ),
                         )
                       : ListView.builder(
@@ -347,8 +347,8 @@ class _ThreadTile extends StatelessWidget {
               Container(
                 width: 10,
                 height: 10,
-                decoration: const BoxDecoration(
-                  color: AppColors.info,
+                decoration: BoxDecoration(
+                  color: context.palette.info,
                   shape: BoxShape.circle,
                 ),
               ),

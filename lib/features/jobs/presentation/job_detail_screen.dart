@@ -4,7 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/constants/app_constants.dart';
 import '../../../core/router/route_paths.dart';
-import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_palette.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/snackbar_helper.dart';
 import '../../../core/widgets/app_image.dart';
@@ -98,9 +98,9 @@ class _JobHeaderCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: AppColors.surface,
+        color: context.palette.card,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.border),
+        border: Border.all(color: context.palette.border),
         boxShadow: AppTheme.softShadow,
       ),
       child: Column(
@@ -167,14 +167,14 @@ class _MetaRow extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 3),
       child: Row(
         children: [
-          Icon(icon, size: 16, color: AppColors.inkMuted),
+          Icon(icon, size: 16, color: context.palette.inkMuted),
           const SizedBox(width: 8),
           Expanded(
             child: Text(text,
                 style: Theme.of(context)
                     .textTheme
                     .bodyMedium
-                    ?.copyWith(color: AppColors.inkMuted)),
+                    ?.copyWith(color: context.palette.inkMuted)),
           ),
         ],
       ),
@@ -333,13 +333,13 @@ class _OwnerOffersSection extends ConsumerWidget {
                 label: const Text('Düzenle'),
               ),
             TextButton.icon(
-              style: TextButton.styleFrom(foregroundColor: AppColors.danger),
+              style: TextButton.styleFrom(foregroundColor: context.palette.danger),
               onPressed: () => _cancelJob(context, ref, job),
               icon: const Icon(Icons.cancel_outlined, size: 18),
               label: const Text('İlanı İptal Et'),
             ),
             TextButton.icon(
-              style: TextButton.styleFrom(foregroundColor: AppColors.danger),
+              style: TextButton.styleFrom(foregroundColor: context.palette.danger),
               onPressed: () => _deleteJob(context, ref, job),
               icon: const Icon(Icons.delete_outline, size: 18),
               label: const Text('İlanı Sil'),
@@ -361,7 +361,7 @@ class _DeleteJobButton extends ConsumerWidget {
     return Align(
       alignment: Alignment.centerLeft,
       child: TextButton.icon(
-        style: TextButton.styleFrom(foregroundColor: AppColors.danger),
+        style: TextButton.styleFrom(foregroundColor: context.palette.danger),
         onPressed: () => _deleteJob(context, ref, job),
         icon: const Icon(Icons.delete_outline, size: 18),
         label: const Text('İlanı Sil'),
@@ -383,7 +383,7 @@ Future<void> _deleteJob(BuildContext context, WidgetRef ref, Job job) async {
             onPressed: () => Navigator.pop(ctx, false),
             child: const Text('Vazgeç')),
         FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: AppColors.danger),
+            style: FilledButton.styleFrom(backgroundColor: context.palette.danger),
             onPressed: () => Navigator.pop(ctx, true),
             child: const Text('Sil')),
       ],
@@ -483,7 +483,7 @@ class _EditJobSheetState extends State<_EditJobSheet> {
                   style: Theme.of(context)
                       .textTheme
                       .bodySmall
-                      ?.copyWith(color: AppColors.inkMuted),
+                      ?.copyWith(color: context.palette.inkMuted),
                 ),
                 const SizedBox(height: 12),
                 TextFormField(
@@ -556,9 +556,9 @@ class _OfferCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: AppColors.surface,
+        color: context.palette.card,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.border),
+        border: Border.all(color: context.palette.border),
         boxShadow: AppTheme.softShadow,
       ),
       child: Column(
@@ -572,15 +572,15 @@ class _OfferCard extends StatelessWidget {
               children: [
                 CircleAvatar(
                   radius: 26,
-                  backgroundColor: AppColors.primaryContainer,
+                  backgroundColor: context.palette.primaryContainer,
                   child: ClipOval(
                     child: SizedBox(
                       width: 52,
                       height: 52,
                       child: offer.artisanPhotoUrl != null
                           ? AppImage(handle: offer.artisanPhotoUrl)
-                          : const Icon(Icons.person,
-                              color: AppColors.onPrimaryContainer),
+                          : Icon(Icons.person,
+                              color: context.palette.onPrimaryContainer),
                     ),
                   ),
                 ),
@@ -601,16 +601,16 @@ class _OfferCard extends StatelessWidget {
                           ),
                           if (offer.isVerified) ...[
                             const SizedBox(width: 4),
-                            const Icon(Icons.verified,
-                                size: 16, color: AppColors.verified),
+                            Icon(Icons.verified,
+                                size: 16, color: context.palette.verified),
                           ],
                         ],
                       ),
                       const SizedBox(height: 2),
                       Row(
                         children: [
-                          const Icon(Icons.star_rounded,
-                              size: 15, color: AppColors.star),
+                          Icon(Icons.star_rounded,
+                              size: 15, color: context.palette.star),
                           const SizedBox(width: 2),
                           Text(
                             '${offer.rating.toStringAsFixed(1)} (${offer.totalReviews})',
@@ -628,7 +628,7 @@ class _OfferCard extends StatelessWidget {
                     ],
                   ),
                 ),
-                const Icon(Icons.chevron_right, color: AppColors.inkFaint),
+                Icon(Icons.chevron_right, color: context.palette.inkFaint),
               ],
             ),
           ),
@@ -665,12 +665,14 @@ class _PremiumTag extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
-        color: AppColors.premiumSurface,
+        color: context.palette.premiumSurface,
         borderRadius: BorderRadius.circular(6),
       ),
-      child: const Text('Premium',
+      child: Text('Premium',
           style: TextStyle(
-              color: AppColors.premium, fontSize: 10, fontWeight: FontWeight.w800)),
+              color: context.palette.premium,
+              fontSize: 10,
+              fontWeight: FontWeight.w800)),
     );
   }
 }
@@ -714,9 +716,9 @@ class _AssignedCard extends ConsumerWidget {
         Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: AppColors.surface,
+            color: context.palette.card,
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: AppColors.border),
+            border: Border.all(color: context.palette.border),
             boxShadow: AppTheme.softShadow,
           ),
           child: Column(
@@ -761,7 +763,7 @@ class _AssignedCard extends ConsumerWidget {
                   width: double.infinity,
                   child: FilledButton.icon(
                     style: FilledButton.styleFrom(
-                        backgroundColor: AppColors.success),
+                        backgroundColor: context.palette.success),
                     onPressed: canConfirm
                         ? () => _busyGuard(
                             context,
@@ -830,7 +832,7 @@ class _AssignedCard extends ConsumerWidget {
                             status == JobStatus.inProgress))
                       TextButton.icon(
                         style: TextButton.styleFrom(
-                            foregroundColor: AppColors.danger),
+                            foregroundColor: context.palette.danger),
                         onPressed: () => _cancelJob(context, ref, job),
                         icon: const Icon(Icons.cancel_outlined, size: 18),
                         label: const Text('İlanı İptal Et'),
@@ -838,7 +840,7 @@ class _AssignedCard extends ConsumerWidget {
                     if (status.canDispute)
                       TextButton.icon(
                         style: TextButton.styleFrom(
-                            foregroundColor: AppColors.warning),
+                            foregroundColor: context.palette.warning),
                         onPressed: () => _reportDispute(context, ref, job,
                             byCustomer: isOwner),
                         icon: const Icon(Icons.report_gmailerrorred_outlined,
@@ -908,9 +910,9 @@ class _DisputePanel extends ConsumerWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.surface,
+        color: context.palette.card,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.danger.withValues(alpha: 0.4)),
+        border: Border.all(color: context.palette.danger.withValues(alpha: 0.4)),
         boxShadow: AppTheme.softShadow,
       ),
       child: Column(
@@ -921,11 +923,11 @@ class _DisputePanel extends ConsumerWidget {
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: AppColors.dangerSurface,
+                  color: context.palette.dangerSurface,
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: const Icon(Icons.report_gmailerrorred,
-                    color: AppColors.danger),
+                child: Icon(Icons.report_gmailerrorred,
+                    color: context.palette.danger),
               ),
               const SizedBox(width: 10),
               Expanded(
@@ -1055,7 +1057,7 @@ class _DisputeSheetState extends State<_DisputeSheet> {
                 style: Theme.of(context)
                     .textTheme
                     .bodySmall
-                    ?.copyWith(color: AppColors.inkMuted),
+                    ?.copyWith(color: context.palette.inkMuted),
               ),
               const SizedBox(height: 8),
               RadioGroup<JobDisputeReason>(
@@ -1089,7 +1091,7 @@ class _DisputeSheetState extends State<_DisputeSheet> {
                 width: double.infinity,
                 child: FilledButton.icon(
                   style:
-                      FilledButton.styleFrom(backgroundColor: AppColors.danger),
+                      FilledButton.styleFrom(backgroundColor: context.palette.danger),
                   onPressed: _reason == null
                       ? null
                       : () => Navigator.pop(
@@ -1192,8 +1194,8 @@ class _LifecycleStepper extends StatelessWidget {
                 height: 2,
                 margin: const EdgeInsets.only(bottom: 18),
                 color: i < _currentIndex
-                    ? AppColors.primary
-                    : AppColors.border,
+                    ? context.palette.primary
+                    : context.palette.border,
               ),
             ),
         ],
@@ -1211,7 +1213,7 @@ class _StepDot extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = done ? AppColors.primary : AppColors.inkFaint;
+    final color = done ? context.palette.primary : context.palette.inkFaint;
     return SizedBox(
       width: 54,
       child: Column(
@@ -1220,7 +1222,7 @@ class _StepDot extends StatelessWidget {
             width: 22,
             height: 22,
             decoration: BoxDecoration(
-              color: done ? AppColors.primary : AppColors.surface,
+              color: done ? context.palette.primary : context.palette.card,
               shape: BoxShape.circle,
               border: Border.all(color: color, width: current ? 2.5 : 1.5),
             ),
@@ -1271,7 +1273,7 @@ class _ConfirmChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
-        color: done ? AppColors.successSurface : AppColors.surfaceMuted,
+        color: done ? context.palette.successSurface : context.palette.surfaceMuted,
         borderRadius: BorderRadius.circular(10),
       ),
       child: Row(
@@ -1279,7 +1281,7 @@ class _ConfirmChip extends StatelessWidget {
         children: [
           Icon(done ? Icons.check_circle : Icons.radio_button_unchecked,
               size: 16,
-              color: done ? AppColors.success : AppColors.inkFaint),
+              color: done ? context.palette.success : context.palette.inkFaint),
           const SizedBox(width: 6),
           Flexible(
             child: Text(label,
@@ -1287,7 +1289,7 @@ class _ConfirmChip extends StatelessWidget {
                 style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w700,
-                    color: done ? AppColors.success : AppColors.inkMuted)),
+                    color: done ? context.palette.success : context.palette.inkMuted)),
           ),
         ],
       ),
@@ -1304,7 +1306,7 @@ class _InlineNotice extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Icon(icon, size: 18, color: AppColors.success),
+        Icon(icon, size: 18, color: context.palette.success),
         const SizedBox(width: 8),
         Expanded(
             child: Text(text, style: Theme.of(context).textTheme.bodyMedium)),
@@ -1426,9 +1428,9 @@ class _ArtisanOfferSection extends ConsumerWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.surface,
+        color: context.palette.card,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.border),
+        border: Border.all(color: context.palette.border),
         boxShadow: AppTheme.softShadow,
       ),
       child: Column(
@@ -1449,7 +1451,7 @@ class _ArtisanOfferSection extends ConsumerWidget {
             style: Theme.of(context)
                 .textTheme
                 .bodyMedium
-                ?.copyWith(color: AppColors.inkMuted),
+                ?.copyWith(color: context.palette.inkMuted),
           ),
           const SizedBox(height: 12),
           if (existing != null)
@@ -1494,19 +1496,19 @@ class _NoticeCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.surfaceMuted,
+        color: context.palette.surfaceMuted,
         borderRadius: BorderRadius.circular(16),
       ),
       child: Row(
         children: [
-          Icon(icon, color: AppColors.inkMuted),
+          Icon(icon, color: context.palette.inkMuted),
           const SizedBox(width: 12),
           Expanded(
               child: Text(text,
                   style: Theme.of(context)
                       .textTheme
                       .bodyMedium
-                      ?.copyWith(color: AppColors.inkMuted))),
+                      ?.copyWith(color: context.palette.inkMuted))),
         ],
       ),
     );

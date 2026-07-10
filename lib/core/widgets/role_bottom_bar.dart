@@ -5,7 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../features/auth/application/auth_controller.dart';
 import '../../features/chat/data/chat_providers.dart';
 import '../router/route_paths.dart';
-import '../theme/app_colors.dart';
+import '../theme/app_palette.dart';
 import '../theme/app_theme.dart';
 
 /// Alt bar sekmeleri. `work` moda göre anlam değiştirir: müşteri = İlanlarım,
@@ -28,7 +28,6 @@ class MainBottomBar extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final user = ref.watch(currentUserProvider);
     final unread = ref.watch(totalUnreadProvider);
-    final scheme = Theme.of(context).colorScheme;
     final isArtisan = user?.isArtisan ?? false;
     // work sekmesi yalnızca oturum açmış kullanıcıda görünür (müşteri/usta).
     final showWork = user != null;
@@ -67,9 +66,9 @@ class MainBottomBar extends ConsumerWidget {
             child: Container(
               height: 66,
               decoration: BoxDecoration(
-                color: scheme.surface,
+                color: context.palette.card,
                 borderRadius: BorderRadius.circular(24),
-                border: Border.all(color: AppColors.hairline),
+                border: Border.all(color: context.palette.hairline),
                 boxShadow: AppTheme.floatShadow,
               ),
               child: Row(
@@ -138,8 +137,9 @@ class _NavItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final color =
-        selected ? AppColors.primary : theme.colorScheme.onSurfaceVariant;
+    final color = selected
+        ? context.palette.primary
+        : theme.colorScheme.onSurfaceVariant;
 
     return Expanded(
       child: InkWell(

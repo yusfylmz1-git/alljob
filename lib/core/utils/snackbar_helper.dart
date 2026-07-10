@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../theme/app_colors.dart';
+import '../theme/app_palette.dart';
 import '../theme/app_theme.dart';
 
 /// Tutarlı bildirim gösterimi için yardımcı eklenti.
@@ -141,7 +142,8 @@ class _TopToastViewState extends State<_TopToastView>
   @override
   Widget build(BuildContext context) {
     final colored = widget.color != null;
-    final fg = colored ? Colors.white : AppColors.ink;
+    final palette = context.palette;
+    final fg = colored ? Colors.white : palette.ink;
 
     return Positioned(
       top: 0,
@@ -161,7 +163,7 @@ class _TopToastViewState extends State<_TopToastView>
                   if ((d.primaryVelocity ?? 0) < 0) _dismiss();
                 },
                 child: Material(
-                  color: colored ? widget.color : AppColors.surface,
+                  color: colored ? widget.color : palette.card,
                   elevation: 6,
                   shadowColor: Colors.black38,
                   borderRadius: BorderRadius.circular(14),
@@ -170,7 +172,7 @@ class _TopToastViewState extends State<_TopToastView>
                         ? null
                         : BoxDecoration(
                             borderRadius: BorderRadius.circular(14),
-                            border: Border.all(color: AppColors.border),
+                            border: Border.all(color: palette.border),
                             boxShadow: AppTheme.softShadow,
                           ),
                     padding: const EdgeInsets.symmetric(
@@ -183,12 +185,12 @@ class _TopToastViewState extends State<_TopToastView>
                         else
                           Container(
                             padding: const EdgeInsets.all(7),
-                            decoration: const BoxDecoration(
-                              color: AppColors.primaryContainer,
+                            decoration: BoxDecoration(
+                              color: palette.primaryContainer,
                               shape: BoxShape.circle,
                             ),
                             child: Icon(widget.icon,
-                                color: AppColors.onPrimaryContainer,
+                                color: palette.onPrimaryContainer,
                                 size: 18),
                           ),
                         const SizedBox(width: 10),
@@ -218,7 +220,7 @@ class _TopToastViewState extends State<_TopToastView>
                                         ? fg
                                         : (colored
                                             ? Colors.white
-                                            : AppColors.inkMuted),
+                                            : palette.inkMuted),
                                     fontWeight: widget.title == null
                                         ? FontWeight.w600
                                         : FontWeight.w500,

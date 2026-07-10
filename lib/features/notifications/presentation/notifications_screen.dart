@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/router/route_paths.dart';
-import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_palette.dart';
 import '../../../core/widgets/app_image.dart';
 import '../../../core/widgets/gradient_app_bar.dart';
 import '../../../core/widgets/responsive_center.dart';
@@ -155,11 +155,11 @@ class _NotificationTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isChat = notification.isChat;
-    final color = isChat ? AppColors.info : AppColors.success;
+    final color = isChat ? context.palette.info : context.palette.success;
 
     return Material(
       color: notification.read
-          ? theme.colorScheme.surface
+          ? context.palette.card
           : color.withValues(alpha: 0.05),
       borderRadius: BorderRadius.circular(16),
       child: InkWell(
@@ -222,8 +222,8 @@ class _NotificationTile extends StatelessWidget {
                     Container(
                       width: 8,
                       height: 8,
-                      decoration: const BoxDecoration(
-                        color: AppColors.danger,
+                      decoration: BoxDecoration(
+                        color: context.palette.danger,
                         shape: BoxShape.circle,
                       ),
                     ),
@@ -252,7 +252,7 @@ class _FollowerTile extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
+        color: context.palette.card,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: theme.colorScheme.outlineVariant),
       ),
@@ -260,15 +260,16 @@ class _FollowerTile extends StatelessWidget {
         children: [
           CircleAvatar(
             radius: 20,
-            backgroundColor: AppColors.primaryContainer,
+            backgroundColor: context.palette.primaryContainer,
             child: ClipOval(
               child: SizedBox(
                 width: 40,
                 height: 40,
                 child: follower.customerPhotoUrl != null
                     ? AppImage(handle: follower.customerPhotoUrl)
-                    : const Icon(Icons.person,
-                        size: 22, color: AppColors.onPrimaryContainer),
+                    : Icon(Icons.person,
+                        size: 22,
+                        color: context.palette.onPrimaryContainer),
               ),
             ),
           ),

@@ -8,6 +8,8 @@ import '../../features/auth/data/auth_repository.dart';
 import '../../features/chat/data/chat_providers.dart';
 import '../router/route_paths.dart';
 import '../theme/app_colors.dart';
+import '../theme/app_palette.dart';
+import '../theme/theme_mode_state.dart';
 import '../utils/snackbar_helper.dart';
 import 'brand_mark.dart';
 
@@ -28,7 +30,7 @@ class DrawerMenuButton extends ConsumerWidget {
       icon: Badge(
         isLabelVisible: crossUnread > 0,
         smallSize: 9,
-        backgroundColor: AppColors.danger,
+        backgroundColor: context.palette.danger,
         child: Icon(Icons.menu_rounded, color: color),
       ),
     );
@@ -101,6 +103,54 @@ class AppMenuDrawer extends ConsumerWidget {
     }
   }
 
+  /// Görünüm (tema) tercihi: Sistem / Açık / Koyu. Seçim cihazda saklanır.
+  Future<void> _pickTheme(BuildContext context, WidgetRef ref) async {
+    final current = ref.read(themeModeProvider);
+    final picked = await showModalBottomSheet<ThemeMode>(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 18, 20, 6),
+              child: Text('Görünüm',
+                  style: Theme.of(ctx).textTheme.titleMedium),
+            ),
+            RadioGroup<ThemeMode>(
+              groupValue: current,
+              onChanged: (v) => Navigator.pop(ctx, v),
+              child: Column(
+                children: const [
+                  RadioListTile<ThemeMode>(
+                    value: ThemeMode.system,
+                    title: Text('Sistem'),
+                    subtitle: Text('Cihazın ayarını izler'),
+                  ),
+                  RadioListTile<ThemeMode>(
+                    value: ThemeMode.light,
+                    title: Text('Açık'),
+                  ),
+                  RadioListTile<ThemeMode>(
+                    value: ThemeMode.dark,
+                    title: Text('Koyu'),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+    if (picked != null && picked != current) {
+      ref.read(themeModeProvider.notifier).state = picked;
+      // Kalıcı kayıt arka planda; başarısız olsa da seçim bu oturumda geçerli.
+      saveThemeMode(picked);
+    }
+  }
+
   Future<void> _signOut(BuildContext context, WidgetRef ref) async {
     final router = GoRouter.of(context);
     await ref.read(authControllerProvider.notifier).signOut();
@@ -116,7 +166,7 @@ class AppMenuDrawer extends ConsumerWidget {
     final crossBadge = crossUnread > 0
         ? Badge(
             label: Text('$crossUnread'),
-            backgroundColor: AppColors.danger,
+            backgroundColor: context.palette.danger,
           )
         : null;
 
@@ -233,12 +283,23 @@ class AppMenuDrawer extends ConsumerWidget {
           ),
         ],
 
+        const Divider(indent: 16, endIndent: 16),
+
+        // Görünüm (tema) — herkes için (misafir dâhil).
+        ListTile(
+          leading: const Icon(Icons.brightness_6_outlined),
+          title: const Text('Görünüm'),
+          subtitle: Text(themeModeLabel(ref.watch(themeModeProvider))),
+          onTap: () => _pickTheme(context, ref),
+        ),
+
         // Çıkış (oturum varsa).
         if (user != null)
           ListTile(
-            leading: const Icon(Icons.logout_rounded, color: AppColors.danger),
-            title: const Text('Çıkış Yap',
-                style: TextStyle(color: AppColors.danger)),
+            leading:
+                Icon(Icons.logout_rounded, color: context.palette.danger),
+            title: Text('Çıkış Yap',
+                style: TextStyle(color: context.palette.danger)),
             onTap: () => _signOut(context, ref),
           ),
       ],

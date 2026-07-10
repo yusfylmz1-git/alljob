@@ -5,7 +5,7 @@ import 'package:image_picker/image_picker.dart';
 
 import '../../../core/constants/app_constants.dart';
 import '../../../core/router/route_paths.dart';
-import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_palette.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/snackbar_helper.dart';
 import '../../../core/widgets/app_button.dart';
@@ -156,9 +156,9 @@ class _CreateJobScreenState extends ConsumerState<CreateJobScreen> {
       ),
       // Yayınla butonu altta sabit: uzun formda kaydırmadan hep erişilir.
       bottomNavigationBar: Container(
-        decoration: const BoxDecoration(
-          color: AppColors.surface,
-          border: Border(top: BorderSide(color: AppColors.hairline)),
+        decoration: BoxDecoration(
+          color: context.palette.card,
+          border: Border(top: BorderSide(color: context.palette.hairline)),
         ),
         padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
         child: SafeArea(
@@ -209,13 +209,13 @@ class _CreateJobScreenState extends ConsumerState<CreateJobScreen> {
                     Container(
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: AppColors.warningSurface,
+                        color: context.palette.warningSurface,
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Row(
                         children: [
-                          const Icon(Icons.bolt,
-                              color: AppColors.warning, size: 20),
+                          Icon(Icons.bolt,
+                              color: context.palette.warning, size: 20),
                           const SizedBox(width: 10),
                           Expanded(
                             child: Text(
@@ -283,7 +283,7 @@ class _CreateJobScreenState extends ConsumerState<CreateJobScreen> {
                             .textTheme
                             .bodySmall
                             ?.copyWith(
-                                color: AppColors.inkMuted,
+                                color: context.palette.inkMuted,
                                 fontWeight: FontWeight.w700),
                       ),
                     ],
@@ -334,19 +334,21 @@ class _CreateJobScreenState extends ConsumerState<CreateJobScreen> {
               Container(
                 padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
-                  color: AppColors.infoSurface,
+                  color: context.palette.infoSurface,
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Row(
                   children: [
-                    const Icon(Icons.info_outline, color: AppColors.info, size: 20),
+                    Icon(Icons.info_outline,
+                        color: context.palette.info, size: 20),
                     const SizedBox(width: 10),
                     Expanded(
                       child: Text(
                         'İlgilenen ustalar sizinle doğrudan iletişime geçecek; '
                         'fiyatı ve ayrıntıları sohbette konuşabilirsiniz.',
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: AppColors.info, fontWeight: FontWeight.w600),
+                            color: context.palette.info,
+                            fontWeight: FontWeight.w600),
                       ),
                     ),
                   ],
@@ -379,12 +381,13 @@ class _SectionCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final palette = context.palette;
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.surface,
+        color: palette.card,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.border),
+        border: Border.all(color: palette.border),
         boxShadow: AppTheme.softShadow,
       ),
       child: Column(
@@ -396,14 +399,14 @@ class _SectionCard extends StatelessWidget {
                 width: 28,
                 height: 28,
                 alignment: Alignment.center,
-                decoration: const BoxDecoration(
-                  color: AppColors.primaryContainer,
+                decoration: BoxDecoration(
+                  color: palette.primaryContainer,
                   shape: BoxShape.circle,
                 ),
                 child: Text(
                   '$step',
-                  style: const TextStyle(
-                    color: AppColors.onPrimaryContainer,
+                  style: TextStyle(
+                    color: palette.onPrimaryContainer,
                     fontWeight: FontWeight.w800,
                     fontSize: 13,
                   ),
@@ -420,7 +423,7 @@ class _SectionCard extends StatelessWidget {
                     if (subtitle != null)
                       Text(subtitle!,
                           style: theme.textTheme.bodySmall
-                              ?.copyWith(color: AppColors.inkMuted)),
+                              ?.copyWith(color: palette.inkMuted)),
                   ],
                 ),
               ),
@@ -441,20 +444,25 @@ class _UrgentToggle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
     return Container(
       decoration: BoxDecoration(
-        color: value ? AppColors.danger.withValues(alpha: 0.08) : null,
+        color: value ? palette.danger.withValues(alpha: 0.08) : null,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: value ? AppColors.danger : Theme.of(context).colorScheme.outlineVariant,
+          color: value
+              ? palette.danger
+              : Theme.of(context).colorScheme.outlineVariant,
         ),
       ),
       child: SwitchListTile(
         value: value,
         onChanged: onChanged,
-        activeThumbColor: AppColors.danger,
+        activeThumbColor: palette.danger,
         secondary: Icon(Icons.warning_amber_rounded,
-            color: value ? AppColors.danger : Theme.of(context).colorScheme.onSurfaceVariant),
+            color: value
+                ? palette.danger
+                : Theme.of(context).colorScheme.onSurfaceVariant),
         title: const Text('Acil İş'),
         subtitle: const Text('Ustaların panelinde 🚨 kırmızı olarak öne çıkar.'),
       ),
@@ -597,9 +605,9 @@ class _JobPhotos extends StatelessWidget {
               width: 92,
               height: 92,
               decoration: BoxDecoration(
-                color: AppColors.surfaceMuted,
+                color: context.palette.surfaceMuted,
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppColors.borderStrong),
+                border: Border.all(color: context.palette.borderStrong),
               ),
               child: uploading
                   ? const Center(
@@ -609,18 +617,18 @@ class _JobPhotos extends StatelessWidget {
                         child: CircularProgressIndicator(strokeWidth: 2.5),
                       ),
                     )
-                  : const Column(
+                  : Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Icon(Icons.add_a_photo_outlined,
-                            color: AppColors.primary),
-                        SizedBox(height: 4),
+                            color: context.palette.primary),
+                        const SizedBox(height: 4),
                         Text(
                           'Ekle',
                           style: TextStyle(
                             fontSize: 11,
                             fontWeight: FontWeight.w700,
-                            color: AppColors.inkMuted,
+                            color: context.palette.inkMuted,
                           ),
                         ),
                       ],

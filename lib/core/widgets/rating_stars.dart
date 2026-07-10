@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../theme/app_colors.dart';
+import '../theme/app_palette.dart';
 
 /// Salt-okunur yıldız puan göstergesi (yarım yıldız destekli).
 class RatingStars extends StatelessWidget {
@@ -17,10 +17,11 @@ class RatingStars extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final starColor = context.palette.star;
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        for (int i = 1; i <= 5; i++) _star(i),
+        for (int i = 1; i <= 5; i++) _star(i, starColor),
         if (showValue) ...[
           const SizedBox(width: 6),
           Text(
@@ -35,7 +36,7 @@ class RatingStars extends StatelessWidget {
     );
   }
 
-  Widget _star(int position) {
+  Widget _star(int position, Color color) {
     IconData icon;
     if (rating >= position) {
       icon = Icons.star_rounded;
@@ -44,6 +45,6 @@ class RatingStars extends StatelessWidget {
     } else {
       icon = Icons.star_outline_rounded;
     }
-    return Icon(icon, size: size, color: AppColors.star);
+    return Icon(icon, size: size, color: color);
   }
 }

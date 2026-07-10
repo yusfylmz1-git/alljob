@@ -9,7 +9,7 @@ import 'package:intl/intl.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/router/route_paths.dart';
 import '../../../core/utils/snackbar_helper.dart';
-import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_palette.dart';
 import '../../../core/widgets/app_image.dart';
 import '../../../core/widgets/responsive_center.dart';
 import '../../../core/widgets/status_views.dart';
@@ -1057,12 +1057,12 @@ class _EmptyChat extends StatelessWidget {
             Container(
               width: 72,
               height: 72,
-              decoration: const BoxDecoration(
-                color: AppColors.primaryContainer,
+              decoration: BoxDecoration(
+                color: context.palette.primaryContainer,
                 shape: BoxShape.circle,
               ),
-              child: const Icon(Icons.forum_outlined,
-                  size: 32, color: AppColors.onPrimaryContainer),
+              child: Icon(Icons.forum_outlined,
+                  size: 32, color: context.palette.onPrimaryContainer),
             ),
             const SizedBox(height: 16),
             Text('Sohbeti başlatın',

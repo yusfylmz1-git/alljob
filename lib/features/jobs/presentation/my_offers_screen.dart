@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/router/route_paths.dart';
-import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_palette.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/widgets/gradient_app_bar.dart';
 import '../../../core/widgets/responsive_center.dart';
@@ -57,17 +57,19 @@ class _MyOfferTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
     final (Color fg, Color bg, String label) = switch (offer.status) {
-      OfferStatus.pending => (AppColors.info, AppColors.infoSurface, 'İletişimde'),
+      OfferStatus.pending =>
+        (palette.info, palette.infoSurface, 'İletişimde'),
       OfferStatus.accepted =>
-        (AppColors.success, AppColors.successSurface, 'Seçildiniz'),
+        (palette.success, palette.successSurface, 'Seçildiniz'),
       OfferStatus.rejected =>
-        (AppColors.inkMuted, AppColors.surfaceMuted, 'Seçilmedi'),
+        (palette.inkMuted, palette.surfaceMuted, 'Seçilmedi'),
       OfferStatus.withdrawn =>
-        (AppColors.inkMuted, AppColors.surfaceMuted, 'Geri çekildi'),
+        (palette.inkMuted, palette.surfaceMuted, 'Geri çekildi'),
     };
     return Material(
-      color: AppColors.surface,
+      color: palette.card,
       borderRadius: BorderRadius.circular(16),
       child: InkWell(
         borderRadius: BorderRadius.circular(16),
@@ -76,7 +78,7 @@ class _MyOfferTile extends StatelessWidget {
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: AppColors.border),
+            border: Border.all(color: palette.border),
             boxShadow: AppTheme.softShadow,
           ),
           child: Row(
@@ -98,7 +100,7 @@ class _MyOfferTile extends StatelessWidget {
                         style: Theme.of(context)
                             .textTheme
                             .bodySmall
-                            ?.copyWith(color: AppColors.inkMuted)),
+                            ?.copyWith(color: palette.inkMuted)),
                   ],
                 ),
               ),
@@ -133,10 +135,11 @@ class _EmptyOffers extends StatelessWidget {
             Container(
               width: 72,
               height: 72,
-              decoration: const BoxDecoration(
-                  color: AppColors.primaryContainer, shape: BoxShape.circle),
-              child: const Icon(Icons.local_offer_outlined,
-                  size: 34, color: AppColors.onPrimaryContainer),
+              decoration: BoxDecoration(
+                  color: context.palette.primaryContainer,
+                  shape: BoxShape.circle),
+              child: Icon(Icons.local_offer_outlined,
+                  size: 34, color: context.palette.onPrimaryContainer),
             ),
             const SizedBox(height: 16),
             Text('Henüz iletişime geçmediniz',
@@ -151,7 +154,7 @@ class _EmptyOffers extends StatelessWidget {
               style: Theme.of(context)
                   .textTheme
                   .bodyMedium
-                  ?.copyWith(color: AppColors.inkMuted),
+                  ?.copyWith(color: context.palette.inkMuted),
             ),
           ],
         ),

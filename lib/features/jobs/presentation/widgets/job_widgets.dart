@@ -3,7 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import '../../../../core/router/route_paths.dart';
-import '../../../../core/theme/app_colors.dart';
+import '../../../../core/theme/app_palette.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../data/models/job.dart';
 
@@ -49,15 +49,16 @@ class JobStatusChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
     final (Color fg, Color bg) = switch (status) {
-      JobStatus.open => (AppColors.info, AppColors.infoSurface),
-      JobStatus.workerSelected => (AppColors.premium, AppColors.premiumSurface),
-      JobStatus.inProgress => (AppColors.warning, AppColors.warningSurface),
-      JobStatus.completed => (AppColors.success, AppColors.successSurface),
-      JobStatus.rated => (AppColors.success, AppColors.successSurface),
-      JobStatus.disputed => (AppColors.danger, AppColors.dangerSurface),
-      JobStatus.cancelled => (AppColors.inkMuted, AppColors.surfaceMuted),
-      JobStatus.expired => (AppColors.inkMuted, AppColors.surfaceMuted),
+      JobStatus.open => (palette.info, palette.infoSurface),
+      JobStatus.workerSelected => (palette.premium, palette.premiumSurface),
+      JobStatus.inProgress => (palette.warning, palette.warningSurface),
+      JobStatus.completed => (palette.success, palette.successSurface),
+      JobStatus.rated => (palette.success, palette.successSurface),
+      JobStatus.disputed => (palette.danger, palette.dangerSurface),
+      JobStatus.cancelled => (palette.inkMuted, palette.surfaceMuted),
+      JobStatus.expired => (palette.inkMuted, palette.surfaceMuted),
     };
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
@@ -84,7 +85,7 @@ class UrgentBadge extends StatelessWidget {
     return Container(
       padding: EdgeInsets.symmetric(horizontal: compact ? 8 : 10, vertical: 4),
       decoration: BoxDecoration(
-        color: AppColors.danger,
+        color: context.palette.danger,
         borderRadius: BorderRadius.circular(999),
       ),
       child: Row(
@@ -126,11 +127,12 @@ class NearbyJobCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final palette = context.palette;
     final ago = _timeAgo(job.createdAt);
     final offers = job.offerCount > 0 ? ' · ${job.offerCount} ilgilendi' : '';
 
     return Material(
-      color: AppColors.surface,
+      color: palette.card,
       borderRadius: BorderRadius.circular(16),
       child: InkWell(
         borderRadius: BorderRadius.circular(16),
@@ -138,10 +140,10 @@ class NearbyJobCard extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
           decoration: BoxDecoration(
-            color: AppColors.surface,
+            color: palette.card,
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
-                color: job.isUrgent ? AppColors.danger : AppColors.hairline,
+                color: job.isUrgent ? palette.danger : palette.hairline,
                 width: job.isUrgent ? 1.4 : 1),
             boxShadow: AppTheme.softShadow,
           ),
@@ -153,7 +155,7 @@ class NearbyJobCard extends StatelessWidget {
                 width: 40,
                 height: 40,
                 decoration: BoxDecoration(
-                  color: AppColors.surfaceMuted,
+                  color: palette.surfaceMuted,
                   borderRadius: BorderRadius.circular(12),
                 ),
                 alignment: Alignment.center,
@@ -191,16 +193,16 @@ class NearbyJobCard extends StatelessWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: theme.textTheme.bodySmall
-                          ?.copyWith(color: AppColors.inkMuted, fontSize: 11.5),
+                          ?.copyWith(color: palette.inkMuted, fontSize: 11.5),
                     ),
                   ],
                 ),
               ),
               const SizedBox(width: 4),
-              const Padding(
-                padding: EdgeInsets.only(top: 10),
+              Padding(
+                padding: const EdgeInsets.only(top: 10),
                 child: Icon(Icons.chevron_right,
-                    size: 20, color: AppColors.inkMuted),
+                    size: 20, color: palette.inkMuted),
               ),
             ],
           ),
@@ -226,10 +228,11 @@ class OfferCountBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
-        color: count > 0 ? AppColors.primaryContainer : AppColors.surfaceMuted,
+        color: count > 0 ? palette.primaryContainer : palette.surfaceMuted,
         borderRadius: BorderRadius.circular(999),
       ),
       child: Row(
@@ -237,12 +240,14 @@ class OfferCountBadge extends StatelessWidget {
         children: [
           Icon(Icons.local_offer_outlined,
               size: 14,
-              color: count > 0 ? AppColors.onPrimaryContainer : AppColors.inkMuted),
+              color:
+                  count > 0 ? palette.onPrimaryContainer : palette.inkMuted),
           const SizedBox(width: 4),
           Text(
             count > 0 ? '$count usta ilgilendi' : 'Henüz ilgilenen yok',
             style: TextStyle(
-              color: count > 0 ? AppColors.onPrimaryContainer : AppColors.inkMuted,
+              color:
+                  count > 0 ? palette.onPrimaryContainer : palette.inkMuted,
               fontWeight: FontWeight.w700,
               fontSize: 12,
             ),

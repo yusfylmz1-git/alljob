@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_palette.dart';
 import '../../../core/utils/snackbar_helper.dart';
 import '../../../core/widgets/app_button.dart';
 import '../../../core/widgets/responsive_center.dart';
@@ -165,20 +165,20 @@ class _ReviewScreenState extends ConsumerState<ReviewScreen> {
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: AppColors.infoSurface,
+                  color: context.palette.infoSurface,
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Row(
                   children: [
-                    const Icon(Icons.edit_outlined,
-                        color: AppColors.info, size: 20),
+                    Icon(Icons.edit_outlined,
+                        color: context.palette.info, size: 20),
                     const SizedBox(width: 10),
                     Expanded(
                       child: Text(
                         'Bu ustayı daha önce değerlendirdiniz. Gönderdiğinizde '
                         'önceki değerlendirmeniz güncellenir.',
                         style: theme.textTheme.bodySmall?.copyWith(
-                            color: AppColors.info,
+                            color: context.palette.info,
                             fontWeight: FontWeight.w600),
                       ),
                     ),
@@ -200,7 +200,7 @@ class _ReviewScreenState extends ConsumerState<ReviewScreen> {
               title: 'Olumlu',
               tags: ReviewTags.positive,
               selected: _tags,
-              color: AppColors.success,
+              color: context.palette.success,
               onToggle: _toggle,
             ),
             const SizedBox(height: 20),
@@ -208,7 +208,7 @@ class _ReviewScreenState extends ConsumerState<ReviewScreen> {
               title: 'Olumsuz',
               tags: ReviewTags.negative,
               selected: _tags,
-              color: AppColors.danger,
+              color: context.palette.danger,
               onToggle: _toggle,
             ),
             const SizedBox(height: 28),
@@ -243,7 +243,7 @@ class _StarPicker extends StatelessWidget {
             onPressed: () => onChanged(i),
             icon: Icon(
               i <= rating ? Icons.star_rounded : Icons.star_outline_rounded,
-              color: AppColors.star,
+              color: context.palette.star,
             ),
           ),
       ],

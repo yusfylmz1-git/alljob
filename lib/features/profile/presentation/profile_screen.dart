@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 
 import '../../../core/router/route_paths.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_palette.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/snackbar_helper.dart';
 import '../../../core/widgets/app_image.dart';
@@ -82,10 +83,10 @@ class _Body extends ConsumerWidget {
               _Group(children: [
                 _MenuRow(
                   icon: Icons.logout_rounded,
-                  iconColor: AppColors.danger,
-                  iconSurface: AppColors.danger.withValues(alpha: 0.10),
+                  iconColor: context.palette.danger,
+                  iconSurface: context.palette.danger.withValues(alpha: 0.10),
                   title: 'Çıkış Yap',
-                  titleColor: AppColors.danger,
+                  titleColor: context.palette.danger,
                   onTap: () async {
                     final router = GoRouter.of(context);
                     await ref.read(authControllerProvider.notifier).signOut();
@@ -248,8 +249,9 @@ class _ModeSwitcher extends ConsumerWidget {
       selected: {user.activeMode},
       showSelectedIcon: false,
       style: SegmentedButton.styleFrom(
-        selectedBackgroundColor: AppColors.primary,
-        selectedForegroundColor: Colors.white,
+        selectedBackgroundColor: context.palette.primary,
+        selectedForegroundColor:
+            Theme.of(context).colorScheme.onPrimary,
         minimumSize: const Size(0, 46),
       ),
       onSelectionChanged: isLoading
@@ -306,16 +308,16 @@ class _ArtisanSections extends ConsumerWidget {
           _AvailabilityRow(draft: draft),
           _MenuRow(
             icon: Icons.storefront_outlined,
-            iconColor: AppColors.primary,
-            iconSurface: AppColors.primaryContainer,
+            iconColor: context.palette.primary,
+            iconSurface: context.palette.primaryContainer,
             title: 'Dükkânımı Gör',
             subtitle: shopSubtitle,
             onTap: () => context.push(RoutePaths.artisanProfile(user.uid)),
           ),
           _MenuRow(
             icon: Icons.edit_outlined,
-            iconColor: AppColors.info,
-            iconSurface: AppColors.infoSurface,
+            iconColor: context.palette.info,
+            iconSurface: context.palette.infoSurface,
             title: 'Profili Düzenle',
             subtitle: 'Meslek, bölge, fotoğraflar, çalışma takvimi',
             onTap: () => context.push(RoutePaths.panelEdit),
@@ -324,8 +326,8 @@ class _ArtisanSections extends ConsumerWidget {
             icon: profile?.hasActivePremium == true
                 ? Icons.workspace_premium
                 : Icons.workspace_premium_outlined,
-            iconColor: AppColors.premium,
-            iconSurface: AppColors.premiumSurface,
+            iconColor: context.palette.premium,
+            iconSurface: context.palette.premiumSurface,
             title: 'Premium',
             subtitle: profile == null
                 ? null
@@ -341,8 +343,8 @@ class _ArtisanSections extends ConsumerWidget {
         _Group(children: [
           _MenuRow(
             icon: Icons.work_outline,
-            iconColor: AppColors.info,
-            iconSurface: AppColors.infoSurface,
+            iconColor: context.palette.info,
+            iconSurface: context.palette.infoSurface,
             title: 'Yakınımdaki İşler',
             subtitle: 'Mesleğine ve bölgene uygun açık ilanlar',
             badge: nearbyCount,
@@ -350,8 +352,8 @@ class _ArtisanSections extends ConsumerWidget {
           ),
           _MenuRow(
             icon: Icons.forum_outlined,
-            iconColor: AppColors.primary,
-            iconSurface: AppColors.primaryContainer,
+            iconColor: context.palette.primary,
+            iconSurface: context.palette.primaryContainer,
             title: 'İletişimlerim',
             subtitle: 'İlgilendiğin ve yürüyen işler',
             badge: pendingOffers,
@@ -359,8 +361,8 @@ class _ArtisanSections extends ConsumerWidget {
           ),
           _MenuRow(
             icon: Icons.notifications_none_rounded,
-            iconColor: AppColors.warning,
-            iconSurface: AppColors.warningSurface,
+            iconColor: context.palette.warning,
+            iconSurface: context.palette.warningSurface,
             title: 'Bildirimler',
             onTap: () => context.push(RoutePaths.panelNotifications),
           ),
@@ -404,10 +406,10 @@ class _AvailabilityRow extends ConsumerWidget {
           ? Icons.check_circle_outline_rounded
           : Icons.do_not_disturb_on_outlined,
       iconColor: available
-          ? AppColors.success
+          ? context.palette.success
           : Theme.of(context).colorScheme.onSurfaceVariant,
       iconSurface: available
-          ? AppColors.successSurface
+          ? context.palette.successSurface
           : Theme.of(context).colorScheme.surfaceContainer,
       title: available ? 'Müsaitsin' : 'Şu an kapalısın',
       subtitle: available
@@ -483,8 +485,8 @@ class _CustomerSections extends ConsumerWidget {
         _Group(children: [
           _MenuRow(
             icon: Icons.campaign_outlined,
-            iconColor: AppColors.primary,
-            iconSurface: AppColors.primaryContainer,
+            iconColor: context.palette.primary,
+            iconSurface: context.palette.primaryContainer,
             title: 'İlanlarım',
             subtitle: activeJobs > 0
                 ? '$activeJobs aktif ilan'
@@ -494,8 +496,8 @@ class _CustomerSections extends ConsumerWidget {
           ),
           _MenuRow(
             icon: Icons.favorite_border,
-            iconColor: AppColors.danger,
-            iconSurface: AppColors.danger.withValues(alpha: 0.10),
+            iconColor: context.palette.danger,
+            iconSurface: context.palette.danger.withValues(alpha: 0.10),
             title: 'Takip Ettiklerim',
             subtitle: 'Takip ettiğin ustalar',
             badge: favs.length,
@@ -507,8 +509,8 @@ class _CustomerSections extends ConsumerWidget {
           _Group(children: [
             _MenuRow(
               icon: Icons.handyman_outlined,
-              iconColor: AppColors.onSecondaryContainer,
-              iconSurface: AppColors.secondaryContainer,
+              iconColor: context.palette.onSecondaryContainer,
+              iconSurface: context.palette.secondaryContainer,
               title: 'Hizmet Vermeye Başla',
               subtitle: 'Usta profili aç, bölgendeki işlere ulaş',
               onTap: () => _becomeArtisan(context, ref),
@@ -546,20 +548,20 @@ class _AccountGroup extends ConsumerWidget {
       if (user.phoneVerified)
         _MenuRow(
           icon: Icons.verified,
-          iconColor: AppColors.verified,
-          iconSurface: AppColors.info.withValues(alpha: 0.10),
+          iconColor: context.palette.verified,
+          iconSurface: context.palette.info.withValues(alpha: 0.10),
           title: 'Doğrulanmış Hesap',
           subtitle: user.hasArtisanProfile
               ? 'Profilinde mavi tik görünüyor'
               : 'Telefon numaran doğrulandı',
-          trailing: const Icon(Icons.check_circle,
-              color: AppColors.success, size: 22),
+          trailing: Icon(Icons.check_circle,
+              color: context.palette.success, size: 22),
         )
       else
         _MenuRow(
           icon: Icons.verified_outlined,
-          iconColor: AppColors.verified,
-          iconSurface: AppColors.info.withValues(alpha: 0.10),
+          iconColor: context.palette.verified,
+          iconSurface: context.palette.info.withValues(alpha: 0.10),
           title: user.hasArtisanProfile
               ? 'Mavi Tik Al'
               : 'Telefonunu Doğrula',
@@ -729,13 +731,13 @@ class _MenuRow extends StatelessWidget {
                 padding:
                     const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                 decoration: BoxDecoration(
-                  color: AppColors.primaryContainer,
+                  color: context.palette.primaryContainer,
                   borderRadius: BorderRadius.circular(999),
                 ),
                 child: Text(
                   '$badge',
-                  style: const TextStyle(
-                    color: AppColors.onPrimaryContainer,
+                  style: TextStyle(
+                    color: context.palette.onPrimaryContainer,
                     fontWeight: FontWeight.w800,
                     fontSize: 12.5,
                   ),
@@ -766,19 +768,20 @@ class _WarningBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: AppColors.warningSurface,
+        color: palette.warningSurface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.warning.withValues(alpha: 0.35)),
+        border: Border.all(color: palette.warning.withValues(alpha: 0.35)),
       ),
       child: Row(
         children: [
-          const Icon(Icons.info_outline, color: AppColors.warning),
+          Icon(Icons.info_outline, color: palette.warning),
           const SizedBox(width: 12),
           Expanded(
-            child: Text(text, style: const TextStyle(color: Color(0xFF7A4D00))),
+            child: Text(text, style: TextStyle(color: palette.warning)),
           ),
           const SizedBox(width: 8),
           FilledButton(onPressed: onAction, child: Text(actionLabel)),

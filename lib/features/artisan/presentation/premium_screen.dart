@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_palette.dart';
 import '../../../core/utils/snackbar_helper.dart';
 import '../../../core/widgets/app_button.dart';
 import '../../../core/widgets/brand_mark.dart';
@@ -93,21 +94,21 @@ class _PremiumScreenState extends ConsumerState<PremiumScreen> {
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: AppColors.premiumSurface,
+                color: context.palette.premiumSurface,
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(
-                    color: AppColors.premium.withValues(alpha: 0.4)),
+                    color: context.palette.premium.withValues(alpha: 0.4)),
               ),
               child: Column(
                 children: [
                   Text('İlk yıl ücretsiz',
                       style: theme.textTheme.titleMedium?.copyWith(
                           fontWeight: FontWeight.w800,
-                          color: AppColors.premium)),
+                          color: context.palette.premium)),
                   const SizedBox(height: 4),
                   Text('Sonrasında aylık ₺99',
                       style: theme.textTheme.bodySmall
-                          ?.copyWith(color: AppColors.premium)),
+                          ?.copyWith(color: context.palette.premium)),
                 ],
               ),
             ),
@@ -146,10 +147,11 @@ class _Benefit extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: AppColors.primaryContainer,
+              color: context.palette.primaryContainer,
               borderRadius: BorderRadius.circular(10),
             ),
-            child: Icon(icon, color: AppColors.onPrimaryContainer, size: 20),
+            child: Icon(icon,
+                color: context.palette.onPrimaryContainer, size: 20),
           ),
           const SizedBox(width: 12),
           Expanded(

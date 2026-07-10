@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/router/route_paths.dart';
-import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_palette.dart';
 import '../../../core/utils/snackbar_helper.dart';
 import '../../../data/models/favorite.dart';
 import '../../auth/application/auth_controller.dart';
@@ -85,7 +85,11 @@ class FavoriteButton extends ConsumerWidget {
 
     final icon = Icon(
       isFav ? Icons.favorite : Icons.favorite_border,
-      color: isFav ? AppColors.danger : (filledBackground ? AppColors.inkMuted : null),
+      color: isFav
+          ? context.palette.danger
+          // Beyaz daire zemin (aşağıda) temadan bağımsız — üzerindeki pasif
+          // ikon da sabit koyu gri kalır (palette.inkMuted koyuda açılır).
+          : (filledBackground ? const Color(0xFF475467) : null),
     );
 
     if (compact) {
@@ -102,7 +106,8 @@ class FavoriteButton extends ConsumerWidget {
             child: Icon(
               isFav ? Icons.favorite : Icons.favorite_border,
               size: 18,
-              color: isFav ? AppColors.danger : AppColors.inkMuted,
+              // Yarı saydam beyaz daire üzerinde sabit koyu gri (tema bağımsız).
+              color: isFav ? context.palette.danger : const Color(0xFF475467),
             ),
           ),
         ),

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_palette.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/snackbar_helper.dart';
 import '../application/auth_controller.dart';
@@ -33,17 +33,18 @@ class VerificationTile extends ConsumerWidget {
     final theme = Theme.of(context);
     final verified = user.phoneVerified;
 
+    final palette = context.palette;
     if (verified) {
       return Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: AppColors.success.withValues(alpha: 0.10),
+          color: palette.success.withValues(alpha: 0.10),
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: AppColors.success.withValues(alpha: 0.35)),
+          border: Border.all(color: palette.success.withValues(alpha: 0.35)),
         ),
         child: Row(
           children: [
-            const Icon(Icons.verified, color: AppColors.verified),
+            Icon(Icons.verified, color: palette.verified),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
@@ -72,7 +73,7 @@ class VerificationTile extends ConsumerWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
+        color: palette.card,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: theme.colorScheme.outlineVariant),
         boxShadow: AppTheme.softShadow,
@@ -82,8 +83,7 @@ class VerificationTile extends ConsumerWidget {
         children: [
           Row(
             children: [
-              const Icon(Icons.verified_user_outlined,
-                  color: AppColors.verified),
+              Icon(Icons.verified_user_outlined, color: palette.verified),
               const SizedBox(width: 10),
               Expanded(
                 child: Text(

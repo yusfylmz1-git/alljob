@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/router/route_paths.dart';
-import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_palette.dart';
 import '../../../core/utils/snackbar_helper.dart';
 import '../../../core/widgets/app_menu_drawer.dart';
 import '../../../core/widgets/gradient_app_bar.dart';
@@ -89,10 +89,11 @@ class _NotAvailableNotice extends ConsumerWidget {
             Container(
               width: 72,
               height: 72,
-              decoration: const BoxDecoration(
-                  color: AppColors.warningSurface, shape: BoxShape.circle),
-              child: const Icon(Icons.do_not_disturb_on_outlined,
-                  size: 34, color: AppColors.warning),
+              decoration: BoxDecoration(
+                  color: context.palette.warningSurface,
+                  shape: BoxShape.circle),
+              child: Icon(Icons.do_not_disturb_on_outlined,
+                  size: 34, color: context.palette.warning),
             ),
             const SizedBox(height: 16),
             Text('Şu an müsait değilsiniz',
@@ -108,7 +109,7 @@ class _NotAvailableNotice extends ConsumerWidget {
               style: Theme.of(context)
                   .textTheme
                   .bodyMedium
-                  ?.copyWith(color: AppColors.inkMuted),
+                  ?.copyWith(color: context.palette.inkMuted),
             ),
             const SizedBox(height: 18),
             FilledButton.icon(
@@ -137,10 +138,11 @@ class _EmptyNearby extends StatelessWidget {
             Container(
               width: 72,
               height: 72,
-              decoration: const BoxDecoration(
-                  color: AppColors.primaryContainer, shape: BoxShape.circle),
-              child: const Icon(Icons.work_outline,
-                  size: 34, color: AppColors.onPrimaryContainer),
+              decoration: BoxDecoration(
+                  color: context.palette.primaryContainer,
+                  shape: BoxShape.circle),
+              child: Icon(Icons.work_outline,
+                  size: 34, color: context.palette.onPrimaryContainer),
             ),
             const SizedBox(height: 16),
             Text('Yakında iş ilanı yok',
@@ -156,7 +158,7 @@ class _EmptyNearby extends StatelessWidget {
               style: Theme.of(context)
                   .textTheme
                   .bodyMedium
-                  ?.copyWith(color: AppColors.inkMuted),
+                  ?.copyWith(color: context.palette.inkMuted),
             ),
           ],
         ),

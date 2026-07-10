@@ -5,6 +5,7 @@ import 'core/constants/app_constants.dart';
 import 'core/globals.dart';
 import 'core/router/app_router.dart';
 import 'core/theme/app_theme.dart';
+import 'core/theme/theme_mode_state.dart';
 import 'data/models/app_user.dart';
 import 'features/auth/application/auth_controller.dart';
 import 'features/notifications/data/push_service.dart';
@@ -38,9 +39,9 @@ class UstaCepteApp extends ConsumerWidget {
       scaffoldMessengerKey: scaffoldMessengerKey,
       theme: AppTheme.light,
       darkTheme: AppTheme.dark,
-      // Koyu tema henüz cilalanmadı; marka görünümü (beyaz zemin) her cihazda
-      // aynı olsun diye açık temaya sabitlendi.
-      themeMode: ThemeMode.light,
+      // Kullanıcı tercihi (Sistem/Açık/Koyu) — menüden değiştirilir, cihazda
+      // saklanır (theme_mode_state.dart).
+      themeMode: ref.watch(themeModeProvider),
       routerConfig: router,
     );
   }
