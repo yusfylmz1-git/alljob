@@ -6,6 +6,7 @@ import 'package:image_picker/image_picker.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/router/route_paths.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/snackbar_helper.dart';
 import '../../../core/widgets/app_button.dart';
 import '../../../core/widgets/app_image.dart';
@@ -133,120 +134,184 @@ class _CreateJobScreenState extends ConsumerState<CreateJobScreen> {
     return Scaffold(
       appBar: const GradientAppBar(
         title: 'İş İlanı Ver',
-        icon: Icons.add_circle_outline_rounded,
+        subtitle: 'Bölgenizdeki ustalara anında duyurulur',
+        icon: Icons.campaign_outlined,
+      ),
+      // Yayınla butonu altta sabit: uzun formda kaydırmadan hep erişilir.
+      bottomNavigationBar: Container(
+        decoration: const BoxDecoration(
+          color: AppColors.surface,
+          border: Border(top: BorderSide(color: AppColors.hairline)),
+        ),
+        padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+        child: SafeArea(
+          top: false,
+          child: ResponsiveCenter(
+            maxWidth: 720,
+            child: AppButton(
+              label: 'İlanı Yayınla',
+              icon: Icons.campaign_outlined,
+              isLoading: _submitting,
+              onPressed: _submit,
+            ),
+          ),
+        ),
       ),
       body: ResponsiveCenter(
         maxWidth: 720,
         child: Form(
           key: _formKey,
           child: ListView(
-            padding: const EdgeInsets.all(20),
+            padding: const EdgeInsets.all(16),
             children: [
-              _Label('İlan Başlığı'),
-              TextFormField(
-                controller: _titleController,
-                maxLength: AppConstants.maxJobTitleLength,
-                textCapitalization: TextCapitalization.sentences,
-                decoration: const InputDecoration(
-                  hintText: 'Örn. Banyo bataryası değişimi',
-                  prefixIcon: Icon(Icons.title),
-                ),
-                validator: (v) =>
-                    (v == null || v.trim().length < 5) ? 'En az 5 karakter girin.' : null,
-              ),
-              const SizedBox(height: 12),
-
-              _Label('Kategori (Meslek)'),
-              _CategoryDropdown(
-                value: _category,
-                onChanged: (c) => setState(() => _category = c),
-              ),
-              if (_category == kQuickSupportCategory) ...[
-                const SizedBox(height: 8),
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: AppColors.warningSurface,
-                    borderRadius: BorderRadius.circular(12),
+              _SectionCard(
+                step: 1,
+                title: 'İşi Tanımlayın',
+                subtitle: 'Ne yaptırmak istiyorsunuz?',
+                children: [
+                  _Label('İlan Başlığı'),
+                  TextFormField(
+                    controller: _titleController,
+                    maxLength: AppConstants.maxJobTitleLength,
+                    textCapitalization: TextCapitalization.sentences,
+                    decoration: const InputDecoration(
+                      hintText: 'Örn. Banyo bataryası değişimi',
+                    ),
+                    validator: (v) => (v == null || v.trim().length < 5)
+                        ? 'En az 5 karakter girin.'
+                        : null,
                   ),
-                  child: Row(
+                  const SizedBox(height: 4),
+                  _Label('Kategori (Meslek)'),
+                  _CategoryDropdown(
+                    value: _category,
+                    onChanged: (c) => setState(() => _category = c),
+                  ),
+                  if (_category == kQuickSupportCategory) ...[
+                    const SizedBox(height: 10),
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: AppColors.warningSurface,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.bolt,
+                              color: AppColors.warning, size: 20),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              'Hızlı Destek: montaj, taşıma, ufak tamirat gibi '
+                              'ayak işleri için. İlanınız meslek filtresi olmadan '
+                              'ilçenizdeki TÜM ustalara bildirilir.',
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .bodySmall
+                                  ?.copyWith(fontWeight: FontWeight.w600),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+              const SizedBox(height: 14),
+
+              _SectionCard(
+                step: 2,
+                title: 'Konum',
+                subtitle: 'İlan yalnızca bu bölgedeki ustalara gösterilir',
+                children: [
+                  _LocationPicker(
+                    province: _province,
+                    district: _district,
+                    onProvince: (p) => setState(() {
+                      _province = p;
+                      _district = null;
+                    }),
+                    onDistrict: (d) => setState(() => _district = d),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
+
+              _SectionCard(
+                step: 3,
+                title: 'Detaylar',
+                subtitle: 'İyi anlatılan iş, doğru ustayı bulur',
+                children: [
+                  _Label('Açıklama'),
+                  TextFormField(
+                    controller: _descController,
+                    maxLines: 4,
+                    maxLength: AppConstants.maxJobDescriptionLength,
+                    textCapitalization: TextCapitalization.sentences,
+                    decoration: const InputDecoration(
+                      hintText: 'İşi mümkün olduğunca ayrıntılı anlatın.',
+                      alignLabelWithHint: true,
+                    ),
+                    validator: (v) => (v == null || v.trim().length < 10)
+                        ? 'En az 10 karakter girin.'
+                        : null,
+                  ),
+                  const SizedBox(height: 4),
+                  Row(
                     children: [
-                      const Icon(Icons.bolt, color: AppColors.warning, size: 20),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Text(
-                          'Hızlı Destek: montaj, taşıma, ufak tamirat gibi '
-                          'ayak işleri için. İlanınız meslek filtresi olmadan '
-                          'ilçenizdeki TÜM ustalara bildirilir.',
-                          style: Theme.of(context)
-                              .textTheme
-                              .bodySmall
-                              ?.copyWith(fontWeight: FontWeight.w600),
-                        ),
+                      Expanded(child: _Label('Fotoğraflar (isteğe bağlı)')),
+                      Text(
+                        '${_photos.length}/${AppConstants.maxJobPhotos}',
+                        style: Theme.of(context)
+                            .textTheme
+                            .bodySmall
+                            ?.copyWith(
+                                color: AppColors.inkMuted,
+                                fontWeight: FontWeight.w700),
                       ),
                     ],
                   ),
-                ),
-              ],
-              const SizedBox(height: 16),
-
-              _Label('Konum'),
-              const SizedBox(height: 4),
-              _LocationPicker(
-                province: _province,
-                district: _district,
-                onProvince: (p) => setState(() {
-                  _province = p;
-                  _district = null;
-                }),
-                onDistrict: (d) => setState(() => _district = d),
-              ),
-              const SizedBox(height: 16),
-
-              _Label('Açıklama'),
-              TextFormField(
-                controller: _descController,
-                maxLines: 4,
-                maxLength: AppConstants.maxJobDescriptionLength,
-                textCapitalization: TextCapitalization.sentences,
-                decoration: const InputDecoration(
-                  hintText: 'İşi mümkün olduğunca ayrıntılı anlatın.',
-                  alignLabelWithHint: true,
-                ),
-                validator: (v) =>
-                    (v == null || v.trim().length < 10) ? 'En az 10 karakter girin.' : null,
-              ),
-              const SizedBox(height: 8),
-
-              _Label('Fotoğraflar (en fazla ${AppConstants.maxJobPhotos})'),
-              const SizedBox(height: 8),
-              _JobPhotos(
-                handles: _photos,
-                onAdd: _pickPhoto,
-                onRemove: (h) => setState(() => _photos.remove(h)),
-              ),
-              const SizedBox(height: 20),
-
-              // Acil (#urgent)
-              _UrgentToggle(
-                value: _isUrgent,
-                onChanged: (v) => setState(() => _isUrgent = v),
-              ),
-              const SizedBox(height: 20),
-
-              _Label('İlan Süresi'),
-              const SizedBox(height: 6),
-              SegmentedButton<JobDuration>(
-                segments: const [
-                  ButtonSegment(value: JobDuration.day1, label: Text('24 saat')),
-                  ButtonSegment(value: JobDuration.day3, label: Text('3 gün')),
-                  ButtonSegment(value: JobDuration.day7, label: Text('7 gün')),
+                  const SizedBox(height: 4),
+                  _JobPhotos(
+                    handles: _photos,
+                    onAdd: _pickPhoto,
+                    onRemove: (h) => setState(() => _photos.remove(h)),
+                  ),
                 ],
-                selected: {_duration},
-                showSelectedIcon: false,
-                onSelectionChanged: (s) => setState(() => _duration = s.first),
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 14),
+
+              _SectionCard(
+                step: 4,
+                title: 'Yayın Ayarları',
+                children: [
+                  // Acil (#urgent)
+                  _UrgentToggle(
+                    value: _isUrgent,
+                    onChanged: (v) => setState(() => _isUrgent = v),
+                  ),
+                  const SizedBox(height: 14),
+                  _Label('İlan Süresi'),
+                  SizedBox(
+                    width: double.infinity,
+                    child: SegmentedButton<JobDuration>(
+                      segments: const [
+                        ButtonSegment(
+                            value: JobDuration.day1, label: Text('24 saat')),
+                        ButtonSegment(
+                            value: JobDuration.day3, label: Text('3 gün')),
+                        ButtonSegment(
+                            value: JobDuration.day7, label: Text('7 gün')),
+                      ],
+                      selected: {_duration},
+                      showSelectedIcon: false,
+                      onSelectionChanged: (s) =>
+                          setState(() => _duration = s.first),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
 
               Container(
                 padding: const EdgeInsets.all(14),
@@ -269,18 +334,83 @@ class _CreateJobScreenState extends ConsumerState<CreateJobScreen> {
                   ],
                 ),
               ),
-              const SizedBox(height: 28),
-
-              AppButton(
-                label: 'İlanı Yayınla',
-                icon: Icons.campaign_outlined,
-                isLoading: _submitting,
-                onPressed: _submit,
-              ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 8),
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// Numaralı bölüm kartı: formu "1 İşi Tanımlayın · 2 Konum · 3 Detaylar ·
+/// 4 Yayın Ayarları" adımlarına bölen beyaz kart (uygulamadaki kart diliyle).
+class _SectionCard extends StatelessWidget {
+  const _SectionCard({
+    required this.step,
+    required this.title,
+    this.subtitle,
+    required this.children,
+  });
+
+  final int step;
+  final String title;
+  final String? subtitle;
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.border),
+        boxShadow: AppTheme.softShadow,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 28,
+                height: 28,
+                alignment: Alignment.center,
+                decoration: const BoxDecoration(
+                  color: AppColors.primaryContainer,
+                  shape: BoxShape.circle,
+                ),
+                child: Text(
+                  '$step',
+                  style: const TextStyle(
+                    color: AppColors.onPrimaryContainer,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 13,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(title,
+                        style: theme.textTheme.titleMedium
+                            ?.copyWith(fontWeight: FontWeight.w800)),
+                    if (subtitle != null)
+                      Text(subtitle!,
+                          style: theme.textTheme.bodySmall
+                              ?.copyWith(color: AppColors.inkMuted)),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          ...children,
+        ],
       ),
     );
   }
@@ -429,7 +559,6 @@ class _JobPhotos extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
     return SizedBox(
       height: 92,
       child: ListView(
@@ -442,10 +571,25 @@ class _JobPhotos extends StatelessWidget {
               width: 92,
               height: 92,
               decoration: BoxDecoration(
+                color: AppColors.surfaceMuted,
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: scheme.outlineVariant),
+                border: Border.all(color: AppColors.borderStrong),
               ),
-              child: Icon(Icons.add_a_photo_outlined, color: scheme.primary),
+              child: const Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.add_a_photo_outlined, color: AppColors.primary),
+                  SizedBox(height: 4),
+                  Text(
+                    'Ekle',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.inkMuted,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
           for (final h in handles) ...[

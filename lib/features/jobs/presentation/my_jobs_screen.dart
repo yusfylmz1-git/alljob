@@ -152,17 +152,14 @@ class _MyJobsScreenState extends ConsumerState<MyJobsScreen> {
                       tooltip: 'İlan sil',
                       onPressed: () => setState(() => _selectionMode = true),
                     ),
+                  const Padding(
+                    padding: EdgeInsets.only(left: 4, right: 12),
+                    child: _NewJobButton(),
+                  ),
                 ],
               ),
         drawer: const AppMenuDrawer(),
         bottomNavigationBar: const MainBottomBar(current: MainTab.work),
-        floatingActionButton: _selectionMode
-            ? null
-            : FloatingActionButton.extended(
-                onPressed: () => context.push(RoutePaths.newJob),
-                icon: const Icon(Icons.add),
-                label: const Text('Yeni İlan'),
-              ),
         body: user == null
             ? const Center(child: Text('Oturum bulunamadı.'))
             : jobsAsync!.when(
@@ -200,6 +197,42 @@ class _MyJobsScreenState extends ConsumerState<MyJobsScreen> {
                           ),
                         ),
                 ),
+      ),
+    );
+  }
+}
+
+/// Gradyan app bar üzerinde beyaz hap şeklinde "Yeni İlan" butonu — lacivert
+/// zeminde net bir birincil aksiyon olarak öne çıkar (eski FAB'ın yerine).
+class _NewJobButton extends StatelessWidget {
+  const _NewJobButton();
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(999),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(999),
+        onTap: () => context.push(RoutePaths.newJob),
+        child: const Padding(
+          padding: EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.add_rounded, size: 18, color: AppColors.primary),
+              SizedBox(width: 4),
+              Text(
+                'Yeni İlan',
+                style: TextStyle(
+                  color: AppColors.primaryDark,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 13,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -379,6 +412,12 @@ class _EmptyJobs extends StatelessWidget {
                   .textTheme
                   .bodyMedium
                   ?.copyWith(color: AppColors.inkMuted),
+            ),
+            const SizedBox(height: 20),
+            FilledButton.icon(
+              onPressed: () => context.push(RoutePaths.newJob),
+              icon: const Icon(Icons.add_rounded),
+              label: const Text('İlk İlanını Ver'),
             ),
           ],
         ),
