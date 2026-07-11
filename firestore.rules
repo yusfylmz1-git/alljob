@@ -46,6 +46,13 @@ service cloud.firestore {
         allow read, write: if isSelf(uid);
       }
 
+      // Engellenen kullanıcılar (UGC politikası) — YALNIZCA sahibi okur/yazar.
+      // Engellenen kişi engellendiğini GÖREMEZ; mesaj kuralı bu koleksiyona
+      // `exists` ile bakarak engellenenin mesaj yazmasını sunucuda reddeder.
+      match /blocked/{otherUid} {
+        allow read, write: if isSelf(uid);
+      }
+
       // Uygulama içi bildirim merkezi — kayıtları YALNIZCA Cloud Functions
       // yazar (Admin SDK kuralları aşar). Sahibi okur ve sadece `read`
       // alanını true yapabilir; sahte bildirim enjekte edilemez/silinemez.
@@ -117,11 +124,27 @@ service cloud.firestore {
             get(/databases/$(database)/documents/chats/$(chatId)).data);
         }
 
+        // Karşı taraf, göndereni ENGELLEDİYSE mesaj oluşturulamaz (UGC
+        // politikası). Aynı chat dökümanına ikinci get() SAYILMAZ (kural
+        // motoru aynı isteğin tekrar okumalarını önbellekler). Eski
+        // dökümanlarda customerUid/artisanUid yoksa kontrol atlanır
+        // (boş yolla exists() kuralı hataya düşürmesin).
+        function recipientBlockedSender() {
+          let chat = get(/databases/$(database)/documents/chats/$(chatId)).data;
+          let other = chat.get('customerUid', '') == request.auth.uid
+              ? chat.get('artisanUid', '')
+              : chat.get('customerUid', '');
+          return other != ''
+            && exists(/databases/$(database)/documents/users/$(other)/blocked/$(request.auth.uid));
+        }
+
         allow read: if memberOfChat();
-        // Yalnızca gönderen kendi mesajını oluşturabilir.
+        // Yalnızca gönderen kendi mesajını oluşturabilir; alıcı göndereni
+        // engellediyse oluşturamaz.
         allow create: if isSignedIn()
           && request.resource.data.senderUid == request.auth.uid
-          && memberOfChat();
+          && memberOfChat()
+          && !recipientBlockedSender();
         // Yumuşak silme: YALNIZ gönderen, YALNIZ `deleted=true` + içerik
         // alanlarının kaldırılması şeklinde güncelleyebilir (mesaj içeriği
         // değiştirilemez, başkasının mesajı silinemez, silme geri alınamaz).
@@ -315,6 +338,29 @@ service cloud.firestore {
             && resource.data.customerId == request.auth.uid
             && changedOnly(['status', 'updatedAt']));
       allow delete: if false;
+    }
+
+    // reports — içerik/kullanıcı şikayetleri (UGC politikası, admin kuyruğu).
+    // YALNIZCA oluşturma/güncelleme (kendi şikayeti, deterministik ID:
+    // {targetType}_{targetId}__{reporterUid} → hedef başına şikayetçi başına
+    // TEK kayıt, kuyruk şişirilemez). Okuma/silme kapalı — admin fazında
+    // custom claim ile açılacak.
+    match /reports/{reportId} {
+      function reportOk() {
+        return request.resource.data.reporterUid == request.auth.uid
+          && request.resource.data.targetType in ['message', 'job', 'user']
+          && request.resource.data.targetId is string
+          && request.resource.data.reason is string
+          && reportId == request.resource.data.targetType + '_'
+              + request.resource.data.targetId + '__' + request.auth.uid;
+      }
+
+      allow create: if isSignedIn() && reportOk();
+      // Tekrar şikayet aynı kaydı günceller (istemci `set` ile üzerine yazar).
+      allow update: if isSignedIn()
+        && resource.data.reporterUid == request.auth.uid
+        && reportOk();
+      allow read, delete: if false;
     }
 
     // favorites — müşterinin takip ettiği ("Takip Et") ustalar (#14). Döküman

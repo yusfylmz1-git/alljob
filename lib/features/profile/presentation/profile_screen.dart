@@ -674,6 +674,14 @@ class _AccountGroup extends ConsumerWidget {
               ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
         ),
       ),
+      _MenuRow(
+        icon: Icons.block_outlined,
+        iconColor: theme.colorScheme.onSurfaceVariant,
+        iconSurface: theme.colorScheme.surfaceContainer,
+        title: 'Engellenen Kullanıcılar',
+        subtitle: 'Engellediğiniz kişileri yönetin',
+        onTap: () => context.push(RoutePaths.blockedUsers),
+      ),
     ]);
   }
 }

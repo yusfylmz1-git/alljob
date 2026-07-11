@@ -11,6 +11,9 @@ import 'package:usta_cepte/features/favorites/data/mock_favorite_repository.dart
 import 'package:usta_cepte/features/jobs/data/job_providers.dart';
 import 'package:usta_cepte/features/jobs/data/mock_job_repository.dart';
 import 'package:usta_cepte/features/jobs/data/mock_offer_repository.dart';
+import 'package:usta_cepte/features/safety/data/block_repository.dart';
+import 'package:usta_cepte/features/safety/data/report_repository.dart';
+import 'package:usta_cepte/features/safety/data/safety_providers.dart';
 import 'package:usta_cepte/features/storage/storage_repository.dart';
 
 /// Tüm backend repo sağlayıcılarını bellek-içi mock uygulamalara yönlendirir.
@@ -46,5 +49,13 @@ List<Override> mockBackendOverrides() => [
       ),
       storageRepositoryProvider.overrideWith(
         (ref) => MockStorageRepository(),
+      ),
+      blockRepositoryProvider.overrideWith((ref) {
+        final repo = MockBlockRepository();
+        ref.onDispose(repo.dispose);
+        return repo;
+      }),
+      reportRepositoryProvider.overrideWith(
+        (ref) => MockReportRepository(),
       ),
     ];

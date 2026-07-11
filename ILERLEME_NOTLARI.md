@@ -23,7 +23,18 @@
 
 ## ✅ Son Durum (EN SON BURAYI OKU)
 
-**Tarih:** 2026-07-11
+**Tarih:** 2026-07-12
+
+**Oturum 42 (2026-07-12): ENGELLEME + ŞİKAYET (YOL_HARITASI P0 — UGC politikası, Play zorunluluğu). KURALLAR CANLIDA ✅ (ilk denemede deploy; 97/97 test, analyze 0, web build OK). CF değişikliği YOK.**
+Kullanıcı "devam" dedi; çalışma ağacındaki yarım safety taslağı tamamlandı, doğrulandı ve yayınlandı.
+- **Veri modeli:** `users/{uid}/blocked/{otherUid}` (BlockedUser: ad/foto engelleme anındaki SNAPSHOT — yönetim ekranı ekstra okuma yapmaz) + `reports/{targetType}_{targetId}__{reporterUid}` (deterministik ID → hedef başına şikayetçi başına TEK kayıt; tekrar şikayet günceller, kuyruk şişmez).
+- **Kurallar (DEPLOY EDİLDİ):** (1) `blocked` alt koleksiyonu yalnız sahibi okur/yazar — engellenen engellendiğini GÖREMEZ (IG modeli). (2) Mesaj create'ine `!recipientBlockedSender()` eklendi: alıcı göndereni engellediyse mesaj SUNUCUDA reddedilir (`exists(users/{other}/blocked/{sender})`; chat dökümanına ikinci `get` sayılmaz — kural motoru aynı isteğin okumalarını önbellekler; eski dökümanda customerUid yoksa kontrol atlanır). (3) `reports`: yalnız create+update (kendi şikayeti + ID formatı kuralda birebir doğrulanır), read/delete KAPALI — admin fazında custom claim ile açılacak.
+- **Mimari:** `features/safety/` — `BlockRepository`/`ReportRepository` arayüzleri + Firebase ve Mock impl'ler + `safety_providers.dart` (`myBlockedListProvider` canlı akış, `myBlockedUidsProvider` hızlı uid kümesi). Mock'lar `mock_backend.dart` override'larına eklendi.
+- **UI:** (1) Sohbet üst barında ⋮ menü: "Kullanıcıyı Engelle" (onay diyaloglu, başarıda pop — sohbet listeden gizlenir) / "Engeli Kaldır" / "Şikayet Et". (2) Mesaja uzun basınca karşı tarafın mesajı için "Şikayet et" (targetId `{chatId}_{msgId}`). (3) İlan detayında sahibi olmayana "Bu ilanı şikayet et". (4) Profil → "Engellenen Kullanıcılar" (`/profile/blocked`): liste + "Engeli Kaldır". (5) Ortak `showReportSheet`: neden radyoları (spam/taciz/dolandırıcılık/uygunsuz/diğer) + 300 karakterlik opsiyonel not; başarıda "Şikayetiniz alındı" toast'ı.
+- **Davranış:** engellenenin sohbeti listede GİZLENİR (engel kalkınca kendiliğinden döner — `myBlockedUidsProvider` filtresi); engelleyen de mesaj/foto gönderemez (istemci guard'ı `_iBlockedOther` + TR uyarı; karşı yönü kural keser). Engellenen tarafta hiçbir görsel değişiklik yok (IG/WhatsApp modeli).
+- **Test:** yeni `test/safety_test.dart` (4 test: engelle/kaldır roundtrip + tek yönlülük; mükerrer engel çoğaltmaz; şikayet tek kayıt + farklı hedef yeni kayıt; reportDocId format kuralla birebir). Toplam **97/97**.
+- ⚠️ Kullanıcı gerçek cihazda YENİ BUILD ile denemeli (iki test hesabı): engelle → karşı taraf mesaj yazınca permission-denied almalı (balon hata/tekrar dene durumuna düşer), sohbet sizin listenizde gizlenmeli; şikayet kayıtları Console → Firestore → `reports`'ta görünmeli.
+- Kalan P0: yasal metinler (gizlilik politikası + kullanım koşulları) + kayıt onayı — YOL_HARITASI'ndan devam. Admin fazına not: reports kuyruğunu okuyan panel/claim yok (bilinçli).
 
 **Oturum 41 (2026-07-11, aynı gün): YENİ İLAN SAYFASI BOŞ AÇILIYOR — kritik UI regresyonu düzeltildi (93/93 test). Deploy GEREKMEDİ (yalnız istemci); kullanıcı YENİ BUILD almalı.**
 Kullanıcı: "yeni ilana basınca tasarım kayıyor, sayfa açılmıyor, sadece [yayınla] düğmesi görünüyor."

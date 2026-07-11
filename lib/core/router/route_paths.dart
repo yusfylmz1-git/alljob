@@ -39,6 +39,9 @@ class RoutePaths {
   // Müşteri profil sayfası (oturum açmış müşteri)
   static const String profile = '/profile';
 
+  // Engellenen kullanıcılar yönetimi (Profil → Engellenen Kullanıcılar).
+  static const String blockedUsers = '/profile/blocked';
+
   // Bildirim merkezi (oturum açmış herkes — iki rol tek ekran).
   // `/panel/notifications` eski bağlantılar için aynı ekrana gider.
   static const String notifications = '/notifications';

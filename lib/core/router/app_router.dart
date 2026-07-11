@@ -25,6 +25,7 @@ import '../../features/onboarding/onboarding_state.dart';
 import '../../features/onboarding/presentation/onboarding_screen.dart';
 import '../../features/profile/presentation/profile_screen.dart';
 import '../../features/review/presentation/review_screen.dart';
+import '../../features/safety/presentation/blocked_users_screen.dart';
 import 'route_paths.dart';
 
 /// Uygulama yönlendiricisi. "Misafir-önce" akış + tek hesap, çift rol:
@@ -199,6 +200,12 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: RoutePaths.profile,
         builder: (_, _) => const ProfileScreen(),
+        routes: [
+          GoRoute(
+            path: 'blocked',
+            builder: (_, _) => const BlockedUsersScreen(),
+          ),
+        ],
       ),
     ],
     errorBuilder: (_, state) => Scaffold(

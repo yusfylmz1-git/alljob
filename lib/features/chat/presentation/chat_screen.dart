@@ -13,8 +13,12 @@ import '../../../core/theme/app_palette.dart';
 import '../../../core/widgets/app_image.dart';
 import '../../../core/widgets/responsive_center.dart';
 import '../../../core/widgets/status_views.dart';
+import '../../../data/models/blocked_user.dart';
 import '../../../data/models/chat.dart';
+import '../../../data/models/report.dart';
 import '../../auth/application/auth_controller.dart';
+import '../../safety/data/safety_providers.dart';
+import '../../safety/presentation/report_sheet.dart';
 import '../../storage/storage_repository.dart';
 import '../data/chat_providers.dart';
 
@@ -124,6 +128,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     if (text.isEmpty) return;
     final user = ref.read(currentUserProvider);
     if (user == null) return;
+    if (_iBlockedOther(user.uid)) return;
     _controller.clear();
     try {
       final masked = await ref.read(chatRepositoryProvider).sendMessage(
@@ -145,9 +150,23 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     }
   }
 
+  /// Kullanıcı karşı tarafı ENGELLEDİYSE gönderim yapılmaz (kural zaten
+  /// alıcı-engelledi yönünü sunucuda keser; bu, engelleyenin kendi yönü).
+  bool _iBlockedOther(String myUid) {
+    final thread = ref.read(chatRepositoryProvider).getThread(widget.chatId);
+    final blocked = thread != null &&
+        ref.read(myBlockedUidsProvider).contains(thread.otherUid(myUid));
+    if (blocked) {
+      context.showError('Engellediğiniz kullanıcıya mesaj gönderemezsiniz. '
+          'Önce engeli kaldırın.');
+    }
+    return blocked;
+  }
+
   Future<void> _sendPhoto() async {
     final user = ref.read(currentUserProvider);
     if (user == null) return;
+    if (_iBlockedOther(user.uid)) return;
     final XFile? file;
     try {
       file = await ImagePicker().pickImage(
@@ -232,11 +251,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     }
   }
 
-  /// Mesaja uzun basınca: kopyala (metin) / sil (kendi mesajı).
+  /// Mesaja uzun basınca: kopyala (metin) / sil (kendi) / şikayet (karşı taraf).
   Future<void> _showMessageActions(ChatMessage msg, bool isMine) async {
     final canCopy = !msg.deleted && (msg.text?.isNotEmpty ?? false);
     final canDelete = isMine && !msg.deleted;
-    if (!canCopy && !canDelete) return;
+    final canReport = !isMine && !msg.deleted; // UGC politikası
+    if (!canCopy && !canDelete && !canReport) return;
 
     final action = await showModalBottomSheet<String>(
       context: context,
@@ -250,6 +270,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                 leading: const Icon(Icons.copy_outlined),
                 title: const Text('Kopyala'),
                 onTap: () => Navigator.pop(ctx, 'copy'),
+              ),
+            if (canReport)
+              ListTile(
+                leading: const Icon(Icons.flag_outlined),
+                title: const Text('Şikayet et'),
+                onTap: () => Navigator.pop(ctx, 'report'),
               ),
             if (canDelete)
               ListTile(
@@ -267,6 +293,18 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     if (action == 'copy') {
       await Clipboard.setData(ClipboardData(text: msg.text!));
       if (mounted) context.showInfo('Kopyalandı.');
+      return;
+    }
+
+    if (action == 'report') {
+      await showReportSheet(
+        context,
+        ref,
+        target: ReportTarget.message,
+        targetId: '${widget.chatId}_${msg.id}',
+        reportedUid: msg.senderUid,
+        chatId: widget.chatId,
+      );
       return;
     }
 
@@ -297,6 +335,59 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     } catch (_) {
       if (mounted) context.showError('Mesaj silinemedi, tekrar deneyin.');
     }
+  }
+
+  /// Karşı tarafı engeller / engeli kaldırır (üst bar menüsü).
+  /// Engelleme onay ister; başarıda sohbet listeden gizleneceği için
+  /// ekrandan çıkılır. Engellenen kişi engellendiğini görmez (IG modeli).
+  Future<void> _toggleBlock(
+      String myUid, ChatThread thread, bool currentlyBlocked) async {
+    final otherUid = thread.otherUid(myUid);
+    final repo = ref.read(blockRepositoryProvider);
+
+    if (currentlyBlocked) {
+      await repo.unblock(uid: myUid, otherUid: otherUid);
+      if (mounted) context.showInfo('Engel kaldırıldı.');
+      return;
+    }
+
+    final name = thread.otherName(myUid);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('$name engellensin mi?'),
+        content: const Text(
+            'Engellenen kullanıcı size mesaj gönderemez ve bu sohbet '
+            'listenizde gizlenir. Engeli dilediğiniz an Profil → '
+            'Engellenen Kullanıcılar bölümünden kaldırabilirsiniz.'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Vazgeç')),
+          FilledButton(
+            style: FilledButton.styleFrom(
+                backgroundColor: ctx.palette.danger,
+                foregroundColor: Colors.white),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Engelle'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    await repo.block(
+      uid: myUid,
+      other: BlockedUser(
+        uid: otherUid,
+        name: name,
+        photoUrl: thread.otherPhoto(myUid),
+        blockedAt: DateTime.now(),
+      ),
+    );
+    if (!mounted) return;
+    context.showInfo('Kullanıcı engellendi.');
+    if (context.canPop()) context.pop(); // sohbet artık listede gizli
   }
 
   void _openImage(String handle) {
@@ -341,6 +432,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                   name: title,
                   photo: otherPhoto,
                 );
+
+    // Karşı taraf engellendiyse menü "Engeli Kaldır" gösterir; gönderme
+    // guard'ı da (aşağıda _send/_sendPhoto) bu sete bakar.
+    final otherBlocked = user != null &&
+        thread != null &&
+        ref.watch(myBlockedUidsProvider).contains(thread.otherUid(user.uid));
 
     // Kullanıcı bu sohbeti listesinden sildiyse, silme anından önceki
     // mesajlar ona artık gösterilmez (tek taraflı sohbet silme).
@@ -445,6 +542,35 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               label: const Text('Değerlendir'),
               onPressed: () =>
                   context.push(RoutePaths.review(thread.artisanUid)),
+            ),
+          // Engelle / şikayet et (UGC politikası).
+          if (user != null && thread != null)
+            PopupMenuButton<String>(
+              tooltip: 'Daha fazla',
+              onSelected: (v) {
+                switch (v) {
+                  case 'block':
+                    _toggleBlock(user.uid, thread, otherBlocked);
+                  case 'report':
+                    showReportSheet(
+                      context,
+                      ref,
+                      target: ReportTarget.user,
+                      targetId: thread.otherUid(user.uid),
+                      reportedUid: thread.otherUid(user.uid),
+                      chatId: widget.chatId,
+                    );
+                }
+              },
+              itemBuilder: (_) => [
+                PopupMenuItem(
+                  value: 'block',
+                  child: Text(
+                      otherBlocked ? 'Engeli Kaldır' : 'Kullanıcıyı Engelle'),
+                ),
+                const PopupMenuItem(
+                    value: 'report', child: Text('Şikayet Et')),
+              ],
             ),
         ],
       );

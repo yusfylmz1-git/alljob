@@ -15,6 +15,7 @@ import '../../../core/widgets/skeleton.dart';
 import '../../../core/widgets/status_views.dart';
 import '../../../data/models/chat.dart';
 import '../../auth/application/auth_controller.dart';
+import '../../safety/data/safety_providers.dart';
 import '../data/chat_providers.dart';
 
 /// Sohbet listesi — müşteri ve usta için ortak (Instagram DM dili):
@@ -155,8 +156,17 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
         error: (_, _) => const ErrorView(
             message: 'Mesajlar yüklenemedi. Bağlantınızı kontrol edip '
                 'tekrar deneyin.'),
-        data: (threads) {
+        data: (rawThreads) {
           if (user == null) return const SizedBox.shrink();
+
+          // Engellenen kullanıcıların sohbetleri listede gizlenir (IG/WhatsApp
+          // modeli); engel kalkınca kendiliğinden geri gelir.
+          final blockedUids = ref.watch(myBlockedUidsProvider);
+          final threads = blockedUids.isEmpty
+              ? rawThreads
+              : rawThreads
+                  .where((t) => !blockedUids.contains(t.otherUid(user.uid)))
+                  .toList();
           if (threads.isEmpty) return const _Empty();
 
           final repo = ref.watch(chatRepositoryProvider);

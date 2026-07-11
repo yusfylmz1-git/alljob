@@ -14,9 +14,11 @@ import '../../../core/widgets/status_views.dart';
 import '../../../data/local/mock_database.dart' show kProfessionNames;
 import '../../../data/models/job.dart';
 import '../../../data/models/offer.dart';
+import '../../../data/models/report.dart';
 import '../../artisan/application/my_profile_controller.dart';
 import '../../auth/application/auth_controller.dart';
 import '../../chat/data/chat_providers.dart';
+import '../../safety/presentation/report_sheet.dart';
 import '../data/job_providers.dart';
 import 'widgets/job_widgets.dart';
 
@@ -78,6 +80,25 @@ class _JobDetailBody extends ConsumerWidget {
               text: 'Bu ilan başka bir müşteriye ait. İlanla yalnızca '
                   'bölgesindeki ustalar iletişime geçebilir.',
             ),
+          // Başkasının ilanını şikayet etme (UGC politikası).
+          if (user != null && !isOwner) ...[
+            const SizedBox(height: 8),
+            Center(
+              child: TextButton.icon(
+                icon: const Icon(Icons.flag_outlined, size: 18),
+                label: const Text('Bu ilanı şikayet et'),
+                style: TextButton.styleFrom(
+                    foregroundColor: context.palette.inkMuted),
+                onPressed: () => showReportSheet(
+                  context,
+                  ref,
+                  target: ReportTarget.job,
+                  targetId: job.jobId,
+                  reportedUid: job.customerId,
+                ),
+              ),
+            ),
+          ],
         ],
       ),
     );
