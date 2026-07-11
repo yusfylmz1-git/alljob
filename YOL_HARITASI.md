@@ -19,12 +19,14 @@
 - Kalan (madde 5 ile birlikte): Play Billing gelince `premiumFreeDuringBeta=false`
   + alanları yalnız sunucu (CF/billing doğrulaması) yazar.
 
-### 2. Hesap silme yok (Google Play ZORUNLULUĞU)
-- Hesap oluşturan her uygulama, uygulama İÇİNDEN hesap silme sunmak zorunda
-  (Play politikası). Kodda `deleteAccount` yok.
-- Kapsam: Auth kaydı + users + artisanProfiles + reviews/offers/jobs kararı
-  (anonimleştir?) + Storage klasörleri + FCM token. Doğru yer: callable CF
-  (istemci tek tek silemez, kurallar da izin vermemeli).
+### 2. ✅ KAPANDI (Oturum 40, 2026-07-11) — Hesap silme uygulama içinde
+- Callable CF `deleteAccount` CANLIDA: users(+private/notifications) +
+  artisanProfiles + favorites + teklifler + Storage klasörleri SİLİNİR;
+  aktif işler iptal + karşı tarafa bildirim; tamamlanmış iş/yorum/sohbette
+  ad "Silinmiş Kullanıcı" olarak anonimleşir; Auth kaydı en son silinir.
+- UI: Profil → Hesabı Sil (onay + engelleyici ilerleme). Paket: cloud_functions.
+- Kalan (store girişinde): hesap silme yöntemini anlatan URL (Play Console
+  "Veri güvenliği" formu) — yasal metinler işiyle birlikte hazırlanmalı.
 
 ### 3. Yasal metinler yok (KVKK/Store zorunluluğu)
 - Kodda gizlilik politikası, kullanım koşulları, KVKK aydınlatma metni,

@@ -99,6 +99,20 @@ class AuthController extends AsyncNotifier<void> {
     }
     state = await AsyncValue.guard(() => _repo.signOut());
   }
+
+  /// Hesabı KALICI olarak siler (onayı UI alır). Başarılıysa true; oturum
+  /// repo tarafında kapanır (auth akışı null yayınlar, router yönlendirir).
+  Future<bool> deleteAccount() async {
+    state = const AsyncLoading();
+    // Cihaz token'ını düşürmeyi dene — users dökümanı sunucuda zaten
+    // silinecek, bu yalnızca cihaz tarafındaki token'ı geçersiz kılar.
+    final uid = ref.read(currentUserProvider)?.uid;
+    if (uid != null) {
+      await ref.read(pushServiceProvider).unregisterFor(uid);
+    }
+    state = await AsyncValue.guard(() => _repo.deleteAccount());
+    return !state.hasError;
+  }
 }
 
 final authControllerProvider =

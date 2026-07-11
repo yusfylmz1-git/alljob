@@ -180,6 +180,16 @@ class MockAuthRepository implements AuthRepository {
     _emit(null);
   }
 
+  @override
+  Future<void> deleteAccount() async {
+    await _delay();
+    final user = _current;
+    if (user == null) throw AuthException.notSignedIn;
+    // Hesap deposundan kalıcı silinir: aynı e-postayla giriş artık başarısız.
+    _accounts.remove(user.email.toLowerCase());
+    _emit(null);
+  }
+
   void dispose() => _controller.close();
 }
 

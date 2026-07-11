@@ -10,6 +10,8 @@
 //  3) Yeni sohbet mesajında alıcının cihaz(lar)ına FCM push bildirimi gönder
 //     (`onMessageCreated`) + geçersiz token'ları temizle.
 //  4) Yeni iş ilanında AYNI İL + AYNI MESLEK ustalarına push (`onJobCreated`).
+//  5) Hesap silme (`deleteAccount` callable) — Play zorunluluğu + KVKK;
+//     yalnız sunucu, tüm koleksiyonları tutarlı temizleyebilir.
 //
 // Dağıtım: firebase deploy --only functions --project alljob1
 
@@ -17,6 +19,7 @@ const {
   onDocumentCreated,
   onDocumentWritten,
 } = require("firebase-functions/v2/firestore");
+const {onCall, HttpsError} = require("firebase-functions/v2/https");
 const {onSchedule} = require("firebase-functions/v2/scheduler");
 const {logger} = require("firebase-functions");
 const admin = require("firebase-admin");
@@ -715,5 +718,154 @@ exports.autoCompleteJobs = onSchedule(
       }
       logger.info(
           `autoCompleteJobs: ${snap.size} aday, ${completed} tamamlandı`);
+    },
+);
+
+// ---------------------------------------------------------------------------
+// Hesap silme (Google Play zorunluluğu + KVKK) — YOL_HARITASI P0-2.
+// ---------------------------------------------------------------------------
+
+// Silinen kullanıcının kalan kayıtlarda görünen adı.
+const DELETED_USER_NAME = "Silinmiş Kullanıcı";
+
+// Storage'da kullanıcıya ait klasör kökleri (storage.rules allowlist'i ile
+// birebir): {klasör}/{uid}/... yolundaki her şey silinir.
+const STORAGE_FOLDERS = ["profile", "work", "job", "certificate", "chat"];
+
+/**
+ * Kullanıcının hesabını ve kişisel verilerini KALICI olarak siler.
+ * Yalnızca oturum sahibi KENDİ hesabını silebilir (uid = auth.uid).
+ *
+ * Politika (sil / anonimleştir ayrımı):
+ *  - users/{uid} (+ private, notifications alt koleksiyonları): SİL.
+ *  - artisanProfiles/{uid}: SİL.
+ *  - favorites (iki yönde): SİL.
+ *  - Verdiği teklifler: SİL (onOfferWritten açık ilanların sayacını yeniden
+ *    hesaplar; ilan yoksa zaten atlar).
+ *  - Sahibi olduğu ilanlar: bağlanmamış (open/cancelled) → SİL (onJobWritten
+ *    tekliflerini temizler); aktif → İPTAL + anonimleştir (karşı tarafa
+ *    bildirim); tamamlanmış → adı anonimleştir (kayıt karşı tarafın geçmişi).
+ *  - Usta olarak seçildiği AKTİF işler: İPTAL (müşteriye bildirim).
+ *  - Yazdığı değerlendirmeler: KALIR, adı anonimleşir (ustanın puanı kazanılmış
+ *    veridir, sayaçlar bozulmaz); HAKKINDAKİ değerlendirmeler: SİL (profil yok).
+ *  - Sohbetler: karşı tarafta KALIR (WhatsApp modeli); ad/foto anonimleşir.
+ *  - Storage {klasör}/{uid}/*: SİL. En son Auth kaydı silinir — böylece bir
+ *    adım yarıda kalırsa kullanıcı tekrar deneyebilir.
+ */
+exports.deleteAccount = onCall(
+    {region: REGION, timeoutSeconds: 300},
+    async (request) => {
+      const uid = request.auth && request.auth.uid;
+      if (!uid) {
+        throw new HttpsError("unauthenticated", "Oturum gerekli.");
+      }
+      logger.info(`deleteAccount başladı: ${uid}`);
+      const activeStates = ["workerSelected", "inProgress", "disputed"];
+
+      // 1) Sahibi olduğu ilanlar.
+      const myJobs = await db.collection("jobs")
+          .where("customerId", "==", uid).get();
+      for (const d of myJobs.docs) {
+        const j = d.data() || {};
+        if (j.status === "open" || j.status === "cancelled") {
+          await d.ref.delete(); // onJobWritten teklifleri temizler
+        } else if (activeStates.includes(j.status)) {
+          await d.ref.update({
+            status: "cancelled",
+            cancelReason: "Hesap silindi",
+            customerName: DELETED_USER_NAME,
+          });
+          if (j.selectedArtisanId) {
+            const t = "İş iptal edildi";
+            const b = `"${j.title || "İş"}" ilanının sahibi hesabını ` +
+              "sildiği için iş iptal edildi.";
+            await saveNotification(j.selectedArtisanId, `job_${d.id}`,
+                {type: "job", title: t, body: b, jobId: d.id});
+            await sendPushToUid(j.selectedArtisanId, t, b,
+                {type: "job", jobId: d.id});
+          }
+        } else {
+          // completed/rated — karşı tarafın iş geçmişi, yalnız ad anonimleşir.
+          await d.ref.update({customerName: DELETED_USER_NAME});
+        }
+      }
+
+      // 2) Usta olarak seçildiği AKTİF işler → iptal + müşteriye bildirim.
+      const assigned = await db.collection("jobs")
+          .where("selectedArtisanId", "==", uid).get();
+      for (const d of assigned.docs) {
+        const j = d.data() || {};
+        if (!activeStates.includes(j.status)) continue;
+        await d.ref.update({
+          status: "cancelled",
+          cancelReason: "Usta hesabını sildi",
+        });
+        if (j.customerId) {
+          const t = "İş iptal edildi";
+          const b = `"${j.title || "İş"}" işindeki usta hesabını sildiği ` +
+            "için iş iptal edildi. Dilerseniz ilanı yeniden yayınlayın.";
+          await saveNotification(j.customerId, `job_${d.id}`,
+              {type: "job", title: t, body: b, jobId: d.id});
+          await sendPushToUid(j.customerId, t, b, {type: "job", jobId: d.id});
+        }
+      }
+
+      // 3) Verdiği teklifler + iki yönlü takip kayıtları → sil.
+      const writer = db.bulkWriter();
+      const [myOffers, favsOut, favsIn] = await Promise.all([
+        db.collection("offers").where("artisanId", "==", uid).get(),
+        db.collection("favorites").where("customerUid", "==", uid).get(),
+        db.collection("favorites").where("artisanUid", "==", uid).get(),
+      ]);
+      myOffers.forEach((d) => writer.delete(d.ref));
+      favsOut.forEach((d) => writer.delete(d.ref));
+      favsIn.forEach((d) => writer.delete(d.ref));
+
+      // 4) Değerlendirmeler: yazdıkları anonim kalır, hakkındakiler silinir
+      //    (onReviewWritten profil yoksa toplam güncellemesini zaten atlar).
+      const [reviewsBy, reviewsAbout] = await Promise.all([
+        db.collection("reviews").where("customerUID", "==", uid).get(),
+        db.collection("reviews").where("artisanUID", "==", uid).get(),
+      ]);
+      reviewsBy.forEach((d) =>
+        writer.update(d.ref, {customerDisplayName: DELETED_USER_NAME}));
+      reviewsAbout.forEach((d) => writer.delete(d.ref));
+
+      // 5) Sohbetlerde ad/foto anonimleştir (mesajlar karşı tarafta kalır).
+      const chats = await db.collection("chats")
+          .where(`members.${uid}`, "==", true).get();
+      chats.forEach((d) => {
+        const c = d.data() || {};
+        const asCustomer = c.customerUid === uid;
+        writer.update(d.ref, asCustomer ?
+          {
+            customerName: DELETED_USER_NAME,
+            customerPhotoURL: admin.firestore.FieldValue.delete(),
+          } :
+          {
+            artisanName: DELETED_USER_NAME,
+            artisanPhotoURL: admin.firestore.FieldValue.delete(),
+          });
+      });
+      await writer.close();
+
+      // 6) Profil dökümanları (users alt koleksiyonlarıyla birlikte).
+      await db.recursiveDelete(db.collection("users").doc(uid));
+      await db.collection("artisanProfiles").doc(uid).delete();
+
+      // 7) Storage: kullanıcının tüm klasörleri.
+      const bucket = admin.storage().bucket();
+      for (const folder of STORAGE_FOLDERS) {
+        try {
+          await bucket.deleteFiles({prefix: `${folder}/${uid}/`});
+        } catch (e) {
+          logger.warn(`Storage temizliği atlandı (${folder}/${uid}): ${e}`);
+        }
+      }
+
+      // 8) En son Auth kaydı — buraya kadar geldiyse veri temizlendi.
+      await admin.auth().deleteUser(uid);
+      logger.info(`deleteAccount tamamlandı: ${uid}`);
+      return {ok: true};
     },
 );

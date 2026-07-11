@@ -50,6 +50,12 @@ abstract interface class AuthRepository {
   Future<void> updateUserProfile({String? displayName, String? profilePhotoUrl});
 
   Future<void> signOut();
+
+  /// Hesabı ve kişisel verileri KALICI olarak siler (Play zorunluluğu + KVKK).
+  /// Firebase'de silme işini `deleteAccount` callable CF yapar (istemci tek
+  /// tek koleksiyon silemez; kurallar da izin vermez); başarıda yerel oturum
+  /// kapanır. Geri alınamaz — çağıran taraf kullanıcıdan açık onay almalıdır.
+  Future<void> deleteAccount();
 }
 
 /// Kullanıcıya gösterilebilir, Türkçe mesajlı kimlik doğrulama hatası.

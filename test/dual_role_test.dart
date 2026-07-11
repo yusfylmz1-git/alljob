@@ -93,6 +93,26 @@ void main() {
       expect(again.activeMode, UserRole.artisan);
     });
 
+    test('hesap silme: oturum kapanır, aynı e-postayla giriş başarısız olur',
+        () async {
+      final repo = MockAuthRepository();
+      addTearDown(repo.dispose);
+
+      await repo.register(
+        displayName: 'Silinecek',
+        email: 'silinecek@test.com',
+        password: '123456',
+      );
+      await repo.deleteAccount();
+      expect(repo.currentUser, isNull);
+      expect(
+        () => repo.login(email: 'silinecek@test.com', password: '123456'),
+        throwsA(AuthException.userNotFound),
+      );
+      // Oturum yokken silme denemesi de reddedilir.
+      expect(() => repo.deleteAccount(), throwsA(AuthException.notSignedIn));
+    });
+
     test('demo usta hesabı usta modunda açılır', () async {
       final repo = MockAuthRepository();
       addTearDown(repo.dispose);

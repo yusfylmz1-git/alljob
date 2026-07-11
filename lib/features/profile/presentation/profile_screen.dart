@@ -1,3 +1,5 @@
+import 'dart:async' show unawaited;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -93,6 +95,15 @@ class _Body extends ConsumerWidget {
                     await ref.read(authControllerProvider.notifier).signOut();
                     router.go(RoutePaths.home);
                   },
+                ),
+                _MenuRow(
+                  icon: Icons.delete_forever_outlined,
+                  iconColor: context.palette.danger,
+                  iconSurface: context.palette.danger.withValues(alpha: 0.10),
+                  title: 'Hesabı Sil',
+                  titleColor: context.palette.danger,
+                  subtitle: 'Hesabınız ve verileriniz kalıcı olarak silinir',
+                  onTap: () => _deleteAccountFlow(context, ref),
                 ),
               ]),
             ],
@@ -523,6 +534,73 @@ class _CustomerSections extends ConsumerWidget {
         ],
       ],
     );
+  }
+}
+
+/// Hesap silme akışı: açık onay → engelleyici ilerleme → sonuç.
+/// Silme kalıcıdır (sunucudaki `deleteAccount` CF'i veriyi temizler);
+/// başarıda oturum kapanır ve ana sayfaya dönülür.
+Future<void> _deleteAccountFlow(BuildContext context, WidgetRef ref) async {
+  // Async adımlar sonrasında bu ekran kapanmış olabilir; kalıcı bağlamları
+  // (router + kök navigator) önce yakala (drawer'daki kalıp).
+  final router = GoRouter.of(context);
+  final nav = Navigator.of(context, rootNavigator: true);
+
+  final confirmed = await showDialog<bool>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: const Text('Hesabınız silinsin mi?'),
+      content: const Text(
+          'Bu işlem geri alınamaz. Profiliniz, ilanlarınız, fotoğraflarınız, '
+          'bildirimleriniz ve hesabınız kalıcı olarak silinir; sohbetlerde '
+          'adınız "Silinmiş Kullanıcı" olarak görünür.\n\n'
+          'Devam etmek istiyor musunuz?'),
+      actions: [
+        TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Vazgeç')),
+        FilledButton(
+          style: FilledButton.styleFrom(
+              backgroundColor: ctx.palette.danger,
+              foregroundColor: Colors.white),
+          onPressed: () => Navigator.pop(ctx, true),
+          child: const Text('Kalıcı Olarak Sil'),
+        ),
+      ],
+    ),
+  );
+  if (confirmed != true || !context.mounted) return;
+
+  // Engelleyici ilerleme diyaloğu — silme sırasında geri tuşu/dokunma yutulur.
+  unawaited(showDialog(
+    context: context,
+    barrierDismissible: false,
+    useRootNavigator: true,
+    builder: (_) => const PopScope(
+      canPop: false,
+      child: AlertDialog(
+        content: Row(children: [
+          SizedBox(
+              width: 24, height: 24,
+              child: CircularProgressIndicator(strokeWidth: 2.5)),
+          SizedBox(width: 16),
+          Expanded(child: Text('Hesabınız siliniyor…')),
+        ]),
+      ),
+    ),
+  ));
+
+  final ok = await ref.read(authControllerProvider.notifier).deleteAccount();
+
+  if (nav.mounted) nav.pop(); // ilerleme diyaloğunu kapat
+  if (ok) {
+    router.go(RoutePaths.home);
+    if (nav.mounted) nav.context.showInfo('Hesabınız silindi.');
+  } else if (nav.mounted) {
+    final err = ref.read(authControllerProvider).error;
+    nav.context.showError(err is AuthException
+        ? err.message
+        : 'Hesap silinemedi. Bağlantınızı kontrol edip tekrar deneyin.');
   }
 }
 

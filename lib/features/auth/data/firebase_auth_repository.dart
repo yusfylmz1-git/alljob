@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart' as fb;
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:google_sign_in/google_sign_in.dart';
@@ -258,6 +259,27 @@ class FirebaseAuthRepository implements AuthRepository {
 
   @override
   Future<void> signOut() => _auth.signOut();
+
+  @override
+  Future<void> deleteAccount() async {
+    final fbUser = _auth.currentUser;
+    if (fbUser == null) throw AuthException.notSignedIn;
+    try {
+      // Sunucu tarafı temizlik: Firestore + Storage + Auth kaydı
+      // (functions/index.js `deleteAccount`; bölge CF'lerle aynı).
+      await FirebaseFunctions.instanceFor(region: 'europe-west1')
+          .httpsCallable('deleteAccount',
+              options: HttpsCallableOptions(
+                  timeout: const Duration(minutes: 3)))
+          .call<Map<String, dynamic>>();
+    } on FirebaseFunctionsException catch (e) {
+      throw AuthException(
+          'Hesap silinemedi (${e.code}). Bağlantınızı kontrol edip '
+          'tekrar deneyin.');
+    }
+    // Auth kaydı sunucuda silindi; yerel oturum verisini temizle.
+    await _auth.signOut();
+  }
 
   /// Firebase hata kodlarını Türkçe [AuthException]'a çevirir.
   AuthException _map(fb.FirebaseAuthException e) {
