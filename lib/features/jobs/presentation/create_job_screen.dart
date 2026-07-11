@@ -163,13 +163,20 @@ class _CreateJobScreenState extends ConsumerState<CreateJobScreen> {
         padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
         child: SafeArea(
           top: false,
-          child: ResponsiveCenter(
-            maxWidth: 720,
-            child: AppButton(
-              label: 'İlanı Yayınla',
-              icon: Icons.campaign_outlined,
-              isLoading: _submitting,
-              onPressed: _submit,
+          // DİKKAT: burada ResponsiveCenter/Align KULLANILAMAZ — Align,
+          // bottomNavigationBar içinde dikeyde TÜM ekranı kaplar ve gövdeye
+          // 0 yükseklik kalır (form hiç görünmez). heightFactor:1 ile bar
+          // çocuğu kadar yüksek kalır, buton genişliği yine 720 ile sınırlı.
+          child: Center(
+            heightFactor: 1,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 720),
+              child: AppButton(
+                label: 'İlanı Yayınla',
+                icon: Icons.campaign_outlined,
+                isLoading: _submitting,
+                onPressed: _submit,
+              ),
             ),
           ),
         ),
