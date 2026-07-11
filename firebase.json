@@ -6,6 +6,10 @@
   "storage": {
     "rules": "storage.rules"
   },
+  "hosting": {
+    "public": "hosting",
+    "ignore": ["firebase.json", "**/.*"]
+  },
   "functions": [
     {
       "source": "functions",

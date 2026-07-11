@@ -1,3 +1,4 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -8,6 +9,7 @@ import '../../../core/utils/snackbar_helper.dart';
 import '../../../core/utils/validators.dart';
 import '../../../core/widgets/app_button.dart';
 import '../../../core/widgets/responsive_center.dart';
+import '../../legal/legal_docs.dart';
 import '../application/auth_controller.dart';
 import '../data/auth_repository.dart';
 
@@ -29,12 +31,24 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   bool _obscure = true;
   bool _obscureConfirm = true;
 
+  // Yasal onay (KVKK/Store zorunluluğu): kutucuk işaretlenmeden kayıt olmaz.
+  bool _consent = false;
+  late final _termsTap = TapGestureRecognizer()
+    ..onTap = () => context.push(RoutePaths.legalDoc(legalTerms.id));
+  late final _privacyTap = TapGestureRecognizer()
+    ..onTap = () => context.push(RoutePaths.legalDoc(legalPrivacy.id));
+  late final _kvkkTap = TapGestureRecognizer()
+    ..onTap = () => context.push(RoutePaths.legalDoc(legalKvkk.id));
+
   @override
   void dispose() {
     _name.dispose();
     _email.dispose();
     _password.dispose();
     _confirm.dispose();
+    _termsTap.dispose();
+    _privacyTap.dispose();
+    _kvkkTap.dispose();
     super.dispose();
   }
 
@@ -164,7 +178,91 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                           validator: (v) =>
                               Validators.confirmPassword(v, _password.text),
                         ),
-                        const SizedBox(height: 20),
+                        const SizedBox(height: 14),
+                        // Yasal onay: Form.validate() bu alanı da doğrular.
+                        FormField<bool>(
+                          validator: (_) => _consent
+                              ? null
+                              : 'Kayıt olmak için koşulları kabul etmelisiniz.',
+                          builder: (field) => Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  SizedBox(
+                                    width: 24,
+                                    height: 24,
+                                    child: Checkbox(
+                                      value: _consent,
+                                      onChanged: (v) {
+                                        setState(
+                                            () => _consent = v ?? false);
+                                        field.didChange(v);
+                                      },
+                                    ),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: Text.rich(
+                                      TextSpan(
+                                        style: theme.textTheme.bodySmall
+                                            ?.copyWith(height: 1.4),
+                                        children: [
+                                          TextSpan(
+                                            text: 'Kullanım Koşulları',
+                                            recognizer: _termsTap,
+                                            style: TextStyle(
+                                                color:
+                                                    theme.colorScheme.primary,
+                                                fontWeight: FontWeight.w700),
+                                          ),
+                                          const TextSpan(text: '\'nı ve '),
+                                          TextSpan(
+                                            text: 'Gizlilik Politikası',
+                                            recognizer: _privacyTap,
+                                            style: TextStyle(
+                                                color:
+                                                    theme.colorScheme.primary,
+                                                fontWeight: FontWeight.w700),
+                                          ),
+                                          const TextSpan(
+                                              text: '\'nı okudum, kabul '
+                                                  'ediyorum; kişisel '
+                                                  'verilerimin '),
+                                          TextSpan(
+                                            text: 'KVKK Aydınlatma Metni',
+                                            recognizer: _kvkkTap,
+                                            style: TextStyle(
+                                                color:
+                                                    theme.colorScheme.primary,
+                                                fontWeight: FontWeight.w700),
+                                          ),
+                                          const TextSpan(
+                                              text: ' kapsamında '
+                                                  'işlenmesine ve yurt dışı '
+                                                  'sunucularda saklanmasına '
+                                                  'açık rıza veriyorum.'),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              if (field.hasError)
+                                Padding(
+                                  padding:
+                                      const EdgeInsets.only(top: 6, left: 34),
+                                  child: Text(
+                                    field.errorText!,
+                                    style: theme.textTheme.bodySmall?.copyWith(
+                                        color: theme.colorScheme.error),
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 16),
                         AppButton(
                           label: 'Kayıt Ol',
                           isLoading: isLoading,
@@ -174,8 +272,11 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                     ),
                   ),
                   const SizedBox(height: 16),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
+                  // Wrap: dar ekranda/büyük fontta taşmak yerine alt satıra
+                  // iner (Row test fontunda taşıyordu).
+                  Wrap(
+                    alignment: WrapAlignment.center,
+                    crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
                       Text('Zaten hesabınız var mı?',
                           style: theme.textTheme.bodyMedium?.copyWith(

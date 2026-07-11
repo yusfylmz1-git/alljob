@@ -25,22 +25,29 @@
   aktif işler iptal + karşı tarafa bildirim; tamamlanmış iş/yorum/sohbette
   ad "Silinmiş Kullanıcı" olarak anonimleşir; Auth kaydı en son silinir.
 - UI: Profil → Hesabı Sil (onay + engelleyici ilerleme). Paket: cloud_functions.
-- Kalan (store girişinde): hesap silme yöntemini anlatan URL (Play Console
-  "Veri güvenliği" formu) — yasal metinler işiyle birlikte hazırlanmalı.
+- ✅ Store URL'si hazır (Oturum 43): https://alljob1.web.app/hesap-silme.html
+  (Play Console "Veri güvenliği" formuna bu adres girilecek).
 
-### 3. Yasal metinler yok (KVKK/Store zorunluluğu)
-- Kodda gizlilik politikası, kullanım koşulları, KVKK aydınlatma metni,
-  kayıt ekranında onay yok. Store girişinde gizlilik politikası URL'si zorunlu.
-- Kapsam: 3 metin (web'de host + uygulamada sayfa), kayıtta onay kutusu,
-  profil > Hesap altına linkler.
+### 3. ✅ KAPANDI (Oturum 43, 2026-07-12) — Yasal metinler
+- Tek kaynak `lib/features/legal/legal_docs.dart` (Kullanım Koşulları +
+  Gizlilik Politikası + KVKK Aydınlatma + Hesap Silme Talimatı);
+  `tool/generate_legal_html.dart` bundan statik HTML üretir → Firebase
+  Hosting CANLIDA: https://alljob1.web.app/{gizlilik-politikasi,
+  kullanim-kosullari,kvkk-aydinlatma,hesap-silme}.html
+- Uygulama içi: `/legal` hub + `/legal/{id}` sayfaları (misafire açık);
+  Profil → Yasal Metinler. Kayıt ekranında zorunlu onay kutusu (linkli;
+  KVKK m.9 yurt dışı saklama açık rızası metinde).
+- Kalan: metinler şablondur — yayın öncesi hukukçu gözden geçirmesi ve
+  veri sorumlusu unvan/adres bilgisi önerilir; iletişim adresi
+  `kLegalContactEmail` tek yerden değişir.
 
-### 4. Kullanıcı engelleme + içerik şikayeti yok (UGC politikası)
-- Sohbet/yorum/ilan = kullanıcı üretimi içerik. Play/App Store, UGC olan
-  uygulamada **içerik şikayet etme + kullanıcı engelleme** ister. Bizde iş
-  anlaşmazlığı (disputed) var ama kişi engelleme/mesaj şikayeti yok.
-- Kapsam: `users/{uid}/blocked` alt-koleksiyonu; engellenen kişi mesaj
-  yazamaz (kural: chat üyeliği kontrolüne ek), sohbet listesinde gizlenir;
-  mesaj uzun basma menüsüne "Şikayet et" (admin kuyruğuna kayıt).
+### 4. ✅ KAPANDI (Oturum 42, 2026-07-12) — Kullanıcı engelleme + şikayet
+- `users/{uid}/blocked` (IG modeli: engellenen göremez; mesaj create kuralı
+  `exists` ile sunucuda reddeder — CANLIDA) + `reports` koleksiyonu
+  (deterministik ID, hedef+şikayetçi başına tek kayıt, istemci okuyamaz).
+- UI: sohbette engelle/şikayet menüsü, mesaj uzun basma şikayeti, ilan
+  şikayeti, Profil → Engellenen Kullanıcılar.
+- Kalan (admin fazına): reports kuyruğunu okuyan panel/custom claim.
 
 ### 5. Premium ödeme akışı yok
 - Gerçek gelir için Google Play Billing (`in_app_purchase`) + satın alma

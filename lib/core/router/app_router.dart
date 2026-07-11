@@ -25,6 +25,7 @@ import '../../features/onboarding/onboarding_state.dart';
 import '../../features/onboarding/presentation/onboarding_screen.dart';
 import '../../features/profile/presentation/profile_screen.dart';
 import '../../features/review/presentation/review_screen.dart';
+import '../../features/legal/presentation/legal_screen.dart';
 import '../../features/safety/presentation/blocked_users_screen.dart';
 import 'route_paths.dart';
 
@@ -204,6 +205,19 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: 'blocked',
             builder: (_, _) => const BlockedUsersScreen(),
+          ),
+        ],
+      ),
+      // Yasal metinler — misafir dâhil herkese açık (kayıt onayındaki
+      // linkler ve Profil → Yasal Metinler buraya gelir).
+      GoRoute(
+        path: RoutePaths.legal,
+        builder: (_, _) => const LegalHubScreen(),
+        routes: [
+          GoRoute(
+            path: ':doc',
+            builder: (_, state) =>
+                LegalDocScreen(docId: state.pathParameters['doc']!),
           ),
         ],
       ),

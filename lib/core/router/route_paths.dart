@@ -42,6 +42,10 @@ class RoutePaths {
   // Engellenen kullanıcılar yönetimi (Profil → Engellenen Kullanıcılar).
   static const String blockedUsers = '/profile/blocked';
 
+  // Yasal metinler (misafir dâhil herkese açık): hub + tek metin sayfası.
+  static const String legal = '/legal';
+  static String legalDoc(String id) => '/legal/$id';
+
   // Bildirim merkezi (oturum açmış herkes — iki rol tek ekran).
   // `/panel/notifications` eski bağlantılar için aynı ekrana gider.
   static const String notifications = '/notifications';

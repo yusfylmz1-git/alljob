@@ -682,6 +682,14 @@ class _AccountGroup extends ConsumerWidget {
         subtitle: 'Engellediğiniz kişileri yönetin',
         onTap: () => context.push(RoutePaths.blockedUsers),
       ),
+      _MenuRow(
+        icon: Icons.policy_outlined,
+        iconColor: theme.colorScheme.onSurfaceVariant,
+        iconSurface: theme.colorScheme.surfaceContainer,
+        title: 'Yasal Metinler',
+        subtitle: 'Kullanım koşulları, gizlilik, KVKK',
+        onTap: () => context.push(RoutePaths.legal),
+      ),
     ]);
   }
 }
