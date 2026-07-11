@@ -23,7 +23,18 @@
 
 ## ✅ Son Durum (EN SON BURAYI OKU)
 
-**Tarih:** 2026-07-10
+**Tarih:** 2026-07-11
+
+**Oturum 39 (2026-07-11): isPremium KURAL KİLİDİ (YOL_HARITASI P0-1 — gelir açığı kapatıldı). KURALLAR CANLIDA ✅ (ilk denemede deploy; 90/90 test, analyze 0, web build OK)**
+Kullanıcı "devam" dedi; AskUserQuestion ile P0-1 seçildi. İkinci soruda ÜRÜN KARARI netleşti: **"şu anda premium özelliğini aktif etmeyeceğiz; BETA süresince ücretsiz olacak; 1 yıl şartımız yok"** — yani premium satın alma yok, premium ÖZELLİKLERİ (müsait olma, iş ilanları feed'i) beta boyunca herkese açık.
+- **Kural (DEPLOY EDİLDİ):** `artisanProfiles` create+update guard listelerine `isPremium, premiumExpiresAt` eklendi (completedJobs kalıbı) — istemci kendine premium YAZAMAZ. Gerçek satın alma gelince yalnız CF yazacak.
+- **İstemci yazım kilidi:** `FirebaseMyProfileRepository.saveMyProfile` iki alanı toMap'ten çıkarır (merge korur); Mock parite: `MockMyProfileRepository.saveMyProfile` mevcut değerleri korur, İLK kayıtta premium vermez. `MyProfileController.setPremium` SİLİNDİ (tek çağıran premium ekranıydı).
+- **Beta erişim bayrağı:** `AppConstants.firstYearFreePremium` (hiç kullanılmıyordu) → **`premiumFreeDuringBeta = true`** olarak yeniden anlamlandırıldı. Yeni **`ArtisanProfile.hasPremiumAccess`** getter'ı (`premiumFreeDuringBeta || hasActivePremium`) — gating BUNA bakar; ROZET gösterimi ise `hasActivePremium`/`isPremium`'da kaldı (beta'da herkes rozetli görünmesin). Gating geçen yerler: profil "Müsaitlik" switch'i (`profile_screen`), İşler ekranı `_NotAvailableNotice` (premium cümlesi yalnız erişim yokken görünür). Teklif kartındaki premium rozeti (`job_detail_screen` ~1357) hasActivePremium'da BİLİNÇLİ bırakıldı.
+- **Premium ekranı:** satın alma butonu/`setPremium` akışı kalktı → salt bilgi sayfası: fayda listesi + "Beta süresince ücretsiz" kutusu ("Ücretlendirme beta tamamlanırken duyurulacak"). Profildeki Premium satırı alt yazısı: "Beta süresince tüm özellikler ücretsiz".
+- **KRİTİK SONUÇ:** Butonu düz "Yakında" yapmak pazaryerini kilitlerdi — müsait olmak premium'a bağlıydı ve müsait olmayan usta aramada HİÇ görünmüyor; hasPremiumAccess sayesinde ustalar beta'da serbestçe müsait olur. Beta bitince `premiumFreeDuringBeta=false` + Play Billing (Sprint 3).
+- **Test:** eski "premium etkinleştirilir" testi → "isPremium istemci kaydıyla yazılamaz; beta erişimi yine açık" (kurcalanan profil kaydedilir → isPremium false kalır, hasPremiumAccess true). Toplam **90/90**.
+- **Ayrıca:** `main.dart`'ta elle-düzenleme kazası onarıldı (`}ujub7` + bozuk yorum satırı — dosya derlenmiyordu; Oturum 36'daki `}`→`3` kazasının benzeri).
+- Kalan P0'lar: hesap silme (callable CF), yasal metinler, engelleme/şikayet — YOL_HARITASI'ndan devam.
 
 **Tamamlanan: AŞAMA 1–5 + PRD v4.0 + FIREBASE CANLI + ÇİFT TARAFLI PAZARYERI + OTURUM 15 (UX) + OTURUM 16 (Keşfette ilan paneli) + OTURUM 17 (TEK HESAP, ÇİFT ROL) + OTURUM 18 (TASARIM v2) + OTURUM 19 (MALİYET/FATURA OPTİMİZASYONU) + OTURUM 20 (BLAZE + STORAGE CANLI) + OTURUM 21 (CLOUD FUNCTIONS CANLI) + OTURUM 22 (FCM PUSH) + OTURUM 23 (GIT + CRASHLYTICS + GÜVENLİK) + OTURUM 24 (TELEFON DOĞRULAMA + MAVİ TİK) + OTURUM 25 (KIRIK TEST TEMİZLİĞİ — 68/68) + OTURUM 26 (PROFİL YÜKLENEMEDİ + OTURUM SIZINTISI + SMS BÖLGE DÜZELTMESİ) + OTURUM 27 (TEK BİRLEŞİK PROFİL SAYFASI) + OTURUM 28 (YENİ İLAN → USTA PUSH BİLDİRİMİ, CANLI) + OTURUM 29 (MESAJLAR IG DİLİ + KOMPAKT KARTLAR)**
 

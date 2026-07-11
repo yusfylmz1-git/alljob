@@ -34,13 +34,17 @@ class FirebaseMyProfileRepository implements MyProfileRepository {
     String? profilePhotoUrl,
     required ArtisanProfile profile,
   }) async {
-    // Profil alanları + denormalize edilmiş ad/foto. Puanlama alanlarını
-    // ezmemek için toMap içindeki rating alanlarını çıkarıp merge ediyoruz.
+    // Profil alanları + denormalize edilmiş ad/foto. Puanlama ve premium
+    // alanları BURADAN YAZILMAZ (kural da reddeder): rating/sayaç alanları
+    // Cloud Functions'a, isPremium/premiumExpiresAt ileride satın alma
+    // doğrulamasına aittir. toMap'ten çıkarılıp merge ile korunur.
     final data = Map<String, dynamic>.from(profile.toMap())
       ..remove('averageRating')
       ..remove('totalReviews')
       ..remove('totalRatingSum')
       ..remove('completedJobs')
+      ..remove('isPremium')
+      ..remove('premiumExpiresAt')
       ..['displayName'] = displayName
       ..['profilePhotoURL'] = profilePhotoUrl;
 

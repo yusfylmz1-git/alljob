@@ -8,18 +8,16 @@
 
 ## 🔴 P0 — Yayın Engelleyiciler (bunlar kapanmadan mağazaya çıkılamaz)
 
-### 1. Premium istemciden BEDAVAYA açılabiliyor (GELİR AÇIĞI — kanıtlı)
-- `MyProfileController.setPremium` → `saveMyProfile` → `isPremium` alanı
-  `toMap`'e giriyor (`artisan_profile.dart:185`) ve **firestore.rules'ta
-  premium için HİÇBİR guard yok** (`grep premium firestore.rules` → 0 sonuç).
-- Sonuç: Firestore SDK'sını kullanan herkes kendine `isPremium: true` yazar.
-  PRD'nin TEK gelir modeli premium — yani gelir modeli şu an delik.
-- **Çözüm:** `completedJobs` kalıbı: kural `isPremium/premiumExpiresAt`
-  yazımını engeller, istemci `saveMyProfile` bu alanları yazımdan çıkarır.
-  Gerçek satın alma gelince yalnız sunucu (CF/billing doğrulaması) yazar.
-- ⚠️ Ürün kararı: kural kilitlenince mevcut "Premium'u etkinleştir" mock
-  butonu canlıda çalışmaz olur (zaten bedava premium dağıtıyor). Karar:
-  kilitle + butonu "Yakında" yap, ya da Play Billing gelene dek bilinçli açık bırak.
+### 1. ✅ KAPANDI (Oturum 39, 2026-07-11) — Premium istemciden açılamıyor
+- Kural: `artisanProfiles` guard listelerine `isPremium/premiumExpiresAt`
+  eklendi (CANLIDA); `saveMyProfile` (Firebase+Mock) alanları yazımdan çıkarır;
+  `setPremium` silindi.
+- Ürün kararı (kullanıcı): **beta süresince premium özellikleri herkese
+  ücretsiz, 1 yıl modeli yok** → `AppConstants.premiumFreeDuringBeta` +
+  `ArtisanProfile.hasPremiumAccess` (gating buna bakar, rozet hâlâ gerçek
+  premium'a). Premium ekranı satın almasız bilgi sayfası oldu.
+- Kalan (madde 5 ile birlikte): Play Billing gelince `premiumFreeDuringBeta=false`
+  + alanları yalnız sunucu (CF/billing doğrulaması) yazar.
 
 ### 2. Hesap silme yok (Google Play ZORUNLULUĞU)
 - Hesap oluşturan her uygulama, uygulama İÇİNDEN hesap silme sunmak zorunda

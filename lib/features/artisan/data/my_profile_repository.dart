@@ -46,12 +46,20 @@ class MockMyProfileRepository implements MyProfileRepository {
     required ArtisanProfile profile,
   }) async {
     await Future.delayed(const Duration(milliseconds: 400));
-    _ref.read(mockDatabaseProvider).upsertArtisan(
-          uid: uid,
-          displayName: displayName,
-          profilePhotoUrl: profilePhotoUrl,
-          profile: profile,
-        );
+    final db = _ref.read(mockDatabaseProvider);
+    // Kural paritesi: isPremium/premiumExpiresAt istemci kaydıyla DEĞİŞEMEZ
+    // (Firebase tarafında kural + merge korur) — mevcut değer korunur,
+    // ilk kayıtta premium verilmez.
+    final existing = db.artisans[uid]?.profile;
+    db.upsertArtisan(
+      uid: uid,
+      displayName: displayName,
+      profilePhotoUrl: profilePhotoUrl,
+      profile: profile.copyWith(
+        isPremium: existing?.isPremium ?? false,
+        premiumExpiresAt: existing?.premiumExpiresAt,
+      ),
+    );
   }
 
   @override

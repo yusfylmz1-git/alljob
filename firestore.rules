@@ -61,6 +61,10 @@ service cloud.firestore {
 
     // artisanProfiles — herkese açık (misafir de görebilir, PRD §2); sahibi yazar.
     // Puanlama alanları yalnızca Cloud Functions (Admin SDK) tarafından yazılır.
+    // `isPremium/premiumExpiresAt` da İSTEMCİDEN YAZILAMAZ (tek gelir modeli
+    // premium — istemci kendine bedava premium yazamamalı). Beta süresince
+    // premium ÖZELLİKLERİ herkese açık (istemcide AppConstants bayrağı);
+    // gerçek satın alma gelince bu alanları yalnız sunucu (CF) yazacak.
     // Create ve update ayrı: create'te `resource` null olduğu için diff yerine
     // doğrudan yazılan anahtarlara bakılır (null.data erişimi kuralı hataya
     // düşürüp ilk kaydı reddediyordu).
@@ -77,12 +81,13 @@ service cloud.firestore {
       allow create: if isSelf(uid)
         && !request.resource.data.keys()
               .hasAny(['averageRating','totalReviews','totalRatingSum',
-                       'completedJobs'])
+                       'completedJobs','isPremium','premiumExpiresAt'])
         && verifiedClaimOk();
       allow update: if isSelf(uid)
         && !request.resource.data.diff(resource.data)
               .affectedKeys().hasAny(['averageRating','totalReviews',
-                       'totalRatingSum','completedJobs'])
+                       'totalRatingSum','completedJobs',
+                       'isPremium','premiumExpiresAt'])
         && verifiedClaimOk();
       allow delete: if false;
     }

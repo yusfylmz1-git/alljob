@@ -1,44 +1,18 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
+import '../../../core/constants/app_constants.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_palette.dart';
-import '../../../core/utils/snackbar_helper.dart';
-import '../../../core/widgets/app_button.dart';
 import '../../../core/widgets/brand_mark.dart';
 import '../../../core/widgets/gradient_app_bar.dart';
 import '../../../core/widgets/responsive_center.dart';
-import '../application/my_profile_controller.dart';
 
-/// Premium abonelik / ödeme sayfası. Usta "Müsait" olabilmek için Premium
-/// üye olmalıdır (PRD §6). Gerçek ödeme entegrasyonu ileride; şimdilik
-/// "Premium Ol" abonelği etkinleştirir ve ustayı müsait yapar.
-class PremiumScreen extends ConsumerStatefulWidget {
+/// Premium bilgi sayfası (PRD §6). Beta süresince tüm Premium özellikler
+/// ücretsizdir ve `isPremium` alanı istemciden YAZILAMAZ (firestore.rules) —
+/// bu yüzden burada etkinleştirme butonu YOK. Gerçek satın alma (Play
+/// Billing + sunucu doğrulaması) beta sonrasında bu sayfaya eklenecek.
+class PremiumScreen extends StatelessWidget {
   const PremiumScreen({super.key});
-
-  @override
-  ConsumerState<PremiumScreen> createState() => _PremiumScreenState();
-}
-
-class _PremiumScreenState extends ConsumerState<PremiumScreen> {
-  bool _busy = false;
-
-  Future<void> _subscribe() async {
-    setState(() => _busy = true);
-    final ctrl = ref.read(myProfileControllerProvider.notifier);
-    final okPremium = await ctrl.setPremium(true);
-    // Premium olunca ustayı otomatik "müsait" yap.
-    final okAvail = okPremium && await ctrl.setAvailable(true);
-    if (!mounted) return;
-    setState(() => _busy = false);
-    if (okPremium && okAvail) {
-      context.showSuccess('Premium etkinleştirildi. Artık müsait görünüyorsunuz.');
-      if (context.canPop()) context.pop();
-    } else {
-      context.showError('İşlem tamamlanamadı. Tekrar deneyin.');
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -69,7 +43,7 @@ class _PremiumScreenState extends ConsumerState<PremiumScreen> {
                   const SizedBox(height: 6),
                   Text(
                     'Müsait görünmek, iş ilanlarına ulaşmak ve müşterilere '
-                    'çıkmak için Premium gerekir.',
+                    'çıkmak Premium kapsamındadır.',
                     textAlign: TextAlign.center,
                     style: theme.textTheme.bodyMedium?.copyWith(
                         color: Colors.white.withValues(alpha: 0.85)),
@@ -101,27 +75,31 @@ class _PremiumScreenState extends ConsumerState<PremiumScreen> {
               ),
               child: Column(
                 children: [
-                  Text('İlk yıl ücretsiz',
+                  Text(
+                      AppConstants.premiumFreeDuringBeta
+                          ? 'Beta süresince ücretsiz'
+                          : 'Yakında',
                       style: theme.textTheme.titleMedium?.copyWith(
                           fontWeight: FontWeight.w800,
                           color: context.palette.premium)),
                   const SizedBox(height: 4),
-                  Text('Sonrasında aylık ₺99',
+                  Text(
+                      AppConstants.premiumFreeDuringBeta
+                          ? 'Tüm Premium özellikler şu an tüm ustalara açık. '
+                              'Yapmanız gereken tek şey profilinizden '
+                              '"Müsait" olmak.'
+                          : 'Ödeme altyapısı hazırlanıyor; Premium satın alma '
+                              'çok yakında burada olacak.',
+                      textAlign: TextAlign.center,
                       style: theme.textTheme.bodySmall
                           ?.copyWith(color: context.palette.premium)),
                 ],
               ),
             ),
-            const SizedBox(height: 24),
-            AppButton(
-              label: 'Premium Ol ve Müsait Görün',
-              icon: Icons.workspace_premium,
-              isLoading: _busy,
-              onPressed: _subscribe,
-            ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 12),
             Text(
-              'Ödeme altyapısı yakında entegre edilecek. Şu an ilk yıl ücretsizdir.',
+              'Ücretlendirme, beta süreci tamamlanırken uygulama içinden '
+              'duyurulacak.',
               textAlign: TextAlign.center,
               style: theme.textTheme.bodySmall
                   ?.copyWith(color: theme.colorScheme.onSurfaceVariant),

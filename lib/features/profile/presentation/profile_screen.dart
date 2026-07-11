@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
+import '../../../core/constants/app_constants.dart';
 import '../../../core/router/route_paths.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_palette.dart';
@@ -335,7 +336,9 @@ class _ArtisanSections extends ConsumerWidget {
                     ? (profile.premiumExpiresAt != null
                         ? '${DateFormat('d MMM yyyy', 'tr_TR').format(profile.premiumExpiresAt!)} tarihine kadar aktif'
                         : 'Aktif')
-                    : 'Aramada görünmek için gerekli — ilk yıl ücretsiz'),
+                    : (AppConstants.premiumFreeDuringBeta
+                        ? 'Beta süresince tüm özellikler ücretsiz'
+                        : 'Aramada görünmek için gerekli')),
             onTap: () => context.push(RoutePaths.panelPremium),
           ),
         ]),
@@ -372,7 +375,8 @@ class _ArtisanSections extends ConsumerWidget {
   }
 }
 
-/// "Müsaitlik" satırı — switch sağda; açmak Premium ister (yönlendirir).
+/// "Müsaitlik" satırı — switch sağda; açmak Premium erişimi ister
+/// (beta'da herkese açık; yoksa Premium sayfasına yönlendirir).
 class _AvailabilityRow extends ConsumerWidget {
   const _AvailabilityRow({required this.draft});
   final MyProfileDraft? draft;
@@ -384,7 +388,7 @@ class _AvailabilityRow extends ConsumerWidget {
 
     Future<void> onChanged(bool value) async {
       if (profile == null) return;
-      if (value && !profile.hasActivePremium) {
+      if (value && !profile.hasPremiumAccess) {
         context.push(RoutePaths.panelPremium);
         return;
       }

@@ -82,11 +82,13 @@ Future<void> main() async {
   // Tema tercihi (Sistem/Açık/Koyu) cihazdan okunur; kayıt yoksa Sistem.
   final themeMode = await readThemeMode();
 
-  runApp(ProviderScope(
-    overrides: [
-      onboardingSeenProvider.overrideWith((ref) => seenOnboarding),
-      themeModeProvider.overrideWith((ref) => themeMode),
-    ],
-    child: const UstaCepteApp(),
-  ));
+  runApp(
+    ProviderScope(
+      overrides: [
+        onboardingSeenProvider.overrideWith((ref) => seenOnboarding),
+        themeModeProvider.overrideWith((ref) => themeMode),
+      ],
+      child: const UstaCepteApp(),
+    ),
+  );
 }

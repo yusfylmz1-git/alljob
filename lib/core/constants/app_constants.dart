@@ -24,13 +24,13 @@ class AppConstants {
   // Bu süre boyunca "Yeni Usta" rozeti gösterilir; puana yansımaz.
   static const int newArtisanVisibilityDays = 15;
 
-  // Gelir modeli faz bayrağı (PRD §3/§6):
-  //  - true  (İlk 1 yıl): tüm ustalar Premium özelliklerini ücretsiz kullanır;
-  //    aramada herkes görünür, müsait-önce sıralanır.
-  //  - false (1. yıldan sonra): aramada YALNIZCA müsait + Premium ustalar
-  //    gösterilir; sıralama puana göre.
-  // Lansmanı hızlandırmak için ilk yıl açık bırakılır; süre dolunca false yapılır.
-  static const bool firstYearFreePremium = true;
+  // Gelir modeli faz bayrağı (PRD §6):
+  //  - true  (BETA): tüm ustalar Premium özelliklerini (müsaitlik, iş ilanları)
+  //    ücretsiz kullanır — `ArtisanProfile.hasPremiumAccess` hep true döner.
+  //    `isPremium` alanını istemci HİÇBİR durumda yazamaz (firestore.rules).
+  //  - false: Premium erişimi gerçek aboneliğe (hasActivePremium) bağlanır;
+  //    Play Billing + sunucu doğrulaması geldiğinde kapatılacak.
+  static const bool premiumFreeDuringBeta = true;
 
   // Puanlama kuralı: sohbet en az bu kadar süre aktif olmalı
   static const Duration reviewUnlockDuration = Duration(hours: 24);

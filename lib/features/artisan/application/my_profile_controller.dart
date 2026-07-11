@@ -166,7 +166,8 @@ class MyProfileController extends AsyncNotifier<MyProfileDraft> {
           ));
 
   /// Ana "Müsait" switch'i: müsaitliği açıp/kapatır ve hemen kaydeder.
-  /// Açmak Premium gerektirir (çağıran taraf kontrol eder). Başarılıysa true.
+  /// Açmak Premium erişimi gerektirir — çağıran taraf `hasPremiumAccess` ile
+  /// kontrol eder (beta süresince herkese açık). Başarılıysa true.
   Future<bool> setAvailable(bool active) async {
     final current = state.valueOrNull;
     if (current == null) return false;
@@ -179,22 +180,10 @@ class MyProfileController extends AsyncNotifier<MyProfileDraft> {
     return save();
   }
 
-  // --- Premium üyelik (PRD §6) ---
-
-  /// Premium'u etkinleştirir/kapatır ve hemen kaydeder. İlk 1 yıl modeli:
-  /// etkinleştirme ücretsizdir ve 1 yıllık geçerlilik verir. Başarılıysa true.
-  Future<bool> setPremium(bool active) async {
-    final current = state.valueOrNull;
-    if (current == null) return false;
-    _update((d) => d.copyWith(
-          profile: d.profile.copyWith(
-            isPremium: active,
-            premiumExpiresAt:
-                active ? DateTime.now().add(const Duration(days: 365)) : null,
-          ),
-        ));
-    return save();
-  }
+  // NOT — Premium (PRD §6): `isPremium/premiumExpiresAt` İSTEMCİDEN YAZILAMAZ
+  // (firestore.rules + repo'lar alanları yazımdan çıkarır). Beta süresince
+  // premium özellikleri `hasPremiumAccess` ile herkese açık; gerçek satın
+  // alma (Play Billing + sunucu doğrulaması) geldiğinde alanları CF yazacak.
 
   /// Taslağı kalıcı hale getirir. Başarılıysa true döner.
   Future<bool> save() async {

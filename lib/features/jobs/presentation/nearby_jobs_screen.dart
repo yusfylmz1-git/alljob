@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/constants/app_constants.dart';
 import '../../../core/router/route_paths.dart';
 import '../../../core/theme/app_palette.dart';
 import '../../../core/utils/snackbar_helper.dart';
@@ -68,11 +69,12 @@ class _NotAvailableNotice extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final draft = ref.watch(myProfileControllerProvider).valueOrNull;
-    final isPremium = draft?.profile.hasActivePremium ?? false;
+    final hasAccess = draft?.profile.hasPremiumAccess ??
+        AppConstants.premiumFreeDuringBeta;
 
     Future<void> enable() async {
       final ctrl = ref.read(myProfileControllerProvider.notifier);
-      if (!isPremium) {
+      if (!hasAccess) {
         context.push(RoutePaths.panelPremium);
         return;
       }
@@ -104,7 +106,8 @@ class _NotAvailableNotice extends ConsumerWidget {
             const SizedBox(height: 6),
             Text(
               'İş ilanlarını görmek ve müşterilerin sizi bulabilmesi için '
-              '"Müsait" olmanız gerekir. Müsaitlik Premium üyelik gerektirir.',
+              '"Müsait" olmanız gerekir.'
+              '${hasAccess ? '' : ' Müsaitlik Premium üyelik gerektirir.'}',
               textAlign: TextAlign.center,
               style: Theme.of(context)
                   .textTheme
@@ -114,8 +117,11 @@ class _NotAvailableNotice extends ConsumerWidget {
             const SizedBox(height: 18),
             FilledButton.icon(
               onPressed: enable,
-              icon: Icon(isPremium ? Icons.check_circle_outline : Icons.workspace_premium),
-              label: Text(isPremium ? 'Müsait Ol' : 'Premium Ol ve Müsait Görün'),
+              icon: Icon(hasAccess
+                  ? Icons.check_circle_outline
+                  : Icons.workspace_premium),
+              label: Text(
+                  hasAccess ? 'Müsait Ol' : 'Premium Ol ve Müsait Görün'),
             ),
           ],
         ),

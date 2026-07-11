@@ -60,6 +60,13 @@ class ArtisanProfile {
       premiumExpiresAt != null &&
       premiumExpiresAt!.isAfter(DateTime.now());
 
+  /// Premium ÖZELLİKLERİNE erişim (müsait olma, iş ilanlarını görme).
+  /// Beta süresince herkese açık; beta bitince gerçek aboneliğe bağlanır.
+  /// Rozet gösterimi buna DEĞİL [hasActivePremium]'a bakar (beta'da herkes
+  /// rozetli görünmesin).
+  bool get hasPremiumAccess =>
+      AppConstants.premiumFreeDuringBeta || hasActivePremium;
+
   /// Canlı müsaitlik: manuel duraklatma her şeyi geçersiz kılar; sonra
   /// "her zaman müsait"; değilse haftalık plana bakılır (PRD §3, Arama Sonuçları).
   bool isAvailableAt(DateTime now) {

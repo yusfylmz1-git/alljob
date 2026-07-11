@@ -1,9 +1,11 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:usta_cepte/data/models/app_user.dart';
+import 'package:usta_cepte/data/models/artisan_profile.dart';
 import 'package:usta_cepte/data/models/geo_models.dart';
 import 'package:usta_cepte/data/models/user_role.dart';
 import 'package:usta_cepte/features/artisan/application/my_profile_controller.dart';
+import 'package:usta_cepte/features/artisan/data/my_profile_repository.dart';
 import 'package:usta_cepte/features/auth/application/auth_controller.dart';
 
 import 'helpers/mock_backend.dart';
@@ -83,18 +85,29 @@ void main() {
         ['local://cert2']);
   });
 
-  test('premium etkinleştirilir ve kapatılır', () async {
+  test('isPremium istemci kaydıyla yazılamaz; beta erişimi yine açık',
+      () async {
     final c = makeContainer();
-    await c.read(myProfileControllerProvider.future);
-    final n = c.read(myProfileControllerProvider.notifier);
+    final repo = c.read(myProfileRepositoryProvider);
 
-    expect(await n.setPremium(true), isTrue);
-    expect(c.read(myProfileControllerProvider).value!.profile.hasActivePremium,
-        isTrue);
+    // Kurcalama girişimi: istemci kendine premium yazmaya çalışıyor.
+    final tampered = ArtisanProfile.initial('artisan_test').copyWith(
+      profession: 'painter',
+      isPremium: true,
+      premiumExpiresAt: DateTime.now().add(const Duration(days: 3650)),
+    );
+    await repo.saveMyProfile(
+      uid: 'artisan_test',
+      displayName: 'Test Usta',
+      profile: tampered,
+    );
 
-    expect(await n.setPremium(false), isTrue);
-    expect(c.read(myProfileControllerProvider).value!.profile.hasActivePremium,
-        isFalse);
+    final saved = await repo.getMyProfile('artisan_test');
+    expect(saved.profession, 'painter'); // normal alanlar kaydedildi
+    expect(saved.isPremium, isFalse); // premium yazılamadı (kural paritesi)
+    expect(saved.hasActivePremium, isFalse);
+    // Beta süresince premium ÖZELLİKLERİ yine herkese açık.
+    expect(saved.hasPremiumAccess, isTrue);
   });
 
   test('profil alanları güncellenir ve kaydedilir', () async {
