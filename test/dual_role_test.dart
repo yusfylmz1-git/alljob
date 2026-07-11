@@ -113,6 +113,39 @@ void main() {
       expect(() => repo.deleteAccount(), throwsA(AuthException.notSignedIn));
     });
 
+    test(
+        'e-posta doğrulama: kayıtta doğrulanmamış; bağlantı sonrası doğrulanır',
+        () async {
+      final repo = MockAuthRepository();
+      addTearDown(repo.dispose);
+
+      final user = await repo.register(
+        displayName: 'Doğrulanacak',
+        email: 'dogrula@test.com',
+        password: '123456',
+      );
+      expect(user.emailVerified, isFalse);
+
+      // "Bağlantıya tıklama" mock'ta refresh ile işlenir (kayıt otomatik
+      // doğrulama e-postası gönderir → bekleyen doğrulama var).
+      final verified = await repo.refreshEmailVerified();
+      expect(verified, isTrue);
+      expect(repo.currentUser?.emailVerified, isTrue);
+
+      // Oturum kapatıp açınca doğrulama KALICI.
+      await repo.signOut();
+      final again =
+          await repo.login(email: 'dogrula@test.com', password: '123456');
+      expect(again.emailVerified, isTrue);
+
+      // Oturumsuz çağrılar reddedilir.
+      await repo.signOut();
+      expect(() => repo.sendEmailVerification(),
+          throwsA(AuthException.notSignedIn));
+      expect(() => repo.refreshEmailVerified(),
+          throwsA(AuthException.notSignedIn));
+    });
+
     test('demo usta hesabı usta modunda açılır', () async {
       final repo = MockAuthRepository();
       addTearDown(repo.dispose);

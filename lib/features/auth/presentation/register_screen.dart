@@ -64,7 +64,8 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
 
     if (!mounted) return;
     if (ok) {
-      context.showSuccess('Hesabınız oluşturuldu, hoş geldiniz!');
+      context.showSuccess('Hesabınız oluşturuldu, hoş geldiniz! Doğrulama '
+          'bağlantısı e-posta adresinize gönderildi.');
       context.go(RoutePaths.home);
     } else {
       final error = ref.read(authControllerProvider).error;

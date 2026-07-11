@@ -56,22 +56,22 @@ final routerProvider = Provider<GoRouter>((ref) {
       final onAuthFlow =
           loc == RoutePaths.login || loc == RoutePaths.register;
 
-      // İlk açılış: oturum yok + onboarding görülmemiş → tanıtım akışı.
+      // İlk açılış: onboarding görülmemişse tanıtım akışı.
       // (Varsayılan "görüldü"; gerçek değer main.dart override'ı ile gelir.)
       final seenOnboarding = ref.read(onboardingSeenProvider);
 
       // Splash çözüldü → herkes Keşfet'te başlar (tek tutarlı giriş noktası;
-      // usta kendi alanına alt bardaki Profil sekmesinden ulaşır).
-      if (loc == RoutePaths.splash) {
-        return (user == null && !seenOnboarding)
-            ? RoutePaths.onboarding
-            : RoutePaths.home;
-      }
+      // usta kendi alanına alt bardaki Profil sekmesinden ulaşır). Onboarding
+      // gerekiyorsa aşağıdaki genel kural home'dan tanıtıma yönlendirir.
+      if (loc == RoutePaths.splash) return RoutePaths.home;
 
-      // Onboarding yalnızca ilk açılışta: görüldüyse/oturum varsa ana ekrana.
-      if (loc == RoutePaths.onboarding) {
-        return (user != null || seenOnboarding) ? RoutePaths.home : null;
+      // Onboarding cihazda BİR KEZ, oturumdan bağımsız gösterilir: yalnız
+      // "oturum yok + splash" koşulu, oturumu açık kalan cihazlarda ve
+      // kayıt-sonrası akışta tanıtımı HİÇ göstermiyordu (kullanıcı bildirimi).
+      if (!seenOnboarding) {
+        return loc == RoutePaths.onboarding ? null : RoutePaths.onboarding;
       }
+      if (loc == RoutePaths.onboarding) return RoutePaths.home;
 
       // Eski usta paneli ana sayfası → birleşik profil sayfası.
       if (loc == RoutePaths.panel) return RoutePaths.profile;

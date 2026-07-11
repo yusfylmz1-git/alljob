@@ -89,6 +89,24 @@ class AuthController extends AsyncNotifier<void> {
     return !state.hasError;
   }
 
+  /// E-posta doğrulama bağlantısını (yeniden) gönderir.
+  Future<bool> sendEmailVerification() async {
+    state = const AsyncLoading();
+    state = await AsyncValue.guard(() => _repo.sendEmailVerification());
+    return !state.hasError;
+  }
+
+  /// Doğrulama durumunu sunucudan tazeler; doğrulandıysa true.
+  /// Hata durumunda null (UI "kontrol edilemedi" gösterir).
+  Future<bool?> checkEmailVerified() async {
+    state = const AsyncLoading();
+    bool? verified;
+    state = await AsyncValue.guard(() async {
+      verified = await _repo.refreshEmailVerified();
+    });
+    return state.hasError ? null : verified;
+  }
+
   Future<void> signOut() async {
     state = const AsyncLoading();
     // Çıkıştan ÖNCE bu cihazın FCM token'ını kullanıcının dizisinden çıkar

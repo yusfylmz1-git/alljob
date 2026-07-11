@@ -66,7 +66,9 @@ class FirebaseAuthRepository implements AuthRepository {
   Future<AppUser> _loadOrCreate(fb.User fbUser) async {
     final snap = await _userDoc(fbUser.uid).get();
     if (snap.exists && snap.data() != null) {
-      return AppUser.fromMap(fbUser.uid, snap.data()!);
+      // emailVerified'ın kaynağı Firestore değil Auth'tur (bkz. AppUser).
+      return AppUser.fromMap(fbUser.uid, snap.data()!)
+          .copyWith(emailVerified: fbUser.emailVerified);
     }
     final fresh = AppUser(
       uid: fbUser.uid,
@@ -74,6 +76,7 @@ class FirebaseAuthRepository implements AuthRepository {
       email: fbUser.email ?? '',
       createdAt: DateTime.now(),
       profilePhotoUrl: fbUser.photoURL,
+      emailVerified: fbUser.emailVerified,
     );
     await _userDoc(fbUser.uid).set(fresh.toMap());
     return fresh;
@@ -93,6 +96,11 @@ class FirebaseAuthRepository implements AuthRepository {
           email: email.trim(), password: password);
       final fbUser = cred.user!;
       await fbUser.updateDisplayName(displayName.trim());
+      // Doğrulama bağlantısı otomatik gönderilir; başarısızlığı kayıt
+      // akışını BOZMAZ (profilden yeniden gönderilebilir).
+      try {
+        await fbUser.sendEmailVerification();
+      } catch (_) {/* profildeki "yeniden gönder" telafi eder */}
       final user = AppUser(
         uid: fbUser.uid,
         displayName: displayName.trim(),
@@ -213,6 +221,38 @@ class FirebaseAuthRepository implements AuthRepository {
     } on fb.FirebaseAuthException catch (e) {
       throw _map(e);
     }
+  }
+
+  @override
+  Future<void> sendEmailVerification() async {
+    final fbUser = _auth.currentUser;
+    if (fbUser == null) throw AuthException.notSignedIn;
+    try {
+      await fbUser.sendEmailVerification();
+    } on fb.FirebaseAuthException catch (e) {
+      // Firebase art arda gönderimi hız sınırına takar.
+      if (e.code == 'too-many-requests') {
+        throw const AuthException(
+            'Çok sık denediniz. Bir süre sonra tekrar deneyin.');
+      }
+      throw _map(e);
+    }
+  }
+
+  @override
+  Future<bool> refreshEmailVerified() async {
+    final fbUser = _auth.currentUser;
+    if (fbUser == null) throw AuthException.notSignedIn;
+    await fbUser.reload();
+    final verified = _auth.currentUser?.emailVerified ?? false;
+    // userChanges() reload sonrası her zaman yayın yapmayabilir — UI'ın
+    // anında yenilenmesi için güncel kullanıcıyı elle de yayınla.
+    final cached = _cached;
+    if (cached != null && cached.emailVerified != verified) {
+      _cached = cached.copyWith(emailVerified: verified);
+      _manualUpdates.add(_cached);
+    }
+    return verified;
   }
 
   @override

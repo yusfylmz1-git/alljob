@@ -40,6 +40,15 @@ abstract interface class AuthRepository {
 
   Future<void> sendPasswordReset(String email);
 
+  /// Oturum açmış kullanıcıya e-posta doğrulama bağlantısı gönderir.
+  /// (Kayıtta otomatik gönderilir; bu, profildeki "yeniden gönder" için.)
+  Future<void> sendEmailVerification();
+
+  /// Auth kullanıcısını sunucudan tazeleyip e-postanın doğrulanıp
+  /// doğrulanmadığını döndürür; değiştiyse auth akışına güncel kullanıcıyı
+  /// yayınlar (UI kendiliğinden yenilenir).
+  Future<bool> refreshEmailVerified();
+
   /// Telefon SMS doğrulaması başarıyla tamamlanıp numara hesaba bağlandıktan
   /// SONRA çağrılır: `users` dökümanına `phoneVerified=true` yazar ve numarayı
   /// yalnızca sahibin okuyabildiği `users/{uid}/private/contact` alanına kaydeder.

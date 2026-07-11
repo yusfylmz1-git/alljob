@@ -28,6 +28,7 @@ class MockAuthRepository implements AuthRepository {
         email: email,
         hasArtisanProfile: artisan,
         activeMode: artisan ? UserRole.artisan : UserRole.customer,
+        emailVerified: true, // demo hesaplar doğrulanmış görünür
         createdAt: DateTime.now(),
       ),
     );
@@ -68,6 +69,8 @@ class MockAuthRepository implements AuthRepository {
       createdAt: DateTime.now(),
     );
     _accounts[key] = _Account(password: password, user: user);
+    // Firebase paritesi: kayıtta doğrulama e-postası otomatik "gönderilir".
+    _verificationPending = true;
     _emit(user);
     return user;
   }
@@ -137,6 +140,33 @@ class MockAuthRepository implements AuthRepository {
   Future<void> sendPasswordReset(String email) async {
     await _delay();
     // Mock: gerçek e-posta gönderilmez. Güvenlik için hesap olmasa da hata vermez.
+  }
+
+  /// Test kancası: "kullanıcı e-postadaki bağlantıya tıkladı" simülasyonu.
+  /// Gerçekte doğrulama Firebase Auth tarafında gerçekleşir; mock'ta bekleyen
+  /// doğrulama [refreshEmailVerified] çağrılınca hesaba işlenir.
+  bool _verificationPending = false;
+
+  @override
+  Future<void> sendEmailVerification() async {
+    if (_current == null) throw AuthException.notSignedIn;
+    await _delay();
+    _verificationPending = true;
+  }
+
+  @override
+  Future<bool> refreshEmailVerified() async {
+    final user = _current;
+    if (user == null) throw AuthException.notSignedIn;
+    await _delay();
+    if (_verificationPending && !user.emailVerified) {
+      _verificationPending = false;
+      final updated = user.copyWith(emailVerified: true);
+      _store(updated);
+      _emit(updated);
+      return true;
+    }
+    return user.emailVerified;
   }
 
   @override

@@ -15,6 +15,7 @@ class AppUser {
     this.hasArtisanProfile = false,
     this.activeMode = UserRole.customer,
     this.phoneVerified = false,
+    this.emailVerified = false,
     this.phoneNumber,
     this.profilePhotoUrl,
   });
@@ -36,6 +37,12 @@ class AppUser {
   /// sonrası `true` yazılabilir (Firestore kuralı `token.phone_number` ister).
   final bool phoneVerified;
 
+  /// E-posta adresi doğrulandı mı? KAYNAĞI Firebase Auth'tur (doğrulama
+  /// bağlantısına tıklanınca Auth tarafında değişir) — `users` dökümanına
+  /// YAZILMAZ/OKUNMAZ (istemcinin kendine yazabileceği sahte bir alan
+  /// olmasın); repo katmanı Auth kullanıcısından doldurur.
+  final bool emailVerified;
+
   /// Yalnızca ustalar için; müşteriye asla gösterilmez (PRD §6).
   /// GÜVENLİK: herkese açık `users` dökümanına yazılmaz (bkz. toMap); yalnızca
   /// sahibin okuyabildiği `users/{uid}/private/*` alt-koleksiyonunda saklanır.
@@ -53,6 +60,7 @@ class AppUser {
     bool? hasArtisanProfile,
     UserRole? activeMode,
     bool? phoneVerified,
+    bool? emailVerified,
   }) {
     return AppUser(
       uid: uid,
@@ -62,6 +70,7 @@ class AppUser {
       hasArtisanProfile: hasArtisanProfile ?? this.hasArtisanProfile,
       activeMode: activeMode ?? this.activeMode,
       phoneVerified: phoneVerified ?? this.phoneVerified,
+      emailVerified: emailVerified ?? this.emailVerified,
       phoneNumber: phoneNumber ?? this.phoneNumber,
       profilePhotoUrl: profilePhotoUrl ?? this.profilePhotoUrl,
     );

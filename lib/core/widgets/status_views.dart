@@ -66,8 +66,10 @@ class ErrorView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    // SingleChildScrollView: klavye açık/alan dar olduğunda taşma şeridi
+    // yerine kaydırılabilir kalsın.
     return Center(
-      child: Padding(
+      child: SingleChildScrollView(
         padding: const EdgeInsets.all(32),
         child: Column(
           mainAxisSize: MainAxisSize.min,

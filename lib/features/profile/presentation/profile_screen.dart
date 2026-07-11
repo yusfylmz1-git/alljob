@@ -621,6 +621,88 @@ class _AccountGroup extends ConsumerWidget {
     }
   }
 
+  /// E-posta doğrulama akışı: bağlantıyı (yeniden) gönder veya durumu
+  /// kontrol et. Doğrulama, e-postadaki bağlantıya tıklanınca Firebase Auth
+  /// tarafında gerçekleşir; buradaki "kontrol et" durumu sunucudan tazeler.
+  Future<void> _verifyEmail(
+      BuildContext context, WidgetRef ref, AppUser user) async {
+    final action = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('E-postanı Doğrula',
+                  style: Theme.of(ctx)
+                      .textTheme
+                      .titleMedium
+                      ?.copyWith(fontWeight: FontWeight.w800)),
+              const SizedBox(height: 6),
+              Text(
+                '${user.email} adresine gönderilen bağlantıya tıklayarak '
+                'e-postanızı doğrulayın. E-posta gelmediyse spam/gereksiz '
+                'klasörünü kontrol edin veya yeniden gönderin.',
+                style: Theme.of(ctx).textTheme.bodySmall?.copyWith(
+                    color: Theme.of(ctx).colorScheme.onSurfaceVariant),
+              ),
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  icon: const Icon(Icons.send_outlined, size: 18),
+                  label: const Text('Doğrulama E-postasını Gönder'),
+                  onPressed: () => Navigator.pop(ctx, 'send'),
+                ),
+              ),
+              const SizedBox(height: 8),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  icon: const Icon(Icons.refresh, size: 18),
+                  label: const Text('Bağlantıya Tıkladım — Kontrol Et'),
+                  onPressed: () => Navigator.pop(ctx, 'check'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (action == null || !context.mounted) return;
+
+    final ctrl = ref.read(authControllerProvider.notifier);
+    if (action == 'send') {
+      final ok = await ctrl.sendEmailVerification();
+      if (!context.mounted) return;
+      if (ok) {
+        context.showSuccess(
+            'Doğrulama bağlantısı ${user.email} adresine gönderildi.');
+      } else {
+        final err = ref.read(authControllerProvider).error;
+        context.showError(err is AuthException
+            ? err.message
+            : 'Gönderilemedi. Bağlantınızı kontrol edip tekrar deneyin.');
+      }
+      return;
+    }
+
+    final verified = await ctrl.checkEmailVerified();
+    if (!context.mounted) return;
+    if (verified == true) {
+      context.showSuccess('E-postanız doğrulandı! 🎉');
+    } else if (verified == false) {
+      context.showInfo('Henüz doğrulanmamış görünüyor. E-postanızdaki '
+          'bağlantıya tıkladıktan sonra tekrar deneyin.');
+    } else {
+      context.showError(
+          'Kontrol edilemedi. Bağlantınızı kontrol edip tekrar deneyin.');
+    }
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
@@ -652,17 +734,27 @@ class _AccountGroup extends ConsumerWidget {
               : 'Hesabını güvene al, doğrulanmış rozeti kazan',
           onTap: () => _verifyPhone(context, ref),
         ),
-      _MenuRow(
-        icon: Icons.mail_outline,
-        iconColor: theme.colorScheme.onSurfaceVariant,
-        iconSurface: theme.colorScheme.surfaceContainer,
-        title: 'E-posta',
-        trailing: Text(
-          user.email,
-          style: theme.textTheme.bodySmall
-              ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+      if (user.emailVerified)
+        _MenuRow(
+          icon: Icons.mail_outline,
+          iconColor: theme.colorScheme.onSurfaceVariant,
+          iconSurface: theme.colorScheme.surfaceContainer,
+          title: 'E-posta',
+          trailing: Text(
+            user.email,
+            style: theme.textTheme.bodySmall
+                ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+          ),
+        )
+      else
+        _MenuRow(
+          icon: Icons.mark_email_unread_outlined,
+          iconColor: context.palette.warning,
+          iconSurface: context.palette.warning.withValues(alpha: 0.10),
+          title: 'E-postanı Doğrula',
+          subtitle: '${user.email} henüz doğrulanmadı',
+          onTap: () => _verifyEmail(context, ref, user),
         ),
-      ),
       _MenuRow(
         icon: Icons.calendar_today_outlined,
         iconColor: theme.colorScheme.onSurfaceVariant,
