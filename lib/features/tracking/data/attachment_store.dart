@@ -13,16 +13,30 @@ import '../../../data/models/track_item.dart';
 /// → kaynak (galeri önbelleği, geçici kayıt) silinse de ek durur. Buluta yükleme
 /// YOK (o Faz 5). Kayıt silinince [deleteFiles] ile dosyalar da temizlenir.
 class AttachmentStore {
-  const AttachmentStore();
+  /// [baseDirOverride] yalnız testler içindir (path_provider olmadan geçici
+  /// dizin sağlar); üretimde `getApplicationDocumentsDirectory` kullanılır.
+  const AttachmentStore({Future<Directory> Function()? baseDirOverride})
+      : _baseDirOverride = baseDirOverride;
+
+  final Future<Directory> Function()? _baseDirOverride;
 
   static const _dirName = 'track_attachments';
 
   Future<Directory> _dir() async {
-    final base = await getApplicationDocumentsDirectory();
+    final override = _baseDirOverride;
+    final base = override != null
+        ? await override()
+        : await getApplicationDocumentsDirectory();
     final dir = Directory(p.join(base.path, _dirName));
     if (!await dir.exists()) await dir.create(recursive: true);
     return dir;
   }
+
+  static String _extForType(TrackAttachmentType type) => switch (type) {
+        TrackAttachmentType.photo => '.jpg',
+        TrackAttachmentType.audio => '.m4a',
+        TrackAttachmentType.file => '.bin',
+      };
 
   String _newName(String extension) {
     final ts = DateTime.now().microsecondsSinceEpoch.toRadixString(36);
@@ -60,6 +74,31 @@ class AttachmentStore {
       path: finalFile.path,
       name: displayName ?? p.basename(sourcePath),
       sizeBytes: size,
+      durationMs: durationMs,
+    );
+  }
+
+  /// Ham baytları (bulut yedeğinden indirilen ek) uygulama dizinine yazar ve
+  /// yerel yolu taşıyan bir [TrackAttachment] döndürür. Dosya adı korunmaya
+  /// çalışılır (uzantı için), yoksa türe göre varsayılan uzantı kullanılır.
+  Future<TrackAttachment> saveBytes({
+    required Uint8List bytes,
+    required TrackAttachmentType type,
+    String? name,
+    int? durationMs,
+  }) async {
+    final ext = (name != null && p.extension(name).isNotEmpty)
+        ? p.extension(name)
+        : _extForType(type);
+    final dir = await _dir();
+    final destPath = p.join(dir.path, _newName(ext));
+    final file = File(destPath);
+    await file.writeAsBytes(bytes);
+    return TrackAttachment(
+      type: type,
+      path: file.path,
+      name: name,
+      sizeBytes: bytes.length,
       durationMs: durationMs,
     );
   }

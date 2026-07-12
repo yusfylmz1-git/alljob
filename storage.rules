@@ -18,6 +18,19 @@ service firebase.storage {
         && request.resource.contentType.matches('image/.*');
     }
 
+    // Takip Merkezi bulut yedeği ekleri (Faz 5): track/{uid}/{kayıtId}/{dosya}.
+    // KİŞİSEL veridir → yukarıdaki kamuya açık kuraldan FARKLI olarak yalnızca
+    // sahibi okur/yazar (foto/dosya/ses; yalnız görsel değil). Bu yol 4
+    // segmentli olduğundan aşağıdaki 3 segmentli genel kuralla ÇAKIŞMAZ
+    // (Storage tek segmentli joker eşleşmesi yapar) → yanlışlıkla herkese
+    // açılmaz. Boyut sınırı 25 MB (ses/dosya ekleri görsellerden büyük olabilir).
+    match /track/{uid}/{recordId}/{fileName} {
+      allow read, write: if request.auth != null
+        && request.auth.uid == uid
+        && (request.resource == null
+            || request.resource.size < 25 * 1024 * 1024);
+    }
+
     // Yeni yükleme yolu: {klasör}/{uid}/{dosya} — herkes yalnızca KENDİ uid
     // klasörüne yazabilir (başkasının görselini ezme/istenmeyen klasör yok).
     match /{folder}/{uid}/{fileName} {

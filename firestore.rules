@@ -53,6 +53,14 @@ service cloud.firestore {
         allow read, write: if isSelf(uid);
       }
 
+      // Takip Merkezi bulut YEDEĞİ (Faz 5) — kişisel takip verisi GİZLİDİR,
+      // yalnızca sahibi okur/yazar (kamuya açık değil). Yerel-öncelikli
+      // mimaride bulut yalnızca güvenlik kopyasıdır; canlı senkron yoktur.
+      // Ek DOSYALARI Storage `track/{uid}/...` altında (aynı sahiplik kuralı).
+      match /trackBackup/{docId} {
+        allow read, write: if isSelf(uid);
+      }
+
       // Uygulama içi bildirim merkezi — kayıtları YALNIZCA Cloud Functions
       // yazar (Admin SDK kuralları aşar). Sahibi okur ve sadece `read`
       // alanını true yapabilir; sahte bildirim enjekte edilemez/silinemez.

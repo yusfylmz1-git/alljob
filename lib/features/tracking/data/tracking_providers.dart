@@ -1,8 +1,12 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/config/backend_config.dart';
 import '../../../data/models/track_item.dart';
 import '../../auth/application/auth_controller.dart';
+import 'firebase_track_backup_repository.dart';
+import 'mock_track_backup_repository.dart';
 import 'sqflite_tracking_repository.dart';
+import 'track_backup_repository.dart';
 import 'tracking_repository.dart';
 
 /// Takip Merkezi deposu. Yerel-öncelikli: HER ZAMAN cihaz içi sqflite
@@ -12,6 +16,14 @@ final trackingRepositoryProvider = Provider<TrackingRepository>((ref) {
   final repo = SqfliteTrackingRepository();
   ref.onDispose(repo.dispose);
   return repo;
+});
+
+/// Bulut yedeği deposu (Faz 5). Yerel takip verisinden farklı olarak BULUT
+/// yedeği backend seçimine bağlıdır: Firebase varsa Firestore, yoksa (testler)
+/// bellek-içi mock. Canlı senkron DEĞİL — yalnız elle yedek/geri yükle.
+final trackBackupRepositoryProvider = Provider<TrackBackupRepository>((ref) {
+  if (useFirebaseBackend) return FirebaseTrackBackupRepository();
+  return MockTrackBackupRepository();
 });
 
 /// Oturumdaki kullanıcının aktif takipleri (çöpte olmayanlar). Oturum yoksa

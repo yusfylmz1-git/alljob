@@ -1,13 +1,18 @@
+import 'dart:io';
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
+import 'package:path/path.dart' as p;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:usta_cepte/app.dart';
 import 'package:usta_cepte/core/router/app_router.dart';
 import 'package:usta_cepte/core/router/route_paths.dart';
 import 'package:usta_cepte/data/models/track_item.dart';
 import 'package:usta_cepte/features/auth/application/auth_controller.dart';
+import 'package:usta_cepte/features/tracking/application/track_backup_service.dart';
 import 'package:usta_cepte/features/tracking/application/track_filter.dart';
 import 'package:usta_cepte/features/tracking/application/tracking_controller.dart';
 import 'package:usta_cepte/features/tracking/data/attachment_store.dart';
@@ -560,6 +565,123 @@ void main() {
     });
   });
 
+  // Faz 5: bulut yedeği — yedekle/geri yükle turu (ek dosyası dâhil).
+  group('TrackBackupService — yedekle/geri yükle', () {
+    late ProviderContainer container;
+    late Directory tempDir;
+
+    Future<String> setUpBackup() async {
+      tempDir = await Directory.systemTemp.createTemp('track_backup_test');
+      container = ProviderContainer(overrides: [
+        ...mockBackendOverrides(),
+        attachmentStoreProvider.overrideWithValue(
+          AttachmentStore(baseDirOverride: () async => tempDir),
+        ),
+      ]);
+      container.listen(currentUserProvider, (_, _) {});
+      final user = await container.read(authRepositoryProvider).register(
+          displayName: 'N', email: 'b@o.com', password: 'sifre123');
+      for (var i = 0;
+          i < 200 && container.read(currentUserProvider)?.uid != user.uid;
+          i++) {
+        await Future<void>.delayed(const Duration(milliseconds: 5));
+      }
+      return user.uid;
+    }
+
+    tearDown(() async {
+      container.dispose();
+      if (await tempDir.exists()) await tempDir.delete(recursive: true);
+    });
+
+    test('kayıt + ek buluta yedeklenir ve geri yüklenir (baytlar korunur)',
+        () async {
+      final uid = await setUpBackup();
+      final repo = container.read(trackingRepositoryProvider);
+      final service = container.read(trackBackupServiceProvider);
+
+      // Bilinen baytlarla bir kaynak ek dosyası oluştur.
+      final bytes = Uint8List.fromList(List.generate(48, (i) => i % 256));
+      final srcFile = File(p.join(tempDir.path, 'foto.jpg'));
+      await srcFile.writeAsBytes(bytes);
+
+      final now = DateTime.now();
+      await repo.upsert(
+        uid,
+        TrackItem(
+          id: 't_1',
+          title: 'Yedekli',
+          note: 'not',
+          priority: TrackPriority.high,
+          tags: const ['ev'],
+          attachments: [
+            TrackAttachment(
+                type: TrackAttachmentType.photo,
+                path: srcFile.path,
+                name: 'foto.jpg'),
+          ],
+          createdAt: now,
+          updatedAt: now,
+        ),
+      );
+
+      final backup = await service.backupNow();
+      expect(backup.ok, isTrue);
+      expect(backup.count, 1);
+
+      final info = await service.currentInfo();
+      expect(info, isNotNull);
+      expect(info!.count, 1);
+
+      // Yereli temizle (kayıt + kaynak dosya) — cihaz değişimini taklit et.
+      await repo.deletePermanently('t_1');
+      await srcFile.delete();
+      expect(await repo.getById('t_1'), isNull);
+
+      final restore = await service.restoreNow();
+      expect(restore.ok, isTrue);
+      expect(restore.count, 1);
+
+      final restored = await repo.getById('t_1');
+      expect(restored, isNotNull);
+      expect(restored!.title, 'Yedekli');
+      expect(restored.priority, TrackPriority.high);
+      expect(restored.tags, ['ev']);
+      expect(restored.attachments, hasLength(1));
+      // Ek yerele indirildi ve baytlar bire bir korundu.
+      final restoredFile = File(restored.attachments.first.path);
+      expect(await restoredFile.exists(), isTrue);
+      expect(await restoredFile.readAsBytes(), bytes);
+    });
+
+    test('yedek tam AYNADIR: silinen kayıt sonraki yedekte buluttan düşer',
+        () async {
+      final uid = await setUpBackup();
+      final repo = container.read(trackingRepositoryProvider);
+      final service = container.read(trackBackupServiceProvider);
+      final now = DateTime.now();
+
+      TrackItem plain(String id) =>
+          TrackItem(id: id, title: id, createdAt: now, updatedAt: now);
+
+      await repo.upsert(uid, plain('t_a'));
+      await repo.upsert(uid, plain('t_b'));
+      expect((await service.backupNow()).count, 2);
+
+      // Birini yerelden sil, tekrar yedekle → bulutta yalnız 1 kalmalı.
+      await repo.deletePermanently('t_a');
+      final second = await service.backupNow();
+      expect(second.count, 1);
+      expect((await service.currentInfo())!.count, 1);
+
+      // Restore yalnız kalan kaydı döndürür (aynadan düşen geri gelmez).
+      await repo.deletePermanently('t_b');
+      await service.restoreNow();
+      expect(await repo.getById('t_a'), isNull);
+      expect((await repo.getById('t_b'))!.title, 't_b');
+    });
+  });
+
   // Faz 4: filtre + sıralama (saf mantık).
   group('TrackFilter — filtre ve sıralama', () {
     final base = DateTime(2026, 1, 1, 9, 0);
@@ -673,6 +795,15 @@ class _RecordingStore implements AttachmentStore {
     String? displayName,
     int? durationMs,
     bool move = false,
+  }) =>
+      throw UnimplementedError();
+
+  @override
+  Future<TrackAttachment> saveBytes({
+    required Uint8List bytes,
+    required TrackAttachmentType type,
+    String? name,
+    int? durationMs,
   }) =>
       throw UnimplementedError();
 }

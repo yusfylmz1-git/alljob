@@ -55,6 +55,11 @@ class _TrackingCenterScreenState extends ConsumerState<TrackingCenterScreen> {
             : _subtitle(tracksAsync.value!),
         actions: [
           IconButton(
+            tooltip: 'Bulut Yedeği',
+            icon: const Icon(Icons.cloud_sync_outlined),
+            onPressed: () => context.push(RoutePaths.trackingBackup),
+          ),
+          IconButton(
             tooltip: 'Çöp Kutusu',
             icon: const Icon(Icons.delete_outline),
             onPressed: () => context.push(RoutePaths.trackingTrash),

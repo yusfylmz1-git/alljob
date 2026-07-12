@@ -65,6 +65,7 @@ class RoutePaths {
   static const String tracking = '/tracking';
   static const String trackingNew = '/tracking/new';
   static const String trackingTrash = '/tracking/trash';
+  static const String trackingBackup = '/tracking/backup';
   static String trackDetail(String id) => '/tracking/$id';
   static String trackEdit(String id) => '/tracking/$id/edit';
 }

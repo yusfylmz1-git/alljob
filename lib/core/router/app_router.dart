@@ -30,6 +30,7 @@ import '../../features/safety/presentation/blocked_users_screen.dart';
 import '../../features/tracking/presentation/track_detail_screen.dart';
 import '../../features/tracking/presentation/track_edit_screen.dart';
 import '../../features/tracking/presentation/tracking_center_screen.dart';
+import '../../features/tracking/presentation/track_backup_screen.dart';
 import '../../features/tracking/presentation/tracking_trash_screen.dart';
 import 'route_paths.dart';
 
@@ -222,6 +223,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: RoutePaths.trackingTrash,
         builder: (_, _) => const TrackingTrashScreen(),
+      ),
+      GoRoute(
+        path: RoutePaths.trackingBackup,
+        builder: (_, _) => const TrackBackupScreen(),
       ),
       GoRoute(
         path: RoutePaths.tracking,

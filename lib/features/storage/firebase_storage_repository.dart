@@ -43,4 +43,31 @@ class FirebaseStorageRepository implements StorageRepository {
 
   @override
   Uint8List? localBytes(String handle) => null;
+
+  /// Bulut yedeğinden indirilebilecek en büyük ek (Storage `getData` üst sınırı).
+  static const int _maxDownloadBytes = 30 * 1024 * 1024;
+
+  @override
+  Future<String> uploadBytes({
+    required String path,
+    required Uint8List bytes,
+    required String contentType,
+  }) async {
+    final ref = _storage.ref(path);
+    final task = ref.putData(bytes, SettableMetadata(contentType: contentType));
+    try {
+      await task.timeout(_uploadTimeout);
+    } on TimeoutException {
+      unawaited(task.cancel().catchError((_) => false));
+      rethrow;
+    }
+    return ref.getDownloadURL().timeout(_urlTimeout);
+  }
+
+  @override
+  Future<Uint8List?> downloadBytes(String handle) async {
+    return _storage.refFromURL(handle).getData(_maxDownloadBytes).timeout(
+          _uploadTimeout,
+        );
+  }
 }
