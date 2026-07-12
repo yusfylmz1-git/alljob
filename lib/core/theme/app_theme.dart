@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import 'accent_options.dart';
 import 'app_accent.dart';
 import 'app_colors.dart';
 import 'app_palette.dart';
@@ -46,10 +47,10 @@ class AppTheme {
 
   /// Aktif moda göre vurgu rengi enjekte edilmiş temalar. [accent] verilmezse
   /// müşteri (mavi) varsayılanı kullanılır — misafir/oturumsuz akış için.
-  static ThemeData light([AppAccent? accent]) =>
-      _build(Brightness.light, accent ?? AppAccent.customerLight);
-  static ThemeData dark([AppAccent? accent]) =>
-      _build(Brightness.dark, accent ?? AppAccent.customerDark);
+  static ThemeData light([AppAccent? accent]) => _build(Brightness.light,
+      accent ?? accentById(kDefaultCustomerAccentId).light);
+  static ThemeData dark([AppAccent? accent]) => _build(Brightness.dark,
+      accent ?? accentById(kDefaultCustomerAccentId).dark);
 
   static ColorScheme _lightScheme() => const ColorScheme(
         brightness: Brightness.light,

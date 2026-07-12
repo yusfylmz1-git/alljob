@@ -11,6 +11,7 @@ import 'package:intl/date_symbol_data_local.dart';
 
 import 'app.dart';
 import 'core/config/backend_config.dart';
+import 'core/theme/accent_state.dart';
 import 'core/theme/theme_mode_state.dart';
 import 'features/onboarding/onboarding_state.dart';
 import 'firebase_options.dart';
@@ -82,11 +83,17 @@ Future<void> main() async {
   // Tema tercihi (Sistem/Açık/Koyu) cihazdan okunur; kayıt yoksa Sistem.
   final themeMode = await readThemeMode();
 
+  // Mod başına seçilen vurgu rengi (Görünüm ayarı) cihazdan okunur.
+  final customerAccentId = await readCustomerAccentId();
+  final artisanAccentId = await readArtisanAccentId();
+
   runApp(
     ProviderScope(
       overrides: [
         onboardingSeenProvider.overrideWith((ref) => seenOnboarding),
         themeModeProvider.overrideWith((ref) => themeMode),
+        customerAccentIdProvider.overrideWith((ref) => customerAccentId),
+        artisanAccentIdProvider.overrideWith((ref) => artisanAccentId),
       ],
       child: const UstaCepteApp(),
     ),

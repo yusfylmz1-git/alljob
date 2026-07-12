@@ -7,6 +7,8 @@ import '../../features/auth/application/auth_controller.dart';
 import '../../features/auth/data/auth_repository.dart';
 import '../../features/chat/data/chat_providers.dart';
 import '../router/route_paths.dart';
+import '../theme/accent_options.dart';
+import '../theme/accent_state.dart';
 import '../theme/app_palette.dart';
 import '../theme/theme_mode_state.dart';
 import '../utils/snackbar_helper.dart';
@@ -102,52 +104,14 @@ class AppMenuDrawer extends ConsumerWidget {
     }
   }
 
-  /// Görünüm (tema) tercihi: Sistem / Açık / Koyu. Seçim cihazda saklanır.
-  Future<void> _pickTheme(BuildContext context, WidgetRef ref) async {
-    final current = ref.read(themeModeProvider);
-    final picked = await showModalBottomSheet<ThemeMode>(
+  /// Görünüm ayarları: tema (Sistem/Açık/Koyu) + mod başına vurgu rengi.
+  /// Seçimler anında uygulanır ve cihazda saklanır (sonraki açılışta korunur).
+  Future<void> _pickTheme(BuildContext context, WidgetRef ref) {
+    return showModalBottomSheet<void>(
       context: context,
-      builder: (ctx) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 18, 20, 6),
-              child: Text('Görünüm',
-                  style: Theme.of(ctx).textTheme.titleMedium),
-            ),
-            RadioGroup<ThemeMode>(
-              groupValue: current,
-              onChanged: (v) => Navigator.pop(ctx, v),
-              child: Column(
-                children: const [
-                  RadioListTile<ThemeMode>(
-                    value: ThemeMode.system,
-                    title: Text('Sistem'),
-                    subtitle: Text('Cihazın ayarını izler'),
-                  ),
-                  RadioListTile<ThemeMode>(
-                    value: ThemeMode.light,
-                    title: Text('Açık'),
-                  ),
-                  RadioListTile<ThemeMode>(
-                    value: ThemeMode.dark,
-                    title: Text('Koyu'),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 8),
-          ],
-        ),
-      ),
+      isScrollControlled: true,
+      builder: (_) => const _AppearanceSheet(),
     );
-    if (picked != null && picked != current) {
-      ref.read(themeModeProvider.notifier).state = picked;
-      // Kalıcı kayıt arka planda; başarısız olsa da seçim bu oturumda geçerli.
-      saveThemeMode(picked);
-    }
   }
 
   Future<void> _signOut(BuildContext context, WidgetRef ref) async {
@@ -302,6 +266,201 @@ class AppMenuDrawer extends ConsumerWidget {
             onTap: () => _signOut(context, ref),
           ),
       ],
+    );
+  }
+}
+
+/// Görünüm alt sayfası: tema modu (Sistem/Açık/Koyu) + mod başına vurgu rengi.
+/// Her dokunuş anında uygulanır (canlı önizleme) ve cihazda saklanır.
+class _AppearanceSheet extends ConsumerWidget {
+  const _AppearanceSheet();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final palette = context.palette;
+    final mode = ref.watch(themeModeProvider);
+    final customerId = ref.watch(customerAccentIdProvider);
+    final artisanId = ref.watch(artisanAccentIdProvider);
+
+    void setMode(ThemeMode? m) {
+      if (m == null) return;
+      ref.read(themeModeProvider.notifier).state = m;
+      saveThemeMode(m);
+    }
+
+    return SafeArea(
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                margin: const EdgeInsets.only(top: 12, bottom: 6),
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: palette.borderStrong,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 8, 20, 4),
+              child:
+                  Text('Görünüm', style: theme.textTheme.titleMedium),
+            ),
+            RadioGroup<ThemeMode>(
+              groupValue: mode,
+              onChanged: setMode,
+              child: const Column(
+                children: [
+                  RadioListTile<ThemeMode>(
+                    value: ThemeMode.system,
+                    title: Text('Sistem'),
+                    subtitle: Text('Cihazın ayarını izler'),
+                  ),
+                  RadioListTile<ThemeMode>(
+                    value: ThemeMode.light,
+                    title: Text('Açık'),
+                  ),
+                  RadioListTile<ThemeMode>(
+                    value: ThemeMode.dark,
+                    title: Text('Koyu'),
+                  ),
+                ],
+              ),
+            ),
+            const Divider(indent: 16, endIndent: 16),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 10, 20, 2),
+              child: Text('Renk', style: theme.textTheme.titleMedium),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 10),
+              child: Text(
+                'Her mod için ayrı bir vurgu rengi seç.',
+                style: theme.textTheme.bodySmall
+                    ?.copyWith(color: palette.inkMuted),
+              ),
+            ),
+            _AccentRow(
+              label: 'Müşteri modu',
+              currentId: customerId,
+              onPick: (id) {
+                ref.read(customerAccentIdProvider.notifier).state = id;
+                saveCustomerAccentId(id);
+              },
+            ),
+            _AccentRow(
+              label: 'Usta modu',
+              currentId: artisanId,
+              onPick: (id) {
+                ref.read(artisanAccentIdProvider.notifier).state = id;
+                saveArtisanAccentId(id);
+              },
+            ),
+            const SizedBox(height: 16),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Bir mod için 4 renk örneği (swatch) satırı.
+class _AccentRow extends StatelessWidget {
+  const _AccentRow({
+    required this.label,
+    required this.currentId,
+    required this.onPick,
+  });
+
+  final String label;
+  final String currentId;
+  final ValueChanged<String> onPick;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: theme.textTheme.labelLarge
+                ?.copyWith(color: context.palette.inkMuted),
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              for (final o in kAccentOptions)
+                Padding(
+                  padding: const EdgeInsets.only(right: 14),
+                  child: _Swatch(
+                    option: o,
+                    selected: o.id == currentId,
+                    onTap: () => onPick(o.id),
+                  ),
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Tek bir renk örneği; seçiliyse çerçeve + tik gösterir.
+class _Swatch extends StatelessWidget {
+  const _Swatch({
+    required this.option,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final AccentOption option;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      selected: selected,
+      label: '${option.labelTR} rengi',
+      child: Tooltip(
+        message: option.labelTR,
+        child: GestureDetector(
+          onTap: onTap,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 150),
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(
+              color: option.swatch,
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: selected ? context.palette.ink : Colors.transparent,
+                width: 3,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: option.swatch.withValues(alpha: 0.35),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: selected
+                ? const Icon(Icons.check, color: Colors.white, size: 22)
+                : null,
+          ),
+        ),
+      ),
     );
   }
 }

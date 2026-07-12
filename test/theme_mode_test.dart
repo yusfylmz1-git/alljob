@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:usta_cepte/core/theme/app_accent.dart';
+import 'package:usta_cepte/core/theme/accent_options.dart';
+import 'package:usta_cepte/core/theme/accent_state.dart';
 import 'package:usta_cepte/core/theme/app_palette.dart';
 import 'package:usta_cepte/core/theme/app_theme.dart';
 import 'package:usta_cepte/core/theme/theme_mode_state.dart';
@@ -20,38 +21,50 @@ void main() {
     expect(light.ink, isNot(equals(dark.ink)));
   });
 
-  test('mod vurgusu: müşteri mavi, usta yeşil (ColorScheme + AppPalette)', () {
+  test('vurgu rengi seçenekleri temaya doğru enjekte edilir', () {
     const blue = Color(0xFF2563EB);
     const green = Color(0xFF059669);
 
-    final customer = AppTheme.light(AppAccent.customerLight);
-    final artisan = AppTheme.light(AppAccent.artisanLight);
+    final blueTheme = AppTheme.light(accentById('blue').light);
+    final greenTheme = AppTheme.light(accentById('emerald').light);
 
-    // Etkileşim vurgusu (primary) moda göre değişir.
-    expect(customer.colorScheme.primary, blue);
-    expect(artisan.colorScheme.primary, green);
-    expect(customer.extension<AppPalette>()!.primary, blue);
-    expect(artisan.extension<AppPalette>()!.primary, green);
-    expect(customer.colorScheme.primary,
-        isNot(equals(artisan.colorScheme.primary)));
+    // Seçilen renk primary'ye (ColorScheme + AppPalette) uygulanır.
+    expect(blueTheme.colorScheme.primary, blue);
+    expect(greenTheme.colorScheme.primary, green);
+    expect(blueTheme.extension<AppPalette>()!.primary, blue);
+    expect(greenTheme.extension<AppPalette>()!.primary, green);
 
-    // Üst bar / hero gradyanı da moda göre değişir (müşteri mavi ≠ usta yeşil).
-    expect(customer.extension<AppPalette>()!.heroTop,
-        isNot(equals(artisan.extension<AppPalette>()!.heroTop)));
-    expect(customer.extension<AppPalette>()!.heroTop, const Color(0xFF1D4ED8));
-    expect(artisan.extension<AppPalette>()!.heroTop, const Color(0xFF047857));
+    // Üst bar / hero gradyanı da seçilen renge göre değişir.
+    expect(blueTheme.extension<AppPalette>()!.heroTop,
+        isNot(equals(greenTheme.extension<AppPalette>()!.heroTop)));
 
-    // Marka DIŞI roller (yüzey/metin) her iki modda AYNI kalır (yalnız vurgu
-    // değişir — tüm tema baştan boyanmaz).
-    expect(customer.colorScheme.surface, artisan.colorScheme.surface);
-    expect(customer.extension<AppPalette>()!.ink,
-        artisan.extension<AppPalette>()!.ink);
+    // Marka DIŞI roller (yüzey/metin) renk seçiminden ETKİLENMEZ.
+    expect(blueTheme.colorScheme.surface, greenTheme.colorScheme.surface);
+    expect(blueTheme.extension<AppPalette>()!.ink,
+        greenTheme.extension<AppPalette>()!.ink);
 
-    // resolve() doğru seti seçer.
-    expect(AppAccent.resolve(artisan: false, isDark: false).primary, blue);
-    expect(AppAccent.resolve(artisan: true, isDark: false).primary, green);
-    expect(AppAccent.resolve(artisan: false, isDark: true).primary,
-        AppAccent.customerDark.primary);
+    // 4 seçenek var; hepsi benzersiz id; bilinmeyen id varsayılana düşer.
+    expect(kAccentOptions, hasLength(4));
+    expect(kAccentOptions.map((o) => o.id).toSet(), hasLength(4));
+    expect(accentById('yok-boyle').id, kDefaultCustomerAccentId);
+    expect(accentById(null, fallbackId: kDefaultArtisanAccentId).id,
+        kDefaultArtisanAccentId);
+  });
+
+  test('vurgu rengi kalıcı kayıt: müşteri/usta bağımsız roundtrip', () async {
+    SharedPreferences.setMockInitialValues({});
+    // Kayıt yoksa varsayılanlar (müşteri mavi, usta yeşil).
+    expect(await readCustomerAccentId(), kDefaultCustomerAccentId);
+    expect(await readArtisanAccentId(), kDefaultArtisanAccentId);
+
+    await saveCustomerAccentId('violet');
+    await saveArtisanAccentId('orange');
+    expect(await readCustomerAccentId(), 'violet');
+    expect(await readArtisanAccentId(), 'orange');
+
+    // Geçersiz id (kaldırılmış renk) varsayılana düşer.
+    SharedPreferences.setMockInitialValues({'accent_customer_v1': 'neon'});
+    expect(await readCustomerAccentId(), kDefaultCustomerAccentId);
   });
 
   test('tema tercihi kalıcı kayıt: yaz → oku roundtrip', () async {
