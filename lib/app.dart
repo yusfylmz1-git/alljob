@@ -9,6 +9,7 @@ import 'core/theme/theme_mode_state.dart';
 import 'data/models/app_user.dart';
 import 'features/auth/application/auth_controller.dart';
 import 'features/notifications/data/push_service.dart';
+import 'features/tracking/data/track_notification_service.dart';
 
 class UstaCepteApp extends ConsumerWidget {
   const UstaCepteApp({super.key});
@@ -32,6 +33,10 @@ class UstaCepteApp extends ConsumerWidget {
     if (initialUid != null) {
       ref.read(pushServiceProvider).registerFor(initialUid);
     }
+
+    // Takip Merkezi hatırlatma servisini hazırla (idempotent; web/test no-op) —
+    // böylece bildirime dokununca ilgili takibe gitme işleyicisi hazır olur.
+    ref.read(trackNotificationServiceProvider).init();
 
     return MaterialApp.router(
       title: AppConstants.appName,

@@ -75,6 +75,35 @@ enum TrackRecurrence {
         (e) => e.name == v,
         orElse: () => TrackRecurrence.none,
       );
+
+  /// [from]'dan sonraki bir sonraki tekrar zamanı. Saat/dakika korunur.
+  /// [none] için null döner. Ay/yıl eklemede ayın gün sayısı taşarsa ayın
+  /// SON gününe kırpılır (31 Ocak + 1 ay → 28/29 Şubat; 29 Şubat + 1 yıl →
+  /// 28 Şubat). Böylece geçersiz tarih (ör. 31 Şubat → 3 Mart) oluşmaz.
+  DateTime? nextAfter(DateTime from) {
+    switch (this) {
+      case TrackRecurrence.none:
+        return null;
+      case TrackRecurrence.daily:
+        return from.add(const Duration(days: 1));
+      case TrackRecurrence.weekly:
+        return from.add(const Duration(days: 7));
+      case TrackRecurrence.monthly:
+        return _addMonths(from, 1);
+      case TrackRecurrence.yearly:
+        return _addMonths(from, 12);
+    }
+  }
+
+  static DateTime _addMonths(DateTime d, int months) {
+    final total = d.month - 1 + months;
+    final year = d.year + total ~/ 12;
+    final month = total % 12 + 1;
+    // Hedef ayın gün sayısı (bir sonraki ayın 0. günü = bu ayın son günü).
+    final lastDay = DateTime(year, month + 1, 0).day;
+    final day = d.day <= lastDay ? d.day : lastDay;
+    return DateTime(year, month, day, d.hour, d.minute, d.second);
+  }
 }
 
 /// Ek türü. (Brief: "Fotoğraf" / "Dosya" / "Ses Notu".)

@@ -16,6 +16,7 @@ import 'package:usta_cepte/features/safety/data/report_repository.dart';
 import 'package:usta_cepte/features/safety/data/safety_providers.dart';
 import 'package:usta_cepte/features/storage/storage_repository.dart';
 import 'package:usta_cepte/features/tracking/data/mock_tracking_repository.dart';
+import 'package:usta_cepte/features/tracking/data/track_notification_service.dart';
 import 'package:usta_cepte/features/tracking/data/tracking_providers.dart';
 
 /// Tüm backend repo sağlayıcılarını bellek-içi mock uygulamalara yönlendirir.
@@ -65,4 +66,7 @@ List<Override> mockBackendOverrides() => [
         ref.onDispose(repo.dispose);
         return repo;
       }),
+      // Bildirimler native eklenti gerektirir → testlerde no-op.
+      trackNotificationServiceProvider
+          .overrideWithValue(const NoopTrackNotificationService()),
     ];

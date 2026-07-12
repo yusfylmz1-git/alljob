@@ -10,6 +10,7 @@ import 'package:usta_cepte/data/models/track_item.dart';
 import 'package:usta_cepte/features/auth/application/auth_controller.dart';
 import 'package:usta_cepte/features/tracking/application/tracking_controller.dart';
 import 'package:usta_cepte/features/tracking/data/mock_tracking_repository.dart';
+import 'package:usta_cepte/features/tracking/data/track_notification_service.dart';
 import 'package:usta_cepte/features/tracking/data/tracking_providers.dart';
 import 'package:usta_cepte/features/tracking/presentation/track_detail_screen.dart';
 import 'package:usta_cepte/features/tracking/presentation/track_edit_screen.dart';
@@ -277,4 +278,149 @@ void main() {
       expect(find.byType(TrackingTrashScreen), findsOneWidget);
     });
   });
+
+  // Faz 2: hatırlatma + tekrarlama motoru.
+  group('TrackRecurrence.nextAfter — tekrar tarihi hesabı', () {
+    test('none → null', () {
+      expect(TrackRecurrence.none.nextAfter(DateTime(2026, 1, 1)), isNull);
+    });
+
+    test('günlük +1 gün, haftalık +7 gün (saat korunur)', () {
+      expect(TrackRecurrence.daily.nextAfter(DateTime(2026, 1, 1, 9, 30)),
+          DateTime(2026, 1, 2, 9, 30));
+      expect(TrackRecurrence.weekly.nextAfter(DateTime(2026, 1, 1, 9, 30)),
+          DateTime(2026, 1, 8, 9, 30));
+    });
+
+    test('aylık — ay-sonu taşması ayın son gününe kırpılır', () {
+      // 31 Ocak + 1 ay → 28 Şubat 2026 (2026 artık yıl değil).
+      expect(TrackRecurrence.monthly.nextAfter(DateTime(2026, 1, 31, 8, 0)),
+          DateTime(2026, 2, 28, 8, 0));
+      // 31 Ocak 2028 + 1 ay → 29 Şubat 2028 (artık yıl).
+      expect(TrackRecurrence.monthly.nextAfter(DateTime(2028, 1, 31)),
+          DateTime(2028, 2, 29));
+    });
+
+    test('yıllık — 29 Şubat + 1 yıl → 28 Şubat (artık olmayan yıl)', () {
+      expect(TrackRecurrence.yearly.nextAfter(DateTime(2028, 2, 29)),
+          DateTime(2029, 2, 28));
+      expect(TrackRecurrence.yearly.nextAfter(DateTime(2026, 3, 15, 10, 0)),
+          DateTime(2027, 3, 15, 10, 0));
+    });
+  });
+
+  group('TrackingController — hatırlatma senkronu + tekrarlama', () {
+    late ProviderContainer container;
+    late _FakeNotif notif;
+
+    Future<String> setUpLoggedIn() async {
+      notif = _FakeNotif();
+      container = ProviderContainer(overrides: [
+        ...mockBackendOverrides(),
+        // Mükerrer override'da SON kazanır → sahte servis mock'un Noop'undan
+        // SONRA gelmeli (çağrıları kaydeder).
+        trackNotificationServiceProvider.overrideWithValue(notif),
+      ]);
+      // Oturum sağlayıcısı bir Stream'den türer; dinlenmezse yayın yapmaz →
+      // controller._uid null kalır ve save erken döner. Aktive et + kaydın
+      // akışa yansımasını bekle.
+      container.listen(currentUserProvider, (_, _) {});
+      final user = await container.read(authRepositoryProvider).register(
+            displayName: 'N',
+            email: 'n@o.com',
+            password: 'sifre123',
+          );
+      for (var i = 0;
+          i < 200 && container.read(currentUserProvider)?.uid != user.uid;
+          i++) {
+        await Future<void>.delayed(const Duration(milliseconds: 5));
+      }
+      return user.uid;
+    }
+
+    tearDown(() => container.dispose());
+
+    test('kaydetme hatırlatmayı senkronlar; çöp/kalıcı silme iptal eder',
+        () async {
+      await setUpLoggedIn();
+      final ctrl = container.read(trackingControllerProvider);
+      final now = DateTime.now();
+      final item = TrackItem(
+        id: 'r1',
+        title: 'Hatırlat',
+        reminderAt: now.add(const Duration(days: 1)),
+        createdAt: now,
+        updatedAt: now,
+      );
+      await ctrl.save(item);
+      expect(notif.synced.map((e) => e.id), contains('r1'));
+
+      await ctrl.moveToTrash('r1');
+      expect(notif.cancelled, contains('r1'));
+
+      notif.cancelled.clear();
+      await ctrl.restore('r1');
+      expect(notif.synced.last.id, 'r1'); // geri alınca yeniden senkron
+
+      await ctrl.deletePermanently('r1');
+      expect(notif.cancelled, contains('r1'));
+    });
+
+    test('tekrarlı takip tamamlanınca AKTİF kalır ve tarih ileri kayar',
+        () async {
+      await setUpLoggedIn();
+      final ctrl = container.read(trackingControllerProvider);
+      final reminder = DateTime(2026, 1, 10, 9, 0);
+      final item = TrackItem(
+        id: 'rec1',
+        title: 'Kombi bakımı',
+        reminderAt: reminder,
+        recurrence: TrackRecurrence.monthly,
+        createdAt: reminder,
+        updatedAt: reminder,
+      );
+      await ctrl.save(item);
+
+      await ctrl.toggleDone(item);
+      final after = await container.read(trackingRepositoryProvider).getById('rec1');
+      expect(after!.isDone, isFalse); // tekrarlıda "tamamlandı"ya düşmez
+      // reminderAt bir sonraki (gelecekteki) tarihe kaydı — geçmiş değil.
+      expect(after.reminderAt!.isAfter(DateTime.now()), isTrue);
+      expect(after.reminderAt!.day, 10); // aynı gün-of-month korunur
+    });
+
+    test('tekrarsız takip tamamlanınca "tamamlandı" olur', () async {
+      await setUpLoggedIn();
+      final ctrl = container.read(trackingControllerProvider);
+      final now = DateTime.now();
+      final item = TrackItem(
+        id: 'p1',
+        title: 'Tek seferlik',
+        createdAt: now,
+        updatedAt: now,
+      );
+      await ctrl.save(item);
+      await ctrl.toggleDone(item);
+      final after = await container.read(trackingRepositoryProvider).getById('p1');
+      expect(after!.isDone, isTrue);
+    });
+  });
+}
+
+/// Bildirim çağrılarını kaydeden sahte servis (Faz 2 controller testleri).
+class _FakeNotif implements TrackNotificationService {
+  final List<TrackItem> synced = [];
+  final List<String> cancelled = [];
+
+  @override
+  Future<void> init() async {}
+
+  @override
+  Future<bool> ensurePermission() async => true;
+
+  @override
+  Future<void> sync(TrackItem item) async => synced.add(item);
+
+  @override
+  Future<void> cancel(String trackId) async => cancelled.add(trackId);
 }

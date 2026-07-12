@@ -47,6 +47,11 @@ dependencies:
   # sonraki fazda Firestore/Storage ile). Kayıtlar cihazda sqflite'ta tutulur.
   sqflite: ^2.4.1
   path: ^1.9.0
+  # Takip Merkezi Faz 2 — yerel hatırlatma bildirimleri (buluta/FCM'e gerek yok;
+  # tamamen cihazda planlanır). timezone: doğru duvar-saati için (TR = Europe/
+  # Istanbul, kalıcı UTC+3). Uluslararasılaşınca flutter_timezone eklenmeli.
+  flutter_local_notifications: ^22.0.1
+  timezone: ^0.11.1
 
 dev_dependencies:
   flutter_test:

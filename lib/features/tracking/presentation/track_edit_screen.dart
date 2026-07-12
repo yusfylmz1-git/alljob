@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
 
 import '../../../core/theme/app_palette.dart';
 import '../../../core/utils/snackbar_helper.dart';
@@ -9,7 +10,10 @@ import '../../../core/widgets/gradient_app_bar.dart';
 import '../../../core/widgets/responsive_center.dart';
 import '../../../data/models/track_item.dart';
 import '../application/tracking_controller.dart';
+import '../data/track_notification_service.dart';
 import '../data/tracking_providers.dart';
+
+final _reminderFmt = DateFormat('d MMM yyyy, HH:mm', 'tr_TR');
 
 /// Yeni takip oluşturma / var olanı düzenleme.
 ///
@@ -34,6 +38,8 @@ class _TrackEditScreenState extends ConsumerState<TrackEditScreen> {
   TrackItem? _existing;
   TrackPriority _priority = TrackPriority.normal;
   final List<String> _tags = [];
+  DateTime? _reminderAt;
+  TrackRecurrence _recurrence = TrackRecurrence.none;
   final Set<String> _revealed = {};
   bool _dirty = false;
   bool _loading = true;
@@ -62,6 +68,8 @@ class _TrackEditScreenState extends ConsumerState<TrackEditScreen> {
         _noteController.text = item.note ?? '';
         _priority = item.priority;
         _tags.addAll(item.tags);
+        _reminderAt = item.reminderAt;
+        _recurrence = item.recurrence;
       }
       _loading = false;
     });
@@ -114,6 +122,39 @@ class _TrackEditScreenState extends ConsumerState<TrackEditScreen> {
     return ok ?? false;
   }
 
+  Future<void> _pickReminder() async {
+    final now = DateTime.now();
+    final base = _reminderAt ?? now.add(const Duration(hours: 1));
+    final date = await showDatePicker(
+      context: context,
+      initialDate: base.isBefore(now) ? now : base,
+      firstDate: now.subtract(const Duration(days: 1)),
+      lastDate: DateTime(now.year + 5),
+    );
+    if (date == null || !mounted) return;
+    final time = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.fromDateTime(base),
+    );
+    if (time == null || !mounted) return;
+    final picked =
+        DateTime(date.year, date.month, date.day, time.hour, time.minute);
+    // İlk kez hatırlatma kurulurken bildirim iznini iste (reddedilse de kayıt
+    // olur; yalnız bildirim düşmez).
+    await ref.read(trackNotificationServiceProvider).ensurePermission();
+    if (!mounted) return;
+    setState(() {
+      _reminderAt = picked;
+      _dirty = true;
+    });
+  }
+
+  void _clearReminder() => setState(() {
+        _reminderAt = null;
+        _recurrence = TrackRecurrence.none;
+        _dirty = true;
+      });
+
   Future<void> _save() async {
     final title = _titleController.text.trim();
     if (title.isEmpty) {
@@ -124,23 +165,24 @@ class _TrackEditScreenState extends ConsumerState<TrackEditScreen> {
     final now = DateTime.now();
     final note = _noteController.text.trim();
     final base = _existing;
-    final item = base == null
-        ? TrackItem(
-            id: TrackItem.newId(),
-            title: title,
-            note: note.isEmpty ? null : note,
-            priority: _priority,
-            tags: List.of(_tags),
-            createdAt: now,
-            updatedAt: now,
-          )
-        : base.copyWith(
-            title: title,
-            note: note.isEmpty ? null : note,
-            priority: _priority,
-            tags: List.of(_tags),
-            updatedAt: now,
-          );
+    // copyWith null'ı temizleyemez (hatırlatma kaldırma) → alanları açıkça kur;
+    // düzenlerken id/oluşturulma/durum/kişi/konum/ek KORUNUR.
+    final item = TrackItem(
+      id: base?.id ?? TrackItem.newId(),
+      title: title,
+      note: note.isEmpty ? null : note,
+      status: base?.status ?? TrackStatus.active,
+      priority: _priority,
+      tags: List.of(_tags),
+      reminderAt: _reminderAt,
+      recurrence: _reminderAt == null ? TrackRecurrence.none : _recurrence,
+      person: base?.person,
+      location: base?.location,
+      attachments: base?.attachments ?? const [],
+      createdAt: base?.createdAt ?? now,
+      updatedAt: now,
+      deletedAt: base?.deletedAt,
+    );
 
     await ref.read(trackingControllerProvider).save(item);
     if (!mounted) return;
@@ -154,6 +196,8 @@ class _TrackEditScreenState extends ConsumerState<TrackEditScreen> {
     final showPriority =
         _revealed.contains('priority') || _priority != TrackPriority.normal;
     final showTags = _revealed.contains('tags') || _tags.isNotEmpty;
+    final showReminder =
+        _revealed.contains('reminder') || _reminderAt != null;
 
     return PopScope(
       canPop: !_dirty,
@@ -229,9 +273,25 @@ class _TrackEditScreenState extends ConsumerState<TrackEditScreen> {
                       ),
                       const SizedBox(height: 20),
                     ],
+                    if (showReminder) ...[
+                      _FieldLabel('Hatırlatma'),
+                      const SizedBox(height: 8),
+                      _ReminderEditor(
+                        reminderAt: _reminderAt,
+                        recurrence: _recurrence,
+                        onPick: _pickReminder,
+                        onClear: _clearReminder,
+                        onRecurrence: (r) => setState(() {
+                          _recurrence = r;
+                          _dirty = true;
+                        }),
+                      ),
+                      const SizedBox(height: 20),
+                    ],
                     _AddFieldChips(
                       showPriority: !showPriority,
                       showTags: !showTags,
+                      showReminder: !showReminder,
                       onReveal: (key) => setState(() => _revealed.add(key)),
                     ),
                   ],
@@ -385,21 +445,115 @@ class _TagEditor extends StatelessWidget {
   }
 }
 
+/// Hatırlatma tarihi/saati + tekrarlama seçimi. Tarih seçili değilken seçtirir;
+/// seçiliyken tarihi (dokununca değiştir) + Tekrar seçeneklerini gösterir.
+class _ReminderEditor extends StatelessWidget {
+  const _ReminderEditor({
+    required this.reminderAt,
+    required this.recurrence,
+    required this.onPick,
+    required this.onClear,
+    required this.onRecurrence,
+  });
+
+  final DateTime? reminderAt;
+  final TrackRecurrence recurrence;
+  final VoidCallback onPick;
+  final VoidCallback onClear;
+  final ValueChanged<TrackRecurrence> onRecurrence;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    final theme = Theme.of(context);
+    final at = reminderAt;
+
+    if (at == null) {
+      return OutlinedButton.icon(
+        onPressed: onPick,
+        icon: const Icon(Icons.event_outlined, size: 18),
+        label: const Text('Tarih ve saat seç'),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        InkWell(
+          onTap: onPick,
+          borderRadius: BorderRadius.circular(14),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: BoxDecoration(
+              color: palette.surfaceMuted,
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.notifications_active_outlined,
+                    size: 20, color: palette.primary),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    _reminderFmt.format(at),
+                    style: theme.textTheme.bodyLarge
+                        ?.copyWith(fontWeight: FontWeight.w600),
+                  ),
+                ),
+                IconButton(
+                  tooltip: 'Hatırlatmayı kaldır',
+                  icon: Icon(Icons.close, size: 18, color: palette.inkMuted),
+                  onPressed: onClear,
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        Text('Tekrar',
+            style: theme.textTheme.labelMedium
+                ?.copyWith(color: palette.inkMuted, fontWeight: FontWeight.w700)),
+        const SizedBox(height: 6),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            for (final r in TrackRecurrence.values)
+              ChoiceChip(
+                label: Text(r.labelTR),
+                selected: recurrence == r,
+                onSelected: (_) => onRecurrence(r),
+              ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
 /// "Ekle" çipleri — henüz görünmeyen alanları açığa çıkarır (akıllı arayüz).
 class _AddFieldChips extends StatelessWidget {
   const _AddFieldChips({
     required this.showPriority,
     required this.showTags,
+    required this.showReminder,
     required this.onReveal,
   });
 
   final bool showPriority;
   final bool showTags;
+  final bool showReminder;
   final ValueChanged<String> onReveal;
 
   @override
   Widget build(BuildContext context) {
     final chips = <Widget>[
+      if (showReminder)
+        _AddChip(
+          icon: Icons.notifications_outlined,
+          label: 'Hatırlatma',
+          onTap: () => onReveal('reminder'),
+        ),
       if (showPriority)
         _AddChip(
           icon: Icons.flag_outlined,

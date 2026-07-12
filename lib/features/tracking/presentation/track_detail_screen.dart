@@ -130,6 +130,16 @@ class _Detail extends StatelessWidget {
                 icon: Icons.flag_outlined,
                 label: 'Öncelik: ${item.priority.labelTR}',
               ),
+              if (item.reminderAt != null)
+                _InfoChip(
+                  icon: Icons.notifications_active_outlined,
+                  label: _fullFmt.format(item.reminderAt!),
+                ),
+              if (item.recurrence != TrackRecurrence.none)
+                _InfoChip(
+                  icon: Icons.repeat,
+                  label: item.recurrence.labelTR,
+                ),
               for (final t in item.tags)
                 _InfoChip(icon: Icons.label_outline, label: t),
             ],
