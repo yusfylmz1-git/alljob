@@ -368,18 +368,24 @@ service cloud.firestore {
       }
 
       allow create: if isSignedIn() && reportOk();
-      // Güncelleme iki halde: (a) şikayetçi kendi kaydını tekrar şikayetle
-      // günceller (istemci `set`), (b) YÖNETİCİ yalnız durum/çözüm alanlarını
-      // değiştirir (kimlik/hedef alanlarına dokunamaz).
-      allow update: if (isSignedIn()
-          && resource.data.reporterUid == request.auth.uid
-          && reportOk())
-        || (isAdmin()
-          && request.resource.data.diff(resource.data).affectedKeys()
-              .hasOnly(['status', 'adminNote', 'resolvedBy', 'resolvedAt']));
+      // Güncelleme YALNIZCA şikayetçinin kendi kaydını tekrar şikayetle
+      // güncellemesi (istemci `set`) için. YÖNETİCİ kararı istemciden YAZILMAZ:
+      // `adminResolveReport` CF (Admin SDK) durum + denetim kaydını atomik
+      // yazar — böylece her yönetici eylemi izlenebilir ve istemci sahteleyemez.
+      allow update: if isSignedIn()
+        && resource.data.reporterUid == request.auth.uid
+        && reportOk();
       // Okuma yalnız yöneticiye (admin kuyruğu); silme kapalı.
       allow read: if isAdmin();
       allow delete: if false;
+    }
+
+    // adminAuditLogs — değiştirilemez yönetici denetim kaydı. Yalnız Cloud
+    // Functions (Admin SDK) YAZAR (istemci hiç yazamaz); yalnız yönetici OKUR.
+    // Hesap verebilirlik + KVKK/GDPR + anlaşmazlık savunması.
+    match /adminAuditLogs/{logId} {
+      allow read: if isAdmin();
+      allow write: if false;
     }
 
     // favorites — müşterinin takip ettiği ("Takip Et") ustalar (#14). Döküman

@@ -230,7 +230,8 @@ class MockAuthRepository implements AuthRepository {
     if (!isBootstrapAdminEmail(user.email)) {
       throw const AuthException('Bu hesap yönetici yetkisine sahip değil.');
     }
-    _emit(user.copyWith(isAdmin: true)); // _emit ayrıca _current'ı da günceller
+    // _emit ayrıca _current'ı da günceller. Bootstrap her zaman superadmin.
+    _emit(user.copyWith(isAdmin: true, adminRole: 'superadmin'));
     return true;
   }
 

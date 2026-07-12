@@ -2,10 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../data/models/app_user.dart';
 import '../../data/models/user_role.dart';
-import '../../features/admin/data/admin_config.dart';
-import '../../features/admin/data/admin_providers.dart';
 import '../../features/auth/application/auth_controller.dart';
 import '../../features/auth/data/auth_repository.dart';
 import '../../features/chat/data/chat_providers.dart';
@@ -259,12 +256,6 @@ class AppMenuDrawer extends ConsumerWidget {
           onTap: () => _pickTheme(context, ref),
         ),
 
-        // Yönetici paneli — yalnız admin claim'i olan veya bootstrap izinli
-        // e-postaya sahip kullanıcıya görünür (asıl koruma Firestore kuralı).
-        if (user != null &&
-            (user.isAdmin || isBootstrapAdminEmail(user.email)))
-          _AdminTile(user: user),
-
         // Çıkış (oturum varsa).
         if (user != null)
           ListTile(
@@ -473,81 +464,3 @@ class _Swatch extends StatelessWidget {
   }
 }
 
-/// Yönetici paneli menü satırı. Zaten yöneticiyse doğrudan kuyruğa gider
-/// (açık şikayet rozetiyle); değilse (bootstrap izinli e-posta) önce yönetici
-/// erişimini etkinleştirir, sonra kuyruğa gider.
-class _AdminTile extends ConsumerStatefulWidget {
-  const _AdminTile({required this.user});
-  final AppUser user;
-
-  @override
-  ConsumerState<_AdminTile> createState() => _AdminTileState();
-}
-
-class _AdminTileState extends ConsumerState<_AdminTile> {
-  bool _busy = false;
-
-  Future<void> _onTap() async {
-    final router = GoRouter.of(context);
-    if (widget.user.isAdmin) {
-      Navigator.of(context).maybePop(); // drawer'ı kapat
-      router.push(RoutePaths.adminReports);
-      return;
-    }
-    // Bootstrap: erişimi etkinleştir, sonra kuyruğa git.
-    setState(() => _busy = true);
-    try {
-      final ok =
-          await ref.read(authControllerProvider.notifier).claimAdminAccess();
-      if (!mounted) return;
-      setState(() => _busy = false);
-      if (ok) {
-        Navigator.of(context).maybePop();
-        router.push(RoutePaths.adminReports);
-      }
-    } on AuthException catch (e) {
-      if (!mounted) return;
-      setState(() => _busy = false);
-      context.showError(e.message);
-    } catch (_) {
-      if (!mounted) return;
-      setState(() => _busy = false);
-      context.showError('Yönetici erişimi etkinleştirilemedi.');
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final palette = context.palette;
-    final isAdmin = widget.user.isAdmin;
-    final openCount = isAdmin ? ref.watch(openReportCountProvider) : 0;
-
-    return ListTile(
-      leading: Icon(Icons.shield_outlined, color: palette.primary),
-      title: Text(isAdmin ? 'Yönetici Paneli' : 'Yönetici Erişimini Etkinleştir'),
-      subtitle: Text(isAdmin ? 'Şikayet kuyruğu' : 'Bu hesap için yetkiyi aç'),
-      trailing: _busy
-          ? const SizedBox(
-              width: 20,
-              height: 20,
-              child: CircularProgressIndicator(strokeWidth: 2.4),
-            )
-          : (openCount > 0
-              ? Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                  decoration: BoxDecoration(
-                    color: palette.danger,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Text('$openCount',
-                      style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w800,
-                          fontSize: 12)),
-                )
-              : const Icon(Icons.chevron_right)),
-      onTap: _busy ? null : _onTap,
-    );
-  }
-}

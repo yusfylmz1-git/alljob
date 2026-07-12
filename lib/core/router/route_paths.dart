@@ -62,9 +62,6 @@ class RoutePaths {
   // Takip Merkezi (oturum açmış herkes; yerel-öncelikli kişisel takip).
   // Sıralama: /tracking/new ve /tracking/trash, /tracking/:id'den ÖNCE
   // tanımlanmalıdır (aksi halde :id onları da yakalar).
-  // Yönetici paneli (yalnızca admin:true claim'i olan kullanıcı).
-  static const String adminReports = '/admin/reports';
-
   static const String tracking = '/tracking';
   static const String trackingNew = '/tracking/new';
   static const String trackingTrash = '/tracking/trash';

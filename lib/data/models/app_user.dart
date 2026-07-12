@@ -17,6 +17,7 @@ class AppUser {
     this.phoneVerified = false,
     this.emailVerified = false,
     this.isAdmin = false,
+    this.adminRole,
     this.phoneNumber,
     this.profilePhotoUrl,
   });
@@ -51,6 +52,14 @@ class AppUser {
   /// Firestore kurallarındaki `request.auth.token.admin == true` kontrolüdür.
   final bool isAdmin;
 
+  /// Ayrıntılı yönetici rolü (RBAC): 'superadmin' | 'moderator' | … Kaynağı Auth
+  /// custom claim `role`'dür (yalnız CF yazar). [isAdmin] kaba kapıdır; belirli
+  /// yeteneklerin (ör. başka kullanıcıyı yönetici yapma) yalnız 'superadmin'e
+  /// açılması için bu alan kullanılır. Null = yönetici değil.
+  final String? adminRole;
+
+  bool get isSuperAdmin => adminRole == 'superadmin';
+
   /// Yalnızca ustalar için; müşteriye asla gösterilmez (PRD §6).
   /// GÜVENLİK: herkese açık `users` dökümanına yazılmaz (bkz. toMap); yalnızca
   /// sahibin okuyabildiği `users/{uid}/private/*` alt-koleksiyonunda saklanır.
@@ -70,6 +79,8 @@ class AppUser {
     bool? phoneVerified,
     bool? emailVerified,
     bool? isAdmin,
+    String? adminRole,
+    bool clearAdmin = false,
   }) {
     return AppUser(
       uid: uid,
@@ -80,7 +91,8 @@ class AppUser {
       activeMode: activeMode ?? this.activeMode,
       phoneVerified: phoneVerified ?? this.phoneVerified,
       emailVerified: emailVerified ?? this.emailVerified,
-      isAdmin: isAdmin ?? this.isAdmin,
+      isAdmin: clearAdmin ? false : (isAdmin ?? this.isAdmin),
+      adminRole: clearAdmin ? null : (adminRole ?? this.adminRole),
       phoneNumber: phoneNumber ?? this.phoneNumber,
       profilePhotoUrl: profilePhotoUrl ?? this.profilePhotoUrl,
     );

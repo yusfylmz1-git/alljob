@@ -895,8 +895,86 @@ exports.claimAdminAccess = onCall(
         throw new HttpsError(
             "permission-denied", "Bu hesap yönetici olamaz.");
       }
-      await admin.auth().setCustomUserClaims(auth.uid, {admin: true});
+      // RBAC: `admin` (kaba kapı) + `role` (ayrıntılı yetki). Bootstrap
+      // her zaman en yüksek rolü (superadmin) verir.
+      await admin.auth().setCustomUserClaims(
+          auth.uid, {admin: true, role: "superadmin"});
+      await writeAuditLog({
+        actorUid: auth.uid,
+        action: "grant_admin",
+        targetType: "user",
+        targetId: auth.uid,
+        after: {role: "superadmin"},
+      });
       logger.info(`admin claim verildi: ${auth.uid} (${email})`);
-      return {granted: true};
+      return {granted: true, role: "superadmin"};
+    },
+);
+
+// Değiştirilemez yönetici denetim kaydı. Her yetkili eylem (rol verme,
+// şikayet çözme, ileride askıya alma/iade) buraya atomik yazılır: kim, ne,
+// hedef, öncesi/sonrası, ne zaman. Yalnız CF yazar (kural: client write=false),
+// yalnız yönetici okur. Hesap verebilirlik + KVKK/GDPR + anlaşmazlık savunması.
+async function writeAuditLog(entry, batch) {
+  const ref = db.collection("adminAuditLogs").doc();
+  const data = {
+    actorUid: entry.actorUid,
+    action: entry.action,
+    targetType: entry.targetType || null,
+    targetId: entry.targetId || null,
+    before: entry.before || null,
+    after: entry.after || null,
+    createdAt: new Date().toISOString(),
+  };
+  if (batch) {
+    batch.set(ref, data);
+  } else {
+    await ref.set(data);
+  }
+}
+
+// Yönetici bir şikayeti karara bağlar (durum + opsiyonel not). İstemci ARTIK
+// reports'a doğrudan YAZAMAZ (kural CF-only'e çevrildi): tüm mutasyon buradan
+// geçer → yetki doğrulanır, güncelleme ve denetim kaydı ATOMİK yazılır.
+exports.adminResolveReport = onCall(
+    {region: REGION},
+    async (request) => {
+      const auth = request.auth;
+      if (!auth || auth.token.admin !== true) {
+        throw new HttpsError("permission-denied", "Yönetici yetkisi gerekli.");
+      }
+      const {reportId, status, note} = request.data || {};
+      const allowed = ["open", "reviewing", "resolved", "dismissed"];
+      if (typeof reportId !== "string" || !allowed.includes(status)) {
+        throw new HttpsError("invalid-argument", "Geçersiz istek.");
+      }
+      const ref = db.collection("reports").doc(reportId);
+      const snap = await ref.get();
+      if (!snap.exists) {
+        throw new HttpsError("not-found", "Şikayet bulunamadı.");
+      }
+      const before = snap.data() || {};
+      const now = new Date().toISOString();
+      const update = {
+        status,
+        resolvedBy: auth.uid,
+        resolvedAt: now,
+      };
+      if (typeof note === "string" && note.trim()) {
+        update.adminNote = note.trim();
+      }
+      const batch = db.batch();
+      batch.update(ref, update);
+      await writeAuditLog({
+        actorUid: auth.uid,
+        action: "resolve_report",
+        targetType: "report",
+        targetId: reportId,
+        before: {status: before.status || "open"},
+        after: {status},
+      }, batch);
+      await batch.commit();
+      logger.info(`report ${reportId} → ${status} (admin ${auth.uid})`);
+      return {ok: true};
     },
 );

@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 
 import 'admin_report.dart';
 
@@ -24,17 +25,32 @@ abstract interface class AdminReportRepository {
 /// `createdAt` ISO-8601 metin olduğundan `orderBy` sözlüksel sırayla doğru
 /// çalışır (zamanla artan). Okuma izni kuralda `token.admin`'e bağlıdır.
 class FirebaseAdminReportRepository implements AdminReportRepository {
-  FirebaseAdminReportRepository({FirebaseFirestore? firestore})
-      : _db = firestore ?? FirebaseFirestore.instance;
+  FirebaseAdminReportRepository({
+    FirebaseFirestore? firestore,
+    FirebaseFunctions? functions,
+  })  : _db = firestore ?? FirebaseFirestore.instance,
+        _functions = functions ??
+            FirebaseFunctions.instanceFor(region: 'europe-west1');
 
   final FirebaseFirestore _db;
+  final FirebaseFunctions _functions;
+
+  /// Canlı kuyruk penceresi. Milyonlarca kullanıcıda tüm koleksiyonu akıtmak
+  /// olmaz; en yeni [_pageLimit] kayıt canlı gösterilir (eski kayıtlar için
+  /// sayfalama ileride cursor ile eklenir). `createdAt` tek alan sıralaması
+  /// otomatik indekslidir; bileşik indeks gerekmez.
+  static const int _pageLimit = 200;
 
   CollectionReference<Map<String, dynamic>> get _col =>
       _db.collection('reports');
 
   @override
   Stream<List<Report>> watchReports({bool openOnly = false}) {
-    return _col.orderBy('createdAt', descending: true).snapshots().map((snap) {
+    return _col
+        .orderBy('createdAt', descending: true)
+        .limit(_pageLimit)
+        .snapshots()
+        .map((snap) {
       final all =
           snap.docs.map((d) => Report.fromMap(d.id, d.data())).toList();
       return openOnly ? all.where((r) => !r.status.isClosed).toList() : all;
@@ -47,13 +63,15 @@ class FirebaseAdminReportRepository implements AdminReportRepository {
     required ReportStatus status,
     required String resolvedBy,
     String? adminNote,
-  }) {
-    return _col.doc(id).update({
+  }) async {
+    // Doğrudan Firestore yazımı YOK: karar + denetim kaydı sunucuda atomik
+    // yazılsın diye `adminResolveReport` CF'inden geçer (kural da istemci
+    // yazımını reddeder). [resolvedBy] sunucuda auth.uid'den alınır.
+    await _functions.httpsCallable('adminResolveReport').call<Object?>({
+      'reportId': id,
       'status': status.apiValue,
       if (adminNote != null && adminNote.trim().isNotEmpty)
-        'adminNote': adminNote.trim(),
-      'resolvedBy': resolvedBy,
-      'resolvedAt': DateTime.now().toIso8601String(),
+        'note': adminNote.trim(),
     });
   }
 }

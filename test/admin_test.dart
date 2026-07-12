@@ -114,6 +114,9 @@ void main() {
       final ok = await repo.claimAdminAccess();
       expect(ok, isTrue);
       expect(repo.currentUser?.isAdmin, isTrue);
+      // RBAC: bootstrap her zaman superadmin rolü verir.
+      expect(repo.currentUser?.adminRole, 'superadmin');
+      expect(repo.currentUser?.isSuperAdmin, isTrue);
     });
 
     test('izinsiz e-posta reddedilir; yönetici olmaz', () async {

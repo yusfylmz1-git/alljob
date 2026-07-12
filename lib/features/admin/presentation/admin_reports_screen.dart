@@ -35,6 +35,14 @@ class _AdminReportsScreenState extends ConsumerState<AdminReportsScreen> {
         subtitle: reportsAsync.valueOrNull == null
             ? null
             : _subtitle(reportsAsync.value!),
+        actions: [
+          IconButton(
+            tooltip: 'Çıkış',
+            icon: const Icon(Icons.logout_rounded),
+            onPressed: () =>
+                ref.read(authControllerProvider.notifier).signOut(),
+          ),
+        ],
       ),
       body: reportsAsync.when(
         loading: () => const LoadingView(),

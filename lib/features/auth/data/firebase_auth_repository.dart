@@ -64,14 +64,16 @@ class FirebaseAuthRepository implements AuthRepository {
   /// `users/{uid}` dökümanını okur; yoksa (ör. yalnızca Auth'ta olan hesap için)
   /// Auth bilgisinden minimal bir müşteri dökümanı oluşturur.
   Future<AppUser> _loadOrCreate(fb.User fbUser) async {
-    // Yönetici yetkisi Auth CUSTOM CLAIM'inden okunur (Firestore'a yazılmaz);
+    // Yönetici yetkisi Auth CUSTOM CLAIM'lerinden okunur (Firestore'a yazılmaz);
     // token okunamazsa admin DEĞİL kabul edilir (fail-safe).
-    final isAdmin = await _readAdminClaim(fbUser);
+    final (isAdmin, role) = await _readAdminClaims(fbUser);
     final snap = await _userDoc(fbUser.uid).get();
     if (snap.exists && snap.data() != null) {
       // emailVerified'ın kaynağı Firestore değil Auth'tur (bkz. AppUser).
-      return AppUser.fromMap(fbUser.uid, snap.data()!)
-          .copyWith(emailVerified: fbUser.emailVerified, isAdmin: isAdmin);
+      return AppUser.fromMap(fbUser.uid, snap.data()!).copyWith(
+          emailVerified: fbUser.emailVerified,
+          isAdmin: isAdmin,
+          adminRole: role);
     }
     final fresh = AppUser(
       uid: fbUser.uid,
@@ -81,18 +83,23 @@ class FirebaseAuthRepository implements AuthRepository {
       profilePhotoUrl: fbUser.photoURL,
       emailVerified: fbUser.emailVerified,
       isAdmin: isAdmin,
+      adminRole: role,
     );
     await _userDoc(fbUser.uid).set(fresh.toMap());
     return fresh;
   }
 
-  /// Auth token'ından `admin` custom claim'ini okur (yoksa/hatada false).
-  Future<bool> _readAdminClaim(fb.User fbUser) async {
+  /// Auth token'ından yönetici claim'lerini okur: (`admin` bool, `role` string?).
+  /// Yoksa/hatada (false, null).
+  Future<(bool, String?)> _readAdminClaims(fb.User fbUser) async {
     try {
       final result = await fbUser.getIdTokenResult();
-      return result.claims?['admin'] == true;
+      final claims = result.claims;
+      final isAdmin = claims?['admin'] == true;
+      final role = claims?['role'] as String?;
+      return (isAdmin, role);
     } catch (_) {
-      return false;
+      return (false, null);
     }
   }
 
@@ -354,9 +361,10 @@ class FirebaseAuthRepository implements AuthRepository {
     }
     // Claim yazıldı → token'ı zorla tazele ve akışa yansıt.
     await fbUser.getIdToken(true);
-    final isAdmin = await _readAdminClaim(fbUser);
-    if (_cached != null && _cached!.isAdmin != isAdmin) {
-      _cached = _cached!.copyWith(isAdmin: isAdmin);
+    final (isAdmin, role) = await _readAdminClaims(fbUser);
+    if (_cached != null &&
+        (_cached!.isAdmin != isAdmin || _cached!.adminRole != role)) {
+      _cached = _cached!.copyWith(isAdmin: isAdmin, adminRole: role);
       _manualUpdates.add(_cached);
     }
     return isAdmin;

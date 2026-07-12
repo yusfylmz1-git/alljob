@@ -4,7 +4,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../data/models/app_user.dart';
-import '../../features/admin/presentation/admin_reports_screen.dart';
 import '../../features/notifications/presentation/notifications_screen.dart';
 import '../../features/artisan/presentation/artisan_profile_edit_screen.dart';
 import '../../features/artisan/presentation/premium_screen.dart';
@@ -90,7 +89,6 @@ final routerProvider = Provider<GoRouter>((ref) {
           loc.startsWith(RoutePaths.favorites) ||
           loc.startsWith(RoutePaths.notifications) ||
           loc.startsWith(RoutePaths.tracking) ||
-          loc.startsWith('/admin') ||
           loc.startsWith(RoutePaths.profile);
 
       // Misafir: keşif + profilleri gezebilir; korunan bölgeler girişe yönlenir.
@@ -105,11 +103,6 @@ final routerProvider = Provider<GoRouter>((ref) {
       // Usta paneli yalnızca usta profili açmış hesaplara açıktır. Diğer tüm
       // gezinme serbesttir — UI zaten aktif moda göre menüleri gösterir.
       if (loc.startsWith(RoutePaths.panel) && !user.hasArtisanProfile) {
-        return RoutePaths.home;
-      }
-      // Yönetici paneli yalnızca admin claim'i olan hesaplara. (Asıl koruma
-      // Firestore kuralında; bu, yetkisizin ekranı hiç görmemesi içindir.)
-      if (loc.startsWith('/admin') && !user.isAdmin) {
         return RoutePaths.home;
       }
       return null;
@@ -234,10 +227,6 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: RoutePaths.trackingBackup,
         builder: (_, _) => const TrackBackupScreen(),
-      ),
-      GoRoute(
-        path: RoutePaths.adminReports,
-        builder: (_, _) => const AdminReportsScreen(),
       ),
       GoRoute(
         path: RoutePaths.tracking,

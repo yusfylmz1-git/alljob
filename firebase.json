@@ -6,10 +6,19 @@
   "storage": {
     "rules": "storage.rules"
   },
-  "hosting": {
-    "public": "hosting",
-    "ignore": ["firebase.json", "**/.*"]
-  },
+  "hosting": [
+    {
+      "site": "alljob1",
+      "public": "hosting",
+      "ignore": ["firebase.json", "**/.*"]
+    },
+    {
+      "site": "alljob1-admin",
+      "public": "build/web",
+      "ignore": ["firebase.json", "**/.*"],
+      "rewrites": [{ "source": "**", "destination": "/index.html" }]
+    }
+  ],
   "functions": [
     {
       "source": "functions",
