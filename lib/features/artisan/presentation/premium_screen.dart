@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/constants/app_constants.dart';
-import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_palette.dart';
 import '../../../core/widgets/brand_mark.dart';
 import '../../../core/widgets/gradient_app_bar.dart';
@@ -30,7 +29,7 @@ class PremiumScreen extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(24),
               decoration: BoxDecoration(
-                gradient: AppColors.heroGradient,
+                gradient: context.palette.heroGradient,
                 borderRadius: BorderRadius.circular(20),
               ),
               child: Column(

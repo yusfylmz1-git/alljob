@@ -39,6 +39,8 @@ class AppPalette extends ThemeExtension<AppPalette> {
     required this.star,
     required this.premium,
     required this.premiumSurface,
+    required this.heroTop,
+    required this.heroBottom,
   });
 
   // ── Marka ──
@@ -81,6 +83,17 @@ class AppPalette extends ThemeExtension<AppPalette> {
   final Color premium;
   final Color premiumSurface;
 
+  // ── Hero gradyanı (moda göre; [AppTheme] accent'ten enjekte eder) ──
+  final Color heroTop;
+  final Color heroBottom;
+
+  /// Hero başlık/üst bar için hazır köşegen gradyan (müşteri mavi / usta yeşil).
+  LinearGradient get heroGradient => LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: [heroTop, heroBottom],
+      );
+
   /// Açık tema: [AppColors] sabitlerinin birebir karşılığı.
   static const AppPalette light = AppPalette(
     primary: AppColors.primary,
@@ -111,6 +124,8 @@ class AppPalette extends ThemeExtension<AppPalette> {
     star: AppColors.star,
     premium: AppColors.premium,
     premiumSurface: AppColors.premiumSurface,
+    heroTop: Color(0xFF1D4ED8),
+    heroBottom: Color(0xFF172554),
   );
 
   /// Koyu tema: `AppTheme._darkScheme` ile uyumlu, elle seçilmiş tonlar.
@@ -145,6 +160,8 @@ class AppPalette extends ThemeExtension<AppPalette> {
     star: Color(0xFFFDB022),
     premium: Color(0xFFE9A23B),
     premiumSurface: Color(0xFF362508),
+    heroTop: Color(0xFF1D4ED8),
+    heroBottom: Color(0xFF172554),
   );
 
   @override
@@ -177,6 +194,8 @@ class AppPalette extends ThemeExtension<AppPalette> {
     Color? star,
     Color? premium,
     Color? premiumSurface,
+    Color? heroTop,
+    Color? heroBottom,
   }) {
     return AppPalette(
       primary: primary ?? this.primary,
@@ -207,6 +226,8 @@ class AppPalette extends ThemeExtension<AppPalette> {
       star: star ?? this.star,
       premium: premium ?? this.premium,
       premiumSurface: premiumSurface ?? this.premiumSurface,
+      heroTop: heroTop ?? this.heroTop,
+      heroBottom: heroBottom ?? this.heroBottom,
     );
   }
 
@@ -244,6 +265,8 @@ class AppPalette extends ThemeExtension<AppPalette> {
       star: c(star, other.star),
       premium: c(premium, other.premium),
       premiumSurface: c(premiumSurface, other.premiumSurface),
+      heroTop: c(heroTop, other.heroTop),
+      heroBottom: c(heroBottom, other.heroBottom),
     );
   }
 }

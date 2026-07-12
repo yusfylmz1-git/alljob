@@ -7,7 +7,6 @@ import '../../features/auth/application/auth_controller.dart';
 import '../../features/auth/data/auth_repository.dart';
 import '../../features/chat/data/chat_providers.dart';
 import '../router/route_paths.dart';
-import '../theme/app_colors.dart';
 import '../theme/app_palette.dart';
 import '../theme/theme_mode_state.dart';
 import '../utils/snackbar_helper.dart';
@@ -177,7 +176,7 @@ class AppMenuDrawer extends ConsumerWidget {
           margin: const EdgeInsets.fromLTRB(12, 12, 12, 8),
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            gradient: AppColors.heroGradient,
+            gradient: context.palette.heroGradient,
             borderRadius: BorderRadius.circular(16),
           ),
           child: Row(

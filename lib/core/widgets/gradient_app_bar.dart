@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-import '../theme/app_colors.dart';
 import '../theme/app_palette.dart';
 
 /// İkincil ekranların (İlanlarım, Bildirimler, Favorilerim…) sade başlıklarını
@@ -95,24 +94,20 @@ class _GradientBackground extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Işıma rengi aktif moda uyar (müşteri mavi / usta yeşil); lacivert hero
-    // zemini markayla sabittir.
-    final glow = context.palette.primary;
+    // Üst bar zemini aktif moda göre renklenir (müşteri mavi / usta yeşil);
+    // üst-sağdan beyaz bir ışıltı derinlik katar.
     return Container(
-      decoration: const BoxDecoration(
-        gradient: AppColors.heroGradient,
-        borderRadius: BorderRadius.vertical(bottom: Radius.circular(20)),
+      decoration: BoxDecoration(
+        gradient: context.palette.heroGradient,
+        borderRadius: const BorderRadius.vertical(bottom: Radius.circular(20)),
       ),
       child: Container(
-        decoration: BoxDecoration(
-          borderRadius: const BorderRadius.vertical(bottom: Radius.circular(20)),
+        decoration: const BoxDecoration(
+          borderRadius: BorderRadius.vertical(bottom: Radius.circular(20)),
           gradient: RadialGradient(
-            center: const Alignment(0.85, -1.2),
+            center: Alignment(0.85, -1.2),
             radius: 1.1,
-            colors: [
-              glow.withValues(alpha: 0.28),
-              glow.withValues(alpha: 0.0),
-            ],
+            colors: [Color(0x1FFFFFFF), Color(0x00FFFFFF)],
           ),
         ),
       ),

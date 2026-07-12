@@ -35,6 +35,12 @@ void main() {
     expect(customer.colorScheme.primary,
         isNot(equals(artisan.colorScheme.primary)));
 
+    // Üst bar / hero gradyanı da moda göre değişir (müşteri mavi ≠ usta yeşil).
+    expect(customer.extension<AppPalette>()!.heroTop,
+        isNot(equals(artisan.extension<AppPalette>()!.heroTop)));
+    expect(customer.extension<AppPalette>()!.heroTop, const Color(0xFF1D4ED8));
+    expect(artisan.extension<AppPalette>()!.heroTop, const Color(0xFF047857));
+
     // Marka DIŞI roller (yüzey/metin) her iki modda AYNI kalır (yalnız vurgu
     // değişir — tüm tema baştan boyanmaz).
     expect(customer.colorScheme.surface, artisan.colorScheme.surface);

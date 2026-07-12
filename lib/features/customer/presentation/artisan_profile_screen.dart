@@ -180,9 +180,9 @@ class _HeroHeader extends StatelessWidget {
         : '?';
 
     return Container(
-      decoration: const BoxDecoration(
-        gradient: AppColors.heroGradient,
-        borderRadius: BorderRadius.vertical(bottom: Radius.circular(28)),
+      decoration: BoxDecoration(
+        gradient: context.palette.heroGradient,
+        borderRadius: const BorderRadius.vertical(bottom: Radius.circular(28)),
       ),
       child: SafeArea(
         bottom: false,

@@ -158,6 +158,8 @@ class AppTheme {
           primaryDark: accent.primaryDark,
           primaryContainer: accent.primaryContainer,
           onPrimaryContainer: accent.onPrimaryContainer,
+          heroTop: accent.heroTop,
+          heroBottom: accent.heroBottom,
         ),
       ],
     );

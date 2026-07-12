@@ -19,6 +19,8 @@ class AppAccent {
     required this.primaryContainer,
     required this.onPrimaryContainer,
     required this.inversePrimary,
+    required this.heroTop,
+    required this.heroBottom,
   });
 
   final Color primary;
@@ -28,7 +30,19 @@ class AppAccent {
   final Color onPrimaryContainer;
   final Color inversePrimary;
 
+  /// Hero başlık/üst bar gradyanının üst-alt durakları (moda göre renkli;
+  /// beyaz metin okunacak kadar koyu). Her iki tema için ortaktır.
+  final Color heroTop;
+  final Color heroBottom;
+
   // ── Müşteri: tatlı mavi ───────────────────────────────────────────────
+  // Müşteri hero: derin mavi (her iki temada ortak).
+  static const Color _customerHeroTop = Color(0xFF1D4ED8); // blue-700
+  static const Color _customerHeroBottom = Color(0xFF172554); // blue-950
+  // Usta hero: derin zümrüt (her iki temada ortak).
+  static const Color _artisanHeroTop = Color(0xFF047857); // emerald-700
+  static const Color _artisanHeroBottom = Color(0xFF022C22); // emerald-950
+
   static const AppAccent customerLight = AppAccent(
     primary: Color(0xFF2563EB),
     onPrimary: Colors.white,
@@ -36,6 +50,8 @@ class AppAccent {
     primaryContainer: Color(0xFFDBEAFE),
     onPrimaryContainer: Color(0xFF1E3A8A),
     inversePrimary: Color(0xFF93C5FD),
+    heroTop: _customerHeroTop,
+    heroBottom: _customerHeroBottom,
   );
 
   static const AppAccent customerDark = AppAccent(
@@ -45,6 +61,8 @@ class AppAccent {
     primaryContainer: Color(0xFF1E3A8A),
     onPrimaryContainer: Color(0xFFDBEAFE),
     inversePrimary: Color(0xFF2563EB),
+    heroTop: _customerHeroTop,
+    heroBottom: _customerHeroBottom,
   );
 
   // ── Usta: zümrüt yeşil ────────────────────────────────────────────────
@@ -55,6 +73,8 @@ class AppAccent {
     primaryContainer: Color(0xFFD1FAE5),
     onPrimaryContainer: Color(0xFF064E3B),
     inversePrimary: Color(0xFF6EE7B7),
+    heroTop: _artisanHeroTop,
+    heroBottom: _artisanHeroBottom,
   );
 
   static const AppAccent artisanDark = AppAccent(
@@ -64,6 +84,8 @@ class AppAccent {
     primaryContainer: Color(0xFF064E3B),
     onPrimaryContainer: Color(0xFFD1FAE5),
     inversePrimary: Color(0xFF059669),
+    heroTop: _artisanHeroTop,
+    heroBottom: _artisanHeroBottom,
   );
 
   /// Moda + parlaklığa göre doğru seti seçer.

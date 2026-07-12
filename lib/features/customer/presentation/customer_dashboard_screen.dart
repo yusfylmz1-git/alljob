@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/router/route_paths.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_palette.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/widgets/app_menu_drawer.dart';
 import '../../../core/widgets/brand_mark.dart';
@@ -209,9 +210,9 @@ class _HeroHeader extends ConsumerWidget {
     final isCustomer = user != null && !user.isArtisan;
 
     return Container(
-      decoration: const BoxDecoration(
-        gradient: AppColors.heroGradient,
-        borderRadius: BorderRadius.vertical(bottom: Radius.circular(24)),
+      decoration: BoxDecoration(
+        gradient: context.palette.heroGradient,
+        borderRadius: const BorderRadius.vertical(bottom: Radius.circular(24)),
       ),
       child: SafeArea(
         bottom: false,
