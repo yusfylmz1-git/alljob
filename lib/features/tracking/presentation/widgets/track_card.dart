@@ -98,26 +98,39 @@ class _CheckCircle extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final palette = context.palette;
-    return InkResponse(
-      onTap: onTap,
-      radius: 24,
-      child: Padding(
-        padding: const EdgeInsets.all(2),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 160),
-          width: 24,
-          height: 24,
-          decoration: BoxDecoration(
-            color: done ? palette.success : Colors.transparent,
-            shape: BoxShape.circle,
-            border: Border.all(
-              color: done ? palette.success : palette.borderStrong,
-              width: 2,
+    return Semantics(
+      button: true,
+      checked: done,
+      label: done ? 'Aktif olarak işaretle' : 'Tamamlandı olarak işaretle',
+      child: Tooltip(
+        message: done ? 'Aktif yap' : 'Tamamla',
+        child: InkResponse(
+          onTap: onTap,
+          radius: 24,
+          // Görsel daire 24px; dokunma hedefi 44px yüksekliğe çıkarılır
+          // (erişilebilirlik). Genişlik dar tutulur → yatay düzen bozulmaz;
+          // daire üste hizalı (başlığın ilk satırıyla).
+          child: Container(
+            width: 28,
+            height: 44,
+            alignment: Alignment.topCenter,
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 160),
+              width: 24,
+              height: 24,
+              decoration: BoxDecoration(
+                color: done ? palette.success : Colors.transparent,
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: done ? palette.success : palette.borderStrong,
+                  width: 2,
+                ),
+              ),
+              child: done
+                  ? const Icon(Icons.check, size: 15, color: Colors.white)
+                  : null,
             ),
           ),
-          child: done
-              ? const Icon(Icons.check, size: 15, color: Colors.white)
-              : null,
         ),
       ),
     );

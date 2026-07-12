@@ -8,6 +8,7 @@ import 'package:usta_cepte/core/router/app_router.dart';
 import 'package:usta_cepte/core/router/route_paths.dart';
 import 'package:usta_cepte/data/models/track_item.dart';
 import 'package:usta_cepte/features/auth/application/auth_controller.dart';
+import 'package:usta_cepte/features/tracking/application/track_filter.dart';
 import 'package:usta_cepte/features/tracking/application/tracking_controller.dart';
 import 'package:usta_cepte/features/tracking/data/attachment_store.dart';
 import 'package:usta_cepte/features/tracking/data/mock_tracking_repository.dart';
@@ -332,6 +333,47 @@ void main() {
       expect(find.descendant(of: detail, matching: find.text('Kadıköy')),
           findsOneWidget);
     });
+
+    testWidgets('Faz 4: öncelik filtresi listeyi daraltır', (tester) async {
+      final container = await pumpLoggedIn(tester);
+      final uid = container.read(currentUserProvider)!.uid;
+      final now = DateTime.now();
+      final ctrl = container.read(trackingControllerProvider);
+      await ctrl.save(TrackItem(
+          id: 'h1',
+          title: 'Acil iş',
+          priority: TrackPriority.high,
+          createdAt: now,
+          updatedAt: now));
+      await ctrl.save(TrackItem(
+          id: 'n1',
+          title: 'Sıradan iş',
+          priority: TrackPriority.normal,
+          createdAt: now,
+          updatedAt: now));
+      // uid'i kullan (analyzer'ı sustur + amacı belgele).
+      expect((await container.read(trackingRepositoryProvider).watchActive(uid).first).length, 2);
+
+      container.read(routerProvider).push(RoutePaths.tracking);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(find.text('Acil iş'), findsOneWidget);
+      expect(find.text('Sıradan iş'), findsOneWidget);
+
+      // Filtre panelini aç (tune ikonu) → "Yüksek" önceliği seç → Uygula.
+      await tester.tap(find.byIcon(Icons.tune));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.tap(find.widgetWithText(FilterChip, 'Yüksek'));
+      await tester.pump();
+      await tester.tap(find.widgetWithText(FilledButton, 'Uygula'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+
+      // Yalnız yüksek öncelikli kalır.
+      expect(find.text('Acil iş'), findsOneWidget);
+      expect(find.text('Sıradan iş'), findsNothing);
+    });
   });
 
   // Faz 2: hatırlatma + tekrarlama motoru.
@@ -515,6 +557,97 @@ void main() {
       await ctrl.moveToTrash('a2');
       await ctrl.emptyTrash();
       expect(store.deleted, contains('/tmp/a2.m4a'));
+    });
+  });
+
+  // Faz 4: filtre + sıralama (saf mantık).
+  group('TrackFilter — filtre ve sıralama', () {
+    final base = DateTime(2026, 1, 1, 9, 0);
+    TrackItem make(
+      String id, {
+      String title = 'x',
+      TrackStatus status = TrackStatus.active,
+      TrackPriority priority = TrackPriority.normal,
+      List<String> tags = const [],
+      DateTime? reminder,
+      int updatedOffset = 0,
+    }) =>
+        TrackItem(
+          id: id,
+          title: title,
+          status: status,
+          priority: priority,
+          tags: tags,
+          reminderAt: reminder,
+          createdAt: base,
+          updatedAt: base.add(Duration(minutes: updatedOffset)),
+        );
+
+    final items = [
+      make('1',
+          title: 'Alfa',
+          priority: TrackPriority.high,
+          tags: ['ev'],
+          reminder: DateTime(2026, 1, 5),
+          updatedOffset: 1),
+      make('2',
+          title: 'Beta',
+          status: TrackStatus.done,
+          priority: TrackPriority.low,
+          tags: ['iş'],
+          updatedOffset: 3),
+      make('3',
+          title: 'Ceta',
+          priority: TrackPriority.normal,
+          tags: ['ev', 'acil'],
+          reminder: DateTime(2026, 1, 3),
+          updatedOffset: 2),
+    ];
+
+    test('durum filtresi', () {
+      const f = TrackFilter(status: TrackStatusFilter.active);
+      expect(f.apply(items).map((e) => e.id), ['3', '1']); // updatedDesc
+      const d = TrackFilter(status: TrackStatusFilter.done);
+      expect(d.apply(items).map((e) => e.id), ['2']);
+    });
+
+    test('öncelik ve etiket filtresi (herhangi biri eşleşir)', () {
+      const p = TrackFilter(priorities: {TrackPriority.high});
+      expect(p.apply(items).map((e) => e.id), ['1']);
+      const t = TrackFilter(tags: {'ev'});
+      expect(t.apply(items).map((e) => e.id).toSet(), {'1', '3'});
+    });
+
+    test('yalnız hatırlatmalılar + arama', () {
+      const r = TrackFilter(onlyReminders: true);
+      expect(r.apply(items).map((e) => e.id).toSet(), {'1', '3'});
+      expect(
+          const TrackFilter().apply(items, query: 'bet').map((e) => e.id), ['2']);
+    });
+
+    test('sıralama: hatırlatma / öncelik / başlık', () {
+      const rem = TrackFilter(sort: TrackSort.reminderAsc);
+      // Hatırlatması olanlar önce (en yakın), olmayan (2) sona.
+      expect(rem.apply(items).map((e) => e.id), ['3', '1', '2']);
+      const pr = TrackFilter(sort: TrackSort.priorityDesc);
+      expect(pr.apply(items).map((e) => e.id), ['1', '3', '2']);
+      const title = TrackFilter(sort: TrackSort.titleAsc);
+      expect(title.apply(items).map((e) => e.id), ['1', '2', '3']);
+    });
+
+    test('advancedCount ve isDefault', () {
+      expect(const TrackFilter().isDefault, isTrue);
+      expect(const TrackFilter().advancedCount, 0);
+      const f = TrackFilter(
+          priorities: {TrackPriority.high},
+          tags: {'ev'},
+          onlyReminders: true);
+      expect(f.advancedCount, 3);
+      expect(f.isDefault, isFalse);
+    });
+
+    test('collectTags — benzersiz + sıralı', () {
+      expect(collectTags(items), ['acil', 'ev', 'iş']);
     });
   });
 }

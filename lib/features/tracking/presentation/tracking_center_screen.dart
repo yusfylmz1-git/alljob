@@ -8,12 +8,11 @@ import '../../../core/widgets/gradient_app_bar.dart';
 import '../../../core/widgets/responsive_center.dart';
 import '../../../core/widgets/status_views.dart';
 import '../../../data/models/track_item.dart';
+import '../application/track_filter.dart';
 import '../application/tracking_controller.dart';
 import '../data/tracking_providers.dart';
+import 'widgets/filter_sheet.dart';
 import 'widgets/track_card.dart';
-
-/// Durum filtresi (Faz 1 sade filtre; tam filtre paneli Faz 4).
-enum _StatusFilter { all, active, done }
 
 class TrackingCenterScreen extends ConsumerStatefulWidget {
   const TrackingCenterScreen({super.key});
@@ -26,7 +25,7 @@ class TrackingCenterScreen extends ConsumerStatefulWidget {
 class _TrackingCenterScreenState extends ConsumerState<TrackingCenterScreen> {
   final _searchController = TextEditingController();
   String _query = '';
-  _StatusFilter _filter = _StatusFilter.all;
+  TrackFilter _filter = const TrackFilter();
 
   @override
   void dispose() {
@@ -34,22 +33,13 @@ class _TrackingCenterScreenState extends ConsumerState<TrackingCenterScreen> {
     super.dispose();
   }
 
-  List<TrackItem> _apply(List<TrackItem> items) {
-    final q = _query.trim().toLowerCase();
-    return items.where((t) {
-      switch (_filter) {
-        case _StatusFilter.active:
-          if (t.isDone) return false;
-        case _StatusFilter.done:
-          if (!t.isDone) return false;
-        case _StatusFilter.all:
-          break;
-      }
-      if (q.isEmpty) return true;
-      return t.title.toLowerCase().contains(q) ||
-          (t.note?.toLowerCase().contains(q) ?? false) ||
-          t.tags.any((tag) => tag.toLowerCase().contains(q));
-    }).toList();
+  Future<void> _openFilterSheet(List<TrackItem> all) async {
+    final result = await showTrackFilterSheet(
+      context,
+      current: _filter,
+      allTags: collectTags(all),
+    );
+    if (result != null && mounted) setState(() => _filter = result);
   }
 
   @override
@@ -82,14 +72,16 @@ class _TrackingCenterScreenState extends ConsumerState<TrackingCenterScreen> {
           message: 'Takipleriniz yüklenemedi. Lütfen tekrar deneyin.',
         ),
         data: (all) {
-          final filtered = _apply(all);
+          final filtered = _filter.apply(all, query: _query);
           return Column(
             children: [
               _SearchAndFilter(
                 controller: _searchController,
                 filter: _filter,
                 onQuery: (v) => setState(() => _query = v),
-                onFilter: (f) => setState(() => _filter = f),
+                onStatus: (s) =>
+                    setState(() => _filter = _filter.copyWith(status: s)),
+                onOpenFilters: () => _openFilterSheet(all),
               ),
               Expanded(
                 child: all.isEmpty
@@ -138,13 +130,15 @@ class _SearchAndFilter extends StatelessWidget {
     required this.controller,
     required this.filter,
     required this.onQuery,
-    required this.onFilter,
+    required this.onStatus,
+    required this.onOpenFilters,
   });
 
   final TextEditingController controller;
-  final _StatusFilter filter;
+  final TrackFilter filter;
   final ValueChanged<String> onQuery;
-  final ValueChanged<_StatusFilter> onFilter;
+  final ValueChanged<TrackStatusFilter> onStatus;
+  final VoidCallback onOpenFilters;
 
   @override
   Widget build(BuildContext context) {
@@ -164,6 +158,7 @@ class _SearchAndFilter extends StatelessWidget {
               suffixIcon: controller.text.isEmpty
                   ? null
                   : IconButton(
+                      tooltip: 'Aramayı temizle',
                       icon: const Icon(Icons.close, size: 18),
                       onPressed: () {
                         controller.clear();
@@ -182,22 +177,27 @@ class _SearchAndFilter extends StatelessWidget {
           const SizedBox(height: 10),
           Row(
             children: [
-              _FilterChip(
-                label: 'Tümü',
-                selected: filter == _StatusFilter.all,
-                onTap: () => onFilter(_StatusFilter.all),
+              Expanded(
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: [
+                      for (final s in TrackStatusFilter.values) ...[
+                        _StatusChip(
+                          label: s.labelTR,
+                          selected: filter.status == s,
+                          onTap: () => onStatus(s),
+                        ),
+                        const SizedBox(width: 8),
+                      ],
+                    ],
+                  ),
+                ),
               ),
-              const SizedBox(width: 8),
-              _FilterChip(
-                label: 'Aktif',
-                selected: filter == _StatusFilter.active,
-                onTap: () => onFilter(_StatusFilter.active),
-              ),
-              const SizedBox(width: 8),
-              _FilterChip(
-                label: 'Tamamlanan',
-                selected: filter == _StatusFilter.done,
-                onTap: () => onFilter(_StatusFilter.done),
+              const SizedBox(width: 4),
+              _FilterButton(
+                count: filter.advancedCount,
+                onTap: onOpenFilters,
               ),
             ],
           ),
@@ -207,8 +207,8 @@ class _SearchAndFilter extends StatelessWidget {
   }
 }
 
-class _FilterChip extends StatelessWidget {
-  const _FilterChip({
+class _StatusChip extends StatelessWidget {
+  const _StatusChip({
     required this.label,
     required this.selected,
     required this.onTap,
@@ -221,21 +221,72 @@ class _FilterChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final palette = context.palette;
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 140),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        decoration: BoxDecoration(
-          color: selected ? palette.primary : palette.surfaceMuted,
-          borderRadius: BorderRadius.circular(20),
+    return Semantics(
+      button: true,
+      selected: selected,
+      label: '$label filtresi',
+      child: GestureDetector(
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 140),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          decoration: BoxDecoration(
+            color: selected ? palette.primary : palette.surfaceMuted,
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Text(
+            label,
+            style: TextStyle(
+              color: selected ? Colors.white : palette.inkMuted,
+              fontWeight: FontWeight.w700,
+              fontSize: 13,
+            ),
+          ),
         ),
-        child: Text(
-          label,
-          style: TextStyle(
-            color: selected ? Colors.white : palette.inkMuted,
-            fontWeight: FontWeight.w700,
-            fontSize: 13,
+      ),
+    );
+  }
+}
+
+/// Gelişmiş filtre düğmesi; aktif filtre varsa sayısını rozet olarak gösterir.
+class _FilterButton extends StatelessWidget {
+  const _FilterButton({required this.count, required this.onTap});
+  final int count;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    final active = count > 0;
+    return Tooltip(
+      message: 'Filtrele ve sırala',
+      child: InkResponse(
+        onTap: onTap,
+        radius: 26,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+          decoration: BoxDecoration(
+            color: active ? palette.primaryContainer : palette.surfaceMuted,
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.tune,
+                  size: 18,
+                  color: active ? palette.primary : palette.inkMuted),
+              if (active) ...[
+                const SizedBox(width: 6),
+                Text(
+                  '$count',
+                  style: TextStyle(
+                    color: palette.primary,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 13,
+                  ),
+                ),
+              ],
+            ],
           ),
         ),
       ),
