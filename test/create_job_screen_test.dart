@@ -33,8 +33,8 @@ void main() {
         currentUserProvider.overrideWithValue(testUser),
       ],
       child: MaterialApp(
-        theme: AppTheme.light,
-        darkTheme: AppTheme.dark,
+        theme: AppTheme.light(),
+        darkTheme: AppTheme.dark(),
         themeMode: dark ? ThemeMode.dark : ThemeMode.light,
         home: const CreateJobScreen(),
       ),

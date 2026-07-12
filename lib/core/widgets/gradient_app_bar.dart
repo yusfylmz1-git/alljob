@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../theme/app_colors.dart';
+import '../theme/app_palette.dart';
 
 /// İkincil ekranların (İlanlarım, Bildirimler, Favorilerim…) sade başlıklarını
 /// Keşfet/Profil hero'suyla aynı dile getiren drop-in app bar: lacivert
@@ -94,18 +95,24 @@ class _GradientBackground extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Işıma rengi aktif moda uyar (müşteri mavi / usta yeşil); lacivert hero
+    // zemini markayla sabittir.
+    final glow = context.palette.primary;
     return Container(
       decoration: const BoxDecoration(
         gradient: AppColors.heroGradient,
         borderRadius: BorderRadius.vertical(bottom: Radius.circular(20)),
       ),
       child: Container(
-        decoration: const BoxDecoration(
-          borderRadius: BorderRadius.vertical(bottom: Radius.circular(20)),
+        decoration: BoxDecoration(
+          borderRadius: const BorderRadius.vertical(bottom: Radius.circular(20)),
           gradient: RadialGradient(
-            center: Alignment(0.85, -1.2),
+            center: const Alignment(0.85, -1.2),
             radius: 1.1,
-            colors: [Color(0x47EA580C), Color(0x00EA580C)],
+            colors: [
+              glow.withValues(alpha: 0.28),
+              glow.withValues(alpha: 0.0),
+            ],
           ),
         ),
       ),

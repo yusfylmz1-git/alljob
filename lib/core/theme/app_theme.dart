@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import 'app_accent.dart';
 import 'app_colors.dart';
 import 'app_palette.dart';
 
@@ -43,8 +44,12 @@ class AppTheme {
         ),
       ];
 
-  static ThemeData get light => _build(Brightness.light);
-  static ThemeData get dark => _build(Brightness.dark);
+  /// Aktif moda göre vurgu rengi enjekte edilmiş temalar. [accent] verilmezse
+  /// müşteri (mavi) varsayılanı kullanılır — misafir/oturumsuz akış için.
+  static ThemeData light([AppAccent? accent]) =>
+      _build(Brightness.light, accent ?? AppAccent.customerLight);
+  static ThemeData dark([AppAccent? accent]) =>
+      _build(Brightness.dark, accent ?? AppAccent.customerDark);
 
   static ColorScheme _lightScheme() => const ColorScheme(
         brightness: Brightness.light,
@@ -116,9 +121,17 @@ class AppTheme {
         inversePrimary: AppColors.primary,
       );
 
-  static ThemeData _build(Brightness brightness) {
+  static ThemeData _build(Brightness brightness, AppAccent accent) {
     final isLight = brightness == Brightness.light;
-    final scheme = isLight ? _lightScheme() : _darkScheme();
+    // Vurgu (primary) ailesini aktif moda göre değiştir; geri kalan tüm renk
+    // rolleri (yüzey/metin/semantik) markayla aynı kalır.
+    final scheme = (isLight ? _lightScheme() : _darkScheme()).copyWith(
+      primary: accent.primary,
+      onPrimary: accent.onPrimary,
+      primaryContainer: accent.primaryContainer,
+      onPrimaryContainer: accent.onPrimaryContainer,
+      inversePrimary: accent.inversePrimary,
+    );
 
     final scaffoldBg =
         isLight ? AppColors.background : scheme.surfaceContainerLow;
@@ -139,7 +152,14 @@ class AppTheme {
       scaffoldBackgroundColor: scaffoldBg,
       splashFactory: InkSparkle.splashFactory,
       visualDensity: VisualDensity.standard,
-      extensions: [isLight ? AppPalette.light : AppPalette.dark],
+      extensions: [
+        (isLight ? AppPalette.light : AppPalette.dark).copyWith(
+          primary: accent.primary,
+          primaryDark: accent.primaryDark,
+          primaryContainer: accent.primaryContainer,
+          onPrimaryContainer: accent.onPrimaryContainer,
+        ),
+      ],
     );
 
     return base.copyWith(
