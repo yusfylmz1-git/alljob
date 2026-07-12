@@ -43,6 +43,11 @@ dependencies:
   firebase_app_check: ^0.3.2+10
   shared_preferences: ^2.5.5
 
+  # Takip Merkezi — yerel-öncelikli depolama (offline tam çalışır; bulut yedek
+  # sonraki fazda Firestore/Storage ile). Kayıtlar cihazda sqflite'ta tutulur.
+  sqflite: ^2.4.1
+  path: ^1.9.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

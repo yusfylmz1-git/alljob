@@ -80,6 +80,19 @@ class _Body extends ConsumerWidget {
                 _ArtisanSections(user: user, draft: draft)
               else
                 _CustomerSections(user: user),
+              // Kişisel araçlar — her iki modda da görünür (mesleğe bağlı değil).
+              const _SectionLabel('ARAÇLAR'),
+              _Group(children: [
+                _MenuRow(
+                  icon: Icons.checklist_rounded,
+                  iconColor: context.palette.primary,
+                  iconSurface: context.palette.primaryContainer,
+                  title: 'Takip Merkezi',
+                  subtitle: 'Randevu, görev, hatırlatma… hepsi bir yerde',
+                  onTap: () => context.push(RoutePaths.tracking),
+                ),
+              ]),
+              const SizedBox(height: 20),
               const _SectionLabel('HESAP'),
               _AccountGroup(user: user),
               const SizedBox(height: 20),

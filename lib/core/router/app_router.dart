@@ -27,6 +27,10 @@ import '../../features/profile/presentation/profile_screen.dart';
 import '../../features/review/presentation/review_screen.dart';
 import '../../features/legal/presentation/legal_screen.dart';
 import '../../features/safety/presentation/blocked_users_screen.dart';
+import '../../features/tracking/presentation/track_detail_screen.dart';
+import '../../features/tracking/presentation/track_edit_screen.dart';
+import '../../features/tracking/presentation/tracking_center_screen.dart';
+import '../../features/tracking/presentation/tracking_trash_screen.dart';
 import 'route_paths.dart';
 
 /// Uygulama yönlendiricisi. "Misafir-önce" akış + tek hesap, çift rol:
@@ -83,6 +87,7 @@ final routerProvider = Provider<GoRouter>((ref) {
           loc.startsWith(RoutePaths.jobsBase) ||
           loc.startsWith(RoutePaths.favorites) ||
           loc.startsWith(RoutePaths.notifications) ||
+          loc.startsWith(RoutePaths.tracking) ||
           loc.startsWith(RoutePaths.profile);
 
       // Misafir: keşif + profilleri gezebilir; korunan bölgeler girişe yönlenir.
@@ -205,6 +210,32 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: 'blocked',
             builder: (_, _) => const BlockedUsersScreen(),
+          ),
+        ],
+      ),
+      // Takip Merkezi — sıralama önemli: /tracking/new ve /tracking/trash,
+      // /tracking/:id'den ÖNCE tanımlanmalı (aksi halde :id onları yakalar).
+      GoRoute(
+        path: RoutePaths.trackingNew,
+        builder: (_, _) => const TrackEditScreen(),
+      ),
+      GoRoute(
+        path: RoutePaths.trackingTrash,
+        builder: (_, _) => const TrackingTrashScreen(),
+      ),
+      GoRoute(
+        path: RoutePaths.tracking,
+        builder: (_, _) => const TrackingCenterScreen(),
+      ),
+      GoRoute(
+        path: '/tracking/:id',
+        builder: (_, state) =>
+            TrackDetailScreen(trackId: state.pathParameters['id']!),
+        routes: [
+          GoRoute(
+            path: 'edit',
+            builder: (_, state) =>
+                TrackEditScreen(trackId: state.pathParameters['id']),
           ),
         ],
       ),

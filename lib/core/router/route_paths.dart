@@ -58,4 +58,13 @@ class RoutePaths {
 
   /// Herkese açık usta profil sayfası yolu.
   static String artisanProfile(String uid) => '/artisan/$uid';
+
+  // Takip Merkezi (oturum açmış herkes; yerel-öncelikli kişisel takip).
+  // Sıralama: /tracking/new ve /tracking/trash, /tracking/:id'den ÖNCE
+  // tanımlanmalıdır (aksi halde :id onları da yakalar).
+  static const String tracking = '/tracking';
+  static const String trackingNew = '/tracking/new';
+  static const String trackingTrash = '/tracking/trash';
+  static String trackDetail(String id) => '/tracking/$id';
+  static String trackEdit(String id) => '/tracking/$id/edit';
 }
