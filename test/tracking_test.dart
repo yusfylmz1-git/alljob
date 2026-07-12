@@ -9,6 +9,7 @@ import 'package:usta_cepte/core/router/route_paths.dart';
 import 'package:usta_cepte/data/models/track_item.dart';
 import 'package:usta_cepte/features/auth/application/auth_controller.dart';
 import 'package:usta_cepte/features/tracking/application/tracking_controller.dart';
+import 'package:usta_cepte/features/tracking/data/attachment_store.dart';
 import 'package:usta_cepte/features/tracking/data/mock_tracking_repository.dart';
 import 'package:usta_cepte/features/tracking/data/track_notification_service.dart';
 import 'package:usta_cepte/features/tracking/data/tracking_providers.dart';
@@ -277,6 +278,60 @@ void main() {
       await tester.pump(const Duration(milliseconds: 400));
       expect(find.byType(TrackingTrashScreen), findsOneWidget);
     });
+
+    testWidgets('Faz 3: kişi + konum girilir, kaydedilir ve detayda görünür',
+        (tester) async {
+      final container = await pumpLoggedIn(tester);
+      container.read(routerProvider).push(RoutePaths.trackingNew);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+
+      await tester.enterText(
+        find
+            .descendant(
+                of: find.byType(TrackEditScreen),
+                matching: find.byType(TextField))
+            .first,
+        'Su tesisatı',
+      );
+
+      // "İlgili kişi" ve "Konum" alanlarını aç (Ekle çipleri).
+      await tester.tap(find.text('İlgili kişi'));
+      await tester.pump();
+      await tester.tap(find.text('Konum'));
+      await tester.pump(const Duration(milliseconds: 200));
+
+      await tester.enterText(
+          find.widgetWithText(TextField, 'Ad'), 'Ali Usta');
+      await tester.enterText(
+          find.widgetWithText(TextField, 'Telefon (isteğe bağlı)'),
+          '+905551112233');
+      await tester.enterText(
+          find.widgetWithText(TextField, 'Adres / yer etiketi'), 'Kadıköy');
+
+      await tester.tap(find.text('Kaydet'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+
+      // Kayıt oluştu → detayına git → kişi + konum görünür.
+      final uid = container.read(currentUserProvider)!.uid;
+      final saved =
+          (await container.read(trackingRepositoryProvider).watchActive(uid).first)
+              .single;
+      expect(saved.person?.name, 'Ali Usta');
+      expect(saved.person?.phone, '+905551112233');
+      expect(saved.location?.label, 'Kadıköy');
+
+      container.read(routerProvider).push(RoutePaths.trackDetail(saved.id));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+      final detail = find.byType(TrackDetailScreen);
+      expect(
+          find.descendant(of: detail, matching: find.text('Ali Usta')),
+          findsOneWidget);
+      expect(find.descendant(of: detail, matching: find.text('Kadıköy')),
+          findsOneWidget);
+    });
   });
 
   // Faz 2: hatırlatma + tekrarlama motoru.
@@ -405,6 +460,88 @@ void main() {
       expect(after!.isDone, isTrue);
     });
   });
+
+  // Faz 3: kalıcı silme/çöp boşaltma ek dosyalarını da temizler.
+  group('TrackingController — ek dosya temizliği', () {
+    late ProviderContainer container;
+    late _RecordingStore store;
+
+    Future<void> setUp2() async {
+      store = _RecordingStore();
+      container = ProviderContainer(overrides: [
+        ...mockBackendOverrides(),
+        attachmentStoreProvider.overrideWithValue(store),
+      ]);
+      container.listen(currentUserProvider, (_, _) {});
+      final user = await container.read(authRepositoryProvider).register(
+            displayName: 'N', email: 'a@o.com', password: 'sifre123');
+      for (var i = 0;
+          i < 200 && container.read(currentUserProvider)?.uid != user.uid;
+          i++) {
+        await Future<void>.delayed(const Duration(milliseconds: 5));
+      }
+    }
+
+    tearDown(() => container.dispose());
+
+    TrackItem withAudio(String id) {
+      final now = DateTime.now();
+      return TrackItem(
+        id: id,
+        title: 'Ekli',
+        attachments: [
+          TrackAttachment(
+              type: TrackAttachmentType.audio,
+              path: '/tmp/$id.m4a',
+              durationMs: 3000),
+        ],
+        createdAt: now,
+        updatedAt: now,
+      );
+    }
+
+    test('kalıcı silme ek dosyalarını da siler', () async {
+      await setUp2();
+      final ctrl = container.read(trackingControllerProvider);
+      await ctrl.save(withAudio('a1'));
+      await ctrl.deletePermanently('a1');
+      expect(store.deleted, contains('/tmp/a1.m4a'));
+    });
+
+    test('çöp boşaltma çöptekilerin ek dosyalarını siler', () async {
+      await setUp2();
+      final ctrl = container.read(trackingControllerProvider);
+      await ctrl.save(withAudio('a2'));
+      await ctrl.moveToTrash('a2');
+      await ctrl.emptyTrash();
+      expect(store.deleted, contains('/tmp/a2.m4a'));
+    });
+  });
+}
+
+/// Ek dosya silme çağrılarını kaydeden sahte depo (Faz 3 temizlik testleri).
+class _RecordingStore implements AttachmentStore {
+  final List<String> deleted = [];
+
+  @override
+  Future<void> deleteFile(TrackAttachment att) async => deleted.add(att.path);
+
+  @override
+  Future<void> deleteFiles(Iterable<TrackAttachment> atts) async {
+    for (final a in atts) {
+      deleted.add(a.path);
+    }
+  }
+
+  @override
+  Future<TrackAttachment> save({
+    required String sourcePath,
+    required TrackAttachmentType type,
+    String? displayName,
+    int? durationMs,
+    bool move = false,
+  }) =>
+      throw UnimplementedError();
 }
 
 /// Bildirim çağrılarını kaydeden sahte servis (Faz 2 controller testleri).

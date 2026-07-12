@@ -1,6 +1,8 @@
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 
 import '../../../core/theme/app_palette.dart';
@@ -10,8 +12,11 @@ import '../../../core/widgets/gradient_app_bar.dart';
 import '../../../core/widgets/responsive_center.dart';
 import '../../../data/models/track_item.dart';
 import '../application/tracking_controller.dart';
+import '../data/attachment_store.dart';
 import '../data/track_notification_service.dart';
 import '../data/tracking_providers.dart';
+import 'widgets/attachment_views.dart';
+import 'widgets/record_sheet.dart';
 
 final _reminderFmt = DateFormat('d MMM yyyy, HH:mm', 'tr_TR');
 
@@ -34,16 +39,23 @@ class _TrackEditScreenState extends ConsumerState<TrackEditScreen> {
   final _titleController = TextEditingController();
   final _noteController = TextEditingController();
   final _tagController = TextEditingController();
+  final _personNameController = TextEditingController();
+  final _personPhoneController = TextEditingController();
+  final _locationController = TextEditingController();
 
   TrackItem? _existing;
   TrackPriority _priority = TrackPriority.normal;
   final List<String> _tags = [];
   DateTime? _reminderAt;
   TrackRecurrence _recurrence = TrackRecurrence.none;
+  final List<TrackAttachment> _attachments = [];
+  double? _lat;
+  double? _lng;
   final Set<String> _revealed = {};
   bool _dirty = false;
   bool _loading = true;
   bool _saving = false;
+  bool _busyAttachment = false;
 
   bool get _isEditing => widget.trackId != null;
 
@@ -70,6 +82,16 @@ class _TrackEditScreenState extends ConsumerState<TrackEditScreen> {
         _tags.addAll(item.tags);
         _reminderAt = item.reminderAt;
         _recurrence = item.recurrence;
+        _attachments.addAll(item.attachments);
+        if (item.person != null) {
+          _personNameController.text = item.person!.name;
+          _personPhoneController.text = item.person!.phone ?? '';
+        }
+        if (item.location != null) {
+          _locationController.text = item.location!.label;
+          _lat = item.location!.lat;
+          _lng = item.location!.lng;
+        }
       }
       _loading = false;
     });
@@ -80,6 +102,9 @@ class _TrackEditScreenState extends ConsumerState<TrackEditScreen> {
     _titleController.dispose();
     _noteController.dispose();
     _tagController.dispose();
+    _personNameController.dispose();
+    _personPhoneController.dispose();
+    _locationController.dispose();
     super.dispose();
   }
 
@@ -155,6 +180,109 @@ class _TrackEditScreenState extends ConsumerState<TrackEditScreen> {
         _dirty = true;
       });
 
+  // --- Ekler (foto / dosya / ses) -----------------------------------------
+
+  /// "Ek" seçim sayfası: Fotoğraf / Dosya / Ses kaydı.
+  Future<void> _addAttachmentSheet() async {
+    final choice = await showModalBottomSheet<String>(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.photo_outlined),
+              title: const Text('Fotoğraf'),
+              onTap: () => Navigator.pop(ctx, 'photo'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.attach_file),
+              title: const Text('Dosya'),
+              onTap: () => Navigator.pop(ctx, 'file'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.mic_none),
+              title: const Text('Ses kaydı'),
+              onTap: () => Navigator.pop(ctx, 'audio'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (choice == null || !mounted) return;
+    switch (choice) {
+      case 'photo':
+        await _pickPhoto();
+      case 'file':
+        await _pickFile();
+      case 'audio':
+        await _recordAudio();
+    }
+  }
+
+  Future<void> _runAttachment(Future<TrackAttachment?> Function() pick) async {
+    if (_busyAttachment) return;
+    setState(() => _busyAttachment = true);
+    try {
+      final att = await pick();
+      if (att != null && mounted) {
+        setState(() {
+          _attachments.add(att);
+          _dirty = true;
+        });
+      }
+    } catch (_) {
+      if (mounted) context.showError('Ek eklenemedi. Lütfen tekrar deneyin.');
+    } finally {
+      if (mounted) setState(() => _busyAttachment = false);
+    }
+  }
+
+  Future<void> _pickPhoto() => _runAttachment(() async {
+        final x = await ImagePicker().pickImage(
+          source: ImageSource.gallery,
+          maxWidth: 1600,
+          imageQuality: 80,
+        );
+        if (x == null) return null;
+        return ref.read(attachmentStoreProvider).save(
+              sourcePath: x.path,
+              type: TrackAttachmentType.photo,
+              displayName: x.name,
+            );
+      });
+
+  Future<void> _pickFile() => _runAttachment(() async {
+        final res = await FilePicker.pickFiles(withData: false);
+        final path = res?.files.single.path;
+        if (path == null) return null;
+        return ref.read(attachmentStoreProvider).save(
+              sourcePath: path,
+              type: TrackAttachmentType.file,
+              displayName: res!.files.single.name,
+            );
+      });
+
+  Future<void> _recordAudio() => _runAttachment(() async {
+        final result = await showRecordSheet(context);
+        if (result == null) return null;
+        return ref.read(attachmentStoreProvider).save(
+              sourcePath: result.path,
+              type: TrackAttachmentType.audio,
+              durationMs: result.durationMs,
+              move: true, // geçici kayıt → uygulama dizinine taşı
+            );
+      });
+
+  void _removeAttachment(TrackAttachment att) {
+    setState(() {
+      _attachments.remove(att);
+      _dirty = true;
+    });
+    // Yeni eklenip kaydedilmeden kaldırılan ekin dosyası da temizlenir.
+    ref.read(attachmentStoreProvider).deleteFile(att);
+  }
+
   Future<void> _save() async {
     final title = _titleController.text.trim();
     if (title.isEmpty) {
@@ -165,8 +293,22 @@ class _TrackEditScreenState extends ConsumerState<TrackEditScreen> {
     final now = DateTime.now();
     final note = _noteController.text.trim();
     final base = _existing;
-    // copyWith null'ı temizleyemez (hatırlatma kaldırma) → alanları açıkça kur;
-    // düzenlerken id/oluşturulma/durum/kişi/konum/ek KORUNUR.
+
+    final personName = _personNameController.text.trim();
+    final personPhone = _personPhoneController.text.trim();
+    final person = personName.isEmpty
+        ? null
+        : TrackPerson(
+            name: personName,
+            phone: personPhone.isEmpty ? null : personPhone,
+          );
+
+    final locLabel = _locationController.text.trim();
+    final location =
+        locLabel.isEmpty ? null : TrackLocation(label: locLabel, lat: _lat, lng: _lng);
+
+    // copyWith null'ı temizleyemez → alanları açıkça kur; düzenlerken
+    // id/oluşturulma/durum KORUNUR.
     final item = TrackItem(
       id: base?.id ?? TrackItem.newId(),
       title: title,
@@ -176,9 +318,9 @@ class _TrackEditScreenState extends ConsumerState<TrackEditScreen> {
       tags: List.of(_tags),
       reminderAt: _reminderAt,
       recurrence: _reminderAt == null ? TrackRecurrence.none : _recurrence,
-      person: base?.person,
-      location: base?.location,
-      attachments: base?.attachments ?? const [],
+      person: person,
+      location: location,
+      attachments: List.of(_attachments),
       createdAt: base?.createdAt ?? now,
       updatedAt: now,
       deletedAt: base?.deletedAt,
@@ -198,6 +340,13 @@ class _TrackEditScreenState extends ConsumerState<TrackEditScreen> {
     final showTags = _revealed.contains('tags') || _tags.isNotEmpty;
     final showReminder =
         _revealed.contains('reminder') || _reminderAt != null;
+    final showPerson = _revealed.contains('person') ||
+        _personNameController.text.isNotEmpty ||
+        _personPhoneController.text.isNotEmpty;
+    final showLocation =
+        _revealed.contains('location') || _locationController.text.isNotEmpty;
+    final showAttachments =
+        _revealed.contains('attachments') || _attachments.isNotEmpty;
 
     return PopScope(
       canPop: !_dirty,
@@ -288,10 +437,66 @@ class _TrackEditScreenState extends ConsumerState<TrackEditScreen> {
                       ),
                       const SizedBox(height: 20),
                     ],
+                    if (showPerson) ...[
+                      _FieldLabel('İlgili kişi'),
+                      const SizedBox(height: 8),
+                      TextField(
+                        controller: _personNameController,
+                        textCapitalization: TextCapitalization.words,
+                        onChanged: (_) => _markDirty(),
+                        decoration: const InputDecoration(
+                          labelText: 'Ad',
+                          prefixIcon: Icon(Icons.person_outline),
+                          isDense: true,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      TextField(
+                        controller: _personPhoneController,
+                        keyboardType: TextInputType.phone,
+                        onChanged: (_) => _markDirty(),
+                        decoration: const InputDecoration(
+                          labelText: 'Telefon (isteğe bağlı)',
+                          prefixIcon: Icon(Icons.phone_outlined),
+                          isDense: true,
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                    ],
+                    if (showLocation) ...[
+                      _FieldLabel('Konum'),
+                      const SizedBox(height: 8),
+                      TextField(
+                        controller: _locationController,
+                        textCapitalization: TextCapitalization.sentences,
+                        onChanged: (_) => _markDirty(),
+                        decoration: const InputDecoration(
+                          labelText: 'Adres / yer etiketi',
+                          hintText: 'Ör. Kadıköy şube, ev, depo…',
+                          prefixIcon: Icon(Icons.place_outlined),
+                          isDense: true,
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                    ],
+                    if (showAttachments) ...[
+                      _FieldLabel('Ekler'),
+                      const SizedBox(height: 8),
+                      AttachmentEditor(
+                        attachments: _attachments,
+                        onAdd: _addAttachmentSheet,
+                        onRemove: _removeAttachment,
+                        busy: _busyAttachment,
+                      ),
+                      const SizedBox(height: 20),
+                    ],
                     _AddFieldChips(
                       showPriority: !showPriority,
                       showTags: !showTags,
                       showReminder: !showReminder,
+                      showPerson: !showPerson,
+                      showLocation: !showLocation,
+                      showAttachments: !showAttachments,
                       onReveal: (key) => setState(() => _revealed.add(key)),
                     ),
                   ],
@@ -537,12 +742,18 @@ class _AddFieldChips extends StatelessWidget {
     required this.showPriority,
     required this.showTags,
     required this.showReminder,
+    required this.showPerson,
+    required this.showLocation,
+    required this.showAttachments,
     required this.onReveal,
   });
 
   final bool showPriority;
   final bool showTags;
   final bool showReminder;
+  final bool showPerson;
+  final bool showLocation;
+  final bool showAttachments;
   final ValueChanged<String> onReveal;
 
   @override
@@ -553,6 +764,24 @@ class _AddFieldChips extends StatelessWidget {
           icon: Icons.notifications_outlined,
           label: 'Hatırlatma',
           onTap: () => onReveal('reminder'),
+        ),
+      if (showPerson)
+        _AddChip(
+          icon: Icons.person_add_alt,
+          label: 'İlgili kişi',
+          onTap: () => onReveal('person'),
+        ),
+      if (showLocation)
+        _AddChip(
+          icon: Icons.place_outlined,
+          label: 'Konum',
+          onTap: () => onReveal('location'),
+        ),
+      if (showAttachments)
+        _AddChip(
+          icon: Icons.attachment,
+          label: 'Ek',
+          onTap: () => onReveal('attachments'),
         ),
       if (showPriority)
         _AddChip(

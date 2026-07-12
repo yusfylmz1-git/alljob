@@ -14,6 +14,7 @@ import '../../../core/widgets/status_views.dart';
 import '../../../data/models/track_item.dart';
 import '../application/tracking_controller.dart';
 import '../data/tracking_providers.dart';
+import 'widgets/attachment_views.dart';
 
 final _fullFmt = DateFormat('d MMMM yyyy, HH:mm', 'tr_TR');
 
@@ -153,6 +154,27 @@ class _Detail extends StatelessWidget {
               ),
             ),
           ],
+          if (item.person != null) ...[
+            const SizedBox(height: 12),
+            _DetailRow(
+              icon: Icons.person_outline,
+              title: item.person!.name,
+              subtitle: item.person!.phone,
+            ),
+          ],
+          if (item.location != null) ...[
+            const SizedBox(height: 12),
+            _DetailRow(
+              icon: Icons.place_outlined,
+              title: item.location!.label,
+            ),
+          ],
+          if (item.attachments.isNotEmpty) ...[
+            const SizedBox(height: 20),
+            _SectionTitle('Ekler'),
+            const SizedBox(height: 10),
+            AttachmentGallery(attachments: item.attachments),
+          ],
           const SizedBox(height: 20),
           Text(
             'Oluşturuldu: ${_fullFmt.format(item.createdAt)}',
@@ -231,6 +253,57 @@ class _InfoChip extends StatelessWidget {
                   fontWeight: FontWeight.w600)),
         ],
       ),
+    );
+  }
+}
+
+class _SectionTitle extends StatelessWidget {
+  const _SectionTitle(this.text);
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      text,
+      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+            fontWeight: FontWeight.w800,
+            color: context.palette.inkMuted,
+          ),
+    );
+  }
+}
+
+/// Kişi/konum gibi ikon + başlık (+ opsiyonel alt satır) bilgisi.
+class _DetailRow extends StatelessWidget {
+  const _DetailRow({required this.icon, required this.title, this.subtitle});
+  final IconData icon;
+  final String title;
+  final String? subtitle;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    final theme = Theme.of(context);
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, size: 20, color: palette.inkMuted),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(title,
+                  style: theme.textTheme.bodyLarge
+                      ?.copyWith(fontWeight: FontWeight.w600)),
+              if (subtitle != null && subtitle!.trim().isNotEmpty)
+                SelectableText(subtitle!,
+                    style: theme.textTheme.bodyMedium
+                        ?.copyWith(color: palette.inkMuted)),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }

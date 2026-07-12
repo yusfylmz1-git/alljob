@@ -52,6 +52,14 @@ dependencies:
   # Istanbul, kalıcı UTC+3). Uluslararasılaşınca flutter_timezone eklenmeli.
   flutter_local_notifications: ^22.0.1
   timezone: ^0.11.1
+  # Takip Merkezi Faz 3 — zengin alanlar (ek: dosya/ses). Ekler cihazın uygulama
+  # dizinine KOPYALANIR (path_provider) → kaynak silinse de kalıcı. Foto:
+  # mevcut image_picker. file_picker: dosya seç; record: ses kaydı;
+  # audioplayers: ses notu oynatma.
+  file_picker: ^11.0.2
+  record: ^6.2.1
+  path_provider: ^2.1.6
+  audioplayers: ^6.7.1
 
 dev_dependencies:
   flutter_test:
