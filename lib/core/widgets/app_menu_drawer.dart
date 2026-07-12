@@ -395,16 +395,15 @@ class _AccentRow extends StatelessWidget {
                 ?.copyWith(color: context.palette.inkMuted),
           ),
           const SizedBox(height: 10),
-          Row(
+          Wrap(
+            spacing: 14,
+            runSpacing: 12,
             children: [
               for (final o in kAccentOptions)
-                Padding(
-                  padding: const EdgeInsets.only(right: 14),
-                  child: _Swatch(
-                    option: o,
-                    selected: o.id == currentId,
-                    onTap: () => onPick(o.id),
-                  ),
+                _Swatch(
+                  option: o,
+                  selected: o.id == currentId,
+                  onTap: () => onPick(o.id),
                 ),
             ],
           ),

@@ -43,9 +43,11 @@ void main() {
     expect(blueTheme.extension<AppPalette>()!.ink,
         greenTheme.extension<AppPalette>()!.ink);
 
-    // 4 seçenek var; hepsi benzersiz id; bilinmeyen id varsayılana düşer.
-    expect(kAccentOptions, hasLength(4));
-    expect(kAccentOptions.map((o) => o.id).toSet(), hasLength(4));
+    // 6 seçenek var; hepsi benzersiz id; bilinmeyen id varsayılana düşer.
+    expect(kAccentOptions, hasLength(6));
+    expect(kAccentOptions.map((o) => o.id).toSet(), hasLength(6));
+    expect(kAccentOptions.map((o) => o.id),
+        containsAll(<String>['pink', 'teal']));
     expect(accentById('yok-boyle').id, kDefaultCustomerAccentId);
     expect(accentById(null, fallbackId: kDefaultArtisanAccentId).id,
         kDefaultArtisanAccentId);

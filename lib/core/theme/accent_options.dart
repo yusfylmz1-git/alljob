@@ -135,8 +135,69 @@ const AccentOption _orange = AccentOption(
   ),
 );
 
+// ── Pembe (Gül) ───────────────────────────────────────────────────────────
+const AccentOption _pink = AccentOption(
+  id: 'pink',
+  labelTR: 'Pembe',
+  swatch: Color(0xFFDB2777),
+  light: AppAccent(
+    primary: Color(0xFFDB2777),
+    onPrimary: Colors.white,
+    primaryDark: Color(0xFFBE185D),
+    primaryContainer: Color(0xFFFCE7F3),
+    onPrimaryContainer: Color(0xFF831843),
+    inversePrimary: Color(0xFFF9A8D4),
+    heroTop: Color(0xFFBE185D),
+    heroBottom: Color(0xFF500724),
+  ),
+  dark: AppAccent(
+    primary: Color(0xFFF472B6),
+    onPrimary: Color(0xFF500724),
+    primaryDark: Color(0xFFDB2777),
+    primaryContainer: Color(0xFF831843),
+    onPrimaryContainer: Color(0xFFFCE7F3),
+    inversePrimary: Color(0xFFDB2777),
+    heroTop: Color(0xFFBE185D),
+    heroBottom: Color(0xFF500724),
+  ),
+);
+
+// ── Turkuaz (Teal) ────────────────────────────────────────────────────────
+const AccentOption _teal = AccentOption(
+  id: 'teal',
+  labelTR: 'Turkuaz',
+  swatch: Color(0xFF0D9488),
+  light: AppAccent(
+    primary: Color(0xFF0F766E),
+    onPrimary: Colors.white,
+    primaryDark: Color(0xFF115E59),
+    primaryContainer: Color(0xFFCCFBF1),
+    onPrimaryContainer: Color(0xFF134E4A),
+    inversePrimary: Color(0xFF5EEAD4),
+    heroTop: Color(0xFF0F766E),
+    heroBottom: Color(0xFF042F2E),
+  ),
+  dark: AppAccent(
+    primary: Color(0xFF2DD4BF),
+    onPrimary: Color(0xFF042F2E),
+    primaryDark: Color(0xFF0D9488),
+    primaryContainer: Color(0xFF134E4A),
+    onPrimaryContainer: Color(0xFFCCFBF1),
+    inversePrimary: Color(0xFF0D9488),
+    heroTop: Color(0xFF0F766E),
+    heroBottom: Color(0xFF042F2E),
+  ),
+);
+
 /// Seçilebilir tüm renkler (Görünüm ekranındaki sıra).
-const List<AccentOption> kAccentOptions = [_blue, _emerald, _violet, _orange];
+const List<AccentOption> kAccentOptions = [
+  _blue,
+  _emerald,
+  _teal,
+  _violet,
+  _pink,
+  _orange,
+];
 
 /// Varsayılan seçimler: müşteri mavi, usta yeşil (mod-bazlı ilk düzen).
 const String kDefaultCustomerAccentId = 'blue';
