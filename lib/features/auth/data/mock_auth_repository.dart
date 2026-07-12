@@ -2,6 +2,7 @@ import 'dart:async';
 
 import '../../../data/models/app_user.dart';
 import '../../../data/models/user_role.dart';
+import '../../admin/data/admin_config.dart';
 import 'auth_repository.dart';
 
 /// Bellek içi (in-memory) kimlik doğrulama. Firebase bağlanana kadar
@@ -218,6 +219,19 @@ class MockAuthRepository implements AuthRepository {
     // Hesap deposundan kalıcı silinir: aynı e-postayla giriş artık başarısız.
     _accounts.remove(user.email.toLowerCase());
     _emit(null);
+  }
+
+  @override
+  Future<bool> claimAdminAccess() async {
+    await _delay();
+    final user = _current;
+    if (user == null) throw AuthException.notSignedIn;
+    // Sunucu paritesi: yalnızca izin listesindeki e-posta yönetici olabilir.
+    if (!isBootstrapAdminEmail(user.email)) {
+      throw const AuthException('Bu hesap yönetici yetkisine sahip değil.');
+    }
+    _emit(user.copyWith(isAdmin: true)); // _emit ayrıca _current'ı da günceller
+    return true;
   }
 
   void dispose() => _controller.close();

@@ -39,6 +39,13 @@ const AUTO_COMPLETE_DAYS = 3;
 // kQuickSupportCategory / kOtherProfession.
 const QUICK_SUPPORT_CATEGORY = "quick_support";
 
+// Yönetici ön-yükleme (bootstrap) izin listesi. Yalnız bu (doğrulanmış)
+// e-postalar `claimAdminAccess` ile kendilerine `admin:true` claim'i yazdırabilir.
+// İstemci paritesi: lib/features/admin/data/admin_config.dart.
+const ADMIN_BOOTSTRAP_EMAILS = new Set([
+  "aboneai.plus@gmail.com",
+]);
+
 // Şikayet nedeni kodlarının Türkçe karşılıkları (istemci JobDisputeReason
 // enum'u ile birebir — bildirim gövdesinde kullanılır).
 const DISPUTE_REASON_TR = {
@@ -867,5 +874,29 @@ exports.deleteAccount = onCall(
       await admin.auth().deleteUser(uid);
       logger.info(`deleteAccount tamamlandı: ${uid}`);
       return {ok: true};
+    },
+);
+
+// ── Yönetici erişimi (bootstrap) ──────────────────────────────────────────
+// Çağıran, doğrulanmış e-postası ADMIN_BOOTSTRAP_EMAILS'te ise KENDİSİNE
+// `admin:true` custom claim'i yazar. İstemci kendine keyfî yönetici olamaz;
+// karar yalnız burada verilir. (Başka kullanıcıları yönetici yapma yeteneği
+// ileride admin-only ayrı bir callable ile eklenebilir.)
+exports.claimAdminAccess = onCall(
+    {region: REGION},
+    async (request) => {
+      const auth = request.auth;
+      if (!auth) {
+        throw new HttpsError("unauthenticated", "Oturum gerekli.");
+      }
+      const email = String(auth.token.email || "").toLowerCase();
+      const emailVerified = auth.token.email_verified === true;
+      if (!emailVerified || !ADMIN_BOOTSTRAP_EMAILS.has(email)) {
+        throw new HttpsError(
+            "permission-denied", "Bu hesap yönetici olamaz.");
+      }
+      await admin.auth().setCustomUserClaims(auth.uid, {admin: true});
+      logger.info(`admin claim verildi: ${auth.uid} (${email})`);
+      return {granted: true};
     },
 );

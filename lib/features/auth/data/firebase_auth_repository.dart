@@ -64,11 +64,14 @@ class FirebaseAuthRepository implements AuthRepository {
   /// `users/{uid}` dökümanını okur; yoksa (ör. yalnızca Auth'ta olan hesap için)
   /// Auth bilgisinden minimal bir müşteri dökümanı oluşturur.
   Future<AppUser> _loadOrCreate(fb.User fbUser) async {
+    // Yönetici yetkisi Auth CUSTOM CLAIM'inden okunur (Firestore'a yazılmaz);
+    // token okunamazsa admin DEĞİL kabul edilir (fail-safe).
+    final isAdmin = await _readAdminClaim(fbUser);
     final snap = await _userDoc(fbUser.uid).get();
     if (snap.exists && snap.data() != null) {
       // emailVerified'ın kaynağı Firestore değil Auth'tur (bkz. AppUser).
       return AppUser.fromMap(fbUser.uid, snap.data()!)
-          .copyWith(emailVerified: fbUser.emailVerified);
+          .copyWith(emailVerified: fbUser.emailVerified, isAdmin: isAdmin);
     }
     final fresh = AppUser(
       uid: fbUser.uid,
@@ -77,9 +80,20 @@ class FirebaseAuthRepository implements AuthRepository {
       createdAt: DateTime.now(),
       profilePhotoUrl: fbUser.photoURL,
       emailVerified: fbUser.emailVerified,
+      isAdmin: isAdmin,
     );
     await _userDoc(fbUser.uid).set(fresh.toMap());
     return fresh;
+  }
+
+  /// Auth token'ından `admin` custom claim'ini okur (yoksa/hatada false).
+  Future<bool> _readAdminClaim(fb.User fbUser) async {
+    try {
+      final result = await fbUser.getIdTokenResult();
+      return result.claims?['admin'] == true;
+    } catch (_) {
+      return false;
+    }
   }
 
   @override
@@ -319,6 +333,33 @@ class FirebaseAuthRepository implements AuthRepository {
     }
     // Auth kaydı sunucuda silindi; yerel oturum verisini temizle.
     await _auth.signOut();
+  }
+
+  @override
+  Future<bool> claimAdminAccess() async {
+    final fbUser = _auth.currentUser;
+    if (fbUser == null) throw AuthException.notSignedIn;
+    try {
+      await FirebaseFunctions.instanceFor(region: 'europe-west1')
+          .httpsCallable('claimAdminAccess')
+          .call<Map<String, dynamic>>();
+    } on FirebaseFunctionsException catch (e) {
+      // İzin listesinde değilse sunucu 'permission-denied' döndürür.
+      if (e.code == 'permission-denied') {
+        throw const AuthException('Bu hesap yönetici yetkisine sahip değil.');
+      }
+      throw AuthException(
+          'Yönetici erişimi etkinleştirilemedi (${e.code}). Bağlantınızı '
+          'kontrol edip tekrar deneyin.');
+    }
+    // Claim yazıldı → token'ı zorla tazele ve akışa yansıt.
+    await fbUser.getIdToken(true);
+    final isAdmin = await _readAdminClaim(fbUser);
+    if (_cached != null && _cached!.isAdmin != isAdmin) {
+      _cached = _cached!.copyWith(isAdmin: isAdmin);
+      _manualUpdates.add(_cached);
+    }
+    return isAdmin;
   }
 
   /// Firebase hata kodlarını Türkçe [AuthException]'a çevirir.

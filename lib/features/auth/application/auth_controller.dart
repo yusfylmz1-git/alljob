@@ -131,6 +131,13 @@ class AuthController extends AsyncNotifier<void> {
     state = await AsyncValue.guard(() => _repo.deleteAccount());
     return !state.hasError;
   }
+
+  /// Yönetici erişimini etkinleştirir (yalnız izinli e-postalar). Başarıda
+  /// kullanıcı yönetici olur ve auth akışına yansır. Şimdi yönetici mi döndürür;
+  /// hata TR mesajlı [AuthException] olarak yeniden fırlatılır (UI gösterir).
+  Future<bool> claimAdminAccess() async {
+    return _repo.claimAdminAccess();
+  }
 }
 
 final authControllerProvider =

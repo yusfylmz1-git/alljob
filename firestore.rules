@@ -11,6 +11,10 @@ service cloud.firestore {
     function isSelf(uid) {
       return isSignedIn() && request.auth.uid == uid;
     }
+    // Yönetici mi? Kaynak: Auth custom claim `admin:true` (yalnız CF yazar).
+    function isAdmin() {
+      return isSignedIn() && request.auth.token.admin == true;
+    }
 
     // users — herkes okuyabilir (profil adı/foto herkese açık); yalnızca sahibi yazar.
     //
@@ -364,11 +368,18 @@ service cloud.firestore {
       }
 
       allow create: if isSignedIn() && reportOk();
-      // Tekrar şikayet aynı kaydı günceller (istemci `set` ile üzerine yazar).
-      allow update: if isSignedIn()
-        && resource.data.reporterUid == request.auth.uid
-        && reportOk();
-      allow read, delete: if false;
+      // Güncelleme iki halde: (a) şikayetçi kendi kaydını tekrar şikayetle
+      // günceller (istemci `set`), (b) YÖNETİCİ yalnız durum/çözüm alanlarını
+      // değiştirir (kimlik/hedef alanlarına dokunamaz).
+      allow update: if (isSignedIn()
+          && resource.data.reporterUid == request.auth.uid
+          && reportOk())
+        || (isAdmin()
+          && request.resource.data.diff(resource.data).affectedKeys()
+              .hasOnly(['status', 'adminNote', 'resolvedBy', 'resolvedAt']));
+      // Okuma yalnız yöneticiye (admin kuyruğu); silme kapalı.
+      allow read: if isAdmin();
+      allow delete: if false;
     }
 
     // favorites — müşterinin takip ettiği ("Takip Et") ustalar (#14). Döküman

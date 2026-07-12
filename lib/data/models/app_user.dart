@@ -16,6 +16,7 @@ class AppUser {
     this.activeMode = UserRole.customer,
     this.phoneVerified = false,
     this.emailVerified = false,
+    this.isAdmin = false,
     this.phoneNumber,
     this.profilePhotoUrl,
   });
@@ -43,6 +44,13 @@ class AppUser {
   /// olmasın); repo katmanı Auth kullanıcısından doldurur.
   final bool emailVerified;
 
+  /// Yönetici mi? KAYNAĞI Firebase Auth CUSTOM CLAIM'idir (`admin:true`) —
+  /// yalnızca sunucu (CF) yazabilir, istemci kendine veremez. `users`
+  /// dökümanına YAZILMAZ/OKUNMAZ; repo katmanı Auth token'ından doldurur.
+  /// UI kapıları (yönetici paneli girişi) bunu kullanır; asıl güvenlik
+  /// Firestore kurallarındaki `request.auth.token.admin == true` kontrolüdür.
+  final bool isAdmin;
+
   /// Yalnızca ustalar için; müşteriye asla gösterilmez (PRD §6).
   /// GÜVENLİK: herkese açık `users` dökümanına yazılmaz (bkz. toMap); yalnızca
   /// sahibin okuyabildiği `users/{uid}/private/*` alt-koleksiyonunda saklanır.
@@ -61,6 +69,7 @@ class AppUser {
     UserRole? activeMode,
     bool? phoneVerified,
     bool? emailVerified,
+    bool? isAdmin,
   }) {
     return AppUser(
       uid: uid,
@@ -71,6 +80,7 @@ class AppUser {
       activeMode: activeMode ?? this.activeMode,
       phoneVerified: phoneVerified ?? this.phoneVerified,
       emailVerified: emailVerified ?? this.emailVerified,
+      isAdmin: isAdmin ?? this.isAdmin,
       phoneNumber: phoneNumber ?? this.phoneNumber,
       profilePhotoUrl: profilePhotoUrl ?? this.profilePhotoUrl,
     );

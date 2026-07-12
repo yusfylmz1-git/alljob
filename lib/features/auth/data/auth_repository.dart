@@ -60,6 +60,13 @@ abstract interface class AuthRepository {
 
   Future<void> signOut();
 
+  /// Yönetici erişimini etkinleştirir (yalnızca izinli e-postalar için).
+  /// Sunucudaki `claimAdminAccess` CF, çağıranın e-postası izin listesinde ve
+  /// doğrulanmışsa `admin:true` custom claim'i yazar; ardından token tazelenir
+  /// ve auth akışına güncel kullanıcı yansıtılır. Şimdi yönetici mi döndürür.
+  /// İstemci kendine keyfî yönetici olamaz — asıl karar sunucudadır.
+  Future<bool> claimAdminAccess();
+
   /// Hesabı ve kişisel verileri KALICI olarak siler (Play zorunluluğu + KVKK).
   /// Firebase'de silme işini `deleteAccount` callable CF yapar (istemci tek
   /// tek koleksiyon silemez; kurallar da izin vermez); başarıda yerel oturum
