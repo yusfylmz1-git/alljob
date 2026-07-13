@@ -235,11 +235,39 @@ class _Chip extends StatelessWidget {
   }
 }
 
+/// Bir kullanıcıyı UID ile yükleyip askıya al / geri aç eylem sayfasını açar.
+/// Şikayet ve anlaşmazlık detaylarından "kullanıcıyı yönet" için ortak giriş
+/// noktası — moderasyon döngüsünü kapatır (bildirimden tek dokunuşla askıya al).
+Future<void> showAdminUserActions(
+  BuildContext context,
+  WidgetRef ref,
+  String uid, {
+  VoidCallback? onChanged,
+}) async {
+  AppUser? user;
+  try {
+    user = await ref.read(adminUserRepositoryProvider).findByUid(uid);
+  } catch (_) {
+    if (context.mounted) context.showError('Kullanıcı yüklenemedi.');
+    return;
+  }
+  if (!context.mounted) return;
+  if (user == null) {
+    context.showError('Kullanıcı bulunamadı.');
+    return;
+  }
+  await showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    builder: (_) => _UserActionSheet(user: user!, onChanged: onChanged),
+  );
+}
+
 /// Kullanıcı için askıya al / geri aç eylem sayfası.
 class _UserActionSheet extends ConsumerStatefulWidget {
-  const _UserActionSheet({required this.user, required this.onChanged});
+  const _UserActionSheet({required this.user, this.onChanged});
   final AppUser user;
-  final VoidCallback onChanged;
+  final VoidCallback? onChanged;
 
   @override
   ConsumerState<_UserActionSheet> createState() => _UserActionSheetState();
@@ -265,7 +293,7 @@ class _UserActionSheetState extends ConsumerState<_UserActionSheet> {
           );
       if (!mounted) return;
       Navigator.of(context).pop();
-      widget.onChanged();
+      widget.onChanged?.call();
       context.showSuccess(suspend
           ? 'Kullanıcı askıya alındı.'
           : 'Kullanıcının askısı kaldırıldı.');

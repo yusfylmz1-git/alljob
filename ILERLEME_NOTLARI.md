@@ -25,6 +25,18 @@
 
 **Tarih:** 2026-07-13
 
+**Oturum 55 (2026-07-13, aynı gün): ADMIN FAZ 2 — ŞİKAYET/ANLAŞMAZLIK → HEDEF KULLANICIYI YÖNET. Yalnız admin UI kablolaması → DEPLOY GEREKMEZ (yeni CF/kural yok). 143/143 test, analyze 0, admin web OK.**
+Kullanıcı "edelim" → moderasyon döngüsü kapatıldı: bir şikayeti/anlaşmazlığı görürken tek dokunuşla ilgili kullanıcının askıya-alma sayfası açılır (Oturum 54'ün suspend akışını yeniden kullanır).
+- **Ortak giriş (`admin_users_screen.dart`):** yeni top-level `showAdminUserActions(context, ref, uid, {onChanged})` → uid'yi `adminUserRepositoryProvider.findByUid` ile yükler → `_UserActionSheet`'i açar (bulunamazsa/hatada snackbar). `_UserActionSheet.onChanged` artık nullable (`?.call()`).
+- **Şikayet detayı (`admin_reports_screen.dart`):** çözüm notunun üstüne "Bildirilen kullanıcıyı yönet" OutlinedButton (`reportedUid` boş değilse) → `showAdminUserActions`. Böylece şikayet → suspend tek ekranda.
+- **Anlaşmazlık detayı (`admin_disputes_screen.dart`):** karar notunun üstüne Wrap: "Müşteriyi yönet" (customerId) + "Ustayı yönet" (selectedArtisanId varsa) → aynı ortak giriş.
+- Yeni birim mantık YOK (testli `showAdminUserActions`/`MockAdminUserRepository` yeniden kullanıldı) → test sayısı 143/143 sabit; analyze 0; `flutter build web -t lib/main_admin.dart` OK.
+- **⚠️ DEPLOY: bu oturum için EK YOK.** Bekleyen deploy hâlâ Oturum 52-REVİZE+53+54'ünki (aşağıda 54 bloğunda tam liste). Bu oturum onların üstüne yeni bir şey EKLEMEDİ.
+- **SIRADAKİ (admin Faz 2+ kalan):** `setAdminRole` superadmin-only CF (moderatör atama) · cursor sayfalama + assignment · App Check enforce admin sitesinde · (ölçek) BigQuery export.
+- ⚠️ Kullanıcı DEPLOY SONRASI (54'ünkiyle aynı deploy): admin sitesi → Şikayetler/Anlaşmazlıklar → bir kayda dokun → detayda "…kullanıcıyı yönet" → Askıya Al/Kaldır sayfası açılmalı.
+
+--- (önceki oturumlar) ---
+
 **Oturum 54 (2026-07-13, aynı gün): ADMIN FAZ 2 — KULLANICI YÖNETİMİ (ASKIYA ALMA). Sunucu-zorlamalı. KOD TAMAM, 143/143 test, analyze 0, HER İKİ web hedefi OK. ⚠️ KURAL + CF DEPLOY BEKLİYOR.**
 Kullanıcı AskUserQuestion → "Kullanıcı yönetimi (askıya alma)". Kötüye kullanan hesabı yönetici durdurur/geri açar. Oturum 53'ün hakemliğinden farkı: **bu KURAL DEĞİŞTİRDİ** (öncekinde değişmemişti).
 - **Zorlama modeli SUNUCUDA (profesyonel/güvenli):** `suspended:true` custom claim → firestore.rules yeni **iş/teklif/mesaj/değerlendirme oluşturmayı** reddeder (`isSuspended()` helper + 4 create dalına `&& !isSuspended()`). İstemci kapısı tek başına yeterli değil; kural asıl kilit.

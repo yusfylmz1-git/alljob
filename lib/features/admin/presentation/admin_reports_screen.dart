@@ -10,6 +10,7 @@ import '../../../data/models/report.dart';
 import '../../auth/application/auth_controller.dart';
 import '../data/admin_providers.dart';
 import '../data/admin_report.dart';
+import 'admin_users_screen.dart';
 
 /// Yönetici şikayet kuyruğu. Yalnızca `admin:true` claim'i olan kullanıcı
 /// açabilir (yönlendirme guard'ı + Firestore kuralı). Kayıtlar listelenir;
@@ -403,6 +404,20 @@ class _ReportDetailSheetState extends ConsumerState<_ReportDetailSheet> {
               _InfoBlock(label: 'Tarih', value: _formatDate(r.createdAt)),
               if (r.resolvedBy != null)
                 _InfoBlock(label: 'İşleyen (uid)', value: r.resolvedBy!),
+              if (r.reportedUid.isNotEmpty) ...[
+                const SizedBox(height: 4),
+                OutlinedButton.icon(
+                  onPressed: _busy
+                      ? null
+                      : () => showAdminUserActions(
+                            context,
+                            ref,
+                            r.reportedUid,
+                          ),
+                  icon: const Icon(Icons.manage_accounts_outlined, size: 18),
+                  label: const Text('Bildirilen kullanıcıyı yönet'),
+                ),
+              ],
               const SizedBox(height: 12),
               Text('Çözüm notu (opsiyonel)',
                   style: theme.textTheme.labelLarge

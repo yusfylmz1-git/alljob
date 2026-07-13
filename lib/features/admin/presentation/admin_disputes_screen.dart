@@ -10,6 +10,7 @@ import '../../../data/models/job.dart';
 import '../../auth/application/auth_controller.dart';
 import '../data/admin_dispute_repository.dart';
 import '../data/admin_providers.dart';
+import 'admin_users_screen.dart';
 
 /// Yönetici anlaşmazlık (hakemlik) kuyruğu. `disputed` durumundaki işler
 /// listelenir; bir işe dokununca detay + karar (İşi İptal Et / Devam Ettir)
@@ -285,6 +286,31 @@ class _DisputeDetailSheetState extends ConsumerState<_DisputeDetailSheet> {
               _InfoBlock(
                   label: 'Bildirim tarihi',
                   value: _formatDate(j.disputedAt ?? j.createdAt)),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  OutlinedButton.icon(
+                    onPressed: _busy
+                        ? null
+                        : () => showAdminUserActions(context, ref, j.customerId),
+                    icon: const Icon(Icons.person_outline, size: 18),
+                    label: const Text('Müşteriyi yönet'),
+                  ),
+                  if (j.selectedArtisanId != null)
+                    OutlinedButton.icon(
+                      onPressed: _busy
+                          ? null
+                          : () => showAdminUserActions(
+                                context,
+                                ref,
+                                j.selectedArtisanId!,
+                              ),
+                      icon: const Icon(Icons.handyman_outlined, size: 18),
+                      label: const Text('Ustayı yönet'),
+                    ),
+                ],
+              ),
               const SizedBox(height: 12),
               Text('Karar notu (opsiyonel — her iki tarafa iletilir)',
                   style: theme.textTheme.labelLarge
