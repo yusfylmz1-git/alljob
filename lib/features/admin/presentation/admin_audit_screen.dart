@@ -12,11 +12,27 @@ import '../data/admin_providers.dart';
 /// Yönetici denetim kaydı görüntüleyici (`adminAuditLogs`). Her yetkili eylem
 /// (rol atama, şikayet/anlaşmazlık kararı, askıya alma…) burada izlenir —
 /// hesap verebilirlik + KVKK/GDPR. Yalnız süper yöneticiye açık (gözetim).
-class AdminAuditScreen extends ConsumerWidget {
+/// Kategori çipleri + aktör/hedef uid araması ile süzülür (istemci-tarafı,
+/// yüklü 200 kayıt penceresi üzerinde).
+class AdminAuditScreen extends ConsumerStatefulWidget {
   const AdminAuditScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<AdminAuditScreen> createState() => _AdminAuditScreenState();
+}
+
+class _AdminAuditScreenState extends ConsumerState<AdminAuditScreen> {
+  final _query = TextEditingController();
+  AuditCategory _category = AuditCategory.all;
+
+  @override
+  void dispose() {
+    _query.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final auditAsync = ref.watch(adminAuditLogProvider);
     return Scaffold(
       appBar: GradientAppBar(
@@ -39,25 +55,107 @@ class AdminAuditScreen extends ConsumerWidget {
         error: (_, _) => const ErrorView(
           message: 'Denetim kaydı yüklenemedi. Yetkiniz olduğundan emin olun.',
         ),
-        data: (list) {
-          if (list.isEmpty) {
+        data: (all) {
+          if (all.isEmpty) {
             return const ErrorView(
               icon: Icons.history_outlined,
               title: 'Kayıt yok',
               message: 'Henüz kaydedilmiş bir yönetici eylemi yok.',
             );
           }
-          return ResponsiveCenter(
-            maxWidth: 720,
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
-            child: ListView.separated(
-              padding: EdgeInsets.zero,
-              itemCount: list.length,
-              separatorBuilder: (_, _) => const SizedBox(height: 10),
-              itemBuilder: (_, i) => _AuditCard(entry: list[i]),
-            ),
+          final list =
+              filterAudit(all, category: _category, query: _query.text);
+          return Column(
+            children: [
+              _FilterBar(
+                category: _category,
+                query: _query,
+                onCategory: (c) => setState(() => _category = c),
+                onQueryChanged: () => setState(() {}),
+              ),
+              Expanded(
+                child: list.isEmpty
+                    ? const ErrorView(
+                        icon: Icons.search_off,
+                        title: 'Eşleşen kayıt yok',
+                        message: 'Filtre veya aramayı değiştirin.',
+                      )
+                    : ResponsiveCenter(
+                        maxWidth: 720,
+                        padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
+                        child: ListView.separated(
+                          padding: EdgeInsets.zero,
+                          itemCount: list.length,
+                          separatorBuilder: (_, _) =>
+                              const SizedBox(height: 10),
+                          itemBuilder: (_, i) => _AuditCard(entry: list[i]),
+                        ),
+                      ),
+              ),
+            ],
           );
         },
+      ),
+    );
+  }
+}
+
+class _FilterBar extends StatelessWidget {
+  const _FilterBar({
+    required this.category,
+    required this.query,
+    required this.onCategory,
+    required this.onQueryChanged,
+  });
+
+  final AuditCategory category;
+  final TextEditingController query;
+  final ValueChanged<AuditCategory> onCategory;
+  final VoidCallback onQueryChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return ResponsiveCenter(
+      maxWidth: 720,
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+      child: Column(
+        children: [
+          TextField(
+            controller: query,
+            onChanged: (_) => onQueryChanged(),
+            decoration: InputDecoration(
+              isDense: true,
+              hintText: 'Aktör veya hedef UID ara…',
+              prefixIcon: const Icon(Icons.search, size: 20),
+              suffixIcon: query.text.isEmpty
+                  ? null
+                  : IconButton(
+                      icon: const Icon(Icons.clear, size: 18),
+                      onPressed: () {
+                        query.clear();
+                        onQueryChanged();
+                      },
+                    ),
+            ),
+          ),
+          const SizedBox(height: 10),
+          SizedBox(
+            height: 34,
+            child: ListView(
+              scrollDirection: Axis.horizontal,
+              children: [
+                for (final c in AuditCategory.values) ...[
+                  ChoiceChip(
+                    label: Text(c.labelTR),
+                    selected: category == c,
+                    onSelected: (_) => onCategory(c),
+                  ),
+                  const SizedBox(width: 8),
+                ],
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

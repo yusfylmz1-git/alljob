@@ -325,6 +325,42 @@ void main() {
       final list = await repo.watchAuditLog().first;
       expect(list.map((e) => e.id), ['b', 'c', 'a']);
     });
+
+    test('filterAudit kategori + aktör/hedef uid araması', () {
+      AuditEntry e(String id, String action, String actor, String target) =>
+          AuditEntry(
+            id: id,
+            actorUid: actor,
+            action: action,
+            targetId: target,
+            createdAt: DateTime(2026, 1, 1),
+          );
+      final all = [
+        e('1', 'set_role', 'admin1', 'u9'),
+        e('2', 'suspend_user', 'admin2', 'u9'),
+        e('3', 'resolve_report', 'admin1', 'r5'),
+        e('4', 'resolve_dispute', 'admin2', 'j7'),
+      ];
+
+      // Kategori süzme.
+      expect(
+          filterAudit(all, category: AuditCategory.roles).map((x) => x.id),
+          ['1']);
+      expect(
+          filterAudit(all, category: AuditCategory.reports).map((x) => x.id),
+          ['3']);
+      expect(filterAudit(all).length, 4); // all → hepsi
+
+      // Serbest metin (aktör veya hedef).
+      expect(filterAudit(all, query: 'u9').map((x) => x.id), ['1', '2']);
+      expect(filterAudit(all, query: 'ADMIN1').map((x) => x.id), ['1', '3']);
+
+      // Kategori + arama birlikte.
+      expect(
+          filterAudit(all, category: AuditCategory.suspension, query: 'u9')
+              .map((x) => x.id),
+          ['2']);
+    });
   });
 
   group('Yönetici erişimi (claimAdminAccess)', () {

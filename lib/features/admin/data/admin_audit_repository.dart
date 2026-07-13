@@ -59,6 +59,48 @@ class AuditEntry {
       );
 }
 
+/// Denetim kaydı eylem kategorileri (istemci-tarafı filtre için). Her kategori
+/// bir grup eylem kodunu kapsar; [AuditCategory.all] hepsini geçirir.
+enum AuditCategory {
+  all('Tümü'),
+  roles('Roller'),
+  suspension('Askı'),
+  reports('Şikayet'),
+  disputes('Anlaşmazlık');
+
+  const AuditCategory(this.labelTR);
+  final String labelTR;
+
+  bool matches(AuditEntry e) => switch (this) {
+        AuditCategory.all => true,
+        AuditCategory.roles =>
+          const {'grant_admin', 'set_role', 'revoke_admin'}.contains(e.action),
+        AuditCategory.suspension =>
+          const {'suspend_user', 'unsuspend_user'}.contains(e.action),
+        AuditCategory.reports => const {
+            'resolve_report',
+            'claim_report',
+            'release_report'
+          }.contains(e.action),
+        AuditCategory.disputes => e.action == 'resolve_dispute',
+      };
+}
+
+/// Denetim kayıtlarını kategori + serbest metin (aktör/hedef uid) ile süzer.
+List<AuditEntry> filterAudit(
+  List<AuditEntry> entries, {
+  AuditCategory category = AuditCategory.all,
+  String query = '',
+}) {
+  final q = query.trim().toLowerCase();
+  return entries.where((e) {
+    if (!category.matches(e)) return false;
+    if (q.isEmpty) return true;
+    return e.actorUid.toLowerCase().contains(q) ||
+        (e.targetId ?? '').toLowerCase().contains(q);
+  }).toList();
+}
+
 /// Yönetici denetim kaydı soyutlaması (yalnız okuma — kayıtları CF yazar).
 abstract interface class AdminAuditRepository {
   /// En yeni denetim kayıtları (en yeni üstte).

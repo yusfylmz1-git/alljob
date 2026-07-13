@@ -25,6 +25,18 @@
 
 **Tarih:** 2026-07-13
 
+**Oturum 60 (2026-07-13, aynı gün): ADMIN FAZ 2 — DENETİM KAYDI FİLTRE + ARAMA. Yalnız istemci → DEPLOY GEREKMEZ. 149/149 test, analyze 0, admin web OK.**
+Kullanıcı "devam" → Oturum 59 denetim görüntüleyicisinin doğal tamamlayıcısı: gerçek konsolda "yönetici X ne yaptı" / "tüm askıya almalar" gerekir.
+- **Model (`admin_audit_repository.dart`):** `AuditCategory` enum (all/roles/suspension/reports/disputes + labelTR + `matches(entry)` eylem kodu grupları) + saf `filterAudit(entries, {category, query})` (kategori + aktör/hedef uid küçük-harf duyarsız arama). Test edilebilir, UI'dan bağımsız.
+- **UI (`admin_audit_screen.dart` → ConsumerStatefulWidget):** üstte `_FilterBar` (aktör/hedef UID arama kutusu + temizle + yatay kaydırmalı 5 kategori ChoiceChip). Liste `filterAudit` ile süzülür; eşleşme yoksa "Eşleşen kayıt yok" boş durumu. Yüklü 200 pencere üzerinde istemci-tarafı süzme.
+- **Test (`test/admin_test.dart` +1 → 149/149):** filterAudit kategori süzme (roles/reports/all) + serbest metin (aktör/hedef, büyük-küçük harf) + kategori&arama birlikte.
+- Toplam **149/149**; analyze 0; `flutter build web -t lib/main_admin.dart` OK.
+- **⚠️ DEPLOY: bu oturum EK GETİRMEDİ.** Bekleyen deploy hâlâ 52-REVİZE+53+54+56+58'inki (58 bloğunda tam liste).
+- **SIRADAKİ (admin Faz 2+ kalan):** cursor sayfalama (kuyruk >200) · App Check enforce admin sitesinde · (ölçek) BigQuery export.
+- ⚠️ Kullanıcı DEPLOY SONRASI: Denetim sekmesi → kategori çipiyle (ör. "Askı") süz veya bir yönetici/hedef UID ara → yalnız eşleşenler listelenmeli.
+
+--- (önceki oturumlar) ---
+
 **Oturum 59 (2026-07-13, aynı gün): ADMIN FAZ 2 — DENETİM KAYDI GÖRÜNTÜLEYİCİ. Yalnız istemci → DEPLOY GEREKMEZ (adminAuditLogs okuma kuralı 52-REVİZE'de geldi). 148/148 test, analyze 0, admin web OK.**
 Kullanıcı "devam" → GERÇEK boşluk: 6 oturumdur her yönetici eylemi `adminAuditLogs`'a yazılıyordu ama görüntüleyecek EKRAN yoktu (hesap verebilirlik/KVKK bunu görmeyi gerektirir). cursor sayfalamadan daha mantıklıydı.
 - **Repo (yeni `admin_audit_repository.dart`):** `AuditEntry` (id/actorUid/action/targetType/targetId/before/after/createdAt + `actionLabelTR` — grant_admin/set_role/revoke_admin/suspend_user/unsuspend_user/resolve_report/claim_report/release_report/resolve_dispute Türkçe; bilinmeyen kod olduğu gibi). `AdminAuditRepository` (arayüz + Firebase `adminAuditLogs.orderBy(createdAt desc).limit(200).snapshots()` — createdAt ISO metin, tek alan otomatik indeks; + Mock seed'li).
