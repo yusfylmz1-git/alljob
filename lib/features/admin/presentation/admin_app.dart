@@ -8,6 +8,8 @@ import '../../../core/utils/snackbar_helper.dart';
 import '../../../core/widgets/app_button.dart';
 import '../../auth/application/auth_controller.dart';
 import '../../auth/data/auth_repository.dart';
+import '../data/admin_providers.dart';
+import 'admin_disputes_screen.dart';
 import 'admin_reports_screen.dart';
 
 /// AYRI admin web uygulamasının kökü. Tüketici uygulamasından TAMAMEN bağımsız
@@ -45,8 +47,72 @@ class _AdminGate extends ConsumerWidget {
       data: (user) {
         if (user == null) return const _AdminLoginScreen();
         if (!user.isAdmin) return const _AccessDeniedScreen();
-        return const AdminReportsScreen();
+        return const _AdminHomeScreen();
       },
+    );
+  }
+}
+
+/// Yönetici ana kabuğu: alt gezinmeyle Şikayetler ⇄ Anlaşmazlıklar. Her sekme
+/// kendi ekranını (kendi üst barı + çıkış düğmesiyle) taşır; sekmeler
+/// [IndexedStack] ile canlı tutulur (geçişte akışlar yeniden kurulmaz).
+/// Rozetler açık şikayet / açık anlaşmazlık sayısını gösterir.
+class _AdminHomeScreen extends ConsumerStatefulWidget {
+  const _AdminHomeScreen();
+
+  @override
+  ConsumerState<_AdminHomeScreen> createState() => _AdminHomeScreenState();
+}
+
+class _AdminHomeScreenState extends ConsumerState<_AdminHomeScreen> {
+  int _index = 0;
+
+  @override
+  Widget build(BuildContext context) {
+    final openReports = ref.watch(openReportCountProvider);
+    final openDisputes = ref.watch(openDisputeCountProvider);
+    return Scaffold(
+      body: IndexedStack(
+        index: _index,
+        children: const [
+          AdminReportsScreen(),
+          AdminDisputesScreen(),
+        ],
+      ),
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: _index,
+        onDestinationSelected: (i) => setState(() => _index = i),
+        destinations: [
+          NavigationDestination(
+            icon: _BadgeIcon(
+                icon: Icons.flag_outlined, count: openReports),
+            selectedIcon: _BadgeIcon(icon: Icons.flag, count: openReports),
+            label: 'Şikayetler',
+          ),
+          NavigationDestination(
+            icon: _BadgeIcon(
+                icon: Icons.gavel_outlined, count: openDisputes),
+            selectedIcon: _BadgeIcon(icon: Icons.gavel, count: openDisputes),
+            label: 'Anlaşmazlıklar',
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Sayaç > 0 ise ikonun üstünde küçük rozet.
+class _BadgeIcon extends StatelessWidget {
+  const _BadgeIcon({required this.icon, required this.count});
+  final IconData icon;
+  final int count;
+
+  @override
+  Widget build(BuildContext context) {
+    if (count <= 0) return Icon(icon);
+    return Badge(
+      label: Text(count > 99 ? '99+' : '$count'),
+      child: Icon(icon),
     );
   }
 }

@@ -15,6 +15,7 @@ import 'package:usta_cepte/features/safety/data/block_repository.dart';
 import 'package:usta_cepte/features/safety/data/report_repository.dart';
 import 'package:usta_cepte/features/safety/data/safety_providers.dart';
 import 'package:usta_cepte/features/storage/storage_repository.dart';
+import 'package:usta_cepte/features/admin/data/admin_dispute_repository.dart';
 import 'package:usta_cepte/features/admin/data/admin_providers.dart';
 import 'package:usta_cepte/features/admin/data/admin_report_repository.dart';
 import 'package:usta_cepte/features/tracking/data/mock_track_backup_repository.dart';
@@ -74,6 +75,11 @@ List<Override> mockBackendOverrides() => [
       ),
       adminReportRepositoryProvider.overrideWith((ref) {
         final repo = MockAdminReportRepository();
+        ref.onDispose(repo.dispose);
+        return repo;
+      }),
+      adminDisputeRepositoryProvider.overrideWith((ref) {
+        final repo = MockAdminDisputeRepository();
         ref.onDispose(repo.dispose);
         return repo;
       }),

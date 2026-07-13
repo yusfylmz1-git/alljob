@@ -1,6 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:usta_cepte/data/models/job.dart';
 import 'package:usta_cepte/data/models/report.dart';
 import 'package:usta_cepte/features/admin/data/admin_config.dart';
+import 'package:usta_cepte/features/admin/data/admin_dispute_repository.dart';
 import 'package:usta_cepte/features/admin/data/admin_report.dart';
 import 'package:usta_cepte/features/admin/data/admin_report_repository.dart';
 import 'package:usta_cepte/features/auth/data/mock_auth_repository.dart';
@@ -15,6 +17,38 @@ Report _r(String id, ReportStatus status, DateTime created) => Report(
       note: 'not $id',
       status: status,
       createdAt: created,
+    );
+
+/// `disputed` durumunda bir iş (hakemlik kuyruğu testleri için).
+Job _dispute(
+  String id, {
+  required JobStatus before,
+  required DateTime disputedAt,
+}) =>
+    Job(
+      jobId: id,
+      customerId: 'cust_$id',
+      customerName: 'Müşteri $id',
+      title: 'İş $id',
+      description: 'açıklama',
+      category: 'plumber',
+      province: 'İstanbul',
+      district: 'Kadıköy',
+      photos: const [],
+      isUrgent: false,
+      priceType: JobPriceType.inspection,
+      status: JobStatus.disputed,
+      offerCount: 1,
+      customerConfirmedDone: false,
+      artisanConfirmedDone: false,
+      createdAt: disputedAt.subtract(const Duration(days: 1)),
+      expiresAt: disputedAt.add(const Duration(days: 3)),
+      selectedArtisanId: 'art_$id',
+      disputedBy: JobDisputeParty.customer,
+      disputeReason: JobDisputeReason.qualityIssue,
+      disputeNote: 'not $id',
+      disputedAt: disputedAt,
+      statusBeforeDispute: before,
     );
 
 void main() {
@@ -98,6 +132,56 @@ void main() {
 
       final open = await repo.watchReports(openOnly: true).first;
       expect(open, isEmpty);
+    });
+  });
+
+  group('MockAdminDisputeRepository (hakemlik)', () {
+    test('watchDisputes yalnız disputed işleri en yeni bildirilen üstte verir',
+        () async {
+      final repo = MockAdminDisputeRepository([
+        _dispute('a',
+            before: JobStatus.inProgress, disputedAt: DateTime(2026, 1, 1)),
+        _dispute('b',
+            before: JobStatus.completed, disputedAt: DateTime(2026, 1, 3)),
+        _dispute('c',
+            before: JobStatus.workerSelected,
+            disputedAt: DateTime(2026, 1, 2)),
+      ]);
+      addTearDown(repo.dispose);
+
+      final list = await repo.watchDisputes().first;
+      expect(list.map((e) => e.jobId), ['b', 'c', 'a']); // disputedAt desc
+      expect(list.every((e) => e.status == JobStatus.disputed), isTrue);
+    });
+
+    test('cancel kararı işi iptal eder + anlaşmazlığı temizler; kuyruktan düşer',
+        () async {
+      final repo = MockAdminDisputeRepository([
+        _dispute('a',
+            before: JobStatus.inProgress, disputedAt: DateTime(2026, 1, 1)),
+      ]);
+      addTearDown(repo.dispose);
+
+      await repo.resolveDispute('a',
+          decision: DisputeDecision.cancelJob, note: 'haklı');
+
+      final list = await repo.watchDisputes().first;
+      expect(list, isEmpty); // artık disputed değil → kuyruktan düşer
+    });
+
+    test('restore kararı işi sorun öncesi durumuna döndürür + temizler',
+        () async {
+      final repo = MockAdminDisputeRepository([
+        _dispute('a',
+            before: JobStatus.completed, disputedAt: DateTime(2026, 1, 1)),
+      ]);
+      addTearDown(repo.dispose);
+
+      await repo.resolveDispute('a', decision: DisputeDecision.restoreJob);
+
+      // Kuyruktan düştü; iç durum completed'a döndü, dispute alanları temizlendi.
+      final list = await repo.watchDisputes().first;
+      expect(list, isEmpty);
     });
   });
 

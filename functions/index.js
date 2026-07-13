@@ -608,7 +608,11 @@ exports.onJobWritten = onDocumentWritten(
           await sendPushToUid(recipient, dTitle, dBody, {type: "job", jobId});
         }
       }
-      if (wasDisputed && !isDisputed) {
+      // Yönetici hakemliğiyle kapanan anlaşmazlıkta bu genel "geri çekildi"
+      // bildirimi atlanır: `adminResolveDispute` her iki tarafa kendi KESİN
+      // kararını (iptal / devam) ayrıca bildirir; ayrıca iptalde "kaldığı
+      // yerden devam ediyor" mesajı YANLIŞ olurdu.
+      if (wasDisputed && !isDisputed && after.adminResolved !== true) {
         const recipient = before.disputedBy === "customer" ?
           after.selectedArtisanId :
           after.customerId;
@@ -975,6 +979,100 @@ exports.adminResolveReport = onCall(
       }, batch);
       await batch.commit();
       logger.info(`report ${reportId} → ${status} (admin ${auth.uid})`);
+      return {ok: true};
+    },
+);
+
+// Yönetici bir anlaşmazlığı (disputed iş) hakemlikle karara bağlar. İki güvenli
+// karar (puan/completedJobs muhasebesini bozmadan):
+//  - cancel  → iş 'cancelled' (anlaşmazlık haklı; kimse puanlanmaz).
+//  - restore → iş `statusBeforeDispute` durumuna döner (yersiz/çözüldü; kaldığı
+//    yerden devam). statusBeforeDispute 'completed' ise completedJobs zaten
+//    sayılmıştı (onJobWritten `fromDispute` guard'ı çift artışı engeller).
+// Her iki durumda anlaşmazlık alanları temizlenir, `adminResolved:true` yazılır
+// (onJobWritten'in genel "geri çekildi" bildirimini bastırır), her iki tarafa
+// KESİN karar bildirilir ve denetim kaydı ATOMİK yazılır. İstemci `jobs`'a
+// doğrudan yazamaz — tüm mutasyon buradan geçer.
+exports.adminResolveDispute = onCall(
+    {region: REGION},
+    async (request) => {
+      const auth = request.auth;
+      if (!auth || auth.token.admin !== true) {
+        throw new HttpsError("permission-denied", "Yönetici yetkisi gerekli.");
+      }
+      const {jobId, decision, note} = request.data || {};
+      if (typeof jobId !== "string" ||
+          !["cancel", "restore"].includes(decision)) {
+        throw new HttpsError("invalid-argument", "Geçersiz istek.");
+      }
+      const ref = db.collection("jobs").doc(jobId);
+      const snap = await ref.get();
+      if (!snap.exists) {
+        throw new HttpsError("not-found", "İlan bulunamadı.");
+      }
+      const job = snap.data() || {};
+      if (job.status !== "disputed") {
+        throw new HttpsError(
+            "failed-precondition", "İlan anlaşmazlık durumunda değil.");
+      }
+
+      const del = admin.firestore.FieldValue.delete();
+      const restored = job.statusBeforeDispute || "inProgress";
+      const newStatus = decision === "cancel" ? "cancelled" : restored;
+      const update = {
+        status: newStatus,
+        adminResolved: true,
+        // Anlaşmazlık alanlarını temizle (kayıt hakemlikle kapandı).
+        disputedBy: del,
+        disputeReason: del,
+        disputeNote: del,
+        disputedAt: del,
+        statusBeforeDispute: del,
+      };
+      if (decision === "cancel") {
+        // Serbest metin: istemci Job.cancelReason enum'u bunu null çözer
+        // (zararsız); asıl bağlam bildirimde + denetim kaydında.
+        update.cancelReason = "Yönetici kararı";
+      }
+
+      const batch = db.batch();
+      batch.update(ref, update);
+      await writeAuditLog({
+        actorUid: auth.uid,
+        action: "resolve_dispute",
+        targetType: "job",
+        targetId: jobId,
+        before: {status: "disputed", statusBeforeDispute: restored},
+        after: {decision, status: newStatus},
+      }, batch);
+      await batch.commit();
+
+      // Her iki tarafa KESİN kararı bildir (push + uygulama içi merkez). docId
+      // `dispute_{jobId}`: onJobWritten'in `job_{jobId}` kaydıyla çakışmaz.
+      const noteSuffix = (typeof note === "string" && note.trim()) ?
+        ` Yönetici notu: ${note.trim()}` : "";
+      const title = decision === "cancel" ?
+        "İş, yönetici kararıyla iptal edildi" :
+        "Anlaşmazlık kapatıldı — iş devam ediyor";
+      const body = (decision === "cancel" ?
+        `"${job.title || "İş"}" için bildirilen sorun sonucunda iş iptal ` +
+          "edildi." :
+        `"${job.title || "İş"}" için bildirilen sorun kapatıldı; iş kaldığı ` +
+          "yerden devam ediyor.") + noteSuffix;
+
+      for (const uid of [job.customerId, job.selectedArtisanId]) {
+        if (!uid) continue;
+        await saveNotification(uid, `dispute_${jobId}`, {
+          type: "job",
+          title,
+          body,
+          jobId,
+        });
+        await sendPushToUid(uid, title, body, {type: "job", jobId});
+      }
+
+      logger.info(
+          `dispute ${jobId} → ${decision} (${newStatus}) admin ${auth.uid}`);
       return {ok: true};
     },
 );
