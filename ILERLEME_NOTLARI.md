@@ -25,6 +25,19 @@
 
 **Tarih:** 2026-07-13
 
+**Oturum 61 (2026-07-13, aynı gün): ADMIN FAZ 2 — DENETİM KAYDI CURSOR SAYFALAMA. Yalnız istemci → DEPLOY GEREKMEZ (tek-alan isLessThan, bileşik indeks yok). 149/149 test, analyze 0, admin web OK.**
+Kullanıcı "devam" → NOT: App Check istemci kablolaması ZATEN tam (main.dart Android playIntegrity/debug + Apple appAttest/debug + web reCAPTCHA; main_admin web reCAPTCHA) — kalan yalnız reCAPTCHA anahtarı + Console enforcement (kod değil, kullanıcı işi). O yüzden gerçek kod işi olan cursor sayfalama, en mantıklı yere (sonsuz büyüyen append-only denetim kaydı) uygulandı; canlı-akış regresyonu yok (denetim geçmiş kayıttır).
+- **Repo (`admin_audit_repository.dart`):** `watchAuditLog` (stream, sabit 200 tavan) → **`fetchPage({beforeCursor, limit})`**. `AuditEntry.cursor` eklendi = kaydın DEPO'daki ham `createdAt` metni (fromMap ham metni birebir korur; elle üretilende `createdAt.toUtc().toIso8601String()`'ten türer). **`AuditEntry` artık const DEĞİL** (cursor türetimi initializer'da). Firebase: `orderBy(createdAt desc)` + `beforeCursor` varsa `.where(createdAt < beforeCursor)` → **sınır kayması yok** (cursor son kaydın BİREBİR depo metni; tek alan, indeks gerekmez). Mock: cursor'ı DateTime'a çevirip `isBefore` süzer.
+- **Controller (`admin_providers.dart`):** `AuditPage {entries, hasMore, loadingMore}` + `AuditLogController extends StateNotifier<AsyncValue<AuditPage>>` (load/refresh/loadMore, sayfa 50; loadMore son kaydın cursor'ıyla ekler, `hasMore = son sayfa == 50`). `auditLogControllerProvider` (StateNotifierProvider.autoDispose). Eski `adminAuditLogProvider` stream KALDIRILDI.
+- **UI (`admin_audit_screen.dart`):** appbar'a "Yenile" ikonu. Liste sonuna `_LoadMoreFooter` (yükleniyorsa spinner / daha varsa "Daha fazla yükle" / bitti ise "Kaydın sonu"). `RefreshIndicator` (aşağı çek → refresh). Filtre bar + `filterAudit` KORUNDU (yüklü sayfalar üzerinde süzer); filtre hiçbir yüklüyü geçirmezse `_NoMatch` "daha eski kayıtları yükle" önerir. Alt bar subtitle "N kayıt yüklü+".
+- **Test (`test/admin_test.dart`):** watchAuditLog testi → **fetchPage** (en yeni üstte + cursor'la sonraki sayfa + sonda boş). filterAudit + AuditEntry.fromMap testleri aynen. Toplam **149/149** (net değişmedi; bir test dönüştürüldü).
+- Toplam **149/149**; analyze 0; `flutter build web -t lib/main_admin.dart` OK.
+- **⚠️ DEPLOY: bu oturum EK GETİRMEDİ** (createdAt tek-alan `orderBy`/`isLessThan`, otomatik indeks; adminAuditLogs okuma kuralı zaten var). Bekleyen deploy hâlâ 52-REVİZE+53+54+56+58'inki.
+- **SIRADAKİ (admin Faz 2+ kalan):** App Check enforce (Console + reCAPTCHA anahtarı — KULLANICI işi) · şikayet/anlaşmazlık kuyruklarına da cursor sayfalama (isteğe bağlı) · (ölçek) BigQuery export. **Admin paneli pratikte tamamlanmış sayılabilir.**
+- ⚠️ Kullanıcı DEPLOY SONRASI: Denetim sekmesi → 50'şer yüklenir; altta "Daha fazla yükle" ile eskiye iner; "Yenile"/aşağı-çek en yeniyi tazeler.
+
+--- (önceki oturumlar) ---
+
 **Oturum 60 (2026-07-13, aynı gün): ADMIN FAZ 2 — DENETİM KAYDI FİLTRE + ARAMA. Yalnız istemci → DEPLOY GEREKMEZ. 149/149 test, analyze 0, admin web OK.**
 Kullanıcı "devam" → Oturum 59 denetim görüntüleyicisinin doğal tamamlayıcısı: gerçek konsolda "yönetici X ne yaptı" / "tüm askıya almalar" gerekir.
 - **Model (`admin_audit_repository.dart`):** `AuditCategory` enum (all/roles/suspension/reports/disputes + labelTR + `matches(entry)` eylem kodu grupları) + saf `filterAudit(entries, {category, query})` (kategori + aktör/hedef uid küçük-harf duyarsız arama). Test edilebilir, UI'dan bağımsız.

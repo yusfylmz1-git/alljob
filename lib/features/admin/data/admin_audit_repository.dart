@@ -5,21 +5,29 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 /// `adminAuditLogs/{id}` denetim kaydı satırı: kim, ne, hangi hedef, öncesi/
 /// sonrası, ne zaman. Yalnız CF (Admin SDK) yazar; yalnız yönetici okur (kural).
 class AuditEntry {
-  const AuditEntry({
+  AuditEntry({
     required this.id,
     required this.actorUid,
     required this.action,
     required this.createdAt,
+    String? cursor,
     this.targetType,
     this.targetId,
     this.before,
     this.after,
-  });
+  }) : cursor = cursor ?? createdAt.toUtc().toIso8601String();
 
   final String id;
   final String actorUid;
   final String action;
   final DateTime createdAt;
+
+  /// Sayfalama imleci: kaydın DEPO'daki ham `createdAt` metni (sözlüksel sıra
+  /// = zaman sırası). Bir sonraki (daha eski) sayfa `createdAt < cursor` ile
+  /// çekilir. Firebase için ham metin birebir korunur (sınır kayması olmaz);
+  /// elle üretilen kayıtlarda [createdAt]'ten türetilir.
+  final String cursor;
+
   final String? targetType;
   final String? targetId;
   final Map<String, dynamic>? before;
@@ -52,6 +60,8 @@ class AuditEntry {
         actorUid: (m['actorUid'] ?? '') as String,
         action: (m['action'] ?? '') as String,
         createdAt: _date(m['createdAt']),
+        // İmleç = ham depo metni (varsa); böylece sınır kayması olmaz.
+        cursor: m['createdAt'] is String ? m['createdAt'] as String : null,
         targetType: m['targetType'] as String?,
         targetId: m['targetId'] as String?,
         before: _map(m['before']),
@@ -103,29 +113,35 @@ List<AuditEntry> filterAudit(
 
 /// Yönetici denetim kaydı soyutlaması (yalnız okuma — kayıtları CF yazar).
 abstract interface class AdminAuditRepository {
-  /// En yeni denetim kayıtları (en yeni üstte).
-  Stream<List<AuditEntry>> watchAuditLog();
+  /// Bir sayfa denetim kaydı döndürür (en yeni üstte). [beforeCursor] verilirse
+  /// yalnız ondan ESKİ kayıtlar gelir (cursor sayfalama; bkz. [AuditEntry.cursor]).
+  /// Dönen liste [limit]'e eşitse muhtemelen daha eski kayıt vardır.
+  Future<List<AuditEntry>> fetchPage({String? beforeCursor, int limit});
 }
 
 /// Firestore `adminAuditLogs` ile çalışan repo. `createdAt` ISO-8601 metin
-/// olduğundan tek alan sözlüksel `orderBy` doğru (zamanla artan) çalışır →
-/// bileşik indeks gerekmez. Pencere [_pageLimit] ile sınırlı (ölçek).
+/// olduğundan tek alan sözlüksel `orderBy`/`isLessThan` doğru (zamanla artan)
+/// çalışır → bileşik indeks gerekmez. Cursor = son kaydın ham `createdAt`
+/// metni; bir sonraki sayfa `createdAt < cursor` ile çekilir (sınır kayması yok).
 class FirebaseAdminAuditRepository implements AdminAuditRepository {
   FirebaseAdminAuditRepository({FirebaseFirestore? firestore})
       : _db = firestore ?? FirebaseFirestore.instance;
 
   final FirebaseFirestore _db;
-  static const int _pageLimit = 200;
 
   @override
-  Stream<List<AuditEntry>> watchAuditLog() {
-    return _db
+  Future<List<AuditEntry>> fetchPage({
+    String? beforeCursor,
+    int limit = 50,
+  }) async {
+    Query<Map<String, dynamic>> q = _db
         .collection('adminAuditLogs')
-        .orderBy('createdAt', descending: true)
-        .limit(_pageLimit)
-        .snapshots()
-        .map((snap) =>
-            snap.docs.map((d) => AuditEntry.fromMap(d.id, d.data())).toList());
+        .orderBy('createdAt', descending: true);
+    if (beforeCursor != null && beforeCursor.isNotEmpty) {
+      q = q.where('createdAt', isLessThan: beforeCursor);
+    }
+    final snap = await q.limit(limit).get();
+    return snap.docs.map((d) => AuditEntry.fromMap(d.id, d.data())).toList();
   }
 }
 
@@ -138,5 +154,16 @@ class MockAdminAuditRepository implements AdminAuditRepository {
   final List<AuditEntry> _items;
 
   @override
-  Stream<List<AuditEntry>> watchAuditLog() => Stream.value(_items);
+  Future<List<AuditEntry>> fetchPage({
+    String? beforeCursor,
+    int limit = 50,
+  }) async {
+    final before = (beforeCursor == null || beforeCursor.isEmpty)
+        ? null
+        : DateTime.tryParse(beforeCursor);
+    final list = before == null
+        ? _items
+        : _items.where((e) => e.createdAt.isBefore(before)).toList();
+    return list.take(limit).toList();
+  }
 }

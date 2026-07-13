@@ -33,15 +33,22 @@ class _AdminAuditScreenState extends ConsumerState<AdminAuditScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final auditAsync = ref.watch(adminAuditLogProvider);
+    final pageAsync = ref.watch(auditLogControllerProvider);
+    final controller = ref.read(auditLogControllerProvider.notifier);
     return Scaffold(
       appBar: GradientAppBar(
         title: 'Denetim Kaydı',
         icon: Icons.receipt_long_outlined,
-        subtitle: auditAsync.valueOrNull == null
+        subtitle: pageAsync.valueOrNull == null
             ? null
-            : '${auditAsync.value!.length} kayıt (en yeni üstte)',
+            : '${pageAsync.value!.entries.length} kayıt yüklü'
+                '${pageAsync.value!.hasMore ? '+' : ''}',
         actions: [
+          IconButton(
+            tooltip: 'Yenile',
+            icon: const Icon(Icons.refresh_rounded),
+            onPressed: controller.refresh,
+          ),
           IconButton(
             tooltip: 'Çıkış',
             icon: const Icon(Icons.logout_rounded),
@@ -50,21 +57,21 @@ class _AdminAuditScreenState extends ConsumerState<AdminAuditScreen> {
           ),
         ],
       ),
-      body: auditAsync.when(
+      body: pageAsync.when(
         loading: () => const LoadingView(),
         error: (_, _) => const ErrorView(
           message: 'Denetim kaydı yüklenemedi. Yetkiniz olduğundan emin olun.',
         ),
-        data: (all) {
-          if (all.isEmpty) {
+        data: (page) {
+          if (page.entries.isEmpty) {
             return const ErrorView(
               icon: Icons.history_outlined,
               title: 'Kayıt yok',
               message: 'Henüz kaydedilmiş bir yönetici eylemi yok.',
             );
           }
-          final list =
-              filterAudit(all, category: _category, query: _query.text);
+          final list = filterAudit(page.entries,
+              category: _category, query: _query.text);
           return Column(
             children: [
               _FilterBar(
@@ -75,26 +82,109 @@ class _AdminAuditScreenState extends ConsumerState<AdminAuditScreen> {
               ),
               Expanded(
                 child: list.isEmpty
-                    ? const ErrorView(
-                        icon: Icons.search_off,
-                        title: 'Eşleşen kayıt yok',
-                        message: 'Filtre veya aramayı değiştirin.',
-                      )
-                    : ResponsiveCenter(
-                        maxWidth: 720,
-                        padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
-                        child: ListView.separated(
-                          padding: EdgeInsets.zero,
-                          itemCount: list.length,
-                          separatorBuilder: (_, _) =>
-                              const SizedBox(height: 10),
-                          itemBuilder: (_, i) => _AuditCard(entry: list[i]),
+                    ? _NoMatch(hasMore: page.hasMore, controller: controller)
+                    : RefreshIndicator(
+                        onRefresh: controller.refresh,
+                        child: ResponsiveCenter(
+                          maxWidth: 720,
+                          padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
+                          child: ListView.separated(
+                            padding: EdgeInsets.zero,
+                            // +1 satır: alt "daha fazla" alanı.
+                            itemCount: list.length + 1,
+                            separatorBuilder: (_, _) =>
+                                const SizedBox(height: 10),
+                            itemBuilder: (_, i) {
+                              if (i == list.length) {
+                                return _LoadMoreFooter(
+                                  page: page,
+                                  onLoadMore: controller.loadMore,
+                                );
+                              }
+                              return _AuditCard(entry: list[i]);
+                            },
+                          ),
                         ),
                       ),
               ),
             ],
           );
         },
+      ),
+    );
+  }
+}
+
+/// Filtre hiçbir yüklü kaydı geçirmediğinde: daha eski kayıtlar varsa yüklemeyi
+/// öner (aranan kayıt henüz yüklenmemiş olabilir).
+class _NoMatch extends StatelessWidget {
+  const _NoMatch({required this.hasMore, required this.controller});
+  final bool hasMore;
+  final AuditLogController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    final theme = Theme.of(context);
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.search_off, size: 48, color: palette.inkFaint),
+            const SizedBox(height: 12),
+            Text('Eşleşen kayıt yok',
+                style: theme.textTheme.titleMedium
+                    ?.copyWith(fontWeight: FontWeight.w700)),
+            const SizedBox(height: 6),
+            Text(
+              'Filtreyi değiştirin ya da daha eski kayıtları yükleyin.',
+              textAlign: TextAlign.center,
+              style: theme.textTheme.bodyMedium
+                  ?.copyWith(color: palette.inkMuted),
+            ),
+            if (hasMore) ...[
+              const SizedBox(height: 16),
+              OutlinedButton.icon(
+                onPressed: controller.loadMore,
+                icon: const Icon(Icons.history, size: 18),
+                label: const Text('Daha eski kayıtları yükle'),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Liste altındaki "daha fazla" alanı: yüklüyorsa spinner, daha varsa buton,
+/// yoksa "sonu" ibaresi.
+class _LoadMoreFooter extends StatelessWidget {
+  const _LoadMoreFooter({required this.page, required this.onLoadMore});
+  final AuditPage page;
+  final VoidCallback onLoadMore;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    return Padding(
+      padding: const EdgeInsets.only(top: 6),
+      child: Center(
+        child: page.loadingMore
+            ? const Padding(
+                padding: EdgeInsets.all(8),
+                child: CircularProgressIndicator(strokeWidth: 2.5),
+              )
+            : page.hasMore
+                ? OutlinedButton.icon(
+                    onPressed: onLoadMore,
+                    icon: const Icon(Icons.expand_more_rounded, size: 18),
+                    label: const Text('Daha fazla yükle'),
+                  )
+                : Text('Kaydın sonu',
+                    style: TextStyle(color: palette.inkFaint, fontSize: 12)),
       ),
     );
   }

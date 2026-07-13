@@ -314,16 +314,29 @@ void main() {
       expect(unknown.actionLabelTR, 'foo_bar');
     });
 
-    test('MockAdminAuditRepository en yeni üstte sıralar', () async {
+    test('fetchPage en yeni üstte + cursor ile sonraki sayfa', () async {
       AuditEntry a(String id, DateTime t) =>
           AuditEntry(id: id, actorUid: 'x', action: 'grant_admin', createdAt: t);
       final repo = MockAdminAuditRepository([
         a('a', DateTime(2026, 1, 1)),
-        a('b', DateTime(2026, 1, 3)),
-        a('c', DateTime(2026, 1, 2)),
+        a('b', DateTime(2026, 1, 4)),
+        a('c', DateTime(2026, 1, 3)),
+        a('d', DateTime(2026, 1, 2)),
       ]);
-      final list = await repo.watchAuditLog().first;
-      expect(list.map((e) => e.id), ['b', 'c', 'a']);
+
+      // İlk sayfa (limit 2): en yeni ikisi.
+      final page1 = await repo.fetchPage(limit: 2);
+      expect(page1.map((e) => e.id), ['b', 'c']);
+
+      // Sonraki sayfa: son kaydın cursor'ından eskiler.
+      final page2 =
+          await repo.fetchPage(beforeCursor: page1.last.cursor, limit: 2);
+      expect(page2.map((e) => e.id), ['d', 'a']);
+
+      // Sondan sonrası boş.
+      final page3 =
+          await repo.fetchPage(beforeCursor: page2.last.cursor, limit: 2);
+      expect(page3, isEmpty);
     });
 
     test('filterAudit kategori + aktör/hedef uid araması', () {

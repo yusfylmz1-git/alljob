@@ -80,8 +80,81 @@ final adminAuditRepositoryProvider = Provider<AdminAuditRepository>((ref) {
   return MockAdminAuditRepository();
 });
 
-/// Denetim kaydı akışı (en yeni üstte). Yalnız yönetici için akar.
-final adminAuditLogProvider = StreamProvider<List<AuditEntry>>((ref) {
-  if (!ref.watch(isAdminProvider)) return Stream.value(const <AuditEntry>[]);
-  return ref.watch(adminAuditRepositoryProvider).watchAuditLog();
+/// Sayfalanmış denetim kaydı durumu: birikmiş kayıtlar + daha eski var mı +
+/// "daha fazla yükleniyor" bayrağı.
+class AuditPage {
+  const AuditPage({
+    required this.entries,
+    required this.hasMore,
+    this.loadingMore = false,
+  });
+
+  final List<AuditEntry> entries;
+  final bool hasMore;
+  final bool loadingMore;
+
+  AuditPage copyWith({
+    List<AuditEntry>? entries,
+    bool? hasMore,
+    bool? loadingMore,
+  }) =>
+      AuditPage(
+        entries: entries ?? this.entries,
+        hasMore: hasMore ?? this.hasMore,
+        loadingMore: loadingMore ?? this.loadingMore,
+      );
+}
+
+/// Denetim kaydını cursor ile sayfalar: ilk sayfa + "daha eski" ekler +
+/// yenile. Sonsuz büyüyen append-only koleksiyon için sabit tavan yerine
+/// aşamalı yükleme (ölçek).
+class AuditLogController extends StateNotifier<AsyncValue<AuditPage>> {
+  AuditLogController(this._repo) : super(const AsyncLoading()) {
+    load();
+  }
+
+  final AdminAuditRepository _repo;
+  static const int _pageSize = 50;
+
+  Future<void> load() async {
+    state = const AsyncLoading();
+    try {
+      final first = await _repo.fetchPage(limit: _pageSize);
+      state = AsyncData(
+          AuditPage(entries: first, hasMore: first.length == _pageSize));
+    } catch (e, st) {
+      state = AsyncError(e, st);
+    }
+  }
+
+  Future<void> refresh() => load();
+
+  Future<void> loadMore() async {
+    final cur = state.valueOrNull;
+    if (cur == null || !cur.hasMore || cur.loadingMore || cur.entries.isEmpty) {
+      return;
+    }
+    state = AsyncData(cur.copyWith(loadingMore: true));
+    try {
+      final next = await _repo.fetchPage(
+        beforeCursor: cur.entries.last.cursor,
+        limit: _pageSize,
+      );
+      state = AsyncData(AuditPage(
+        entries: [...cur.entries, ...next],
+        hasMore: next.length == _pageSize,
+      ));
+    } catch (_) {
+      // Hata: yalnız "yükleniyor"u kapat, mevcut kayıtlar korunur.
+      state = AsyncData(cur.copyWith(loadingMore: false));
+    }
+  }
+}
+
+/// Denetim kaydı sayfalama controller'ı. Yalnız yönetici için yükler; değilse
+/// boş kalır (sekme zaten süper yöneticiye görünür). Sekmeden çıkınca sıfırlanır.
+final auditLogControllerProvider = StateNotifierProvider.autoDispose<
+    AuditLogController, AsyncValue<AuditPage>>((ref) {
+  final repo = ref.watch(adminAuditRepositoryProvider);
+  return AuditLogController(repo);
 });
