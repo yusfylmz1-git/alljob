@@ -25,6 +25,19 @@
 
 **Tarih:** 2026-07-13
 
+**Oturum 59 (2026-07-13, aynı gün): ADMIN FAZ 2 — DENETİM KAYDI GÖRÜNTÜLEYİCİ. Yalnız istemci → DEPLOY GEREKMEZ (adminAuditLogs okuma kuralı 52-REVİZE'de geldi). 148/148 test, analyze 0, admin web OK.**
+Kullanıcı "devam" → GERÇEK boşluk: 6 oturumdur her yönetici eylemi `adminAuditLogs`'a yazılıyordu ama görüntüleyecek EKRAN yoktu (hesap verebilirlik/KVKK bunu görmeyi gerektirir). cursor sayfalamadan daha mantıklıydı.
+- **Repo (yeni `admin_audit_repository.dart`):** `AuditEntry` (id/actorUid/action/targetType/targetId/before/after/createdAt + `actionLabelTR` — grant_admin/set_role/revoke_admin/suspend_user/unsuspend_user/resolve_report/claim_report/release_report/resolve_dispute Türkçe; bilinmeyen kod olduğu gibi). `AdminAuditRepository` (arayüz + Firebase `adminAuditLogs.orderBy(createdAt desc).limit(200).snapshots()` — createdAt ISO metin, tek alan otomatik indeks; + Mock seed'li).
+- **Providerlar:** `adminAuditRepositoryProvider` + `adminAuditLogProvider` (yalnız admin akar). `mock_backend.dart`'a override.
+- **UI:** yeni `admin_audit_screen.dart` (`AdminAuditScreen` — kart listesi: eylem ikonu+TR etiketi, Yapan/Hedef/Ayrıntı (after'dan rol/durum/karar/askı/neden/üstlenen özetlenir) + tarih). `admin_app.dart`: **5. sekme "Denetim" YALNIZ süper yöneticiye** (gözetim; `isSuper` koşullu — moderatör 3 sekme, superadmin 5 görür).
+- **Test (`test/admin_test.dart` +2 → 148/148):** AuditEntry.fromMap + before/after çözme + label TR + bilinmeyen kod; MockAdminAuditRepository en yeni üstte.
+- Toplam **148/148**; analyze 0; `flutter build web -t lib/main_admin.dart` OK.
+- **⚠️ DEPLOY: bu oturum EK GETİRMEDİ.** Bekleyen deploy hâlâ 52-REVİZE+53+54+56+58'inki (58 bloğunda tam liste). Denetim ekranı yalnız MEVCUT `adminAuditLogs`'u okur.
+- **SIRADAKİ (admin Faz 2+ kalan):** cursor sayfalama (kuyruk >200) · App Check enforce admin sitesinde · (ölçek) BigQuery export · denetim kaydı filtre/arama (eylem/aktör).
+- ⚠️ Kullanıcı DEPLOY SONRASI: süper yönetici → 5. sekme "Denetim" → daha önce yaptığın tüm yönetici eylemleri (rol atama, askıya alma, şikayet çözme…) kronolojik listelenmeli. Moderatörde "Denetim" + "Kadro" sekmeleri GÖRÜNMEZ.
+
+--- (önceki oturumlar) ---
+
 **Oturum 58 (2026-07-13, aynı gün): ADMIN FAZ 2 — ŞİKAYET ATAMA (üstlen/bırak/devral). Yeni CF var, KURAL DEĞİŞMEDİ. 146/146 test, analyze 0, admin web OK.**
 Kullanıcı "devam" → çoklu-moderatör koordinasyonu: iki yönetici aynı şikayeti işlemesin diye biri kaydı ÜSTLENİR. Az önceki RBAC/kadro işinin doğal devamı.
 - **CF `adminAssignReport` (functions/index.js, admin-only):** `{reportId, assign}` → assign=true `assignedTo=auth.uid`+`assignedAt`; false → `FieldValue.delete()`. audit (claim_report/release_report). **`adminResolveReport` güncellendi:** karara bağlanınca `assignedTo/assignedAt` DÜŞER (iş bitti; kimin çözdüğü resolvedBy'da). **Kural DEĞİŞMEDİ** — reports update zaten CF-only (Admin SDK yazar), admin okuma açık; sadece yeni CF deploy.

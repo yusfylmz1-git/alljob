@@ -9,6 +9,7 @@ import '../../../core/widgets/app_button.dart';
 import '../../auth/application/auth_controller.dart';
 import '../../auth/data/auth_repository.dart';
 import '../data/admin_providers.dart';
+import 'admin_audit_screen.dart';
 import 'admin_disputes_screen.dart';
 import 'admin_reports_screen.dart';
 import 'admin_roster_screen.dart';
@@ -81,6 +82,7 @@ class _AdminHomeScreenState extends ConsumerState<_AdminHomeScreen> {
       const AdminDisputesScreen(),
       const AdminUsersScreen(),
       if (isSuper) const AdminRosterScreen(),
+      if (isSuper) const AdminAuditScreen(),
     ];
     final destinations = <NavigationDestination>[
       NavigationDestination(
@@ -103,6 +105,12 @@ class _AdminHomeScreenState extends ConsumerState<_AdminHomeScreen> {
           icon: Icon(Icons.shield_outlined),
           selectedIcon: Icon(Icons.shield),
           label: 'Kadro',
+        ),
+      if (isSuper)
+        const NavigationDestination(
+          icon: Icon(Icons.receipt_long_outlined),
+          selectedIcon: Icon(Icons.receipt_long),
+          label: 'Denetim',
         ),
     ];
     // Rol düşerse (superadmin→moderatör) seçili index taşabilir; kırp.

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/config/backend_config.dart';
 import '../../../data/models/job.dart';
 import '../../auth/application/auth_controller.dart';
+import 'admin_audit_repository.dart';
 import 'admin_dispute_repository.dart';
 import 'admin_report.dart';
 import 'admin_report_repository.dart';
@@ -72,4 +73,15 @@ final adminRosterProvider = StreamProvider<List<AdminRosterEntry>>((ref) {
     return Stream.value(const <AdminRosterEntry>[]);
   }
   return ref.watch(adminUserRepositoryProvider).watchRoster();
+});
+
+final adminAuditRepositoryProvider = Provider<AdminAuditRepository>((ref) {
+  if (useFirebaseBackend) return FirebaseAdminAuditRepository();
+  return MockAdminAuditRepository();
+});
+
+/// Denetim kaydı akışı (en yeni üstte). Yalnız yönetici için akar.
+final adminAuditLogProvider = StreamProvider<List<AuditEntry>>((ref) {
+  if (!ref.watch(isAdminProvider)) return Stream.value(const <AuditEntry>[]);
+  return ref.watch(adminAuditRepositoryProvider).watchAuditLog();
 });

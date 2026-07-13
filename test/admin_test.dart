@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:usta_cepte/data/models/app_user.dart';
 import 'package:usta_cepte/data/models/job.dart';
 import 'package:usta_cepte/data/models/report.dart';
+import 'package:usta_cepte/features/admin/data/admin_audit_repository.dart';
 import 'package:usta_cepte/features/admin/data/admin_config.dart';
 import 'package:usta_cepte/features/admin/data/admin_dispute_repository.dart';
 import 'package:usta_cepte/features/admin/data/admin_report.dart';
@@ -288,6 +289,41 @@ void main() {
 
       final n = AppUser.fromMap('u2', {'email': 'n@ornek.com'});
       expect(n.suspended, isFalse);
+    });
+  });
+
+  group('Denetim kaydı (AuditEntry)', () {
+    test('fromMap alanları + before/after haritalarını çözer; label TR', () {
+      final e = AuditEntry.fromMap('log1', {
+        'actorUid': 'admin1',
+        'action': 'set_role',
+        'targetType': 'user',
+        'targetId': 'u9',
+        'before': {'role': null},
+        'after': {'role': 'moderator'},
+        'createdAt': '2026-07-13T10:00:00.000',
+      });
+      expect(e.actorUid, 'admin1');
+      expect(e.action, 'set_role');
+      expect(e.actionLabelTR, 'Rol atandı');
+      expect(e.targetId, 'u9');
+      expect(e.after?['role'], 'moderator');
+
+      // Bilinmeyen eylem kodu olduğu gibi gösterilir.
+      final unknown = AuditEntry.fromMap('l2', {'action': 'foo_bar'});
+      expect(unknown.actionLabelTR, 'foo_bar');
+    });
+
+    test('MockAdminAuditRepository en yeni üstte sıralar', () async {
+      AuditEntry a(String id, DateTime t) =>
+          AuditEntry(id: id, actorUid: 'x', action: 'grant_admin', createdAt: t);
+      final repo = MockAdminAuditRepository([
+        a('a', DateTime(2026, 1, 1)),
+        a('b', DateTime(2026, 1, 3)),
+        a('c', DateTime(2026, 1, 2)),
+      ]);
+      final list = await repo.watchAuditLog().first;
+      expect(list.map((e) => e.id), ['b', 'c', 'a']);
     });
   });
 

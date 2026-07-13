@@ -15,6 +15,7 @@ import 'package:usta_cepte/features/safety/data/block_repository.dart';
 import 'package:usta_cepte/features/safety/data/report_repository.dart';
 import 'package:usta_cepte/features/safety/data/safety_providers.dart';
 import 'package:usta_cepte/features/storage/storage_repository.dart';
+import 'package:usta_cepte/features/admin/data/admin_audit_repository.dart';
 import 'package:usta_cepte/features/admin/data/admin_dispute_repository.dart';
 import 'package:usta_cepte/features/admin/data/admin_providers.dart';
 import 'package:usta_cepte/features/admin/data/admin_report_repository.dart';
@@ -89,6 +90,9 @@ List<Override> mockBackendOverrides() => [
         ref.onDispose(repo.dispose);
         return repo;
       }),
+      adminAuditRepositoryProvider.overrideWith(
+        (ref) => MockAdminAuditRepository(),
+      ),
       // Bildirimler native eklenti gerektirir → testlerde no-op.
       trackNotificationServiceProvider
           .overrideWithValue(const NoopTrackNotificationService()),
