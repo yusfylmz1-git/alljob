@@ -25,6 +25,19 @@
 
 **Tarih:** 2026-07-13
 
+**Oturum 57 (2026-07-13, aynı gün): ADMIN FAZ 2 — YÖNETİCİ KADROSU EKRANI (roster). Yalnız istemci → DEPLOY GEREKMEZ (roster okuma kuralı Oturum 56'da geldi). 145/145 test, analyze 0, admin web OK.**
+Kullanıcı "mantıklı olanı yapalım, en son deploy yapacağız" → Oturum 56'nın `adminRoles` roster'ının doğal tamamlayıcısı: tüm rol sahiplerini tek yerde listele.
+- **Repo (`admin_user_repository.dart`):** yeni `AdminRosterEntry` (uid/role/updatedAt + isSuperAdmin) + `watchRoster()` (arayüz + Firebase `adminRoles.snapshots()` + Mock). `_rosterSort`: **superadmin'ler üstte**, sonra en son güncellenen. Mock artık `_changes` broadcast + `_roleUpdatedAt` tutar + `dispose()` (StreamController) — provider ve mock_backend override'ı `ref.onDispose(repo.dispose)` aldı.
+- **Provider:** `adminRosterProvider` (StreamProvider, yalnız admin akar).
+- **UI:** yeni `admin_roster_screen.dart` (`AdminRosterScreen` — kadro listesi: superadmin=workspace_premium ikon/"Süper Yönetici", moderatör=gavel; UID + güncellenme tarihi; dokun → `showAdminUserActions` ile rol yönetimi). `admin_app.dart`: **4. sekme "Kadro" YALNIZ süper yöneticiye** (`isSuperAdminProvider`) — pages/destinations koşullu kurulur; `safeIndex = _index.clamp(...)` (rol düşerse taşan index'i kırpar).
+- **Test (`test/admin_test.dart` +1 → 145/145):** watchRoster superadmin'i üstte sıralar, setRole (ata/kaldır) roster'a yansır. setRole testine `addTearDown(repo.dispose)`.
+- Toplam **145/145**; analyze 0; `flutter build web -t lib/main_admin.dart` OK.
+- **⚠️ DEPLOY: bu oturum EK GETİRMEDİ.** Bekleyen deploy hâlâ Oturum 52-REVİZE+53+54+56'nınki (56 bloğunda tam liste — kadro ekranı o kuralı/CF'i kullanır, yenisini eklemez).
+- **SIRADAKİ (admin Faz 2+ kalan):** cursor sayfalama + assignment (kuyruk ölçeklenmesi) · App Check enforce admin sitesinde · (ölçek) BigQuery export analitiği.
+- ⚠️ Kullanıcı DEPLOY SONRASI: süper yönetici olarak admin sitesi → alt barda 4. sekme "Kadro" → tüm moderatör/superadmin'ler listelenir (superadmin üstte) → bir satıra dokun → rol değiştir/kaldır. Moderatör oturumunda "Kadro" sekmesi GÖRÜNMEZ.
+
+--- (önceki oturumlar) ---
+
 **Oturum 56 (2026-07-13, aynı gün): ADMIN FAZ 2 — ROL ATAMA (setAdminRole, superadmin-only) + RBAC delegasyonu. KOD TAMAM, 144/144 test, analyze 0, admin web OK. ⚠️ KURAL + CF DEPLOY BEKLİYOR.**
 Kullanıcı "edelim" → RBAC tamamlandı: artık superadmin başka kullanıcıları **moderatör/superadmin** yapabilir veya yetkiyi kaldırabilir. Rol anlam kazandı: **moderatör** = şikayet/anlaşmazlık/askı; **superadmin** = ayrıca rol atama.
 - **CF `adminSetRole` (functions/index.js, superadmin-only):** `auth.token.role=='superadmin'` şart. Roller: `moderator|superadmin|none`. **Kendi rolünü değiştiremez** (kilitlenme). `getUser` → mevcut claim'ler → `setCustomUserClaims` **`suspended`'ı KORUYARAK** admin/role ekler/siler → `adminRoles/{uid}` roster dokümanı set/delete → `revokeRefreshTokens` (yetki değişimi kesin yansısın) → audit (set_role/revoke_admin, before/after rol). `claimAdminAccess` da artık `adminRoles/{uid}` (superadmin) yazar (roster tutarlılığı).

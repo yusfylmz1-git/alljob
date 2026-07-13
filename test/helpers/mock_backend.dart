@@ -84,9 +84,11 @@ List<Override> mockBackendOverrides() => [
         ref.onDispose(repo.dispose);
         return repo;
       }),
-      adminUserRepositoryProvider.overrideWith(
-        (ref) => MockAdminUserRepository(),
-      ),
+      adminUserRepositoryProvider.overrideWith((ref) {
+        final repo = MockAdminUserRepository();
+        ref.onDispose(repo.dispose);
+        return repo;
+      }),
       // Bildirimler native eklenti gerektirir → testlerde no-op.
       trackNotificationServiceProvider
           .overrideWithValue(const NoopTrackNotificationService()),

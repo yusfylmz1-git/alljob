@@ -1,7 +1,24 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 
 import '../../../data/models/app_user.dart';
+
+/// Yönetici kadrosu (`adminRoles/{uid}`) satırı: kimin hangi rolde olduğu.
+class AdminRosterEntry {
+  const AdminRosterEntry({
+    required this.uid,
+    required this.role,
+    this.updatedAt,
+  });
+
+  final String uid;
+  final String role; // 'moderator' | 'superadmin'
+  final DateTime? updatedAt;
+
+  bool get isSuperAdmin => role == 'superadmin';
+}
 
 /// Yönetici kullanıcı yönetimi soyutlaması: bir kullanıcıyı bulup askıya alma /
 /// geri açma. Askıya alma zorlaması SUNUCUDADIR (`suspended` custom claim →
@@ -34,6 +51,18 @@ abstract interface class AdminUserRepository {
   /// Bir kullanıcının yönetici rolünü atar/kaldırır (YALNIZ superadmin). [role]
   /// 'moderator' | 'superadmin' | null (yetkiyi kaldır). CF üzerinden yürür.
   Future<void> setRole(String uid, {required String? role});
+
+  /// Yönetici kadrosu (tüm rol sahipleri) — superadmin'ler üstte. Kaynak
+  /// `adminRoles` koleksiyonu (kural: yalnız yönetici okur).
+  Stream<List<AdminRosterEntry>> watchRoster();
+}
+
+int _rosterSort(AdminRosterEntry a, AdminRosterEntry b) {
+  // Süper yöneticiler üstte; sonra en son güncellenen üstte.
+  if (a.isSuperAdmin != b.isSuperAdmin) return a.isSuperAdmin ? -1 : 1;
+  final ad = a.updatedAt ?? DateTime(0);
+  final bd = b.updatedAt ?? DateTime(0);
+  return bd.compareTo(ad);
 }
 
 /// Firestore `users` + `adminSetUserSuspended` CF ile çalışan repo.
@@ -100,6 +129,22 @@ class FirebaseAdminUserRepository implements AdminUserRepository {
       'role': role ?? 'none',
     });
   }
+
+  @override
+  Stream<List<AdminRosterEntry>> watchRoster() {
+    return _db.collection('adminRoles').snapshots().map((snap) {
+      final list = snap.docs.map((d) {
+        final m = d.data();
+        return AdminRosterEntry(
+          uid: d.id,
+          role: (m['role'] as String?) ?? 'moderator',
+          updatedAt: DateTime.tryParse(m['updatedAt']?.toString() ?? ''),
+        );
+      }).toList()
+        ..sort(_rosterSort);
+      return list;
+    });
+  }
 }
 
 /// Bellek-içi repo (testler ve Firebase'siz geliştirme). CF etkisini taklit
@@ -115,6 +160,8 @@ class MockAdminUserRepository implements AdminUserRepository {
 
   final Map<String, AppUser> _users = {};
   final Map<String, String> _roles = {}; // uid → 'moderator'|'superadmin'
+  final Map<String, DateTime> _roleUpdatedAt = {};
+  final _changes = StreamController<void>.broadcast();
 
   @override
   Future<AppUser?> findByUid(String uid) async => _users[uid.trim()];
@@ -147,8 +194,30 @@ class MockAdminUserRepository implements AdminUserRepository {
     final id = uid.trim();
     if (role == null || role == 'none') {
       _roles.remove(id);
+      _roleUpdatedAt.remove(id);
     } else {
       _roles[id] = role;
+      _roleUpdatedAt[id] = DateTime.now();
+    }
+    if (!_changes.isClosed) _changes.add(null);
+  }
+
+  List<AdminRosterEntry> _roster() => _roles.entries
+      .map((e) => AdminRosterEntry(
+            uid: e.key,
+            role: e.value,
+            updatedAt: _roleUpdatedAt[e.key],
+          ))
+      .toList()
+    ..sort(_rosterSort);
+
+  @override
+  Stream<List<AdminRosterEntry>> watchRoster() async* {
+    yield _roster();
+    await for (final _ in _changes.stream) {
+      yield _roster();
     }
   }
+
+  void dispose() => _changes.close();
 }

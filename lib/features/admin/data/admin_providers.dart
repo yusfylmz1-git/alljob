@@ -61,5 +61,15 @@ final openDisputeCountProvider = Provider<int>((ref) {
 
 final adminUserRepositoryProvider = Provider<AdminUserRepository>((ref) {
   if (useFirebaseBackend) return FirebaseAdminUserRepository();
-  return MockAdminUserRepository();
+  final repo = MockAdminUserRepository();
+  ref.onDispose(repo.dispose);
+  return repo;
+});
+
+/// Yönetici kadrosu (rol sahipleri). Yalnız yönetici için akar.
+final adminRosterProvider = StreamProvider<List<AdminRosterEntry>>((ref) {
+  if (!ref.watch(isAdminProvider)) {
+    return Stream.value(const <AdminRosterEntry>[]);
+  }
+  return ref.watch(adminUserRepositoryProvider).watchRoster();
 });

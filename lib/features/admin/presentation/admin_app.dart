@@ -11,6 +11,7 @@ import '../../auth/data/auth_repository.dart';
 import '../data/admin_providers.dart';
 import 'admin_disputes_screen.dart';
 import 'admin_reports_screen.dart';
+import 'admin_roster_screen.dart';
 import 'admin_users_screen.dart';
 
 /// AYRI admin web uygulamasının kökü. Tüketici uygulamasından TAMAMEN bağımsız
@@ -72,37 +73,47 @@ class _AdminHomeScreenState extends ConsumerState<_AdminHomeScreen> {
   Widget build(BuildContext context) {
     final openReports = ref.watch(openReportCountProvider);
     final openDisputes = ref.watch(openDisputeCountProvider);
-    return Scaffold(
-      body: IndexedStack(
-        index: _index,
-        children: const [
-          AdminReportsScreen(),
-          AdminDisputesScreen(),
-          AdminUsersScreen(),
-        ],
+    // Kadro sekmesi yalnız süper yöneticiye (rol atama yetkisi onda).
+    final isSuper = ref.watch(isSuperAdminProvider);
+
+    final pages = <Widget>[
+      const AdminReportsScreen(),
+      const AdminDisputesScreen(),
+      const AdminUsersScreen(),
+      if (isSuper) const AdminRosterScreen(),
+    ];
+    final destinations = <NavigationDestination>[
+      NavigationDestination(
+        icon: _BadgeIcon(icon: Icons.flag_outlined, count: openReports),
+        selectedIcon: _BadgeIcon(icon: Icons.flag, count: openReports),
+        label: 'Şikayetler',
       ),
+      NavigationDestination(
+        icon: _BadgeIcon(icon: Icons.gavel_outlined, count: openDisputes),
+        selectedIcon: _BadgeIcon(icon: Icons.gavel, count: openDisputes),
+        label: 'Anlaşmazlıklar',
+      ),
+      const NavigationDestination(
+        icon: Icon(Icons.manage_accounts_outlined),
+        selectedIcon: Icon(Icons.manage_accounts),
+        label: 'Kullanıcılar',
+      ),
+      if (isSuper)
+        const NavigationDestination(
+          icon: Icon(Icons.shield_outlined),
+          selectedIcon: Icon(Icons.shield),
+          label: 'Kadro',
+        ),
+    ];
+    // Rol düşerse (superadmin→moderatör) seçili index taşabilir; kırp.
+    final safeIndex = _index.clamp(0, pages.length - 1);
+
+    return Scaffold(
+      body: IndexedStack(index: safeIndex, children: pages),
       bottomNavigationBar: NavigationBar(
-        selectedIndex: _index,
+        selectedIndex: safeIndex,
         onDestinationSelected: (i) => setState(() => _index = i),
-        destinations: [
-          NavigationDestination(
-            icon: _BadgeIcon(
-                icon: Icons.flag_outlined, count: openReports),
-            selectedIcon: _BadgeIcon(icon: Icons.flag, count: openReports),
-            label: 'Şikayetler',
-          ),
-          NavigationDestination(
-            icon: _BadgeIcon(
-                icon: Icons.gavel_outlined, count: openDisputes),
-            selectedIcon: _BadgeIcon(icon: Icons.gavel, count: openDisputes),
-            label: 'Anlaşmazlıklar',
-          ),
-          const NavigationDestination(
-            icon: Icon(Icons.manage_accounts_outlined),
-            selectedIcon: Icon(Icons.manage_accounts),
-            label: 'Kullanıcılar',
-          ),
-        ],
+        destinations: destinations,
       ),
     );
   }

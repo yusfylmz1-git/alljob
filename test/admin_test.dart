@@ -222,6 +222,7 @@ void main() {
 
     test('setRole rol atar/değiştirir/kaldırır (findRole yansıtır)', () async {
       final repo = MockAdminUserRepository([u('u1', 'a@ornek.com')]);
+      addTearDown(repo.dispose);
       expect(await repo.findRole('u1'), isNull);
 
       await repo.setRole('u1', role: 'moderator');
@@ -232,6 +233,28 @@ void main() {
 
       await repo.setRole('u1', role: null);
       expect(await repo.findRole('u1'), isNull);
+    });
+
+    test('watchRoster süper yöneticileri üstte sıralar; setRole yansır',
+        () async {
+      final repo = MockAdminUserRepository([
+        u('u1', 'a@ornek.com'),
+        u('u2', 'b@ornek.com'),
+      ]);
+      addTearDown(repo.dispose);
+
+      expect(await repo.watchRoster().first, isEmpty);
+
+      await repo.setRole('u1', role: 'moderator');
+      await repo.setRole('u2', role: 'superadmin');
+
+      final roster = await repo.watchRoster().first;
+      expect(roster.map((e) => e.uid), ['u2', 'u1']); // superadmin üstte
+      expect(roster.first.isSuperAdmin, isTrue);
+
+      await repo.setRole('u2', role: null);
+      final after = await repo.watchRoster().first;
+      expect(after.map((e) => e.uid), ['u1']); // kaldırılan düştü
     });
   });
 
