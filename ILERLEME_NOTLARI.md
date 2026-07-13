@@ -25,6 +25,19 @@
 
 **Tarih:** 2026-07-13
 
+**Oturum 58 (2026-07-13, aynı gün): ADMIN FAZ 2 — ŞİKAYET ATAMA (üstlen/bırak/devral). Yeni CF var, KURAL DEĞİŞMEDİ. 146/146 test, analyze 0, admin web OK.**
+Kullanıcı "devam" → çoklu-moderatör koordinasyonu: iki yönetici aynı şikayeti işlemesin diye biri kaydı ÜSTLENİR. Az önceki RBAC/kadro işinin doğal devamı.
+- **CF `adminAssignReport` (functions/index.js, admin-only):** `{reportId, assign}` → assign=true `assignedTo=auth.uid`+`assignedAt`; false → `FieldValue.delete()`. audit (claim_report/release_report). **`adminResolveReport` güncellendi:** karara bağlanınca `assignedTo/assignedAt` DÜŞER (iş bitti; kimin çözdüğü resolvedBy'da). **Kural DEĞİŞMEDİ** — reports update zaten CF-only (Admin SDK yazar), admin okuma açık; sadece yeni CF deploy.
+- **Model/repo:** `Report.assignedTo` (fromMap). `AdminReportRepository.assignReport(id, {assign, adminUid})` (adminUid imza paritesi; sunucuda auth.uid'den) — Firebase→CF, Mock→alan çevir + kapanınca temizle (`updateStatus`'ta `status.isClosed ? null : r.assignedTo`).
+- **UI (`admin_reports_screen.dart`):** kartta `_AssignBadge` ("Bende" mavi / "Üstlenildi" gri, `report.assignedTo == myUid` ile; myUid `currentUserProvider`'dan). Detay sheet: "Üstlenen (uid)" bilgi + duruma göre buton — atanmamış→"Şikayeti üstlen", bende→"Üstlenmeyi bırak", başkasında→"Devral" (assign true yeniden atar). `_assign(bool)` metodu.
+- **Test (`test/admin_test.dart` +1 → 146/146):** MockAdminReportRepository assignReport üstlen/bırak + kapanınca atama düşer.
+- Toplam **146/146**; analyze 0; `flutter build web -t lib/main_admin.dart` OK.
+- **⚠️ DEPLOY:** bu oturum bekleyen listeye **yalnız `functions:adminAssignReport`** ekler (kural EK YOK). Tam birikmiş deploy: (1) `firebase deploy --only firestore:rules` (2) `firebase deploy --only functions:claimAdminAccess,functions:adminResolveReport,functions:adminResolveDispute,functions:onJobWritten,functions:adminSetUserSuspended,functions:adminSetRole,functions:adminAssignReport` (3) admin sitesi: create → `flutter build web -t lib/main_admin.dart` → `firebase deploy --only hosting:alljob1-admin`.
+- **SIRADAKİ (admin Faz 2+ kalan):** cursor sayfalama (kuyruk >200 için) · App Check enforce admin sitesinde · (ölçek) BigQuery export.
+- ⚠️ Kullanıcı DEPLOY SONRASI: iki farklı yönetici hesabıyla → biri bir şikayeti "üstlen" → diğerinin listesinde o kayıtta "Üstlenildi" rozeti görünmeli, kendi listesinde "Bende". Çözünce atama düşer. Console `adminAuditLogs`'ta claim_report/release_report.
+
+--- (önceki oturumlar) ---
+
 **Oturum 57 (2026-07-13, aynı gün): ADMIN FAZ 2 — YÖNETİCİ KADROSU EKRANI (roster). Yalnız istemci → DEPLOY GEREKMEZ (roster okuma kuralı Oturum 56'da geldi). 145/145 test, analyze 0, admin web OK.**
 Kullanıcı "mantıklı olanı yapalım, en son deploy yapacağız" → Oturum 56'nın `adminRoles` roster'ının doğal tamamlayıcısı: tüm rol sahiplerini tek yerde listele.
 - **Repo (`admin_user_repository.dart`):** yeni `AdminRosterEntry` (uid/role/updatedAt + isSuperAdmin) + `watchRoster()` (arayüz + Firebase `adminRoles.snapshots()` + Mock). `_rosterSort`: **superadmin'ler üstte**, sonra en son güncellenen. Mock artık `_changes` broadcast + `_roleUpdatedAt` tutar + `dispose()` (StreamController) — provider ve mock_backend override'ı `ref.onDispose(repo.dispose)` aldı.

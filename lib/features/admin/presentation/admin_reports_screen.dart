@@ -74,6 +74,7 @@ class _AdminReportsScreenState extends ConsumerState<AdminReportsScreen> {
                               const SizedBox(height: 10),
                           itemBuilder: (_, i) => _ReportCard(
                             report: list[i],
+                            myUid: ref.read(currentUserProvider)?.uid,
                             onTap: () => _openDetail(list[i]),
                           ),
                         ),
@@ -170,8 +171,10 @@ class _Seg extends StatelessWidget {
 }
 
 class _ReportCard extends StatelessWidget {
-  const _ReportCard({required this.report, required this.onTap});
+  const _ReportCard(
+      {required this.report, required this.onTap, this.myUid});
   final Report report;
+  final String? myUid;
   final VoidCallback onTap;
 
   @override
@@ -219,14 +222,52 @@ class _ReportCard extends StatelessWidget {
                 ),
               ],
               const SizedBox(height: 8),
-              Text(
-                _formatDate(report.createdAt),
-                style: theme.textTheme.labelSmall
-                    ?.copyWith(color: palette.inkFaint),
+              Row(
+                children: [
+                  Text(
+                    _formatDate(report.createdAt),
+                    style: theme.textTheme.labelSmall
+                        ?.copyWith(color: palette.inkFaint),
+                  ),
+                  const Spacer(),
+                  if (report.assignedTo != null)
+                    _AssignBadge(
+                        mine: report.assignedTo == myUid),
+                ],
               ),
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// Şikayeti bir yöneticinin üstlendiğini gösteren rozet ("Bende" / "Üstlenildi").
+class _AssignBadge extends StatelessWidget {
+  const _AssignBadge({required this.mine});
+  final bool mine;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    final (bg, fg) = mine
+        ? (palette.infoSurface, palette.info)
+        : (palette.surfaceMuted, palette.inkMuted);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration:
+          BoxDecoration(color: bg, borderRadius: BorderRadius.circular(20)),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(mine ? Icons.person_pin : Icons.lock_person_outlined,
+              size: 12, color: fg),
+          const SizedBox(width: 4),
+          Text(mine ? 'Bende' : 'Üstlenildi',
+              style: TextStyle(
+                  fontSize: 11, fontWeight: FontWeight.w700, color: fg)),
+        ],
       ),
     );
   }
@@ -354,6 +395,27 @@ class _ReportDetailSheetState extends ConsumerState<_ReportDetailSheet> {
     }
   }
 
+  Future<void> _assign(bool assign) async {
+    final uid = ref.read(currentUserProvider)?.uid;
+    if (uid == null) return;
+    setState(() => _busy = true);
+    try {
+      await ref.read(adminReportRepositoryProvider).assignReport(
+            widget.report.id,
+            assign: assign,
+            adminUid: uid,
+          );
+      if (!mounted) return;
+      Navigator.of(context).pop();
+      context.showSuccess(
+          assign ? 'Şikayeti üstlendiniz.' : 'Şikayet bırakıldı.');
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _busy = false);
+      context.showError('İşlem başarısız oldu. Tekrar deneyin.');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final palette = context.palette;
@@ -404,6 +466,39 @@ class _ReportDetailSheetState extends ConsumerState<_ReportDetailSheet> {
               _InfoBlock(label: 'Tarih', value: _formatDate(r.createdAt)),
               if (r.resolvedBy != null)
                 _InfoBlock(label: 'İşleyen (uid)', value: r.resolvedBy!),
+              if (r.assignedTo != null)
+                _InfoBlock(
+                    label: 'Üstlenen (uid)',
+                    value: r.assignedTo == ref.read(currentUserProvider)?.uid
+                        ? '${r.assignedTo}  (siz)'
+                        : r.assignedTo!),
+              if (!r.status.isClosed && !_busy) ...[
+                const SizedBox(height: 4),
+                Builder(builder: (context) {
+                  final myUid = ref.read(currentUserProvider)?.uid;
+                  final mine = r.assignedTo != null && r.assignedTo == myUid;
+                  if (r.assignedTo == null) {
+                    return OutlinedButton.icon(
+                      onPressed: () => _assign(true),
+                      icon: const Icon(Icons.pan_tool_alt_outlined, size: 18),
+                      label: const Text('Şikayeti üstlen'),
+                    );
+                  }
+                  if (mine) {
+                    return OutlinedButton.icon(
+                      onPressed: () => _assign(false),
+                      icon: const Icon(Icons.free_cancellation_outlined,
+                          size: 18),
+                      label: const Text('Üstlenmeyi bırak'),
+                    );
+                  }
+                  return OutlinedButton.icon(
+                    onPressed: () => _assign(true),
+                    icon: const Icon(Icons.swap_horiz_rounded, size: 18),
+                    label: const Text('Devral'),
+                  );
+                }),
+              ],
               if (r.reportedUid.isNotEmpty) ...[
                 const SizedBox(height: 4),
                 OutlinedButton.icon(

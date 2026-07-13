@@ -40,6 +40,7 @@ class Report {
     this.adminNote,
     this.resolvedBy,
     this.resolvedAt,
+    this.assignedTo,
   });
 
   final String id;
@@ -57,6 +58,11 @@ class Report {
   final String? adminNote;
   final String? resolvedBy;
   final DateTime? resolvedAt;
+
+  /// Şikayeti ÜSTLENEN yöneticinin uid'i (çoklu-moderatör koordinasyonu; iki
+  /// kişi aynı kaydı işlemesin). Yalnız `adminAssignReport` CF yazar; karara
+  /// bağlanınca temizlenir. Null = kimse üstlenmemiş.
+  final String? assignedTo;
 
   static ReportTarget _target(String? v) => ReportTarget.values.firstWhere(
         (e) => e.apiValue == v,
@@ -87,5 +93,6 @@ class Report {
         adminNote: m['adminNote'] as String?,
         resolvedBy: m['resolvedBy'] as String?,
         resolvedAt: m['resolvedAt'] == null ? null : _date(m['resolvedAt']),
+        assignedTo: m['assignedTo'] as String?,
       );
 }

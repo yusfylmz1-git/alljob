@@ -135,6 +135,25 @@ void main() {
       final open = await repo.watchReports(openOnly: true).first;
       expect(open, isEmpty);
     });
+
+    test('assignReport üstlenir/bırakır; kapanınca atama düşer', () async {
+      final repo = MockAdminReportRepository([
+        _r('a', ReportStatus.open, DateTime(2026, 1, 1)),
+      ]);
+      addTearDown(repo.dispose);
+
+      await repo.assignReport('a', assign: true, adminUid: 'admin1');
+      expect((await repo.watchReports().first).single.assignedTo, 'admin1');
+
+      await repo.assignReport('a', assign: false, adminUid: 'admin1');
+      expect((await repo.watchReports().first).single.assignedTo, isNull);
+
+      // Karara bağlanınca (kapanınca) atama temizlenir (CF paritesi).
+      await repo.assignReport('a', assign: true, adminUid: 'admin1');
+      await repo.updateStatus('a',
+          status: ReportStatus.resolved, resolvedBy: 'admin1');
+      expect((await repo.watchReports().first).single.assignedTo, isNull);
+    });
   });
 
   group('MockAdminDisputeRepository (hakemlik)', () {

@@ -19,6 +19,13 @@ abstract interface class AdminReportRepository {
     required String resolvedBy,
     String? adminNote,
   });
+
+  /// Şikayeti üstlenir ([assign] true → çağıran yöneticiye atanır) veya bırakır.
+  Future<void> assignReport(
+    String id, {
+    required bool assign,
+    required String adminUid,
+  });
 }
 
 /// Firestore `reports` koleksiyonuyla çalışan [AdminReportRepository].
@@ -72,6 +79,19 @@ class FirebaseAdminReportRepository implements AdminReportRepository {
       'status': status.apiValue,
       if (adminNote != null && adminNote.trim().isNotEmpty)
         'note': adminNote.trim(),
+    });
+  }
+
+  @override
+  Future<void> assignReport(
+    String id, {
+    required bool assign,
+    required String adminUid,
+  }) async {
+    // adminUid sunucuda auth.uid'den alınır; imza paritesi için taşınır.
+    await _functions.httpsCallable('adminAssignReport').call<Object?>({
+      'reportId': id,
+      'assign': assign,
     });
   }
 }
@@ -130,6 +150,35 @@ class MockAdminReportRepository implements AdminReportRepository {
           : r.adminNote,
       resolvedBy: resolvedBy,
       resolvedAt: DateTime.now(),
+      // Karara bağlanınca atama düşer (CF paritesi); aksi halde korunur.
+      assignedTo: status.isClosed ? null : r.assignedTo,
+    );
+    if (!_changes.isClosed) _changes.add(null);
+  }
+
+  @override
+  Future<void> assignReport(
+    String id, {
+    required bool assign,
+    required String adminUid,
+  }) async {
+    final r = _items[id];
+    if (r == null) return;
+    _items[id] = Report(
+      id: r.id,
+      reporterUid: r.reporterUid,
+      reportedUid: r.reportedUid,
+      target: r.target,
+      targetId: r.targetId,
+      chatId: r.chatId,
+      reason: r.reason,
+      note: r.note,
+      status: r.status,
+      createdAt: r.createdAt,
+      adminNote: r.adminNote,
+      resolvedBy: r.resolvedBy,
+      resolvedAt: r.resolvedAt,
+      assignedTo: assign ? adminUid : null,
     );
     if (!_changes.isClosed) _changes.add(null);
   }

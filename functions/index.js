@@ -1053,6 +1053,11 @@ exports.adminResolveReport = onCall(
       if (typeof note === "string" && note.trim()) {
         update.adminNote = note.trim();
       }
+      // Karara bağlanınca atama düşer (iş bitti; kimin çözdüğü resolvedBy'da).
+      if (before.assignedTo) {
+        update.assignedTo = admin.firestore.FieldValue.delete();
+        update.assignedAt = admin.firestore.FieldValue.delete();
+      }
       const batch = db.batch();
       batch.update(ref, update);
       await writeAuditLog({
@@ -1065,6 +1070,52 @@ exports.adminResolveReport = onCall(
       }, batch);
       await batch.commit();
       logger.info(`report ${reportId} → ${status} (admin ${auth.uid})`);
+      return {ok: true};
+    },
+);
+
+// Yönetici bir şikayeti ÜSTLENİR / bırakır (çoklu-moderatör koordinasyonu:
+// iki kişi aynı kaydı işlemesin). `assign:true` → assignedTo = çağıranın uid'i;
+// `assign:false` → yalnız ATAYAN kişi (veya herhangi bir yönetici) bırakabilir.
+// İstemci reports'a doğrudan yazamaz (kural CF-only) → buradan geçer + audit.
+exports.adminAssignReport = onCall(
+    {region: REGION},
+    async (request) => {
+      const auth = request.auth;
+      if (!auth || auth.token.admin !== true) {
+        throw new HttpsError("permission-denied", "Yönetici yetkisi gerekli.");
+      }
+      const {reportId, assign} = request.data || {};
+      if (typeof reportId !== "string" || typeof assign !== "boolean") {
+        throw new HttpsError("invalid-argument", "Geçersiz istek.");
+      }
+      const ref = db.collection("reports").doc(reportId);
+      const snap = await ref.get();
+      if (!snap.exists) {
+        throw new HttpsError("not-found", "Şikayet bulunamadı.");
+      }
+      const before = snap.data() || {};
+      const update = assign ?
+        {assignedTo: auth.uid, assignedAt: new Date().toISOString()} :
+        {
+          assignedTo: admin.firestore.FieldValue.delete(),
+          assignedAt: admin.firestore.FieldValue.delete(),
+        };
+
+      const batch = db.batch();
+      batch.update(ref, update);
+      await writeAuditLog({
+        actorUid: auth.uid,
+        action: assign ? "claim_report" : "release_report",
+        targetType: "report",
+        targetId: reportId,
+        before: {assignedTo: before.assignedTo || null},
+        after: {assignedTo: assign ? auth.uid : null},
+      }, batch);
+      await batch.commit();
+      logger.info(
+          `report ${reportId} ${assign ? "claimed" : "released"} ` +
+          `by ${auth.uid}`);
       return {ok: true};
     },
 );
