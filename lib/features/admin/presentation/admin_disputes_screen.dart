@@ -11,6 +11,7 @@ import '../../auth/application/auth_controller.dart';
 import '../data/admin_dispute_repository.dart';
 import '../data/admin_providers.dart';
 import 'admin_users_screen.dart';
+import 'paged_footer.dart';
 
 /// Yönetici anlaşmazlık (hakemlik) kuyruğu. `disputed` durumundaki işler
 /// listelenir; bir işe dokununca detay + karar (İşi İptal Et / Devam Ettir)
@@ -21,16 +22,23 @@ class AdminDisputesScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final disputesAsync = ref.watch(adminDisputesProvider);
+    final pageAsync = ref.watch(disputeQueueControllerProvider);
+    final controller = ref.read(disputeQueueControllerProvider.notifier);
 
     return Scaffold(
       appBar: GradientAppBar(
         title: 'Anlaşmazlıklar',
         icon: Icons.gavel_outlined,
-        subtitle: disputesAsync.valueOrNull == null
+        subtitle: pageAsync.valueOrNull == null
             ? null
-            : '${disputesAsync.value!.length} açık anlaşmazlık',
+            : '${pageAsync.value!.items.length} anlaşmazlık'
+                '${pageAsync.value!.hasMore ? '+' : ''}',
         actions: [
+          IconButton(
+            tooltip: 'Yenile',
+            icon: const Icon(Icons.refresh_rounded),
+            onPressed: controller.refresh,
+          ),
           IconButton(
             tooltip: 'Çıkış',
             icon: const Icon(Icons.logout_rounded),
@@ -39,24 +47,36 @@ class AdminDisputesScreen extends ConsumerWidget {
           ),
         ],
       ),
-      body: disputesAsync.when(
+      body: pageAsync.when(
         loading: () => const LoadingView(),
         error: (_, _) => const ErrorView(
           message:
               'Anlaşmazlıklar yüklenemedi. Yetkiniz olduğundan emin olun.',
         ),
-        data: (list) {
-          if (list.isEmpty) return const _Empty();
-          return ResponsiveCenter(
-            maxWidth: 720,
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-            child: ListView.separated(
-              padding: EdgeInsets.zero,
-              itemCount: list.length,
-              separatorBuilder: (_, _) => const SizedBox(height: 10),
-              itemBuilder: (_, i) => _DisputeCard(
-                job: list[i],
-                onTap: () => _openDetail(context, list[i]),
+        data: (page) {
+          if (page.items.isEmpty) return const _Empty();
+          return RefreshIndicator(
+            onRefresh: controller.refresh,
+            child: ResponsiveCenter(
+              maxWidth: 720,
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+              child: ListView.separated(
+                padding: EdgeInsets.zero,
+                itemCount: page.items.length + 1,
+                separatorBuilder: (_, _) => const SizedBox(height: 10),
+                itemBuilder: (_, i) {
+                  if (i == page.items.length) {
+                    return PagedFooter(
+                      hasMore: page.hasMore,
+                      loadingMore: page.loadingMore,
+                      onLoadMore: controller.loadMore,
+                    );
+                  }
+                  return _DisputeCard(
+                    job: page.items[i],
+                    onTap: () => _openDetail(context, page.items[i]),
+                  );
+                },
               ),
             ),
           );

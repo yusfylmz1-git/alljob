@@ -137,6 +137,25 @@ void main() {
       expect(open, isEmpty);
     });
 
+    test('fetchPage createdAt cursor ile sayfalar (en yeni üstte)', () async {
+      final repo = MockAdminReportRepository([
+        _r('a', ReportStatus.open, DateTime(2026, 1, 1)),
+        _r('b', ReportStatus.resolved, DateTime(2026, 1, 4)),
+        _r('c', ReportStatus.open, DateTime(2026, 1, 3)),
+        _r('d', ReportStatus.open, DateTime(2026, 1, 2)),
+      ]);
+      addTearDown(repo.dispose);
+
+      final p1 = await repo.fetchPage(limit: 2);
+      expect(p1.map((e) => e.id), ['b', 'c']);
+      final p2 = await repo.fetchPage(
+          beforeCursor: p1.last.createdAt.toIso8601String(), limit: 2);
+      expect(p2.map((e) => e.id), ['d', 'a']);
+      final p3 = await repo.fetchPage(
+          beforeCursor: p2.last.createdAt.toIso8601String(), limit: 2);
+      expect(p3, isEmpty);
+    });
+
     test('assignReport üstlenir/bırakır; kapanınca atama düşer', () async {
       final repo = MockAdminReportRepository([
         _r('a', ReportStatus.open, DateTime(2026, 1, 1)),
@@ -189,6 +208,26 @@ void main() {
 
       final list = await repo.watchDisputes().first;
       expect(list, isEmpty); // artık disputed değil → kuyruktan düşer
+    });
+
+    test('fetchPage disputed işleri createdAt cursor ile sayfalar', () async {
+      // createdAt = disputedAt - 1 gün (helper böyle kuruyor) → createdAt sırası.
+      final repo = MockAdminDisputeRepository([
+        _dispute('a',
+            before: JobStatus.inProgress, disputedAt: DateTime(2026, 1, 2)),
+        _dispute('b',
+            before: JobStatus.completed, disputedAt: DateTime(2026, 1, 5)),
+        _dispute('c',
+            before: JobStatus.workerSelected,
+            disputedAt: DateTime(2026, 1, 4)),
+      ]);
+      addTearDown(repo.dispose);
+
+      final p1 = await repo.fetchPage(limit: 2);
+      expect(p1.map((e) => e.jobId), ['b', 'c']); // createdAt desc
+      final p2 = await repo.fetchPage(
+          beforeCursor: p1.last.createdAt.toIso8601String(), limit: 2);
+      expect(p2.map((e) => e.jobId), ['a']);
     });
 
     test('restore kararı işi sorun öncesi durumuna döndürür + temizler',

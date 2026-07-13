@@ -25,8 +25,15 @@ enum DisputeDecision {
 /// mutasyonlar gibi `adminResolveDispute` CF'inden geçer (istemci `jobs`'a
 /// doğrudan yazmaz — Admin SDK kuralları aşar + denetim kaydı atomik yazılır).
 abstract interface class AdminDisputeRepository {
-  /// Açık anlaşmazlıklar — en yeni bildirilenler üstte.
+  /// Açık anlaşmazlıklar — en yeni bildirilenler üstte. (Yalnızca menü rozeti
+  /// için canlı sayım — liste artık [fetchPage] ile cursor sayfalanır.)
   Stream<List<Job>> watchDisputes();
+
+  /// Bir sayfa anlaşmazlık (createdAt'e göre en yeni üstte). [beforeCursor] =
+  /// son işin ham `createdAt` metni. Sorgu `status==disputed` + orderBy
+  /// createdAt → mevcut `jobs(status,createdAt desc)` bileşik indeksini kullanır
+  /// (yeni indeks GEREKMEZ).
+  Future<List<Job>> fetchPage({String? beforeCursor, int limit});
 
   /// Bir anlaşmazlığı karara bağlar; opsiyonel yönetici notu her iki tarafa
   /// bildirilir ve denetim kaydına yazılır.
@@ -76,6 +83,19 @@ class FirebaseAdminDisputeRepository implements AdminDisputeRepository {
   }
 
   @override
+  Future<List<Job>> fetchPage({String? beforeCursor, int limit = 30}) async {
+    Query<Map<String, dynamic>> q = _db
+        .collection('jobs')
+        .where('status', isEqualTo: JobStatus.disputed.apiValue)
+        .orderBy('createdAt', descending: true);
+    if (beforeCursor != null && beforeCursor.isNotEmpty) {
+      q = q.where('createdAt', isLessThan: beforeCursor);
+    }
+    final snap = await q.limit(limit).get();
+    return snap.docs.map((d) => Job.fromMap(d.id, d.data())).toList();
+  }
+
+  @override
   Future<void> resolveDispute(
     String jobId, {
     required DisputeDecision decision,
@@ -122,6 +142,22 @@ class MockAdminDisputeRepository implements AdminDisputeRepository {
     await for (final _ in _changes.stream) {
       yield _query();
     }
+  }
+
+  @override
+  Future<List<Job>> fetchPage({String? beforeCursor, int limit = 30}) async {
+    final before = (beforeCursor == null || beforeCursor.isEmpty)
+        ? null
+        : DateTime.tryParse(beforeCursor);
+    // Firebase paritesi: sayfalama createdAt'e göre (mevcut indeks).
+    final sorted = _items.values
+        .where((j) => j.status == JobStatus.disputed)
+        .toList()
+      ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    final list = before == null
+        ? sorted
+        : sorted.where((j) => j.createdAt.isBefore(before)).toList();
+    return list.take(limit).toList();
   }
 
   @override

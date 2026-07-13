@@ -9,7 +9,14 @@ import 'admin_report.dart';
 /// claim'i olan kullanıcı okuyabilir/güncelleyebilir (Firestore kuralı).
 abstract interface class AdminReportRepository {
   /// Tüm şikayetler — en yeni üstte. [openOnly] ise yalnız açık/incelenen.
+  /// (Yalnızca menü rozeti için canlı sayım — liste artık [fetchPage] ile
+  /// cursor sayfalanır.)
   Stream<List<Report>> watchReports({bool openOnly = false});
+
+  /// Bir sayfa şikayet (createdAt'e göre en yeni üstte). [beforeCursor] = son
+  /// kaydın ham `createdAt` metni → yalnız ondan eskiler gelir. Açık/kapalı
+  /// süzme istemci tarafında yapılır (tek alan sorgu; bileşik indeks gerekmez).
+  Future<List<Report>> fetchPage({String? beforeCursor, int limit});
 
   /// Bir şikayetin durumunu (ve varsa çözüm notunu) günceller. Kapanış
   /// durumlarında [resolvedBy]/`resolvedAt` de yazılır.
@@ -62,6 +69,17 @@ class FirebaseAdminReportRepository implements AdminReportRepository {
           snap.docs.map((d) => Report.fromMap(d.id, d.data())).toList();
       return openOnly ? all.where((r) => !r.status.isClosed).toList() : all;
     });
+  }
+
+  @override
+  Future<List<Report>> fetchPage({String? beforeCursor, int limit = 30}) async {
+    Query<Map<String, dynamic>> q =
+        _col.orderBy('createdAt', descending: true);
+    if (beforeCursor != null && beforeCursor.isNotEmpty) {
+      q = q.where('createdAt', isLessThan: beforeCursor);
+    }
+    final snap = await q.limit(limit).get();
+    return snap.docs.map((d) => Report.fromMap(d.id, d.data())).toList();
   }
 
   @override
@@ -123,6 +141,18 @@ class MockAdminReportRepository implements AdminReportRepository {
     await for (final _ in _changes.stream) {
       yield _query(openOnly);
     }
+  }
+
+  @override
+  Future<List<Report>> fetchPage({String? beforeCursor, int limit = 30}) async {
+    final before = (beforeCursor == null || beforeCursor.isEmpty)
+        ? null
+        : DateTime.tryParse(beforeCursor);
+    final sorted = _query(false); // en yeni üstte, tümü
+    final list = before == null
+        ? sorted
+        : sorted.where((r) => r.createdAt.isBefore(before)).toList();
+    return list.take(limit).toList();
   }
 
   @override

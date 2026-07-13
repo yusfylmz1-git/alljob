@@ -10,7 +10,9 @@ import '../../../data/models/report.dart';
 import '../../auth/application/auth_controller.dart';
 import '../data/admin_providers.dart';
 import '../data/admin_report.dart';
+import '../data/paged_queue.dart';
 import 'admin_users_screen.dart';
+import 'paged_footer.dart';
 
 /// Yönetici şikayet kuyruğu. Yalnızca `admin:true` claim'i olan kullanıcı
 /// açabilir (yönlendirme guard'ı + Firestore kuralı). Kayıtlar listelenir;
@@ -27,16 +29,22 @@ class _AdminReportsScreenState extends ConsumerState<AdminReportsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final reportsAsync = ref.watch(adminReportsProvider);
+    final pageAsync = ref.watch(reportQueueControllerProvider);
+    final controller = ref.read(reportQueueControllerProvider.notifier);
 
     return Scaffold(
       appBar: GradientAppBar(
         title: 'Şikayet Kuyruğu',
         icon: Icons.flag_outlined,
-        subtitle: reportsAsync.valueOrNull == null
+        subtitle: pageAsync.valueOrNull == null
             ? null
-            : _subtitle(reportsAsync.value!),
+            : _subtitle(pageAsync.value!),
         actions: [
+          IconButton(
+            tooltip: 'Yenile',
+            icon: const Icon(Icons.refresh_rounded),
+            onPressed: controller.refresh,
+          ),
           IconButton(
             tooltip: 'Çıkış',
             icon: const Icon(Icons.logout_rounded),
@@ -45,14 +53,17 @@ class _AdminReportsScreenState extends ConsumerState<AdminReportsScreen> {
           ),
         ],
       ),
-      body: reportsAsync.when(
+      body: pageAsync.when(
         loading: () => const LoadingView(),
         error: (_, _) => const ErrorView(
           message: 'Şikayetler yüklenemedi. Yetkiniz olduğundan emin olun.',
         ),
-        data: (all) {
+        data: (page) {
+          final all = page.items;
+          if (all.isEmpty) return _Empty(openOnly: _openOnly);
           final list =
               _openOnly ? all.where((r) => !r.status.isClosed).toList() : all;
+          final myUid = ref.read(currentUserProvider)?.uid;
           return Column(
             children: [
               _FilterBar(
@@ -62,23 +73,48 @@ class _AdminReportsScreenState extends ConsumerState<AdminReportsScreen> {
                 onChanged: (v) => setState(() => _openOnly = v),
               ),
               Expanded(
-                child: list.isEmpty
-                    ? _Empty(openOnly: _openOnly)
-                    : ResponsiveCenter(
-                        maxWidth: 720,
-                        padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
-                        child: ListView.separated(
-                          padding: EdgeInsets.zero,
-                          itemCount: list.length,
-                          separatorBuilder: (_, _) =>
-                              const SizedBox(height: 10),
-                          itemBuilder: (_, i) => _ReportCard(
-                            report: list[i],
-                            myUid: ref.read(currentUserProvider)?.uid,
-                            onTap: () => _openDetail(list[i]),
-                          ),
-                        ),
-                      ),
+                child: RefreshIndicator(
+                  onRefresh: controller.refresh,
+                  child: ResponsiveCenter(
+                    maxWidth: 720,
+                    padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
+                    child: ListView.separated(
+                      padding: EdgeInsets.zero,
+                      // +1: alt "daha fazla" alanı. Filtre boşsa yalnız o + ipucu.
+                      itemCount: list.length + 1,
+                      separatorBuilder: (_, _) => const SizedBox(height: 10),
+                      itemBuilder: (_, i) {
+                        if (i == list.length) {
+                          return Column(
+                            children: [
+                              if (list.isEmpty)
+                                Padding(
+                                  padding: const EdgeInsets.only(bottom: 8),
+                                  child: Text(
+                                    _openOnly
+                                        ? 'Yüklü kayıtlarda açık şikayet yok.'
+                                        : 'Kayıt yok.',
+                                    style: TextStyle(
+                                        color: context.palette.inkMuted),
+                                  ),
+                                ),
+                              PagedFooter(
+                                hasMore: page.hasMore,
+                                loadingMore: page.loadingMore,
+                                onLoadMore: controller.loadMore,
+                              ),
+                            ],
+                          );
+                        }
+                        return _ReportCard(
+                          report: list[i],
+                          myUid: myUid,
+                          onTap: () => _openDetail(list[i]),
+                        );
+                      },
+                    ),
+                  ),
+                ),
               ),
             ],
           );
@@ -87,9 +123,9 @@ class _AdminReportsScreenState extends ConsumerState<AdminReportsScreen> {
     );
   }
 
-  String _subtitle(List<Report> all) {
-    final open = all.where((r) => !r.status.isClosed).length;
-    return '$open açık · ${all.length} toplam';
+  String _subtitle(PagedData<Report> page) {
+    final open = page.items.where((r) => !r.status.isClosed).length;
+    return '$open açık · ${page.items.length} yüklü${page.hasMore ? '+' : ''}';
   }
 
   Future<void> _openDetail(Report report) async {

@@ -25,6 +25,20 @@
 
 **Tarih:** 2026-07-13
 
+**Oturum 63 (2026-07-13, aynı gün): ŞİKAYET + ANLAŞMAZLIK KUYRUKLARINA CURSOR SAYFALAMA ("eksik kalmasın"). Yalnız istemci — YENİ İNDEKS/KURAL/CF YOK. 151/151 test, analyze 0. Admin web REBUILD + hosting REDEPLOY (canlı: alljob1-admin.web.app).**
+Kullanıcı "evet devam eksik kalmasın" + AskUserQuestion → "Kuyruk sayfalama (şikayet/anlaşmazlık)". Denetim kaydındaki (Oturum 61) cursor kalıbı genelleştirilip her iki kuyruğa taşındı; 200 sabit tavan kalktı.
+- **NOT (App Check):** İncelendi — istemci App Check kablolaması ZATEN tam (main.dart + main_admin); kalan yalnız reCAPTCHA anahtarı + Console enforcement (kod değil). firebase-functions ^6→7 + admin ^12→13 MAJOR/breaking → canlı fonksiyonlarda habersiz yapılmadı (ayrı migrasyon işi). Bu yüzden gerçek kod işi = kuyruk sayfalama.
+- **Genel `paged_queue.dart`:** `PagedData<T>{items,hasMore,loadingMore}` + `PagedController<T> extends StateNotifier<AsyncValue<PagedData<T>>>` (load/refresh/loadMore, pageSize 30; loadMore son öğenin cursor'ıyla ekler; `cursorOf`/`PageFetcher` typedef'leri). Şikayet+anlaşmazlık ORTAK bu controller'ı kullanır (denetim kendi controller'ında kaldı; ileride birleştirilebilir).
+- **Repo fetchPage'leri:** `AdminReportRepository.fetchPage` (orderBy createdAt desc + `where(createdAt<cursor)`; TEK ALAN, indeks yok; openOnly İSTEMCİ tarafı filtre) + `AdminDisputeRepository.fetchPage` (`where(status==disputed).orderBy(createdAt desc)` + cursor → **mevcut `jobs(status,createdAt desc)` indeksini kullanır**, Oturum 19'dan; yeni indeks YOK). Mock parite. Cursor = `createdAt.toIso8601String()` (DateTime.tryParse UTC-lik korur → depo metnine sadık, sınır kayması yok).
+- **Providerlar:** `reportQueueControllerProvider` + `disputeQueueControllerProvider` (StateNotifierProvider.autoDispose). **Rozetler CANLI kaldı:** `openReportCountProvider`/`openDisputeCountProvider` hâlâ mevcut `adminReportsProvider`/`adminDisputesProvider` STREAM'lerinden besleniyor (yeni şikayet/anlaşmazlık sekme rozetinde anında görünür); yalnız LİSTELER sayfalandı.
+- **UI:** ortak `paged_footer.dart` (`PagedFooter`: spinner / "Daha fazla yükle" / "Kuyruğun sonu"). Şikayet ekranı (createdAt sayfalama + Açık/Tümü istemci filtresi korundu + Yenile ikonu + RefreshIndicator + alt footer; filtre boşsa ipucu+footer). Anlaşmazlık ekranı (Yenile + RefreshIndicator + footer). Not: anlaşmazlık listesi artık createdAt sırasında (eskiden disputedAt) — disputedAt sıralı sayfalama (status,disputedAt) indeksi ister; anlaşmazlıklar zaten az olduğundan createdAt tercih edildi (deploy'suz).
+- **Test (`test/admin_test.dart` +2 → 151/151):** report fetchPage createdAt cursor sayfalama (2'şer, sonda boş) + dispute fetchPage createdAt cursor.
+- Toplam **151/151**; analyze 0; `flutter build web -t lib/main_admin.dart` OK; **`firebase deploy --only hosting:alljob1-admin` YAPILDI** (canlı site güncel).
+- **SIRADAKİ:** kullanıcı canlı test. Admin Faz 2 tam + tüm kuyruklar ölçek-hazır. Kalan (kod değil/erken): App Check enforce (Console) · firebase-functions/admin major yükseltme (ayrı migrasyon) · BigQuery.
+- ⚠️ Kullanıcı: Şikayetler/Anlaşmazlıklar sekmelerinde altta "Daha fazla yükle" + üstte Yenile/aşağı-çek. Yeni gelen kayıt sayısı sekme rozetinde anında (canlı) görünür; listeye yansıması için Yenile.
+
+--- (önceki oturumlar) ---
+
 **Oturum 62 (2026-07-13, aynı gün): 🚀 BİRİKMİŞ ADMIN DEPLOY YAPILDI (52-REVİZE→61 hepsi CANLIDA). Kullanıcı "evet" ile onayladı; ben sırayla çalıştırdım.**
 Oturum 52-REVİZE'den 61'e kadar biriken TÜM admin backend'i tek oturumda canlıya alındı. Artık admin Faz 2'nin hiçbir parçası "deploy bekliyor" değil.
 - **(1) `firebase deploy --only firestore:rules` ✅** — compiled + released. İçerik: admin READ (reports/adminAuditLogs/adminRoles), `isSuspended()` + 4 create dalı guard, `users` alan koruması (phoneNumber/suspended/suspendedAt), isVerified/phoneVerified guardları, adminRoles koleksiyonu.

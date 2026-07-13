@@ -8,6 +8,7 @@ import 'admin_dispute_repository.dart';
 import 'admin_report.dart';
 import 'admin_report_repository.dart';
 import 'admin_user_repository.dart';
+import 'paged_queue.dart';
 
 /// Oturumdaki kullanıcı yönetici mi? (Auth custom claim'inden.)
 final isAdminProvider = Provider<bool>((ref) {
@@ -34,10 +35,22 @@ final adminReportsProvider = StreamProvider<List<Report>>((ref) {
   return ref.watch(adminReportRepositoryProvider).watchReports();
 });
 
-/// Açık (çözülmemiş) şikayet sayısı — menü rozeti için.
+/// Açık (çözülmemiş) şikayet sayısı — menü rozeti için (canlı stream).
 final openReportCountProvider = Provider<int>((ref) {
   final list = ref.watch(adminReportsProvider).valueOrNull ?? const [];
   return list.where((r) => !r.status.isClosed).length;
+});
+
+/// Şikayet kuyruğu liste controller'ı (cursor sayfalama). Rozet için canlı
+/// stream ayrı ([openReportCountProvider]); bu yalnız listenin sayfalanmasıdır.
+final reportQueueControllerProvider = StateNotifierProvider.autoDispose<
+    PagedController<Report>, AsyncValue<PagedData<Report>>>((ref) {
+  final repo = ref.watch(adminReportRepositoryProvider);
+  return PagedController<Report>(
+    fetch: ({beforeCursor, limit = 30}) =>
+        repo.fetchPage(beforeCursor: beforeCursor, limit: limit),
+    cursorOf: (r) => r.createdAt.toIso8601String(),
+  );
 });
 
 final adminDisputeRepositoryProvider = Provider<AdminDisputeRepository>((ref) {
@@ -55,9 +68,20 @@ final adminDisputesProvider = StreamProvider<List<Job>>((ref) {
   return ref.watch(adminDisputeRepositoryProvider).watchDisputes();
 });
 
-/// Açık anlaşmazlık sayısı — sekme/menü rozeti için.
+/// Açık anlaşmazlık sayısı — sekme/menü rozeti için (canlı stream).
 final openDisputeCountProvider = Provider<int>((ref) {
   return ref.watch(adminDisputesProvider).valueOrNull?.length ?? 0;
+});
+
+/// Anlaşmazlık kuyruğu liste controller'ı (cursor sayfalama, createdAt).
+final disputeQueueControllerProvider = StateNotifierProvider.autoDispose<
+    PagedController<Job>, AsyncValue<PagedData<Job>>>((ref) {
+  final repo = ref.watch(adminDisputeRepositoryProvider);
+  return PagedController<Job>(
+    fetch: ({beforeCursor, limit = 30}) =>
+        repo.fetchPage(beforeCursor: beforeCursor, limit: limit),
+    cursorOf: (j) => j.createdAt.toIso8601String(),
+  );
 });
 
 final adminUserRepositoryProvider = Provider<AdminUserRepository>((ref) {
