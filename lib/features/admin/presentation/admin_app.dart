@@ -11,6 +11,7 @@ import '../../auth/data/auth_repository.dart';
 import '../data/admin_providers.dart';
 import 'admin_disputes_screen.dart';
 import 'admin_reports_screen.dart';
+import 'admin_users_screen.dart';
 
 /// AYRI admin web uygulamasının kökü. Tüketici uygulamasından TAMAMEN bağımsız
 /// çalışır (kendi giriş noktası `main_admin.dart`, kendi Hosting sitesi); admin
@@ -77,6 +78,7 @@ class _AdminHomeScreenState extends ConsumerState<_AdminHomeScreen> {
         children: const [
           AdminReportsScreen(),
           AdminDisputesScreen(),
+          AdminUsersScreen(),
         ],
       ),
       bottomNavigationBar: NavigationBar(
@@ -94,6 +96,11 @@ class _AdminHomeScreenState extends ConsumerState<_AdminHomeScreen> {
                 icon: Icons.gavel_outlined, count: openDisputes),
             selectedIcon: _BadgeIcon(icon: Icons.gavel, count: openDisputes),
             label: 'Anlaşmazlıklar',
+          ),
+          const NavigationDestination(
+            icon: Icon(Icons.manage_accounts_outlined),
+            selectedIcon: Icon(Icons.manage_accounts),
+            label: 'Kullanıcılar',
           ),
         ],
       ),

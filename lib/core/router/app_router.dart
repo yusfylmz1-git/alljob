@@ -11,6 +11,7 @@ import '../../features/auth/application/auth_controller.dart';
 import '../../features/auth/presentation/login_screen.dart';
 import '../../features/auth/presentation/register_screen.dart';
 import '../../features/auth/presentation/splash_screen.dart';
+import '../../features/auth/presentation/suspended_screen.dart';
 import '../../features/chat/presentation/chat_list_screen.dart';
 import '../../features/chat/presentation/chat_screen.dart';
 import '../../features/customer/presentation/artisan_profile_screen.dart';
@@ -93,9 +94,20 @@ final routerProvider = Provider<GoRouter>((ref) {
 
       // Misafir: keşif + profilleri gezebilir; korunan bölgeler girişe yönlenir.
       if (user == null) {
+        // Askı kapısından çıkış yapınca oturum kapanır → misafir olarak
+        // ana ekrana dön (askı kapısı yalnız oturum açık + suspended içindir).
+        if (loc == RoutePaths.suspended) return RoutePaths.home;
         if (needsLogin) return RoutePaths.login;
         return null;
       }
+
+      // Hesap askıya alındıysa (sunucu claim aynası) tüm uygulama kilitlenir;
+      // yalnız engelleme kapısı gösterilir (çıkış hariç eylem yok).
+      if (user.suspended) {
+        return loc == RoutePaths.suspended ? null : RoutePaths.suspended;
+      }
+      // Askıda değilken askı kapısına gidilmez.
+      if (loc == RoutePaths.suspended) return RoutePaths.home;
 
       // Oturum açmışken auth ekranları → ana ekrana.
       if (onAuthFlow) return RoutePaths.home;
@@ -132,6 +144,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: RoutePaths.register,
         builder: (_, _) => const RegisterScreen(),
+      ),
+      GoRoute(
+        path: RoutePaths.suspended,
+        builder: (_, _) => const SuspendedScreen(),
       ),
       GoRoute(
         path: RoutePaths.panel,

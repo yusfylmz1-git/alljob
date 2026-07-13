@@ -1076,3 +1076,87 @@ exports.adminResolveDispute = onCall(
       return {ok: true};
     },
 );
+
+// Yönetici bir kullanıcıyı askıya alır / geri açar (kötüye kullanım yönetimi).
+//
+// Zorlama modeli SUNUCUDADIR: `suspended:true` custom claim → Firestore
+// kuralları yeni iş/teklif/mesaj/değerlendirme oluşturmayı reddeder (bkz.
+// firestore.rules isSuspended()). Ek olarak `users/{uid}.suspended` (bool)
+// aynalanır → istemci "hesabınız askıya alındı" kapısını gösterir (herkese
+// açık dökümanda YALNIZ bool; askıya alma NEDENİ gizlilik için buraya
+// YAZILMAZ, yalnız denetim kaydında tutulur). Askıya alırken refresh token'lar
+// iptal edilir (claim yeni oturumda kesin yansır). Kendini veya başka bir
+// yöneticiyi askıya alamazsın. setCustomUserClaims TÜM claim'leri değiştirir →
+// mevcut admin/role claim'leri KORUNARAK yalnız `suspended` eklenir/çıkarılır.
+exports.adminSetUserSuspended = onCall(
+    {region: REGION},
+    async (request) => {
+      const auth = request.auth;
+      if (!auth || auth.token.admin !== true) {
+        throw new HttpsError("permission-denied", "Yönetici yetkisi gerekli.");
+      }
+      const {uid, suspended, reason} = request.data || {};
+      if (typeof uid !== "string" || typeof suspended !== "boolean") {
+        throw new HttpsError("invalid-argument", "Geçersiz istek.");
+      }
+      if (uid === auth.uid) {
+        throw new HttpsError(
+            "failed-precondition", "Kendinizi askıya alamazsınız.");
+      }
+
+      let target;
+      try {
+        target = await admin.auth().getUser(uid);
+      } catch (e) {
+        throw new HttpsError("not-found", "Kullanıcı bulunamadı.");
+      }
+      const claims = target.customClaims || {};
+      if (claims.admin === true) {
+        throw new HttpsError(
+            "failed-precondition", "Yöneticiler askıya alınamaz.");
+      }
+
+      // Mevcut claim'leri koru; yalnız `suspended`'ı ayarla/kaldır.
+      const newClaims = {...claims};
+      if (suspended) {
+        newClaims.suspended = true;
+      } else {
+        delete newClaims.suspended;
+      }
+      await admin.auth().setCustomUserClaims(uid, newClaims);
+
+      // Herkese açık `users` dökümanına YALNIZ bool ayna (+ zaman); neden yok.
+      const del = admin.firestore.FieldValue.delete();
+      await db.collection("users").doc(uid).set(
+          suspended ?
+            {suspended: true, suspendedAt: new Date().toISOString()} :
+            {suspended: del, suspendedAt: del},
+          {merge: true});
+
+      // Askıya alırken oturumları geçersiz kıl (claim kesin yansısın).
+      if (suspended) {
+        try {
+          await admin.auth().revokeRefreshTokens(uid);
+        } catch (e) {
+          logger.warn(`revokeRefreshTokens skipped for ${uid}: ${e}`);
+        }
+      }
+
+      await writeAuditLog({
+        actorUid: auth.uid,
+        action: suspended ? "suspend_user" : "unsuspend_user",
+        targetType: "user",
+        targetId: uid,
+        before: {suspended: claims.suspended === true},
+        // Neden yalnız burada (denetim/hesap verebilirlik) tutulur.
+        after: {
+          suspended,
+          reason: (typeof reason === "string" && reason.trim()) ?
+            reason.trim() : null,
+        },
+      });
+      logger.info(
+          `user ${uid} suspended=${suspended} by admin ${auth.uid}`);
+      return {ok: true, suspended};
+    },
+);

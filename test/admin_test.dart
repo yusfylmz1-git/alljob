@@ -1,10 +1,12 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:usta_cepte/data/models/app_user.dart';
 import 'package:usta_cepte/data/models/job.dart';
 import 'package:usta_cepte/data/models/report.dart';
 import 'package:usta_cepte/features/admin/data/admin_config.dart';
 import 'package:usta_cepte/features/admin/data/admin_dispute_repository.dart';
 import 'package:usta_cepte/features/admin/data/admin_report.dart';
 import 'package:usta_cepte/features/admin/data/admin_report_repository.dart';
+import 'package:usta_cepte/features/admin/data/admin_user_repository.dart';
 import 'package:usta_cepte/features/auth/data/mock_auth_repository.dart';
 
 Report _r(String id, ReportStatus status, DateTime created) => Report(
@@ -182,6 +184,54 @@ void main() {
       // Kuyruktan düştü; iç durum completed'a döndü, dispute alanları temizlendi.
       final list = await repo.watchDisputes().first;
       expect(list, isEmpty);
+    });
+  });
+
+  group('MockAdminUserRepository (kullanıcı yönetimi)', () {
+    AppUser u(String uid, String email, {bool suspended = false}) => AppUser(
+          uid: uid,
+          displayName: 'Kullanıcı $uid',
+          email: email,
+          createdAt: DateTime(2026, 1, 1),
+          suspended: suspended,
+        );
+
+    test('findByUid / findByEmail bulur (email küçük harfe duyarsız)',
+        () async {
+      final repo = MockAdminUserRepository([
+        u('u1', 'Ali@Ornek.com'),
+        u('u2', 'veli@ornek.com'),
+      ]);
+      expect((await repo.findByUid('u1'))?.email, 'Ali@Ornek.com');
+      expect((await repo.findByEmail('ali@ornek.com'))?.uid, 'u1');
+      expect(await repo.findByUid('yok'), isNull);
+      expect(await repo.findByEmail('yok@ornek.com'), isNull);
+    });
+
+    test('setSuspended askıya alır ve geri açar', () async {
+      final repo = MockAdminUserRepository([u('u1', 'a@ornek.com')]);
+
+      expect((await repo.findByUid('u1'))?.suspended, isFalse);
+
+      await repo.setSuspended('u1', suspended: true, reason: 'spam');
+      expect((await repo.findByUid('u1'))?.suspended, isTrue);
+
+      await repo.setSuspended('u1', suspended: false);
+      expect((await repo.findByUid('u1'))?.suspended, isFalse);
+    });
+  });
+
+  group('AppUser.suspended', () {
+    test('fromMap suspended alanını okur; yoksa false', () {
+      final s = AppUser.fromMap('u1', {
+        'displayName': 'S',
+        'email': 's@ornek.com',
+        'suspended': true,
+      });
+      expect(s.suspended, isTrue);
+
+      final n = AppUser.fromMap('u2', {'email': 'n@ornek.com'});
+      expect(n.suspended, isFalse);
     });
   });
 

@@ -18,6 +18,7 @@ class AppUser {
     this.emailVerified = false,
     this.isAdmin = false,
     this.adminRole,
+    this.suspended = false,
     this.phoneNumber,
     this.profilePhotoUrl,
   });
@@ -60,6 +61,13 @@ class AppUser {
 
   bool get isSuperAdmin => adminRole == 'superadmin';
 
+  /// Hesap yönetici tarafından askıya alındı mı? Zorlama SUNUCUDADIR
+  /// (`suspended:true` custom claim → Firestore kuralları içerik oluşturmayı
+  /// reddeder); bu alan yalnız herkese açık `users` dökümanındaki bool aynadan
+  /// okunur ve istemcide "hesabınız askıya alındı" kapısını tetikler. Askıya
+  /// alma NEDENİ gizlilik için burada TUTULMAZ (yalnız denetim kaydında).
+  final bool suspended;
+
   /// Yalnızca ustalar için; müşteriye asla gösterilmez (PRD §6).
   /// GÜVENLİK: herkese açık `users` dökümanına yazılmaz (bkz. toMap); yalnızca
   /// sahibin okuyabildiği `users/{uid}/private/*` alt-koleksiyonunda saklanır.
@@ -80,6 +88,7 @@ class AppUser {
     bool? emailVerified,
     bool? isAdmin,
     String? adminRole,
+    bool? suspended,
     bool clearAdmin = false,
   }) {
     return AppUser(
@@ -93,6 +102,7 @@ class AppUser {
       emailVerified: emailVerified ?? this.emailVerified,
       isAdmin: clearAdmin ? false : (isAdmin ?? this.isAdmin),
       adminRole: clearAdmin ? null : (adminRole ?? this.adminRole),
+      suspended: suspended ?? this.suspended,
       phoneNumber: phoneNumber ?? this.phoneNumber,
       profilePhotoUrl: profilePhotoUrl ?? this.profilePhotoUrl,
     );
@@ -126,6 +136,7 @@ class AppUser {
           legacyRole ??
           UserRole.customer,
       phoneVerified: (map['phoneVerified'] as bool?) ?? false,
+      suspended: (map['suspended'] as bool?) ?? false,
       createdAt: _parseDate(map['createdAt']),
       phoneNumber: map['phoneNumber'] as String?,
       profilePhotoUrl: map['profilePhotoURL'] as String?,

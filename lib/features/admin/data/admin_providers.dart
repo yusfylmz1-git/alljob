@@ -6,6 +6,7 @@ import '../../auth/application/auth_controller.dart';
 import 'admin_dispute_repository.dart';
 import 'admin_report.dart';
 import 'admin_report_repository.dart';
+import 'admin_user_repository.dart';
 
 /// Oturumdaki kullanıcı yönetici mi? (Auth custom claim'inden.)
 final isAdminProvider = Provider<bool>((ref) {
@@ -50,4 +51,9 @@ final adminDisputesProvider = StreamProvider<List<Job>>((ref) {
 /// Açık anlaşmazlık sayısı — sekme/menü rozeti için.
 final openDisputeCountProvider = Provider<int>((ref) {
   return ref.watch(adminDisputesProvider).valueOrNull?.length ?? 0;
+});
+
+final adminUserRepositoryProvider = Provider<AdminUserRepository>((ref) {
+  if (useFirebaseBackend) return FirebaseAdminUserRepository();
+  return MockAdminUserRepository();
 });

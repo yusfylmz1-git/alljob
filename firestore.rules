@@ -15,6 +15,12 @@ service cloud.firestore {
     function isAdmin() {
       return isSignedIn() && request.auth.token.admin == true;
     }
+    // Askıya alınmış kullanıcı mı? Kaynak: Auth custom claim `suspended:true`
+    // (yalnız `adminSetUserSuspended` CF yazar). Askıya alınan hesap yeni
+    // içerik (iş/teklif/mesaj/değerlendirme) OLUŞTURAMAZ — okuma serbest.
+    function isSuspended() {
+      return isSignedIn() && request.auth.token.suspended == true;
+    }
 
     // users — herkes okuyabilir (profil adı/foto herkese açık); yalnızca sahibi yazar.
     //
@@ -32,16 +38,20 @@ service cloud.firestore {
           || request.auth.token.phone_number != null;
       }
 
+      // Owner'ın kendine YAZAMAYACAĞI alanlar: hassas iletişim (phoneNumber) +
+      // moderasyon aynası (suspended/suspendedAt) — yalnız CF (Admin SDK) yazar;
+      // kullanıcı kendini "askıda değil" yapamaz.
       allow read: if true;
       // create'te resource null olduğundan doğrudan yazılan anahtarlara bakılır.
       allow create: if isSelf(uid)
-        && !request.resource.data.keys().hasAny(['phoneNumber'])
+        && !request.resource.data.keys()
+              .hasAny(['phoneNumber', 'suspended', 'suspendedAt'])
         && phoneClaimOkFor('phoneVerified');
       // update'te yalnızca DEĞİŞEN anahtarlara bakılır (diff): dokunulmayan eski
-      // bir alan güncellemeyi bloklamaz; ama phoneNumber eklenemez/değiştirilemez.
+      // bir alan güncellemeyi bloklamaz; ama korunan alanlar eklenemez/değişemez.
       allow update: if isSelf(uid)
         && !request.resource.data.diff(resource.data)
-              .affectedKeys().hasAny(['phoneNumber'])
+              .affectedKeys().hasAny(['phoneNumber', 'suspended', 'suspendedAt'])
         && phoneClaimOkFor('phoneVerified');
       allow delete: if false;
 
@@ -154,6 +164,7 @@ service cloud.firestore {
         // Yalnızca gönderen kendi mesajını oluşturabilir; alıcı göndereni
         // engellediyse oluşturamaz.
         allow create: if isSignedIn()
+          && !isSuspended()
           && request.resource.data.senderUid == request.auth.uid
           && memberOfChat()
           && !recipientBlockedSender();
@@ -182,6 +193,7 @@ service cloud.firestore {
     match /reviews/{reviewId} {
       allow read: if true;
       allow create: if isSignedIn()
+        && !isSuspended()
         && request.resource.data.customerUID == request.auth.uid
         && request.resource.data.artisanUID is string
         && request.resource.data.artisanUID != request.auth.uid
@@ -273,6 +285,7 @@ service cloud.firestore {
 
       allow read: if true;
       allow create: if isSignedIn()
+        && !isSuspended()
         && request.resource.data.customerId == request.auth.uid
         && request.resource.data.status == 'open'
         && request.resource.data.offerCount == 0
@@ -339,6 +352,7 @@ service cloud.firestore {
       // sahibi olmalı (yanlış customerId, müşterinin teklifi hiç görememesine
       // yol açardı) ve ilan hâlâ teklif topluyor olmalı.
       allow create: if isSignedIn()
+        && !isSuspended()
         && request.resource.data.artisanId == request.auth.uid
         && offerId == request.resource.data.jobId + '__' + request.auth.uid
         && request.resource.data.customerId

@@ -14,6 +14,10 @@ class RoutePaths {
   static const String login = '/login';
   static const String register = '/register';
 
+  // Hesap askıya alındığında gösterilen engelleme kapısı (oturum açık ama
+  // suspended). Buradan yalnız çıkış yapılabilir.
+  static const String suspended = '/suspended';
+
   // Usta paneli (yalnızca oturum açmış usta)
   static const String panel = '/panel';
   static const String panelEdit = '/panel/edit';
