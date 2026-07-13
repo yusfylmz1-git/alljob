@@ -903,6 +903,14 @@ exports.claimAdminAccess = onCall(
       // her zaman en yüksek rolü (superadmin) verir.
       await admin.auth().setCustomUserClaims(
           auth.uid, {admin: true, role: "superadmin"});
+      // Yönetici kadrosu (roster) dokümanı — yalnız yöneticiler okur (kural),
+      // yalnız CF yazar. Rol atama ekranı bir kullanıcının mevcut rolünü buradan
+      // okur (başka kullanıcının Auth claim'i istemciden görülemez).
+      await db.collection("adminRoles").doc(auth.uid).set({
+        role: "superadmin",
+        updatedBy: auth.uid,
+        updatedAt: new Date().toISOString(),
+      });
       await writeAuditLog({
         actorUid: auth.uid,
         action: "grant_admin",
@@ -912,6 +920,84 @@ exports.claimAdminAccess = onCall(
       });
       logger.info(`admin claim verildi: ${auth.uid} (${email})`);
       return {granted: true, role: "superadmin"};
+    },
+);
+
+// Süper yönetici, başka bir kullanıcının yönetici rolünü atar/kaldırır (RBAC
+// delegasyonu). YALNIZ superadmin çağırabilir. Roller: 'moderator' (şikayet/
+// anlaşmazlık/askı) | 'superadmin' (ayrıca rol atama) | 'none' (yetkiyi kaldır).
+//
+// setCustomUserClaims TÜM claim'leri değiştirdiğinden mevcut `suspended`
+// KORUNUR; yalnız admin/role eklenir/çıkarılır. Kendi rolünü değiştiremez
+// (kendini kilitleme/yanlışlıkla düşürme). `adminRoles/{uid}` roster dokümanı
+// güncellenir/silinir, refresh token'lar iptal edilir (yeni yetki/kayıp kesin
+// yansısın), denetim kaydı yazılır.
+exports.adminSetRole = onCall(
+    {region: REGION},
+    async (request) => {
+      const auth = request.auth;
+      if (!auth || auth.token.admin !== true ||
+          auth.token.role !== "superadmin") {
+        throw new HttpsError(
+            "permission-denied", "Süper yönetici yetkisi gerekli.");
+      }
+      const {uid, role} = request.data || {};
+      const valid = ["moderator", "superadmin", "none"];
+      if (typeof uid !== "string" || !valid.includes(role)) {
+        throw new HttpsError("invalid-argument", "Geçersiz istek.");
+      }
+      if (uid === auth.uid) {
+        throw new HttpsError(
+            "failed-precondition", "Kendi rolünüzü değiştiremezsiniz.");
+      }
+
+      let target;
+      try {
+        target = await admin.auth().getUser(uid);
+      } catch (e) {
+        throw new HttpsError("not-found", "Kullanıcı bulunamadı.");
+      }
+      const claims = target.customClaims || {};
+      const prevRole = claims.admin === true ? (claims.role || null) : null;
+
+      const newClaims = {...claims};
+      if (role === "none") {
+        delete newClaims.admin;
+        delete newClaims.role;
+      } else {
+        newClaims.admin = true;
+        newClaims.role = role;
+      }
+      await admin.auth().setCustomUserClaims(uid, newClaims);
+
+      const rosterRef = db.collection("adminRoles").doc(uid);
+      if (role === "none") {
+        await rosterRef.delete();
+      } else {
+        await rosterRef.set({
+          role,
+          updatedBy: auth.uid,
+          updatedAt: new Date().toISOString(),
+        });
+      }
+
+      // Yetki değişimi kesin yansısın (yeni token'da güncel claim).
+      try {
+        await admin.auth().revokeRefreshTokens(uid);
+      } catch (e) {
+        logger.warn(`revokeRefreshTokens skipped for ${uid}: ${e}`);
+      }
+
+      await writeAuditLog({
+        actorUid: auth.uid,
+        action: role === "none" ? "revoke_admin" : "set_role",
+        targetType: "user",
+        targetId: uid,
+        before: {role: prevRole},
+        after: {role: role === "none" ? null : role},
+      });
+      logger.info(`role ${uid} → ${role} by superadmin ${auth.uid}`);
+      return {ok: true, role: role === "none" ? null : role};
     },
 );
 

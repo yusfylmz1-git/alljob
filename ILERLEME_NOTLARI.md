@@ -25,6 +25,19 @@
 
 **Tarih:** 2026-07-13
 
+**Oturum 56 (2026-07-13, aynı gün): ADMIN FAZ 2 — ROL ATAMA (setAdminRole, superadmin-only) + RBAC delegasyonu. KOD TAMAM, 144/144 test, analyze 0, admin web OK. ⚠️ KURAL + CF DEPLOY BEKLİYOR.**
+Kullanıcı "edelim" → RBAC tamamlandı: artık superadmin başka kullanıcıları **moderatör/superadmin** yapabilir veya yetkiyi kaldırabilir. Rol anlam kazandı: **moderatör** = şikayet/anlaşmazlık/askı; **superadmin** = ayrıca rol atama.
+- **CF `adminSetRole` (functions/index.js, superadmin-only):** `auth.token.role=='superadmin'` şart. Roller: `moderator|superadmin|none`. **Kendi rolünü değiştiremez** (kilitlenme). `getUser` → mevcut claim'ler → `setCustomUserClaims` **`suspended`'ı KORUYARAK** admin/role ekler/siler → `adminRoles/{uid}` roster dokümanı set/delete → `revokeRefreshTokens` (yetki değişimi kesin yansısın) → audit (set_role/revoke_admin, before/after rol). `claimAdminAccess` da artık `adminRoles/{uid}` (superadmin) yazar (roster tutarlılığı).
+- **Roster (`adminRoles/{uid}`):** neden gerekli — başka kullanıcının Auth claim'i İSTEMCİDEN OKUNAMAZ; rol atama ekranı hedefin mevcut rolünü buradan okur. Kural: `read: if isAdmin(); write: if false` (yalnız CF/Admin SDK yazar).
+- **İstemci:** `AdminUserRepository`'ye `findRole(uid)` (adminRoles/{uid}.role) + `setRole(uid, role)` (CF) eklendi (+ Mock parite: `_roles` map). `isSuperAdminProvider` (currentUser.isSuperAdmin). `admin_users_screen.dart` `_UserActionSheet`: açılışta `findRole` ile mevcut rolü yükler ("Yönetici rolü: Moderatör/Süper Yönetici/Yok"); **rol ATAMA butonları YALNIZ oturumdaki superadmin'e** görünür (Moderatör yap / Süper Yönetici yap / Yetkiyi kaldır). `_roleLabel` helper. `showAdminUserActions` (Oturum 55) sayesinde şikayet/anlaşmazlık → kullanıcıyı yönet → rol atama zinciri de çalışır.
+- **Test (`test/admin_test.dart` +1 → 144/144):** MockAdminUserRepository setRole atar/değiştirir/kaldırır, findRole yansıtır.
+- Toplam **144/144**; analyze 0; `flutter build web -t lib/main_admin.dart` OK.
+- **⚠️ DEPLOY (Oturum 52-REVİZE+53+54+56 birikmiş; 55 ek getirmedi):** (1) `firebase deploy --only firestore:rules` (artık adminRoles koleksiyonu da dahil) (2) `firebase deploy --only functions:claimAdminAccess,functions:adminResolveReport,functions:adminResolveDispute,functions:onJobWritten,functions:adminSetUserSuspended,functions:adminSetRole` (3) admin sitesi: create → `flutter build web -t lib/main_admin.dart` → `firebase deploy --only hosting:alljob1-admin`.
+- **SIRADAKİ (admin Faz 2+ kalan):** cursor sayfalama + assignment (şikayet/anlaşmazlık kuyruğu) · App Check enforce admin sitesinde · (ölçek) BigQuery export analitiği · admin kadro (roster) listesi ekranı (adminRoles koleksiyonundan).
+- ⚠️ Kullanıcı DEPLOY SONRASI: superadmin ile admin sitesi → Kullanıcılar → bir kullanıcı ara → alttaki "Moderatör yap" → o kullanıcı bir sonraki girişte admin paneline erişebilmeli ama Kullanıcılar sekmesinde rol atama butonlarını GÖRMEMELİ (moderatör). "Yetkiyi kaldır" → panel erişimi kalkar. Console `adminRoles` + `adminAuditLogs`'ta kayıt.
+
+--- (önceki oturumlar) ---
+
 **Oturum 55 (2026-07-13, aynı gün): ADMIN FAZ 2 — ŞİKAYET/ANLAŞMAZLIK → HEDEF KULLANICIYI YÖNET. Yalnız admin UI kablolaması → DEPLOY GEREKMEZ (yeni CF/kural yok). 143/143 test, analyze 0, admin web OK.**
 Kullanıcı "edelim" → moderasyon döngüsü kapatıldı: bir şikayeti/anlaşmazlığı görürken tek dokunuşla ilgili kullanıcının askıya-alma sayfası açılır (Oturum 54'ün suspend akışını yeniden kullanır).
 - **Ortak giriş (`admin_users_screen.dart`):** yeni top-level `showAdminUserActions(context, ref, uid, {onChanged})` → uid'yi `adminUserRepositoryProvider.findByUid` ile yükler → `_UserActionSheet`'i açar (bulunamazsa/hatada snackbar). `_UserActionSheet.onChanged` artık nullable (`?.call()`).

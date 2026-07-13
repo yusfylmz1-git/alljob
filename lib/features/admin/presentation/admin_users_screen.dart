@@ -276,11 +276,53 @@ class _UserActionSheet extends ConsumerStatefulWidget {
 class _UserActionSheetState extends ConsumerState<_UserActionSheet> {
   final _reason = TextEditingController();
   bool _busy = false;
+  String? _role; // hedefin mevcut yönetici rolü (null = yönetici değil)
+  bool _roleLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadRole();
+  }
+
+  Future<void> _loadRole() async {
+    try {
+      final r =
+          await ref.read(adminUserRepositoryProvider).findRole(widget.user.uid);
+      if (!mounted) return;
+      setState(() {
+        _role = r;
+        _roleLoading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _roleLoading = false);
+    }
+  }
 
   @override
   void dispose() {
     _reason.dispose();
     super.dispose();
+  }
+
+  Future<void> _applyRole(String? role) async {
+    setState(() => _busy = true);
+    try {
+      await ref
+          .read(adminUserRepositoryProvider)
+          .setRole(widget.user.uid, role: role);
+      if (!mounted) return;
+      Navigator.of(context).pop();
+      widget.onChanged?.call();
+      context.showSuccess(role == null
+          ? 'Yönetici yetkisi kaldırıldı.'
+          : 'Rol atandı: ${_roleLabel(role)}.');
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _busy = false);
+      context.showError('İşlem başarısız oldu. Tekrar deneyin.');
+    }
   }
 
   Future<void> _apply(bool suspend) async {
@@ -381,10 +423,78 @@ class _UserActionSheetState extends ConsumerState<_UserActionSheet> {
                     label: const Text('Askıya Al'),
                   ),
               ],
+              _buildRoleSection(context),
             ],
           ),
         ),
       ),
     );
   }
+
+  /// Yönetici rolü bölümü. Herkese mevcut rol gösterilir; rol ATAMA yalnız
+  /// oturumdaki SÜPER yöneticiye açıktır (RBAC).
+  Widget _buildRoleSection(BuildContext context) {
+    final palette = context.palette;
+    final theme = Theme.of(context);
+    final canAssign = ref.watch(isSuperAdminProvider);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: 20),
+        Divider(color: palette.hairline, height: 1),
+        const SizedBox(height: 16),
+        Row(
+          children: [
+            Icon(Icons.shield_outlined, size: 16, color: palette.inkMuted),
+            const SizedBox(width: 6),
+            Text('Yönetici rolü: ',
+                style: theme.textTheme.bodyMedium
+                    ?.copyWith(color: palette.inkMuted)),
+            Text(
+              _roleLoading ? '…' : _roleLabel(_role),
+              style: theme.textTheme.bodyMedium
+                  ?.copyWith(fontWeight: FontWeight.w800),
+            ),
+          ],
+        ),
+        if (canAssign && !_busy && !_roleLoading) ...[
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              if (_role != 'moderator')
+                OutlinedButton.icon(
+                  onPressed: () => _applyRole('moderator'),
+                  icon: const Icon(Icons.gavel_outlined, size: 16),
+                  label: const Text('Moderatör yap'),
+                ),
+              if (_role != 'superadmin')
+                OutlinedButton.icon(
+                  onPressed: () => _applyRole('superadmin'),
+                  icon: const Icon(Icons.workspace_premium_outlined, size: 16),
+                  label: const Text('Süper Yönetici yap'),
+                ),
+              if (_role != null)
+                OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(
+                      foregroundColor: palette.danger),
+                  onPressed: () => _applyRole(null),
+                  icon: const Icon(Icons.remove_moderator_outlined, size: 16),
+                  label: const Text('Yetkiyi kaldır'),
+                ),
+            ],
+          ),
+        ],
+      ],
+    );
+  }
 }
+
+/// Rol kodunu Türkçe etikete çevirir (null = yönetici değil).
+String _roleLabel(String? role) => switch (role) {
+      'superadmin' => 'Süper Yönetici',
+      'moderator' => 'Moderatör',
+      _ => 'Yok',
+    };

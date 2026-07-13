@@ -402,6 +402,14 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // adminRoles — yönetici kadrosu (RBAC roster). Yalnız CF (Admin SDK) yazar;
+    // yalnız yönetici okur (rol atama ekranı bir kullanıcının mevcut rolünü
+    // buradan okur — başka kullanıcının Auth claim'i istemciden görülemez).
+    match /adminRoles/{uid} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
     // favorites — müşterinin takip ettiği ("Takip Et") ustalar (#14). Döküman
     // ID'si = customerUid__artisanUid. Müşteri kendi listesini, USTA da kendi
     // takipçilerini okuyabilir (bildirim ekranı "Sizi Takip Edenler" — ürün

@@ -13,6 +13,12 @@ final isAdminProvider = Provider<bool>((ref) {
   return ref.watch(currentUserProvider.select((u) => u?.isAdmin ?? false));
 });
 
+/// Oturumdaki kullanıcı SÜPER yönetici mi? (RBAC: yalnız superadmin başka
+/// kullanıcılara rol atayabilir.)
+final isSuperAdminProvider = Provider<bool>((ref) {
+  return ref.watch(currentUserProvider.select((u) => u?.isSuperAdmin ?? false));
+});
+
 final adminReportRepositoryProvider = Provider<AdminReportRepository>((ref) {
   if (useFirebaseBackend) return FirebaseAdminReportRepository();
   final repo = MockAdminReportRepository();

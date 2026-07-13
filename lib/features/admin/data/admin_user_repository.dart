@@ -25,6 +25,15 @@ abstract interface class AdminUserRepository {
     required bool suspended,
     String? reason,
   });
+
+  /// Kullanıcının mevcut yönetici rolünü döndürür ('moderator'|'superadmin')
+  /// ya da yönetici değilse null. Kaynak `adminRoles/{uid}` roster dökümanı
+  /// (başka kullanıcının Auth claim'i istemciden okunamaz).
+  Future<String?> findRole(String uid);
+
+  /// Bir kullanıcının yönetici rolünü atar/kaldırır (YALNIZ superadmin). [role]
+  /// 'moderator' | 'superadmin' | null (yetkiyi kaldır). CF üzerinden yürür.
+  Future<void> setRole(String uid, {required String? role});
 }
 
 /// Firestore `users` + `adminSetUserSuspended` CF ile çalışan repo.
@@ -74,6 +83,23 @@ class FirebaseAdminUserRepository implements AdminUserRepository {
       if (reason != null && reason.trim().isNotEmpty) 'reason': reason.trim(),
     });
   }
+
+  @override
+  Future<String?> findRole(String uid) async {
+    final id = uid.trim();
+    if (id.isEmpty) return null;
+    final snap = await _db.collection('adminRoles').doc(id).get();
+    if (!snap.exists) return null;
+    return snap.data()?['role'] as String?;
+  }
+
+  @override
+  Future<void> setRole(String uid, {required String? role}) async {
+    await _functions.httpsCallable('adminSetRole').call<Object?>({
+      'uid': uid,
+      'role': role ?? 'none',
+    });
+  }
 }
 
 /// Bellek-içi repo (testler ve Firebase'siz geliştirme). CF etkisini taklit
@@ -88,6 +114,7 @@ class MockAdminUserRepository implements AdminUserRepository {
   }
 
   final Map<String, AppUser> _users = {};
+  final Map<String, String> _roles = {}; // uid → 'moderator'|'superadmin'
 
   @override
   Future<AppUser?> findByUid(String uid) async => _users[uid.trim()];
@@ -110,5 +137,18 @@ class MockAdminUserRepository implements AdminUserRepository {
     final u = _users[uid.trim()];
     if (u == null) return;
     _users[uid.trim()] = u.copyWith(suspended: suspended);
+  }
+
+  @override
+  Future<String?> findRole(String uid) async => _roles[uid.trim()];
+
+  @override
+  Future<void> setRole(String uid, {required String? role}) async {
+    final id = uid.trim();
+    if (role == null || role == 'none') {
+      _roles.remove(id);
+    } else {
+      _roles[id] = role;
+    }
   }
 }

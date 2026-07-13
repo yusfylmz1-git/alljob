@@ -219,6 +219,20 @@ void main() {
       await repo.setSuspended('u1', suspended: false);
       expect((await repo.findByUid('u1'))?.suspended, isFalse);
     });
+
+    test('setRole rol atar/değiştirir/kaldırır (findRole yansıtır)', () async {
+      final repo = MockAdminUserRepository([u('u1', 'a@ornek.com')]);
+      expect(await repo.findRole('u1'), isNull);
+
+      await repo.setRole('u1', role: 'moderator');
+      expect(await repo.findRole('u1'), 'moderator');
+
+      await repo.setRole('u1', role: 'superadmin');
+      expect(await repo.findRole('u1'), 'superadmin');
+
+      await repo.setRole('u1', role: null);
+      expect(await repo.findRole('u1'), isNull);
+    });
   });
 
   group('AppUser.suspended', () {
