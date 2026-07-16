@@ -2,12 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../theme/app_palette.dart';
+import '../theme/app_theme.dart';
 
-/// İkincil ekranların (İlanlarım, Bildirimler, Favorilerim…) sade başlıklarını
-/// Keşfet/Profil hero'suyla aynı dile getiren drop-in app bar: lacivert
-/// gradyan + hafif turuncu ışık, beyaz metin, alttan yuvarlatılmış köşeler.
+/// İkincil ekran app bar: moda göre gradyan, beyaz metin, yuvarlatılmış alt,
+/// hafif gölge. API geriye uyumlu — sayfa kodu değişmez.
 ///
-/// Kullanım: `AppBar(title: Text('İlanlarım'))` → `GradientAppBar(title: 'İlanlarım')`.
+/// Kullanım: `GradientAppBar(title: 'İlanlarım')`.
 class GradientAppBar extends StatelessWidget implements PreferredSizeWidget {
   const GradientAppBar({
     super.key,
@@ -27,11 +27,33 @@ class GradientAppBar extends StatelessWidget implements PreferredSizeWidget {
   final IconData? icon;
 
   @override
-  Size get preferredSize => Size.fromHeight(subtitle == null ? 60 : 76);
+  Size get preferredSize => Size.fromHeight(subtitle == null ? 62 : 78);
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+
+    // Action ikonları gradyan üzerinde daha okunaklı “cam” daire.
+    // IconButton dışındaki widget'lar (FilledButton vb.) olduğu gibi kalır.
+    final styledActions = actions
+        ?.map((w) {
+          if (w is IconButton) {
+            return Padding(
+              padding: const EdgeInsets.only(right: 4),
+              child: Material(
+                color: Colors.white.withValues(alpha: 0.12),
+                shape: const CircleBorder(),
+                clipBehavior: Clip.antiAlias,
+                child: IconTheme(
+                  data: const IconThemeData(color: Colors.white, size: 22),
+                  child: w,
+                ),
+              ),
+            );
+          }
+          return w;
+        })
+        .toList();
 
     return AppBar(
       backgroundColor: Colors.transparent,
@@ -44,6 +66,7 @@ class GradientAppBar extends StatelessWidget implements PreferredSizeWidget {
       toolbarHeight: preferredSize.height,
       flexibleSpace: const _GradientBackground(),
       titleSpacing: 4,
+      // leading: dokunulmaz — drawer hamburger / varsayılan geri bozulmasın.
       title: Row(
         children: [
           if (icon != null) ...[
@@ -52,6 +75,9 @@ class GradientAppBar extends StatelessWidget implements PreferredSizeWidget {
               decoration: BoxDecoration(
                 color: Colors.white.withValues(alpha: 0.14),
                 borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: Colors.white.withValues(alpha: 0.12),
+                ),
               ),
               child: Icon(icon, size: 18, color: Colors.white),
             ),
@@ -69,22 +95,34 @@ class GradientAppBar extends StatelessWidget implements PreferredSizeWidget {
                     color: Colors.white,
                     fontWeight: FontWeight.w800,
                     letterSpacing: -0.3,
+                    height: 1.15,
+                    shadows: const [
+                      Shadow(
+                        color: Color(0x33000000),
+                        blurRadius: 8,
+                        offset: Offset(0, 1),
+                      ),
+                    ],
                   ),
                 ),
-                if (subtitle != null)
+                if (subtitle != null) ...[
+                  const SizedBox(height: 2),
                   Text(
                     subtitle!,
                     overflow: TextOverflow.ellipsis,
                     style: theme.textTheme.bodySmall?.copyWith(
-                      color: Colors.white.withValues(alpha: 0.72),
+                      color: Colors.white.withValues(alpha: 0.78),
+                      fontWeight: FontWeight.w500,
+                      height: 1.2,
                     ),
                   ),
+                ],
               ],
             ),
           ),
         ],
       ),
-      actions: actions,
+      actions: styledActions,
     );
   }
 }
@@ -94,22 +132,46 @@ class _GradientBackground extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Üst bar zemini aktif moda göre renklenir (müşteri mavi / usta yeşil);
-    // üst-sağdan beyaz bir ışıltı derinlik katar.
+    // Üst bar zemini aktif moda göre (müşteri mavi / usta yeşil).
     return Container(
       decoration: BoxDecoration(
         gradient: context.palette.heroGradient,
-        borderRadius: const BorderRadius.vertical(bottom: Radius.circular(20)),
+        borderRadius: const BorderRadius.vertical(bottom: Radius.circular(22)),
+        boxShadow: AppTheme.softShadow,
       ),
-      child: Container(
-        decoration: const BoxDecoration(
-          borderRadius: BorderRadius.vertical(bottom: Radius.circular(20)),
-          gradient: RadialGradient(
-            center: Alignment(0.85, -1.2),
-            radius: 1.1,
-            colors: [Color(0x1FFFFFFF), Color(0x00FFFFFF)],
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          // Sağ üst cam ışıltı
+          Container(
+            decoration: const BoxDecoration(
+              borderRadius:
+                  BorderRadius.vertical(bottom: Radius.circular(22)),
+              gradient: RadialGradient(
+                center: Alignment(0.88, -1.15),
+                radius: 1.15,
+                colors: [Color(0x28FFFFFF), Color(0x00FFFFFF)],
+              ),
+            ),
           ),
-        ),
+          // Alt kenar ince highlight
+          Align(
+            alignment: Alignment.bottomCenter,
+            child: Container(
+              height: 1,
+              margin: const EdgeInsets.symmetric(horizontal: 20),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    Colors.white.withValues(alpha: 0),
+                    Colors.white.withValues(alpha: 0.22),
+                    Colors.white.withValues(alpha: 0),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
