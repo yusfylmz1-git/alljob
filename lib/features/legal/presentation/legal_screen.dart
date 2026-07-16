@@ -1,9 +1,9 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/router/route_paths.dart';
 import '../../../core/theme/app_palette.dart';
-import '../../../core/widgets/gradient_app_bar.dart';
+import '../../../core/widgets/surface_app_bar.dart';
 import '../../../core/widgets/responsive_center.dart';
 import '../legal_docs.dart';
 
@@ -16,7 +16,7 @@ class LegalHubScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final palette = context.palette;
     return Scaffold(
-      appBar: const GradientAppBar(
+      appBar: const SurfaceAppBar(
         title: 'Yasal Metinler',
         icon: Icons.policy_outlined,
       ),
@@ -75,13 +75,13 @@ class LegalDocScreen extends StatelessWidget {
 
     if (doc == null) {
       return Scaffold(
-        appBar: const GradientAppBar(title: 'Yasal Metin'),
+        appBar: const SurfaceAppBar(title: 'Yasal Metin'),
         body: const Center(child: Text('Aradığınız metin bulunamadı.')),
       );
     }
 
     return Scaffold(
-      appBar: GradientAppBar(title: doc.title, icon: Icons.policy_outlined),
+      appBar: SurfaceAppBar(title: doc.title, icon: Icons.policy_outlined),
       body: SelectionArea(
         child: ResponsiveCenter(
           maxWidth: 720,

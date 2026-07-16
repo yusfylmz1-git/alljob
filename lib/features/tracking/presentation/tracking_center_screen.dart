@@ -1,10 +1,10 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/router/route_paths.dart';
 import '../../../core/theme/app_palette.dart';
-import '../../../core/widgets/gradient_app_bar.dart';
+import '../../../core/widgets/surface_app_bar.dart';
 import '../../../core/widgets/responsive_center.dart';
 import '../../../core/widgets/status_views.dart';
 import '../../../data/models/track_item.dart';
@@ -47,7 +47,7 @@ class _TrackingCenterScreenState extends ConsumerState<TrackingCenterScreen> {
     final tracksAsync = ref.watch(activeTracksProvider);
 
     return Scaffold(
-      appBar: GradientAppBar(
+      appBar: SurfaceAppBar(
         title: 'Takip Merkezi',
         icon: Icons.checklist_rounded,
         subtitle: tracksAsync.valueOrNull == null

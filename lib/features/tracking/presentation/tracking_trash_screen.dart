@@ -1,10 +1,10 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import '../../../core/theme/app_palette.dart';
 import '../../../core/utils/snackbar_helper.dart';
-import '../../../core/widgets/gradient_app_bar.dart';
+import '../../../core/widgets/surface_app_bar.dart';
 import '../../../core/widgets/responsive_center.dart';
 import '../../../core/widgets/status_views.dart';
 import '../../../data/models/track_item.dart';
@@ -78,7 +78,7 @@ class TrackingTrashScreen extends ConsumerWidget {
     final count = async.valueOrNull?.length ?? 0;
 
     return Scaffold(
-      appBar: GradientAppBar(
+      appBar: SurfaceAppBar(
         title: 'Çöp Kutusu',
         icon: Icons.delete_outline,
         actions: [

@@ -1,11 +1,11 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import '../../../core/theme/app_palette.dart';
 import '../../../core/utils/snackbar_helper.dart';
 import '../../../core/widgets/app_image.dart';
-import '../../../core/widgets/gradient_app_bar.dart';
+import '../../../core/widgets/surface_app_bar.dart';
 import '../../../core/widgets/responsive_center.dart';
 import '../../../core/widgets/status_views.dart';
 import '../../../data/models/blocked_user.dart';
@@ -23,7 +23,7 @@ class BlockedUsersScreen extends ConsumerWidget {
     final listAsync = ref.watch(myBlockedListProvider);
 
     return Scaffold(
-      appBar: const GradientAppBar(
+      appBar: const SurfaceAppBar(
         title: 'Engellenen Kullanıcılar',
         icon: Icons.block_outlined,
       ),

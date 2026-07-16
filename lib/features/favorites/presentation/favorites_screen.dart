@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -6,7 +6,7 @@ import '../../../core/router/route_paths.dart';
 import '../../../core/theme/app_palette.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/widgets/app_image.dart';
-import '../../../core/widgets/gradient_app_bar.dart';
+import '../../../core/widgets/surface_app_bar.dart';
 import '../../../core/widgets/pull_to_refresh.dart';
 import '../../../core/widgets/responsive_center.dart';
 import '../../../core/widgets/skeleton.dart';
@@ -23,7 +23,7 @@ class FavoritesScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final user = ref.watch(currentUserProvider);
     return Scaffold(
-      appBar: const GradientAppBar(
+      appBar: const SurfaceAppBar(
         title: 'Takip Ettiklerim',
         icon: Icons.favorite_border_rounded,
       ),

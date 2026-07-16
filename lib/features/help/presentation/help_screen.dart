@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -7,7 +7,7 @@ import '../../../core/constants/app_constants.dart';
 import '../../../core/router/route_paths.dart';
 import '../../../core/theme/app_palette.dart';
 import '../../../core/utils/snackbar_helper.dart';
-import '../../../core/widgets/gradient_app_bar.dart';
+import '../../../core/widgets/surface_app_bar.dart';
 import '../../../core/widgets/responsive_center.dart';
 import '../../admin/data/admin_support_repository.dart';
 import '../../auth/application/auth_controller.dart';
@@ -72,7 +72,7 @@ class _HelpScreenState extends ConsumerState<HelpScreen> {
     final loggedIn = ref.watch(currentUserProvider) != null;
 
     return Scaffold(
-      appBar: const GradientAppBar(
+      appBar: const SurfaceAppBar(
         title: 'Yardım',
         icon: Icons.help_outline_rounded,
       ),

@@ -1,10 +1,10 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/theme/app_palette.dart';
 import '../../../core/utils/snackbar_helper.dart';
 import '../../../core/widgets/app_button.dart';
-import '../../../core/widgets/gradient_app_bar.dart';
+import '../../../core/widgets/surface_app_bar.dart';
 import '../../../core/widgets/responsive_center.dart';
 import '../application/track_backup_service.dart';
 import '../data/track_backup_repository.dart';
@@ -95,7 +95,7 @@ class _TrackBackupScreenState extends ConsumerState<TrackBackupScreen> {
     final theme = Theme.of(context);
 
     return Scaffold(
-      appBar: const GradientAppBar(
+      appBar: const SurfaceAppBar(
         title: 'Bulut Yedeği',
         icon: Icons.cloud_sync_rounded,
       ),
