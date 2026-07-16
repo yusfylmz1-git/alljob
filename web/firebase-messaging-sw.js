@@ -1,4 +1,4 @@
-// Usta Cepte — Web push için servis çalışanı (service worker).
+// Ustasından — Web push için servis çalışanı (service worker).
 //
 // Uygulama arka plandayken/kapalıyken gelen FCM bildirimlerini gösterir.
 // Dosya adı SABİTTİR: firebase-messaging-sw.js (kök dizinde). firebase_messaging

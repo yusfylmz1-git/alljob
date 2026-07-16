@@ -40,24 +40,26 @@ class MockJobRepository implements JobRepository {
 
   @override
   Stream<List<Job>> watchNearbyJobs({
-    required String professionCode,
+    String? professionCode,
+    List<String>? professionCodes,
     required List<ServiceArea> serviceAreas,
   }) async* {
-    yield _nearby(professionCode, serviceAreas);
-    yield* _db.changes.map((_) => _nearby(professionCode, serviceAreas));
+    final codes = professionCodes ??
+        (professionCode != null ? [professionCode] : const <String>[]);
+    yield _nearby(codes, serviceAreas);
+    yield* _db.changes.map((_) => _nearby(codes, serviceAreas));
   }
 
-  List<Job> _nearby(String professionCode, List<ServiceArea> serviceAreas) {
+  List<Job> _nearby(List<String> professionCodes, List<ServiceArea> serviceAreas) {
     final now = DateTime.now();
     final list = _db.jobs.values.where((j) {
       if (j.status != JobStatus.open) return false;
       if (j.isExpiredAt(now)) return false;
       return j.matchesArtisan(
-        professionCode: professionCode,
+        professionCodes: professionCodes,
         serviceAreas: serviceAreas,
       );
     }).toList()
-      // Her yeni ilan en üstte (usta #3); acil ilanlar rozetle vurgulanır.
       ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
     return list;
   }
@@ -98,6 +100,19 @@ class MockJobRepository implements JobRepository {
   Stream<Job?> watchJob(String jobId) async* {
     yield _db.jobs[jobId];
     yield* _db.changes.map((_) => _db.jobs[jobId]);
+  }
+
+  @override
+  Stream<Job?> watchJobByChatId(String chatId) async* {
+    Job? find() {
+      for (final j in _db.jobs.values) {
+        if (j.chatId == chatId) return j;
+      }
+      return null;
+    }
+
+    yield find();
+    yield* _db.changes.map((_) => find());
   }
 
   @override

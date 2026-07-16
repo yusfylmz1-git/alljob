@@ -9,14 +9,18 @@ import 'package:intl/intl.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/router/route_paths.dart';
 import '../../../core/utils/snackbar_helper.dart';
+import '../../../core/utils/validators.dart';
 import '../../../core/theme/app_palette.dart';
 import '../../../core/widgets/app_image.dart';
 import '../../../core/widgets/responsive_center.dart';
 import '../../../core/widgets/status_views.dart';
 import '../../../data/models/blocked_user.dart';
 import '../../../data/models/chat.dart';
+import '../../../data/models/job.dart';
 import '../../../data/models/report.dart';
 import '../../auth/application/auth_controller.dart';
+import '../../jobs/data/job_providers.dart';
+import '../../jobs/presentation/job_completion.dart';
 import '../../safety/data/safety_providers.dart';
 import '../../safety/presentation/report_sheet.dart';
 import '../../storage/storage_repository.dart';
@@ -48,12 +52,43 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   final _controller = TextEditingController();
   final _scroll = ScrollController();
   final List<_PendingUpload> _pending = [];
+  bool _photoPrecached = false;
   int _markedCount = -1;
+
+  /// İlk yüklemede animasyon yok; sonraki yeni mesajlar girer.
+  bool _historySeeded = false;
+  final Set<String> _seenMessageIds = {};
 
   /// Çoklu silme modu: üst bardaki çöp kutusuyla açılır; kutucuklarla seçilen
   /// KENDİ mesajları topluca silinir (başkasının mesajı seçilemez).
   bool _selectionMode = false;
   final Set<String> _selected = {};
+
+  /// Spam koruması: son gönderim anı + 60 sn içi zaman damgaları.
+  DateTime? _lastSendAt;
+  final List<DateTime> _sendTimestamps = [];
+
+  /// true = spam / hız limiti; kullanıcıya toast gösterildi.
+  bool _throttleSend() {
+    final now = DateTime.now();
+    _sendTimestamps.removeWhere(
+      (t) => now.difference(t) > const Duration(seconds: 60),
+    );
+    if (_sendTimestamps.length >= AppConstants.maxMessagesPerMinute) {
+      context.showError(
+        'Çok hızlı mesaj gönderiyorsunuz. Bir dakika sonra tekrar deneyin.',
+      );
+      return true;
+    }
+    if (_lastSendAt != null &&
+        now.difference(_lastSendAt!) < AppConstants.minMessageInterval) {
+      context.showInfo('Biraz yavaş…');
+      return true;
+    }
+    _lastSendAt = now;
+    _sendTimestamps.add(now);
+    return false;
+  }
 
   void _exitSelection() => setState(() {
         _selectionMode = false;
@@ -124,11 +159,22 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   }
 
   Future<void> _sendText() async {
-    final text = _controller.text.trim();
+    final text = Validators.sanitizeFreeText(_controller.text);
+    final textErr = Validators.freeText(
+      text,
+      max: AppConstants.maxMessageLength,
+      field: 'Mesaj',
+    );
     if (text.isEmpty) return;
+    if (textErr != null) {
+      context.showError(textErr);
+      return;
+    }
     final user = ref.read(currentUserProvider);
     if (user == null) return;
     if (_iBlockedOther(user.uid)) return;
+    if (_throttleSend()) return;
+    HapticFeedback.lightImpact();
     _controller.clear();
     try {
       final masked = await ref.read(chatRepositoryProvider).sendMessage(
@@ -167,6 +213,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final user = ref.read(currentUserProvider);
     if (user == null) return;
     if (_iBlockedOther(user.uid)) return;
+    if (_throttleSend()) return;
     final XFile? file;
     try {
       file = await ImagePicker().pickImage(
@@ -423,6 +470,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     // usta profili, müşteri → mini profil kartı (bottom sheet).
     final otherPhoto =
         (user != null && thread != null) ? thread.otherPhoto(user.uid) : null;
+    // Thread açılır açılmaz avatarı ısıt (liste cache'i yoksa ağ beklemesin).
+    if (!_photoPrecached && otherPhoto != null) {
+      _photoPrecached = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) AppImage.precacheHttp(context, otherPhoto);
+      });
+    }
     final VoidCallback? goOtherProfile = (user == null || thread == null)
         ? null
         : isCustomer
@@ -497,83 +551,95 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             ],
           )
         : AppBar(
-        titleSpacing: 0,
-        title: InkWell(
-          onTap: goOtherProfile,
-          borderRadius: BorderRadius.circular(24),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _PartyAvatar(name: title, photo: otherPhoto, size: 36),
-              const SizedBox(width: 10),
-              Flexible(
-                child: Column(
+            titleSpacing: 0,
+            surfaceTintColor: Colors.transparent,
+            title: InkWell(
+              onTap: goOtherProfile,
+              borderRadius: BorderRadius.circular(24),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: Row(
                   mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(title,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                            fontSize: 16, fontWeight: FontWeight.w700)),
-                    Text(
-                      isCustomer ? 'Usta · profili gör' : 'Müşteri',
-                      style: TextStyle(
-                        fontSize: 11.5,
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    _PartyAvatar(name: title, photo: otherPhoto, size: 38),
+                    const SizedBox(width: 10),
+                    Flexible(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            title,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 16.5,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: -0.2,
+                            ),
+                          ),
+                          Text(
+                            isCustomer
+                                ? 'Usta · profile git'
+                                : 'Müşteri · profile bak',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w500,
+                              color: context.palette.inkMuted,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ],
                 ),
               ),
-            ],
-          ),
-        ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.delete_outline),
-            tooltip: 'Mesaj sil',
-            onPressed: myDeletableIds.isEmpty
-                ? null
-                : () => setState(() => _selectionMode = true),
-          ),
-          if (isCustomer)
-            TextButton.icon(
-              icon: const Icon(Icons.star_outline, size: 18),
-              label: const Text('Değerlendir'),
-              onPressed: () =>
-                  context.push(RoutePaths.review(thread.artisanUid)),
             ),
-          // Engelle / şikayet et (UGC politikası).
-          if (user != null && thread != null)
-            PopupMenuButton<String>(
-              tooltip: 'Daha fazla',
-              onSelected: (v) {
-                switch (v) {
-                  case 'block':
-                    _toggleBlock(user.uid, thread, otherBlocked);
-                  case 'report':
-                    showReportSheet(
-                      context,
-                      ref,
-                      target: ReportTarget.user,
-                      targetId: thread.otherUid(user.uid),
-                      reportedUid: thread.otherUid(user.uid),
-                      chatId: widget.chatId,
-                    );
-                }
-              },
-              itemBuilder: (_) => [
-                PopupMenuItem(
-                  value: 'block',
-                  child: Text(
-                      otherBlocked ? 'Engeli Kaldır' : 'Kullanıcıyı Engelle'),
+            actions: [
+              IconButton(
+                icon: const Icon(Icons.delete_outline),
+                tooltip: 'Mesaj sil',
+                onPressed: myDeletableIds.isEmpty
+                    ? null
+                    : () => setState(() => _selectionMode = true),
+              ),
+              if (isCustomer)
+                IconButton(
+                  icon: const Icon(Icons.star_outline_rounded),
+                  tooltip: 'Değerlendir',
+                  onPressed: () =>
+                      context.push(RoutePaths.review(thread.artisanUid)),
                 ),
-                const PopupMenuItem(
-                    value: 'report', child: Text('Şikayet Et')),
-              ],
-            ),
-        ],
-      );
+              if (user != null && thread != null)
+                PopupMenuButton<String>(
+                  tooltip: 'Daha fazla',
+                  onSelected: (v) {
+                    switch (v) {
+                      case 'block':
+                        _toggleBlock(user.uid, thread, otherBlocked);
+                      case 'report':
+                        showReportSheet(
+                          context,
+                          ref,
+                          target: ReportTarget.user,
+                          targetId: thread.otherUid(user.uid),
+                          reportedUid: thread.otherUid(user.uid),
+                          chatId: widget.chatId,
+                        );
+                    }
+                  },
+                  itemBuilder: (_) => [
+                    PopupMenuItem(
+                      value: 'block',
+                      child: Text(otherBlocked
+                          ? 'Engeli Kaldır'
+                          : 'Kullanıcıyı Engelle'),
+                    ),
+                    const PopupMenuItem(
+                        value: 'report', child: Text('Şikayet Et')),
+                  ],
+                ),
+            ],
+          );
 
     return PopScope(
       // Geri tuşu seçim modunda ekrandan çıkmasın, seçimi kapatsın.
@@ -583,6 +649,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       },
       child: Scaffold(
       appBar: appBar,
+      backgroundColor: context.palette.background,
       // Klavye inset'ini Scaffold'a bırakMIYORUZ: varsayılan davranış klavye
       // animasyonunun HER karesinde tüm gövdeyi yeniden ölçer (mesaj listesi
       // dahil) ve açılışı hantallaştırır. Bunun yerine en alttaki tek yaprak
@@ -591,16 +658,48 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       resizeToAvoidBottomInset: false,
       body: Column(
         children: [
+          // Bağlı iş varsa tamamlama durumu + hızlı onay (P0).
+          if (user != null)
+            _JobCompletionChatBar(chatId: widget.chatId, myUid: user.uid),
           Expanded(
             child: messagesAsync.when(
-              loading: () => const LoadingView(),
-              error: (_, _) => const ErrorView(
-                  message: 'Mesajlar yüklenemedi. Bağlantınızı kontrol edip '
-                      'tekrar deneyin.'),
+              loading: () =>
+                  const LoadingView(label: 'Sohbet yükleniyor…'),
+              error: (err, _) {
+                final denied = err.toString().contains('permission-denied');
+                return Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      ErrorView(
+                        message: denied
+                            ? 'Sohbete erişilemedi. E-posta doğrulamanızı '
+                                'kontrol edin veya biraz sonra tekrar deneyin.'
+                            : 'Mesajlar yüklenemedi. Bağlantınızı kontrol edip '
+                                'tekrar deneyin.',
+                      ),
+                      const SizedBox(height: 8),
+                      FilledButton.tonalIcon(
+                        onPressed: () => ref
+                            .invalidate(messagesProvider(widget.chatId)),
+                        icon: const Icon(Icons.refresh, size: 18),
+                        label: const Text('Tekrar dene'),
+                      ),
+                    ],
+                  ),
+                );
+              },
               data: (allMessages) {
                 final messages = visibleOf(allMessages);
                 if (messages.isEmpty && _pending.isEmpty) {
                   return const _EmptyChat();
+                }
+                // İlk yük: geçmişi animasyonsuz işaretle.
+                if (!_historySeeded) {
+                  _historySeeded = true;
+                  for (final m in messages) {
+                    _seenMessageIds.add(m.id);
+                  }
                 }
                 _maybeMarkRead(messages.length);
                 final otherRead = (user != null && thread != null)
@@ -608,7 +707,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                         chatId: widget.chatId,
                         uid: thread.otherUid(user.uid))
                     : null;
-                return ResponsiveCenter(
+                return ColoredBox(
+                  color: context.palette.background,
+                  child: ResponsiveCenter(
                   maxWidth: 760,
                   child: ListView.builder(
                     controller: _scroll,
@@ -617,16 +718,19 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                     // Eski mesajlara kaydırınca klavye kapanır (WhatsApp).
                     keyboardDismissBehavior:
                         ScrollViewKeyboardDismissBehavior.onDrag,
-                    padding: const EdgeInsets.all(16),
+                    padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
                     itemCount: messages.length + _pending.length,
                     itemBuilder: (context, i) {
                       // reverse: i=0 EN ALTTA. Önce bekleyen yüklemeler
                       // (en yenisi dipte), sonra gerçek mesajlar.
                       if (i < _pending.length) {
                         final p = _pending[_pending.length - 1 - i];
-                        return _PendingImageBubble(
-                          item: p,
-                          onTap: () => _pendingTapped(p),
+                        return _MessageEnter(
+                          isMine: true,
+                          child: _PendingImageBubble(
+                            item: p,
+                            onTap: () => _pendingTapped(p),
+                          ),
                         );
                       }
                       // Kronolojik dizin: liste ters çizildiği için çevrilir.
@@ -646,6 +750,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                           !_sameDay(msg.createdAt, messages[j + 1].createdAt);
                       // Seçim modunda seçilebilirlik: kendi, silinmemiş mesaj.
                       final selectable = isMine && !msg.deleted;
+                      final isNew = !_seenMessageIds.contains(msg.id);
+                      if (isNew) {
+                        // Sonraki frame'de "görüldü" — yeniden animasyon yok.
+                        WidgetsBinding.instance.addPostFrameCallback((_) {
+                          _seenMessageIds.add(msg.id);
+                        });
+                      }
                       final bubble = _Bubble(
                         message: msg,
                         isMine: isMine,
@@ -672,14 +783,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                                 ? () => _openImage(msg.imageHandle!)
                                 : null),
                       );
-                      return Column(
-                        children: [
-                          if (showDate) _DateChip(date: msg.createdAt),
-                          if (!_selectionMode)
-                            bubble
-                          else
-                            // Kutucuk + balon: dokununca seçim değişir.
-                            InkWell(
+                      final content = !_selectionMode
+                          ? bubble
+                          : InkWell(
                               onTap: selectable
                                   ? () => _toggleSelected(msg.id)
                                   : null,
@@ -694,22 +800,53 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                                   Expanded(child: bubble),
                                 ],
                               ),
-                            ),
+                            );
+                      return Column(
+                        children: [
+                          if (showDate) _DateChip(date: msg.createdAt),
+                          if (isNew)
+                            _MessageEnter(isMine: isMine, child: content)
+                          else
+                            content,
                         ],
                       );
                     },
                   ),
+                ),
                 );
               },
             ),
           ),
           // Seçim modunda giriş çubuğu gizlenir (WhatsApp davranışı).
-          if (!_selectionMode)
+          if (!_selectionMode) ...[
+            if (_pending.isNotEmpty)
+              Material(
+                color: context.palette.card,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                  child: Row(
+                    children: [
+                      const _TypingDots(),
+                      const SizedBox(width: 10),
+                      Text(
+                        _pending.any((p) => p.failed)
+                            ? 'Yükleme hatası — balona dokun'
+                            : 'Fotoğraf gönderiliyor…',
+                        style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                              color: context.palette.inkMuted,
+                              fontWeight: FontWeight.w600,
+                            ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
             _InputBar(
               controller: _controller,
               onSend: _sendText,
               onPhoto: _sendPhoto,
             ),
+          ],
           // Klavye yüksekliği kadar animasyonlu boşluk (resizeToAvoidBottomInset
           // false olduğundan giriş çubuğunu klavyenin üstünde bu tutar).
           const _KeyboardSpacer(),
@@ -741,6 +878,98 @@ class _KeyboardSpacer extends StatelessWidget {
 bool _sameDay(DateTime a, DateTime b) =>
     a.year == b.year && a.month == b.month && a.day == b.day;
 
+/// Yeni mesaj balonu: hafif kayma + fade (geçmiş mesajlar animasyonsuz).
+class _MessageEnter extends StatefulWidget {
+  const _MessageEnter({required this.child, required this.isMine});
+  final Widget child;
+  final bool isMine;
+
+  @override
+  State<_MessageEnter> createState() => _MessageEnterState();
+}
+
+class _MessageEnterState extends State<_MessageEnter>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _c = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 280),
+  )..forward();
+
+  late final Animation<double> _fade =
+      CurvedAnimation(parent: _c, curve: Curves.easeOutCubic);
+  late final Animation<Offset> _slide = Tween<Offset>(
+    begin: Offset(widget.isMine ? 0.08 : -0.08, 0.06),
+    end: Offset.zero,
+  ).animate(CurvedAnimation(parent: _c, curve: Curves.easeOutCubic));
+  late final Animation<double> _scale = Tween<double>(begin: 0.94, end: 1)
+      .animate(CurvedAnimation(parent: _c, curve: Curves.easeOutBack));
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FadeTransition(
+      opacity: _fade,
+      child: SlideTransition(
+        position: _slide,
+        child: ScaleTransition(scale: _scale, child: widget.child),
+      ),
+    );
+  }
+}
+
+/// Yazıyor… göstergesi (3 nokta nabız).
+class _TypingDots extends StatefulWidget {
+  const _TypingDots();
+
+  @override
+  State<_TypingDots> createState() => _TypingDotsState();
+}
+
+class _TypingDotsState extends State<_TypingDots>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _c = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 900),
+  )..repeat();
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    return AnimatedBuilder(
+      animation: _c,
+      builder: (context, _) {
+        return Row(
+          mainAxisSize: MainAxisSize.min,
+          children: List.generate(3, (i) {
+            final t = (_c.value + i * 0.2) % 1.0;
+            final y = (t < 0.5 ? t : 1 - t) * 2; // 0→1→0
+            return Container(
+              margin: EdgeInsets.only(right: i == 2 ? 0 : 4, bottom: y * 4),
+              width: 7,
+              height: 7,
+              decoration: BoxDecoration(
+                color: palette.inkMuted.withValues(alpha: 0.45 + y * 0.45),
+                shape: BoxShape.circle,
+              ),
+            );
+          }),
+        );
+      },
+    );
+  }
+}
+
 // Balon/ayraç başına her build'de yeniden yaratılmasın diye modül düzeyinde
 // tek sefer kurulan biçimlendiriciler (liste kaydırılırken ufak ama bedava
 // kazanç).
@@ -764,20 +993,34 @@ class _DateChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
+    final palette = context.palette;
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 10),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-        decoration: BoxDecoration(
-          color: scheme.surfaceContainerHighest,
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Text(_label(),
+      padding: const EdgeInsets.symmetric(vertical: 14),
+      child: Center(
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
+          decoration: BoxDecoration(
+            color: palette.card,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: palette.border),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.04),
+                blurRadius: 6,
+                offset: const Offset(0, 1),
+              ),
+            ],
+          ),
+          child: Text(
+            _label(),
             style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-                color: scheme.onSurfaceVariant)),
+              fontSize: 11.5,
+              fontWeight: FontWeight.w700,
+              color: palette.inkMuted,
+              letterSpacing: 0.2,
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -807,29 +1050,40 @@ class _Bubble extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final bg = isMine ? scheme.primary : scheme.surfaceContainerHighest;
-    final fg = isMine ? scheme.onPrimary : scheme.onSurface;
+    final palette = context.palette;
+    // Benim: marka turuncusu; karşı: kart + ince gölge (WhatsApp/iMessage dili).
+    final bg = isMine ? palette.primary : palette.card;
+    final fg = isMine ? Colors.white : palette.ink;
     final time = _timeFmt.format(message.createdAt);
 
     final bubble = GestureDetector(
       onLongPress: onLongPress,
       child: Container(
-        constraints: const BoxConstraints(maxWidth: 300),
-        // Grup içinde daralan boşluk; grup sonunda nefes payı.
-        margin: EdgeInsets.only(top: 1.5, bottom: isLastOfGroup ? 8 : 1.5),
+        constraints: BoxConstraints(
+          maxWidth: MediaQuery.sizeOf(context).width * 0.78,
+        ),
+        margin: EdgeInsets.only(top: 1.5, bottom: isLastOfGroup ? 10 : 2),
         padding: message.hasImage
             ? const EdgeInsets.all(4)
-            : const EdgeInsets.fromLTRB(14, 9, 14, 7),
+            : const EdgeInsets.fromLTRB(14, 10, 12, 8),
         decoration: BoxDecoration(
           color: bg,
-          // Instagram'a yakın: iyice yuvarlak; kuyruk yalnız grubun sonunda.
           borderRadius: BorderRadius.only(
-            topLeft: const Radius.circular(20),
-            topRight: const Radius.circular(20),
-            bottomLeft: Radius.circular(isMine || !isLastOfGroup ? 20 : 5),
-            bottomRight: Radius.circular(!isMine || !isLastOfGroup ? 20 : 5),
+            topLeft: const Radius.circular(18),
+            topRight: const Radius.circular(18),
+            bottomLeft: Radius.circular(isMine || !isLastOfGroup ? 18 : 4),
+            bottomRight: Radius.circular(!isMine || !isLastOfGroup ? 18 : 4),
           ),
+          border: isMine
+              ? null
+              : Border.all(color: palette.border.withValues(alpha: 0.9)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: isMine ? 0.08 : 0.04),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.end,
@@ -839,12 +1093,17 @@ class _Bubble extends StatelessWidget {
               Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(Icons.block, size: 14, color: fg.withValues(alpha: 0.6)),
+                  Icon(Icons.block,
+                      size: 14, color: fg.withValues(alpha: 0.55)),
                   const SizedBox(width: 5),
-                  Text('Bu mesaj silindi',
-                      style: TextStyle(
-                          color: fg.withValues(alpha: 0.6),
-                          fontStyle: FontStyle.italic)),
+                  Text(
+                    'Bu mesaj silindi',
+                    style: TextStyle(
+                      color: fg.withValues(alpha: 0.55),
+                      fontStyle: FontStyle.italic,
+                      fontSize: 13.5,
+                    ),
+                  ),
                 ],
               ),
             if (message.hasImage)
@@ -853,11 +1112,15 @@ class _Bubble extends StatelessWidget {
                 child: Hero(
                   tag: 'chat-img-${message.id}',
                   child: ClipRRect(
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(14),
                     child: SizedBox(
                       width: 220,
                       height: 220,
-                      child: AppImage(handle: message.imageHandle!),
+                      child: AppImage(
+                        handle: message.imageHandle!,
+                        memCacheWidth: 440,
+                        memCacheHeight: 440,
+                      ),
                     ),
                   ),
                 ),
@@ -867,24 +1130,36 @@ class _Bubble extends StatelessWidget {
                 message.text!.isNotEmpty)
               Padding(
                 padding: EdgeInsets.only(top: message.hasImage ? 6 : 0),
-                child: Text(message.text!, style: TextStyle(color: fg)),
+                child: Text(
+                  message.text!,
+                  style: TextStyle(
+                    color: fg,
+                    fontSize: 15,
+                    height: 1.35,
+                  ),
+                ),
               ),
             Padding(
-              padding: const EdgeInsets.only(top: 2),
+              padding: const EdgeInsets.only(top: 3),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(time,
-                      style: TextStyle(
-                          fontSize: 10, color: fg.withValues(alpha: 0.7))),
+                  Text(
+                    time,
+                    style: TextStyle(
+                      fontSize: 10.5,
+                      fontWeight: FontWeight.w500,
+                      color: fg.withValues(alpha: isMine ? 0.78 : 0.55),
+                    ),
+                  ),
                   if (isMine && !message.deleted) ...[
                     const SizedBox(width: 4),
                     Icon(
-                      isRead ? Icons.done_all : Icons.done,
-                      size: 13,
+                      isRead ? Icons.done_all_rounded : Icons.done_rounded,
+                      size: 14,
                       color: isRead
-                          ? const Color(0xFF6FD3FF)
-                          : fg.withValues(alpha: 0.7),
+                          ? const Color(0xFFB8E7FF)
+                          : fg.withValues(alpha: 0.75),
                     ),
                   ],
                 ],
@@ -899,8 +1174,6 @@ class _Bubble extends StatelessWidget {
       return Align(alignment: Alignment.centerRight, child: bubble);
     }
 
-    // Karşı tarafın mesajı: avatar YALNIZ grubun son mesajında (Instagram);
-    // diğerlerinde hizayı koruyan boşluk. Dokununca karşı profil açılır.
     return Align(
       alignment: Alignment.centerLeft,
       child: Row(
@@ -1076,8 +1349,7 @@ class _CustomerPreviewSheet extends StatelessWidget {
   }
 }
 
-/// Sohbette karşı tarafı temsil eden küçük yuvarlak avatar; fotoğraf yoksa
-/// baş harf gösterir.
+/// Sohbette karşı tarafı temsil eden küçük yuvarlak avatar ([AppAvatar]).
 class _PartyAvatar extends StatelessWidget {
   const _PartyAvatar({required this.name, this.photo, this.size = 32});
   final String name;
@@ -1086,33 +1358,11 @@ class _PartyAvatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return ClipOval(
-      child: SizedBox(
-        width: size,
-        height: size,
-        child: photo != null
-            ? AppImage(handle: photo)
-            : Container(
-                color: scheme.primaryContainer,
-                alignment: Alignment.center,
-                child: Text(
-                  name.trim().isEmpty
-                      ? '?'
-                      : name.trim().substring(0, 1).toUpperCase(),
-                  style: TextStyle(
-                    fontSize: size * 0.42,
-                    fontWeight: FontWeight.w700,
-                    color: scheme.onPrimaryContainer,
-                  ),
-                ),
-              ),
-      ),
-    );
+    return AppAvatar(name: name, photo: photo, size: size);
   }
 }
 
-class _InputBar extends StatelessWidget {
+class _InputBar extends StatefulWidget {
   const _InputBar({
     required this.controller,
     required this.onSend,
@@ -1123,44 +1373,96 @@ class _InputBar extends StatelessWidget {
   final VoidCallback onPhoto;
 
   @override
+  State<_InputBar> createState() => _InputBarState();
+}
+
+class _InputBarState extends State<_InputBar> {
+  bool _sendBump = false;
+
+  void _handleSend() {
+    setState(() => _sendBump = true);
+    Future<void>.delayed(const Duration(milliseconds: 140), () {
+      if (mounted) setState(() => _sendBump = false);
+    });
+    widget.onSend();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return SafeArea(
-      top: false,
-      child: ResponsiveCenter(
-        maxWidth: 760,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(12, 6, 12, 10),
-          child: Row(
-            children: [
-              IconButton(
-                icon: const Icon(Icons.photo_camera_back_outlined),
-                onPressed: onPhoto,
-                tooltip: 'Fotoğraf gönder',
-              ),
-              Expanded(
-                child: TextField(
-                  controller: controller,
-                  minLines: 1,
-                  maxLines: 4,
-                  textInputAction: TextInputAction.send,
-                  onSubmitted: (_) => onSend(),
-                  decoration: const InputDecoration(
-                    hintText: 'Mesaj yazın…',
-                    contentPadding:
-                        EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+    final palette = context.palette;
+    return Material(
+      elevation: 6,
+      shadowColor: Colors.black.withValues(alpha: 0.08),
+      color: palette.card,
+      child: SafeArea(
+        top: false,
+        child: ResponsiveCenter(
+          maxWidth: 760,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(10, 10, 10, 10),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Material(
+                  color: palette.surfaceMuted,
+                  shape: const CircleBorder(),
+                  child: IconButton(
+                    icon: Icon(Icons.image_outlined, color: palette.inkMuted),
+                    onPressed: widget.onPhoto,
+                    tooltip: 'Fotoğraf gönder',
                   ),
                 ),
-              ),
-              const SizedBox(width: 6),
-              FilledButton(
-                onPressed: onSend,
-                style: FilledButton.styleFrom(
-                  shape: const CircleBorder(),
-                  padding: const EdgeInsets.all(14),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: TextField(
+                    controller: widget.controller,
+                    minLines: 1,
+                    maxLines: 5,
+                    textInputAction: TextInputAction.send,
+                    onSubmitted: (_) => _handleSend(),
+                    style: const TextStyle(fontSize: 15.5, height: 1.3),
+                    decoration: InputDecoration(
+                      hintText: 'Mesaj yaz…',
+                      filled: true,
+                      fillColor: palette.surfaceMuted,
+                      contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 12),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(22),
+                        borderSide: BorderSide.none,
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(22),
+                        borderSide: BorderSide.none,
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(22),
+                        borderSide: BorderSide(
+                            color: palette.primary.withValues(alpha: 0.45),
+                            width: 1.2),
+                      ),
+                    ),
+                  ),
                 ),
-                child: const Icon(Icons.send_rounded, size: 20),
-              ),
-            ],
+                const SizedBox(width: 8),
+                AnimatedScale(
+                  scale: _sendBump ? 0.88 : 1,
+                  duration: const Duration(milliseconds: 120),
+                  curve: Curves.easeOutBack,
+                  child: Material(
+                    color: palette.primary,
+                    shape: const CircleBorder(),
+                    elevation: 1,
+                    child: IconButton(
+                      onPressed: _handleSend,
+                      tooltip: 'Gönder',
+                      icon: const Icon(Icons.send_rounded,
+                          color: Colors.white, size: 20),
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -1168,40 +1470,177 @@ class _InputBar extends StatelessWidget {
   }
 }
 
-class _EmptyChat extends StatelessWidget {
+class _EmptyChat extends StatefulWidget {
   const _EmptyChat();
+
+  @override
+  State<_EmptyChat> createState() => _EmptyChatState();
+}
+
+class _EmptyChatState extends State<_EmptyChat>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _c = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1600),
+  )..repeat(reverse: true);
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final palette = context.palette;
     return Center(
       child: Padding(
-        padding: const EdgeInsets.all(32),
+        padding: const EdgeInsets.all(36),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Container(
-              width: 72,
-              height: 72,
-              decoration: BoxDecoration(
-                color: context.palette.primaryContainer,
-                shape: BoxShape.circle,
+            AnimatedBuilder(
+              animation: _c,
+              builder: (context, child) {
+                final s = 1 + (_c.value * 0.045);
+                return Transform.scale(scale: s, child: child);
+              },
+              child: Container(
+                width: 84,
+                height: 84,
+                decoration: BoxDecoration(
+                  color: palette.card,
+                  shape: BoxShape.circle,
+                  border: Border.all(color: palette.border),
+                  boxShadow: [
+                    BoxShadow(
+                      color: palette.primary.withValues(alpha: 0.12),
+                      blurRadius: 16,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: Icon(Icons.lock_outline_rounded,
+                    size: 34, color: palette.primary),
               ),
-              child: Icon(Icons.forum_outlined,
-                  size: 32, color: context.palette.onPrimaryContainer),
             ),
-            const SizedBox(height: 16),
-            Text('Sohbeti başlatın',
-                style: theme.textTheme.titleMedium
-                    ?.copyWith(fontWeight: FontWeight.w700)),
-            const SizedBox(height: 6),
+            const SizedBox(height: 18),
             Text(
-              'İletişim bilgileri (telefon, e-posta, sosyal medya) '
-              'güvenliğiniz için otomatik gizlenir.',
+              'Güvenli sohbet',
+              style: theme.textTheme.titleMedium
+                  ?.copyWith(fontWeight: FontWeight.w800),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Telefon, e-posta ve sosyal medya paylaşımları otomatik '
+              'gizlenir. İşinizi uygulama içinde yürütün.',
               textAlign: TextAlign.center,
               style: theme.textTheme.bodyMedium?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant, height: 1.5),
+                color: palette.inkMuted,
+                height: 1.45,
+              ),
             ),
+            const SizedBox(height: 16),
+            const _TypingDots(),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Ba�l� i�: sohbet �st� tamamlama �eridi
+// ---------------------------------------------------------------------------
+
+class _JobCompletionChatBar extends ConsumerWidget {
+  const _JobCompletionChatBar({required this.chatId, required this.myUid});
+
+  final String chatId;
+  final String myUid;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final jobAsync = ref.watch(jobByChatIdProvider(chatId));
+    final job = jobAsync.valueOrNull;
+    if (job == null) return const SizedBox.shrink();
+
+    // Yaln�z ba�l� / aktif veya yeni tamamlanm�� i�lerde g�ster.
+    final show = job.status == JobStatus.workerSelected ||
+        job.status == JobStatus.inProgress ||
+        job.status == JobStatus.completed ||
+        job.status == JobStatus.disputed;
+    if (!show) return const SizedBox.shrink();
+
+    final isOwner = job.customerId == myUid;
+    final copy = JobCompletionCopy.of(job, isOwner: isOwner);
+    final palette = context.palette;
+
+    return Material(
+      color: palette.card,
+      elevation: 0.5,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            JobCompletionStatusBanner(
+              job: job,
+              isOwner: isOwner,
+              compact: true,
+              onOpenJob: () =>
+                  context.push(RoutePaths.jobDetail(job.jobId)),
+            ),
+            if (copy.canConfirm) ...[
+              const SizedBox(height: 8),
+              FilledButton.tonalIcon(
+                style: FilledButton.styleFrom(
+                  backgroundColor: palette.successSurface,
+                  foregroundColor: palette.success,
+                  visualDensity: VisualDensity.compact,
+                ),
+                onPressed: () async {
+                  try {
+                    await ref.read(jobRepositoryProvider).confirmDone(
+                          jobId: job.jobId,
+                          byCustomer: isOwner,
+                        );
+                    if (context.mounted) {
+                      context.showSuccess(
+                        isOwner
+                            ? 'Onay�n�z kaydedildi. Usta da onaylay�nca i� kapan�r.'
+                            : 'Teslim onay� kaydedildi. M��teri de onaylay�nca i� kapan�r.',
+                      );
+                    }
+                  } catch (_) {
+                    if (context.mounted) {
+                      context.showError(
+                          'Onay kaydedilemedi. Ba�lant�y� kontrol edip tekrar deneyin.');
+                    }
+                  }
+                },
+                icon: const Icon(Icons.check_circle_outline, size: 18),
+                label: Text(copy.confirmLabel),
+              ),
+            ],
+            if (job.status == JobStatus.completed && isOwner) ...[
+              const SizedBox(height: 8),
+              FilledButton.tonalIcon(
+                style: FilledButton.styleFrom(
+                  visualDensity: VisualDensity.compact,
+                ),
+                onPressed: () {
+                  final artisanId = job.selectedArtisanId;
+                  if (artisanId == null) return;
+                  context.push(
+                    RoutePaths.review(artisanId, jobId: job.jobId),
+                  );
+                },
+                icon: const Icon(Icons.star_outline_rounded, size: 18),
+                label: const Text('Ustay� de�erlendir'),
+              ),
+            ],
           ],
         ),
       ),

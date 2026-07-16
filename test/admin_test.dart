@@ -7,8 +7,17 @@ import 'package:usta_cepte/features/admin/data/admin_config.dart';
 import 'package:usta_cepte/features/admin/data/admin_dispute_repository.dart';
 import 'package:usta_cepte/features/admin/data/admin_report.dart';
 import 'package:usta_cepte/features/admin/data/admin_report_repository.dart';
+import 'package:usta_cepte/features/admin/data/admin_artisan_repository.dart';
+import 'package:usta_cepte/features/admin/data/admin_capabilities.dart';
+import 'package:usta_cepte/features/admin/data/admin_invite_repository.dart';
+import 'package:usta_cepte/features/admin/data/admin_job_repository.dart';
+import 'package:usta_cepte/features/admin/data/admin_export_util.dart';
+import 'package:usta_cepte/features/admin/data/admin_runtime_config_repository.dart';
+import 'package:usta_cepte/features/admin/data/admin_stats_repository.dart';
 import 'package:usta_cepte/features/admin/data/admin_user_repository.dart';
 import 'package:usta_cepte/features/auth/data/mock_auth_repository.dart';
+import 'package:usta_cepte/data/models/artisan_profile.dart';
+import 'package:usta_cepte/data/models/availability.dart';
 
 Report _r(String id, ReportStatus status, DateTime created) => Report(
       id: id,
@@ -441,6 +450,302 @@ void main() {
 
       expect(() => repo.claimAdminAccess(), throwsA(isA<Exception>()));
       expect(repo.currentUser?.isAdmin, isFalse);
+    });
+  });
+
+  group('Admin dizin sayfalama (Wave 1)', () {
+    AppUser _u(String id, DateTime t,
+            {bool suspended = false, bool artisan = false}) =>
+        AppUser(
+          uid: id,
+          displayName: id,
+          email: '$id@t.com',
+          createdAt: t,
+          suspended: suspended,
+          hasArtisanProfile: artisan,
+        );
+
+    test('kullanıcı fetchPage createdAt desc + filtre + cursor', () async {
+      final base = DateTime.utc(2026, 7, 1);
+      final repo = MockAdminUserRepository([
+        _u('a', base),
+        _u('b', base.add(const Duration(days: 1)), suspended: true),
+        _u('c', base.add(const Duration(days: 2)), artisan: true),
+        _u('d', base.add(const Duration(days: 3))),
+      ]);
+      final all = await repo.fetchPage(limit: 2);
+      expect(all.map((u) => u.uid), ['d', 'c']);
+      final next = await repo.fetchPage(
+        beforeCursor: all.last.createdAt.toUtc().toIso8601String(),
+        limit: 2,
+      );
+      expect(next.map((u) => u.uid), ['b', 'a']);
+      final sus = await repo.fetchPage(filter: AdminUserListFilter.suspended);
+      expect(sus.map((u) => u.uid), ['b']);
+      final arts = await repo.fetchPage(filter: AdminUserListFilter.artisans);
+      expect(arts.map((u) => u.uid), ['c']);
+    });
+
+    test('ilan fetchPage status filtre + cursor', () async {
+      Job job(String id, JobStatus s, DateTime t) => Job(
+            jobId: id,
+            customerId: 'c',
+            customerName: 'C',
+            title: id,
+            description: 'd',
+            category: 'plumber',
+            province: 'İstanbul',
+            district: 'Kadıköy',
+            photos: const [],
+            isUrgent: false,
+            priceType: JobPriceType.inspection,
+            status: s,
+            offerCount: 0,
+            customerConfirmedDone: false,
+            artisanConfirmedDone: false,
+            createdAt: t,
+            expiresAt: t.add(const Duration(days: 3)),
+          );
+      final base = DateTime.utc(2026, 7, 1);
+      final repo = MockAdminJobRepository([
+        job('1', JobStatus.open, base),
+        job('2', JobStatus.open, base.add(const Duration(hours: 1))),
+        job('3', JobStatus.completed, base.add(const Duration(hours: 2))),
+      ]);
+      final open = await repo.fetchPage(status: JobStatus.open, limit: 1);
+      expect(open.map((j) => j.jobId), ['2']);
+      final more = await repo.fetchPage(
+        status: JobStatus.open,
+        beforeCursor: open.last.createdAt.toUtc().toIso8601String(),
+        limit: 5,
+      );
+      expect(more.map((j) => j.jobId), ['1']);
+    });
+
+    test('usta fetchPage verified filtre', () async {
+      ArtisanProfile p(String id, bool v, DateTime t) => ArtisanProfile(
+            uid: id,
+            profession: 'plumber',
+            experienceYears: 1,
+            aboutText: '',
+            serviceAreas: const [],
+            certificates: const [],
+            workPhotos: const [],
+            isVerified: v,
+            averageRating: 0,
+            totalReviews: 0,
+            totalRatingSum: 0,
+            isPremium: false,
+            alwaysAvailable: true,
+            manualPause: false,
+            weeklySchedule: WeeklySchedule.empty(),
+            createdAt: t,
+          );
+      final base = DateTime.utc(2026, 7, 1);
+      final repo = MockAdminArtisanRepository([
+        p('x', false, base),
+        p('y', true, base.add(const Duration(days: 1))),
+      ]);
+      final verified = await repo.fetchPage(isVerified: true);
+      expect(verified.map((a) => a.uid), ['y']);
+    });
+  });
+
+  group('AdminCapabilities (Wave 2)', () {
+    test('superadmin her şeyi geçer', () {
+      final c = AdminCapabilities.superAdmin();
+      expect(c.allows('chats.read'), isTrue);
+      expect(c.allows('staff.manage'), isTrue);
+    });
+
+    test('missing field enforce → default set (chats yok)', () {
+      final c = AdminCapabilities.fromRoster(
+        isSuperAdmin: false,
+        capabilities: null,
+        enforceMode: true,
+      );
+      expect(c.allows('reports.manage'), isTrue);
+      expect(c.allows('chats.read'), isFalse);
+      expect(c.allows('export.run'), isFalse);
+    });
+
+    test('missing field log-only → full', () {
+      final c = AdminCapabilities.fromRoster(
+        isSuperAdmin: false,
+        capabilities: null,
+        enforceMode: false,
+      );
+      expect(c.allows('chats.read'), isTrue);
+    });
+
+    test('explicit empty → hiçbir şey', () {
+      final c = AdminCapabilities.fromRoster(
+        isSuperAdmin: false,
+        capabilities: const [],
+      );
+      expect(c.allows('reports.manage'), isFalse);
+    });
+
+    test('explicit chats.read', () {
+      final c = AdminCapabilities.fromRoster(
+        isSuperAdmin: false,
+        capabilities: const ['chats.read', 'reports.manage'],
+      );
+      expect(c.allows('chats.read'), isTrue);
+      expect(c.allows('users.suspend'), isFalse);
+    });
+  });
+
+  group('Admin invite mock', () {
+    test('create pending + aynı email önceki pending revoke', () async {
+      final repo = MockAdminInviteRepository();
+      addTearDown(repo.dispose);
+      final id1 = await repo.create(email: 'A@B.com');
+      final id2 = await repo.create(email: 'a@b.com');
+      final pending = await repo.watchPending().first;
+      expect(pending.map((i) => i.id), [id2]);
+      expect(id1, isNot(id2));
+    });
+  });
+
+  group('adminStats deltas (Wave 3 / PR6)', () {
+    test('jobStatsDelta create/open→disputed/delete', () {
+      expect(
+        jobStatsDelta(null, {'status': 'open'}),
+        {'jobsOpen': 1},
+      );
+      expect(
+        jobStatsDelta({'status': 'open'}, {'status': 'disputed'}),
+        {'jobsOpen': -1, 'jobsDisputed': 1, 'openDisputes': 1},
+      );
+      expect(
+        jobStatsDelta({'status': 'disputed'}, {'status': 'cancelled'}),
+        {'jobsDisputed': -1, 'jobsCancelled': 1, 'openDisputes': -1},
+      );
+      expect(
+        jobStatsDelta({'status': 'open'}, null),
+        {'jobsOpen': -1},
+      );
+    });
+
+    test('reportStatsDelta open/closed', () {
+      expect(
+        reportStatsDelta(null, {'status': 'open'}),
+        {'openReports': 1},
+      );
+      expect(
+        reportStatsDelta({'status': 'open'}, {'status': 'resolved'}),
+        {'openReports': -1},
+      );
+      expect(
+        reportStatsDelta({'status': 'resolved'}, {'status': 'reviewing'}),
+        {'openReports': 1},
+      );
+    });
+
+    test('AdminStatsSnapshot fromMap + stale', () {
+      final s = AdminStatsSnapshot.fromMap({
+        'usersTotal': 10,
+        'openReports': 2,
+        'updatedAt': DateTime.now()
+            .toUtc()
+            .subtract(const Duration(hours: 25))
+            .toIso8601String(),
+      });
+      expect(s.usersTotal, 10);
+      expect(s.openReports, 2);
+      expect(s.isStale, isTrue);
+      final fresh = AdminStatsSnapshot.fromMap({
+        'updatedAt': DateTime.now().toUtc().toIso8601String(),
+      });
+      expect(fresh.isStale, isFalse);
+    });
+  });
+
+  group('Wave 5 ops (config / export / bulk)', () {
+    test('AdminRuntimeConfig fromMap varsayılanlar', () {
+      final c = AdminRuntimeConfig.fromMap({});
+      expect(c.premiumFreeDuringBeta, isTrue);
+      expect(c.maintenanceMode, isFalse);
+      final c2 = AdminRuntimeConfig.fromMap({
+        'premiumFreeDuringBeta': false,
+        'maintenanceMode': true,
+        'minAppVersion': '1.0.0',
+      });
+      expect(c2.premiumFreeDuringBeta, isFalse);
+      expect(c2.maintenanceMode, isTrue);
+      expect(c2.minAppVersion, '1.0.0');
+    });
+
+    test('mock runtime config update + watch', () async {
+      final repo = MockAdminRuntimeConfigRepository();
+      addTearDown(repo.dispose);
+      expect((await repo.watchRuntime().first).maintenanceMode, isFalse);
+      await repo.update({
+        'maintenanceMode': true,
+        'premiumFreeDuringBeta': false,
+      });
+      final next = await repo.watchRuntime().first;
+      expect(next.maintenanceMode, isTrue);
+      expect(next.premiumFreeDuringBeta, isFalse);
+    });
+
+    test('buildUsersCsv phone içermez + escape', () {
+      final csv = buildUsersCsv([
+        AppUser(
+          uid: 'u1',
+          displayName: 'Ali, "Veli"',
+          email: 'a@b.com',
+          createdAt: DateTime.utc(2026, 1, 2),
+          phoneNumber: '+905551112233',
+          suspended: true,
+        ),
+      ]);
+      expect(csv, contains('uid,email,displayName'));
+      expect(csv, isNot(contains('+90555')));
+      expect(csv, isNot(contains('phone')));
+      expect(csv, contains('"Ali, ""Veli"""'));
+      expect(csv, contains('true')); // suspended
+    });
+
+    test('bulkSuspend max 25 + admin atlanır', () async {
+      final base = DateTime.utc(2026, 7, 1);
+      final repo = MockAdminUserRepository([
+        for (var i = 0; i < 3; i++)
+          AppUser(
+            uid: 'u$i',
+            displayName: 'U$i',
+            email: 'u$i@t.com',
+            createdAt: base.add(Duration(hours: i)),
+          ),
+      ]);
+      await repo.setRole('u0', role: 'moderator');
+      final results = await repo.bulkSuspend(
+        ['u0', 'u1', 'u2'],
+        suspended: true,
+        reason: 'spam',
+      );
+      expect(results.length, 3);
+      expect(results[0].ok, isFalse);
+      expect(results[0].error, 'is-admin');
+      expect(results[1].ok, isTrue);
+      expect((await repo.findByUid('u1'))!.suspended, isTrue);
+      expect((await repo.findByUid('u0'))!.suspended, isFalse);
+
+      expect(
+        () => repo.bulkSuspend(
+          List.generate(26, (i) => 'x$i'),
+          suspended: true,
+        ),
+        throwsStateError,
+      );
+    });
+
+    test('logExport mock kaydeder', () async {
+      final repo = MockAdminUserRepository();
+      await repo.logExport(kind: 'users', rowCount: 12);
+      expect(repo.exportLogs.single.kind, 'users');
+      expect(repo.exportLogs.single.rowCount, 12);
     });
   });
 }

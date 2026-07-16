@@ -10,6 +10,8 @@ abstract interface class ChatRepository {
   Stream<List<ChatThread>> watchThreads(String uid);
 
   /// Bir sohbetin mesajları — canlı akış.
+  /// Sohbet dökümanı yoksa/erişim yoksa stream hata vermez; hazır olunca
+  /// dinlemeye başlar (UI "Bir sorun oluştu"ya kilitlenmesin).
   Stream<List<ChatMessage>> watchMessages(String chatId);
 
   ChatThread? getThread(String chatId);
@@ -27,8 +29,9 @@ abstract interface class ChatRepository {
   /// [uid]'in bu sohbeti en son okuduğu an (okundu bilgisi için). Yoksa null.
   DateTime? lastReadAt({required String chatId, required String uid});
 
-  /// Sohbeti başlatır (varsa mevcut olanı döner). chatId döner.
-  String startChat({
+  /// Sohbeti başlatır / var olanı hazırlar. Firestore'da döküman **hazır**
+  /// olunca chatId döner. Navigasyondan önce `await` edilmeli.
+  Future<String> startChat({
     required String customerUid,
     required String customerName,
     String? customerPhotoUrl,
@@ -36,6 +39,10 @@ abstract interface class ChatRepository {
     required String artisanName,
     String? artisanPhotoUrl,
   });
+
+  /// Bilinen chatId için dökümanın okunabilir olmasını bekler (liste / bildirim
+  /// deep-link). Önbellekte thread varsa recreate dener.
+  Future<void> ensureChatReady(String chatId);
 
   /// Mesaj gönderir. İletişim bilgileri otomatik maskelenir (PRD §5).
   /// Maskeleme uygulandıysa (metin değiştiyse) true döner — UI uyarı gösterir.
@@ -148,15 +155,16 @@ class MockChatRepository implements ChatRepository {
       _lastRead[chatId]?[uid];
 
   @override
-  String startChat({
+  Future<String> startChat({
     required String customerUid,
     required String customerName,
     String? customerPhotoUrl,
     required String artisanUid,
     required String artisanName,
     String? artisanPhotoUrl,
-  }) {
+  }) async {
     final id = chatIdFor(customerUid, artisanUid);
+    final now = DateTime.now();
     _threads.putIfAbsent(
       id,
       () => ChatThread(
@@ -167,12 +175,16 @@ class MockChatRepository implements ChatRepository {
         artisanName: artisanName,
         customerPhotoUrl: customerPhotoUrl,
         artisanPhotoUrl: artisanPhotoUrl,
-        updatedAt: DateTime.now(),
+        createdAt: now,
+        updatedAt: now,
       ),
     );
     _threadsTick.add(null);
     return id;
   }
+
+  @override
+  Future<void> ensureChatReady(String chatId) async {}
 
   @override
   Future<bool> sendMessage({
@@ -208,11 +220,13 @@ class MockChatRepository implements ChatRepository {
         artisanName: t.artisanName,
         customerPhotoUrl: t.customerPhotoUrl,
         artisanPhotoUrl: t.artisanPhotoUrl,
-        updatedAt: msg.createdAt,
         lastMessage: imageHandle != null ? '📷 Fotoğraf' : masked,
+        createdAt: t.createdAt,
+        updatedAt: msg.createdAt,
       );
       _threadsTick.add(null);
     }
+
     return wasMasked;
   }
 
@@ -225,17 +239,16 @@ class MockChatRepository implements ChatRepository {
     final list = _messages[chatId];
     if (list == null) return;
     final i = list.indexWhere((m) => m.id == messageId);
-    if (i < 0 || list[i].senderUid != senderUid) return;
+    if (i < 0) return;
+    if (list[i].senderUid != senderUid) return;
     list[i] = ChatMessage(
       id: list[i].id,
       chatId: chatId,
       senderUid: senderUid,
-      createdAt: list[i].createdAt,
       deleted: true,
+      createdAt: list[i].createdAt,
     );
     _ctrl(chatId).add(List.unmodifiable(list));
-
-    // Silinen son mesajsa liste önizlemesini de değiştir.
     final t = _threads[chatId];
     if (t != null && i == list.length - 1) {
       _threads[chatId] = ChatThread(
@@ -246,8 +259,9 @@ class MockChatRepository implements ChatRepository {
         artisanName: t.artisanName,
         customerPhotoUrl: t.customerPhotoUrl,
         artisanPhotoUrl: t.artisanPhotoUrl,
-        updatedAt: t.updatedAt,
         lastMessage: ChatMessage.deletedPreview,
+        createdAt: t.createdAt,
+        updatedAt: t.updatedAt,
       );
       _threadsTick.add(null);
     }

@@ -5,7 +5,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>Usta Cepte</string>
+	<string>Ustasından</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -45,5 +45,11 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>Profil ve iş fotoğraflarınızı çekmek için kamera erişimi gerekir.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Profil ve iş fotoğraflarınızı seçmek için galeri erişimi gerekir.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Sesli not kaydetmek için mikrofon erişimi gerekir.</string>
 </dict>
 </plist>

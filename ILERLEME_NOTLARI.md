@@ -7,7 +7,7 @@
 ---
 
 ## 🎯 Proje Hakkında
-- **Proje adı:** Usta Cepte (`usta_cepte`) — hizmet pazaryeri uygulaması
+- **Proje adı:** Ustasından (`usta_cepte` — paket/kod kimliği) — hizmet pazaryeri uygulaması
 - **Amaç:** Müşterileri (tamirat/tadilat ihtiyacı olanlar) bölge ve meslek bazlı ustalarla buluşturmak. TR pazarı.
 - **Platform:** Flutter — Android + iOS + Web
 - **Backend (hedef):** Firebase (Auth, Firestore, Storage, Cloud Functions, FCM)

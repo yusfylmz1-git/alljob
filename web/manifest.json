@@ -1,11 +1,11 @@
 {
-    "name": "usta_cepte",
-    "short_name": "usta_cepte",
+    "name": "Ustasından",
+    "short_name": "Ustasından",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",
     "theme_color": "#0175C2",
-    "description": "Usta Cepte - Hizmet pazaryeri",
+    "description": "Ustasından - Hizmet pazaryeri",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

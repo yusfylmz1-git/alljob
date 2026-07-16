@@ -1,5 +1,8 @@
+import 'dart:async' show unawaited;
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+import '../../../core/utils/validators.dart';
 import '../../../data/models/artisan_profile.dart';
 import 'my_profile_repository.dart';
 
@@ -20,11 +23,50 @@ class FirebaseMyProfileRepository implements MyProfileRepository {
 
   @override
   Future<ArtisanProfile> getMyProfile(String uid) async {
-    final snap = await _profileDoc(uid).get();
-    if (snap.exists && snap.data() != null) {
-      return ArtisanProfile.fromMap(uid, snap.data()!);
+    try {
+      final snap = await _profileDoc(uid)
+          .get()
+          .timeout(const Duration(seconds: 12));
+      if (snap.exists && snap.data() != null) {
+        final raw = snap.data()!;
+        final profile = ArtisanProfile.fromMap(uid, raw);
+        // H3 heal arka planda — İşler açılışını bloklamasın (ANR).
+        unawaited(_healMatchFields(uid, raw, profile));
+        return profile;
+      }
+    } catch (_) {
+      // Zaman aşımı / ağ: boş profille devam (UI kilitlenmesin).
+      return ArtisanProfile.initial(uid);
     }
     return ArtisanProfile.initial(uid);
+  }
+
+  /// Eski/eksik H3 alanlarını senkron yazar (rules paritesi).
+  Future<void> _healMatchFields(
+    String uid,
+    Map<String, dynamic> raw,
+    ArtisanProfile profile,
+  ) async {
+    final expectedKeys =
+        profile.serviceAreas.map((e) => e.key).where((k) => k != '|').toList();
+    final rawKeys = (raw['serviceAreaKeys'] as List?)
+            ?.map((e) => e.toString())
+            .toList() ??
+        const <String>[];
+    final keysMissingOrStale = expectedKeys.isNotEmpty &&
+        (rawKeys.isEmpty ||
+            expectedKeys.length != rawKeys.length ||
+            !expectedKeys.every(rawKeys.contains));
+    final needProf = profile.professionCodes.isNotEmpty &&
+        (raw['professions'] is! List ||
+            (raw['professions'] as List).isEmpty);
+    if (!keysMissingOrStale && !needProf) return;
+    final patch = <String, dynamic>{};
+    if (keysMissingOrStale) patch['serviceAreaKeys'] = expectedKeys;
+    if (needProf) patch['professions'] = profile.professionCodes;
+    try {
+      await _profileDoc(uid).set(patch, SetOptions(merge: true));
+    } catch (_) {/* best-effort; create teklif yine denenecek */}
   }
 
   @override
@@ -38,21 +80,28 @@ class FirebaseMyProfileRepository implements MyProfileRepository {
     // alanları BURADAN YAZILMAZ (kural da reddeder): rating/sayaç alanları
     // Cloud Functions'a, isPremium/premiumExpiresAt ileride satın alma
     // doğrulamasına aittir. toMap'ten çıkarılıp merge ile korunur.
-    final data = Map<String, dynamic>.from(profile.toMap())
+    // Deneyim / hakkımda istemci ve rules tavanıyla hizalanır.
+    final safeProfile = profile.copyWith(
+      experienceYears:
+          Validators.clampExperienceYears(profile.experienceYears),
+      aboutText: Validators.sanitizeFreeText(profile.aboutText),
+    );
+    final safeName = Validators.normalizeDisplayName(displayName);
+    final data = Map<String, dynamic>.from(safeProfile.toMap())
       ..remove('averageRating')
       ..remove('totalReviews')
       ..remove('totalRatingSum')
       ..remove('completedJobs')
       ..remove('isPremium')
       ..remove('premiumExpiresAt')
-      ..['displayName'] = displayName
+      ..['displayName'] = safeName
       ..['profilePhotoURL'] = profilePhotoUrl;
 
     await _profileDoc(uid).set(data, SetOptions(merge: true));
 
     // users dökümanındaki görünen ad/foto da güncel kalsın.
     await _db.collection('users').doc(uid).set({
-      'displayName': displayName,
+      'displayName': safeName,
       'profilePhotoURL': profilePhotoUrl,
     }, SetOptions(merge: true));
   }

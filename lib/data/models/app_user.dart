@@ -25,6 +25,9 @@ class AppUser {
 
   final String uid;
   final String displayName;
+
+  /// E-posta. KAYNAĞI Firebase Auth — herkese açık `users` dökümanına
+  /// YAZILMAZ (H2/KVKK). Repo Auth'tan doldurur; fromMap legacy için okuyabilir.
   final String email;
   final DateTime createdAt;
 
@@ -42,8 +45,7 @@ class AppUser {
 
   /// E-posta adresi doğrulandı mı? KAYNAĞI Firebase Auth'tur (doğrulama
   /// bağlantısına tıklanınca Auth tarafında değişir) — `users` dökümanına
-  /// YAZILMAZ/OKUNMAZ (istemcinin kendine yazabileceği sahte bir alan
-  /// olmasın); repo katmanı Auth kullanıcısından doldurur.
+  /// YAZILMAZ/OKUNMAZ; repo katmanı Auth kullanıcısından doldurur.
   final bool emailVerified;
 
   /// Yönetici mi? KAYNAĞI Firebase Auth CUSTOM CLAIM'idir (`admin:true`) —
@@ -80,6 +82,7 @@ class AppUser {
 
   AppUser copyWith({
     String? displayName,
+    String? email,
     String? phoneNumber,
     String? profilePhotoUrl,
     bool? hasArtisanProfile,
@@ -94,7 +97,7 @@ class AppUser {
     return AppUser(
       uid: uid,
       displayName: displayName ?? this.displayName,
-      email: email,
+      email: email ?? this.email,
       createdAt: createdAt,
       hasArtisanProfile: hasArtisanProfile ?? this.hasArtisanProfile,
       activeMode: activeMode ?? this.activeMode,
@@ -108,9 +111,9 @@ class AppUser {
     );
   }
 
+  /// Herkese açık `users/{uid}` alanları. E-posta, FCM token, telefon YOK (H2).
   Map<String, dynamic> toMap() => {
         'displayName': displayName,
-        'email': email,
         'hasArtisanProfile': hasArtisanProfile,
         'activeMode': activeMode.apiValue,
         // Geriye dönük uyum: eski istemciler `role` okur.
@@ -118,9 +121,8 @@ class AppUser {
         'phoneVerified': phoneVerified,
         'createdAt': createdAt.toIso8601String(),
         'profilePhotoURL': profilePhotoUrl,
-        // GÜVENLİK: `phoneNumber` gibi hassas iletişim bilgileri bu HERKESE
-        // AÇIK dökümana YAZILMAZ (kural da yasaklar). Gerekince yalnızca sahibin
-        // okuyabildiği `users/{uid}/private/*` alt-koleksiyonunda saklanmalıdır.
+        // GÜVENLİK: phoneNumber / email / fcmTokens bu dökümana yazılmaz
+        // (kural da engeller). Token: users/{uid}/private/push.
       };
 
   factory AppUser.fromMap(String uid, Map<String, dynamic> map) {

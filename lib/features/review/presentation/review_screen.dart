@@ -2,10 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/constants/app_constants.dart';
 import '../../../core/theme/app_palette.dart';
 import '../../../core/utils/snackbar_helper.dart';
 import '../../../core/widgets/app_button.dart';
 import '../../../core/widgets/responsive_center.dart';
+import '../../../data/models/job.dart';
 import '../../../data/models/review.dart';
 import '../../artisan/data/artisan_providers.dart';
 import '../../auth/application/auth_controller.dart';
@@ -86,6 +88,7 @@ class _ReviewScreenState extends ConsumerState<ReviewScreen> {
                 user.uid, widget.artisanUid),
             rating: _rating,
             tags: _tags.toList(),
+            jobId: widget.jobId,
           );
     } catch (_) {
       if (mounted) {
@@ -116,16 +119,36 @@ class _ReviewScreenState extends ConsumerState<ReviewScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final user = ref.watch(currentUserProvider);
+    final chatId = user == null
+        ? null
+        : FirebaseChatRepository.chatIdFor(user.uid, widget.artisanUid);
 
-    // Değerlendirme yalnızca ilgili usta ile sohbet geçmişi olan müşteriye
-    // açıktır (PRD §5, Ekran F).
-    final canReview = user != null &&
+    // Sohbet var mı? (PRD §5)
+    final hasChat = user != null &&
         ref.read(chatRepositoryProvider).hasChatBetween(
               customerUid: user.uid,
               artisanUid: widget.artisanUid,
             );
 
-    if (!canReview) {
+    // H6: tamamlanmış iş VEYA sohbet yaşı ≥ 24s.
+    final jobAsync =
+        widget.jobId != null ? ref.watch(jobProvider(widget.jobId!)) : null;
+    final job = jobAsync?.valueOrNull;
+    final jobUnlocks = job != null &&
+        user != null &&
+        job.customerId == user.uid &&
+        job.selectedArtisanId == widget.artisanUid &&
+        (job.status == JobStatus.completed || job.status == JobStatus.rated);
+
+    final thread =
+        chatId != null ? ref.read(chatRepositoryProvider).getThread(chatId) : null;
+    final chatAgeOk = thread != null &&
+        DateTime.now().difference(thread.openedAt) >=
+            AppConstants.reviewUnlockDuration;
+    // Güncelleme (mevcut review) kilitsiz; yeni create kilitli.
+    final unlocked = _isUpdate || jobUnlocks || chatAgeOk;
+
+    if (!hasChat) {
       return Scaffold(
         appBar: AppBar(title: const Text('Değerlendir')),
         body: Center(
@@ -143,6 +166,36 @@ class _ReviewScreenState extends ConsumerState<ReviewScreen> {
                 Text(
                   'Bir ustayı değerlendirebilmek için önce onunla sohbet '
                   'başlatmış olmanız gerekir.',
+                  textAlign: TextAlign.center,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    if (!unlocked) {
+      final hours = AppConstants.reviewUnlockDuration.inHours;
+      return Scaffold(
+        appBar: AppBar(title: const Text('Değerlendir')),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(32),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.schedule,
+                    size: 56, color: theme.colorScheme.onSurfaceVariant),
+                const SizedBox(height: 16),
+                Text('Değerlendirme henüz açılamadı',
+                    style: theme.textTheme.titleMedium),
+                const SizedBox(height: 8),
+                Text(
+                  'Sohbet başladıktan en az $hours saat sonra veya iş '
+                  'tamamlandıktan sonra değerlendirme yapabilirsiniz.',
                   textAlign: TextAlign.center,
                   style: theme.textTheme.bodyMedium?.copyWith(
                       color: theme.colorScheme.onSurfaceVariant),

@@ -162,10 +162,10 @@ void main() {
       addTearDown(chat.dispose);
 
       // dual: hem müşteri (usta a1 ile) hem usta (müşteri c9 ile) sohbette.
-      final asCustomer = chat.startChat(
+      final asCustomer = await chat.startChat(
           customerUid: 'dual', customerName: 'Çift Rol',
           artisanUid: 'a1', artisanName: 'Usta A');
-      final asArtisan = chat.startChat(
+      final asArtisan = await chat.startChat(
           customerUid: 'c9', customerName: 'Müşteri C',
           artisanUid: 'dual', artisanName: 'Çift Rol');
 

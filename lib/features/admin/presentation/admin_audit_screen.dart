@@ -1,11 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'admin_chrome.dart';
 
 import '../../../core/theme/app_palette.dart';
-import '../../../core/widgets/gradient_app_bar.dart';
 import '../../../core/widgets/responsive_center.dart';
 import '../../../core/widgets/status_views.dart';
-import '../../auth/application/auth_controller.dart';
 import '../data/admin_audit_repository.dart';
 import '../data/admin_providers.dart';
 
@@ -36,7 +35,9 @@ class _AdminAuditScreenState extends ConsumerState<AdminAuditScreen> {
     final pageAsync = ref.watch(auditLogControllerProvider);
     final controller = ref.read(auditLogControllerProvider.notifier);
     return Scaffold(
-      appBar: GradientAppBar(
+      backgroundColor: AdminChrome.surface,
+      appBar: AdminChrome.pageHeader(
+        context: context,
         title: 'Denetim Kaydı',
         icon: Icons.receipt_long_outlined,
         subtitle: pageAsync.valueOrNull == null
@@ -48,12 +49,6 @@ class _AdminAuditScreenState extends ConsumerState<AdminAuditScreen> {
             tooltip: 'Yenile',
             icon: const Icon(Icons.refresh_rounded),
             onPressed: controller.refresh,
-          ),
-          IconButton(
-            tooltip: 'Çıkış',
-            icon: const Icon(Icons.logout_rounded),
-            onPressed: () =>
-                ref.read(authControllerProvider.notifier).signOut(),
           ),
         ],
       ),

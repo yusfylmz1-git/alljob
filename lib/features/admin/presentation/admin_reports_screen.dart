@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'admin_chrome.dart';
 
 import '../../../core/theme/app_palette.dart';
 import '../../../core/utils/snackbar_helper.dart';
-import '../../../core/widgets/gradient_app_bar.dart';
 import '../../../core/widgets/responsive_center.dart';
 import '../../../core/widgets/status_views.dart';
 import '../../../data/models/report.dart';
@@ -33,7 +33,9 @@ class _AdminReportsScreenState extends ConsumerState<AdminReportsScreen> {
     final controller = ref.read(reportQueueControllerProvider.notifier);
 
     return Scaffold(
-      appBar: GradientAppBar(
+      backgroundColor: AdminChrome.surface,
+      appBar: AdminChrome.pageHeader(
+        context: context,
         title: 'Şikayet Kuyruğu',
         icon: Icons.flag_outlined,
         subtitle: pageAsync.valueOrNull == null
@@ -44,12 +46,6 @@ class _AdminReportsScreenState extends ConsumerState<AdminReportsScreen> {
             tooltip: 'Yenile',
             icon: const Icon(Icons.refresh_rounded),
             onPressed: controller.refresh,
-          ),
-          IconButton(
-            tooltip: 'Çıkış',
-            icon: const Icon(Icons.logout_rounded),
-            onPressed: () =>
-                ref.read(authControllerProvider.notifier).signOut(),
           ),
         ],
       ),
@@ -452,6 +448,65 @@ class _ReportDetailSheetState extends ConsumerState<_ReportDetailSheet> {
     }
   }
 
+  Future<void> _openTranscript() async {
+    final r = widget.report;
+    final chatId = r.chatId;
+    if (chatId == null || chatId.isEmpty) {
+      context.showError('Bu şikayette sohbet kimliği yok.');
+      return;
+    }
+    setState(() => _busy = true);
+    try {
+      final msgs =
+          await ref.read(adminReportRepositoryProvider).fetchChatTranscript(
+                reportId: r.id,
+                chatId: chatId,
+              );
+      if (!mounted) return;
+      setState(() => _busy = false);
+      await showDialog<void>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Sohbet kanıtı'),
+          content: SizedBox(
+            width: 420,
+            height: 360,
+            child: msgs.isEmpty
+                ? const Text('Mesaj yok veya yetki yok (chats.read).')
+                : ListView.builder(
+                    itemCount: msgs.length,
+                    itemBuilder: (_, i) {
+                      final m = msgs[i];
+                      final text = m['deleted'] == true
+                          ? '(silinmiş)'
+                          : (m['text']?.toString() ?? '');
+                      return ListTile(
+                        dense: true,
+                        title: Text(text),
+                        subtitle: Text(
+                          '${m['senderUid'] ?? "?"} · ${m['createdAt'] ?? ""}',
+                          style: const TextStyle(fontSize: 10),
+                        ),
+                      );
+                    },
+                  ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Kapat'),
+            ),
+          ],
+        ),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _busy = false);
+      context.showError(
+          'Transcript alınamadı (yetki, bağlam veya limit).');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final palette = context.palette;
@@ -497,8 +552,15 @@ class _ReportDetailSheetState extends ConsumerState<_ReportDetailSheet> {
               _InfoBlock(label: 'Şikayet eden (uid)', value: r.reporterUid),
               _InfoBlock(label: 'Şikayet edilen (uid)', value: r.reportedUid),
               _InfoBlock(label: 'Hedef kimliği', value: r.targetId),
-              if (r.chatId != null)
+              if (r.chatId != null) ...[
                 _InfoBlock(label: 'Sohbet kimliği', value: r.chatId!),
+                if (!_busy)
+                  OutlinedButton.icon(
+                    onPressed: _openTranscript,
+                    icon: const Icon(Icons.forum_outlined, size: 18),
+                    label: const Text('Sohbet kanıtını aç'),
+                  ),
+              ],
               _InfoBlock(label: 'Tarih', value: _formatDate(r.createdAt)),
               if (r.resolvedBy != null)
                 _InfoBlock(label: 'İşleyen (uid)', value: r.resolvedBy!),

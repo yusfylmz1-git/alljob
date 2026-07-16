@@ -6,6 +6,7 @@ import '../../data/models/user_role.dart';
 import '../../features/auth/application/auth_controller.dart';
 import '../../features/auth/data/auth_repository.dart';
 import '../../features/chat/data/chat_providers.dart';
+import '../constants/app_constants.dart';
 import '../router/route_paths.dart';
 import '../theme/accent_options.dart';
 import '../theme/accent_state.dart';
@@ -42,10 +43,10 @@ class DrawerMenuButton extends ConsumerWidget {
 /// yalnızca ortak sekmeler (Keşfet/Mesajlar/Profil) kalır.
 ///
 /// İçerik duruma göre değişir:
-/// - Misafir: Giriş Yap / Kayıt Ol.
+/// - Misafir: Google ile giriş.
 /// - Müşteri modu: İş İlanı Ver, İlanlarım, Favorilerim (+ usta profili varsa
 ///   Usta Moduna Geç, yoksa Hizmet Vermeye Başla).
-/// - Usta modu: Hizmetlerim, İletişimlerim, Bildirimler, Premium, Profili
+/// - Usta modu: Hizmetlerim, İlgilendiğim işler, Bildirimler, Premium, Profili
 ///   Düzenle, Müşteri Moduna Geç.
 class AppMenuDrawer extends ConsumerWidget {
   const AppMenuDrawer({super.key});
@@ -153,7 +154,7 @@ class AppMenuDrawer extends ConsumerWidget {
                   children: [
                     Text(
                       user == null
-                          ? 'Usta Cepte'
+                          ? AppConstants.appName
                           : (user.displayName.isEmpty
                               ? 'Kullanıcı'
                               : user.displayName),
@@ -182,13 +183,8 @@ class AppMenuDrawer extends ConsumerWidget {
         if (user == null) ...[
           ListTile(
             leading: const Icon(Icons.login_rounded),
-            title: const Text('Giriş Yap'),
+            title: const Text('Google ile giriş'),
             onTap: () => _open(context, RoutePaths.login),
-          ),
-          ListTile(
-            leading: const Icon(Icons.person_add_alt_1_outlined),
-            title: const Text('Kayıt Ol'),
-            onTap: () => _open(context, RoutePaths.register),
           ),
         ]
 
@@ -226,8 +222,8 @@ class AppMenuDrawer extends ConsumerWidget {
         else ...[
           // Hizmetlerim (yakındaki işler) artık alt barda ("İşler" sekmesi).
           ListTile(
-            leading: const Icon(Icons.forum_outlined),
-            title: const Text('İletişimlerim'),
+            leading: const Icon(Icons.work_history_outlined),
+            title: const Text('İlgilendiğim işler'),
             onTap: () => _open(context, RoutePaths.panelOffers),
           ),
           ListTile(
@@ -247,6 +243,13 @@ class AppMenuDrawer extends ConsumerWidget {
         ],
 
         const Divider(indent: 16, endIndent: 16),
+
+        ListTile(
+          leading: const Icon(Icons.help_outline_rounded),
+          title: const Text('Yardım'),
+          subtitle: const Text('SSS ve destek'),
+          onTap: () => _open(context, RoutePaths.help),
+        ),
 
         // Görünüm (tema) — herkes için (misafir dâhil).
         ListTile(

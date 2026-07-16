@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/utils/validators.dart';
 import '../../../data/models/artisan_profile.dart';
 import '../../../data/models/availability.dart';
 import '../../../data/models/geo_models.dart';
@@ -37,16 +38,20 @@ class MyProfileController extends AsyncNotifier<MyProfileDraft> {
   @override
   Future<MyProfileDraft> build() async {
     // HESAP DEĞİŞİMİNİ İZLE (watch): çıkış yapıp farklı hesapla girilince
-    // taslak yeni kullanıcıyla sıfırdan kurulmalı (eski `ref.read` bunu
-    // yapmıyordu → önceki oturumun verisi ekranda kalıyordu). Yalnızca uid'i
-    // seçiyoruz ki users dökümanındaki diğer alan güncellemeleri (ör. mod
-    // geçişi, phoneVerified) kaydedilmemiş taslağı ezmesin.
+    // taslak yeni kullanıcıyla sıfırdan kurulmalı. Yalnızca uid seçilir.
     var uid = ref.watch(currentUserProvider.select((u) => u?.uid));
     if (uid == null) {
-      // Açılışta (web'de sayfa yenilemede) oturum henüz geri yüklenmemiş
-      // olabilir — hemen hata verme, ilk auth emisyonunu bekle.
-      uid = (await ref.read(authStateProvider.future))?.uid;
-      if (uid == null) throw StateError('Oturum açmış usta bulunamadı');
+      try {
+        uid = await ref
+            .read(authStateProvider.future)
+            .timeout(const Duration(seconds: 8))
+            .then((u) => u?.uid);
+      } catch (_) {
+        uid = null;
+      }
+      if (uid == null) {
+        throw StateError('Oturum açmış usta bulunamadı');
+      }
     }
     final user = ref.read(currentUserProvider);
     final profile =
@@ -72,14 +77,46 @@ class MyProfileController extends AsyncNotifier<MyProfileDraft> {
   void setProfilePhoto(String handle) =>
       _update((d) => d.copyWith(profilePhotoUrl: handle));
 
-  void setProfession(String code) =>
-      _update((d) => d.copyWith(profile: d.profile.copyWith(profession: code)));
+  void setProfession(String code) => setProfessions([code]);
 
-  void setExperience(int years) => _update(
-      (d) => d.copyWith(profile: d.profile.copyWith(experienceYears: years)));
+  /// Çoklu meslek (max 5). Birincil = listenin ilki.
+  static const int maxProfessions = 5;
 
-  void setAbout(String text) =>
-      _update((d) => d.copyWith(profile: d.profile.copyWith(aboutText: text)));
+  void setProfessions(List<String> codes) {
+    final cleaned = codes
+        .map((c) => c.trim())
+        .where((c) => c.isNotEmpty)
+        .toSet()
+        .take(maxProfessions)
+        .toList();
+    _update((d) => d.copyWith(
+          profile: d.profile.copyWith(
+            professions: cleaned,
+            profession: cleaned.isEmpty ? '' : cleaned.first,
+          ),
+        ));
+  }
+
+  void toggleProfession(String code) {
+    final cur = state.valueOrNull?.profile.professionCodes.toList() ?? [];
+    if (cur.contains(code)) {
+      cur.remove(code);
+    } else {
+      if (cur.length >= maxProfessions) return;
+      cur.add(code);
+    }
+    setProfessions(cur);
+  }
+
+  void setExperience(int years) => _update((d) => d.copyWith(
+        profile: d.profile.copyWith(
+          experienceYears: Validators.clampExperienceYears(years),
+        ),
+      ));
+
+  void setAbout(String text) => _update((d) => d.copyWith(
+        profile: d.profile.copyWith(aboutText: Validators.sanitizeFreeText(text)),
+      ));
 
   /// Hizmet bölgesi ekler (aynısı varsa eklemez).
   bool addServiceArea(ServiceArea area) {
@@ -190,19 +227,28 @@ class MyProfileController extends AsyncNotifier<MyProfileDraft> {
     final current = state.valueOrNull;
     if (current == null) return false;
 
+    // Kayıt öncesi sıkıştır / temizle (UI atlanmış olsa bile).
+    final name = Validators.normalizeDisplayName(current.displayName);
+    final profile = current.profile.copyWith(
+      experienceYears:
+          Validators.clampExperienceYears(current.profile.experienceYears),
+      aboutText: Validators.sanitizeFreeText(current.profile.aboutText),
+    );
+    final sanitized = current.copyWith(displayName: name, profile: profile);
+
     state = const AsyncLoading<MyProfileDraft>().copyWithPrevious(state);
     final result = await AsyncValue.guard(() async {
       await ref.read(myProfileRepositoryProvider).saveMyProfile(
-            uid: current.profile.uid,
-            displayName: current.displayName,
-            profilePhotoUrl: current.profilePhotoUrl,
-            profile: current.profile,
+            uid: sanitized.profile.uid,
+            displayName: sanitized.displayName,
+            profilePhotoUrl: sanitized.profilePhotoUrl,
+            profile: sanitized.profile,
           );
       await ref.read(authRepositoryProvider).updateUserProfile(
-            displayName: current.displayName,
-            profilePhotoUrl: current.profilePhotoUrl,
+            displayName: sanitized.displayName,
+            profilePhotoUrl: sanitized.profilePhotoUrl,
           );
-      return current;
+      return sanitized;
     });
     state = result;
     return !result.hasError;

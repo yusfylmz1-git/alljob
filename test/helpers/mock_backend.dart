@@ -15,10 +15,15 @@ import 'package:usta_cepte/features/safety/data/block_repository.dart';
 import 'package:usta_cepte/features/safety/data/report_repository.dart';
 import 'package:usta_cepte/features/safety/data/safety_providers.dart';
 import 'package:usta_cepte/features/storage/storage_repository.dart';
+import 'package:usta_cepte/features/admin/data/admin_artisan_repository.dart';
 import 'package:usta_cepte/features/admin/data/admin_audit_repository.dart';
 import 'package:usta_cepte/features/admin/data/admin_dispute_repository.dart';
+import 'package:usta_cepte/features/admin/data/admin_invite_repository.dart';
+import 'package:usta_cepte/features/admin/data/admin_job_repository.dart';
 import 'package:usta_cepte/features/admin/data/admin_providers.dart';
 import 'package:usta_cepte/features/admin/data/admin_report_repository.dart';
+import 'package:usta_cepte/features/admin/data/admin_review_repository.dart';
+import 'package:usta_cepte/features/admin/data/admin_stats_repository.dart';
 import 'package:usta_cepte/features/admin/data/admin_user_repository.dart';
 import 'package:usta_cepte/features/tracking/data/mock_track_backup_repository.dart';
 import 'package:usta_cepte/features/tracking/data/mock_tracking_repository.dart';
@@ -90,6 +95,23 @@ List<Override> mockBackendOverrides() => [
         ref.onDispose(repo.dispose);
         return repo;
       }),
+      adminJobRepositoryProvider.overrideWith(
+        (ref) => MockAdminJobRepository(),
+      ),
+      adminArtisanRepositoryProvider.overrideWith(
+        (ref) => MockAdminArtisanRepository(),
+      ),
+      adminInviteRepositoryProvider.overrideWith((ref) {
+        final repo = MockAdminInviteRepository();
+        ref.onDispose(repo.dispose);
+        return repo;
+      }),
+      adminStatsRepositoryProvider.overrideWith(
+        (ref) => MockAdminStatsRepository(),
+      ),
+      adminReviewRepositoryProvider.overrideWith(
+        (ref) => MockAdminReviewRepository(),
+      ),
       adminAuditRepositoryProvider.overrideWith(
         (ref) => MockAdminAuditRepository(),
       ),

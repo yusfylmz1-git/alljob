@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 
 import '../../../core/utils/contact_masker.dart';
 import '../../../data/models/chat.dart';
@@ -7,32 +8,26 @@ import 'chat_repository.dart';
 /// Firestore ile çalışan [ChatRepository].
 ///
 /// Koleksiyon şekli:
-///  - `chats/{chatId}`: participants[], customerUid, artisanUid, adlar/fotolar,
-///    lastMessage, lastMessageSenderUid, updatedAt, lastRead{uid: Timestamp}
+///  - `chats/{chatId}`: participants[], members{}, customerUid, artisanUid,
+///    adlar/fotolar, lastMessage, lastMessageSenderUid, updatedAt, lastRead
 ///  - `chats/{chatId}/messages/{id}`: senderUid, text, imageHandle, createdAt
 ///
-/// [ChatRepository]'nin senkron metotları (getThread/unreadCount/lastReadAt/
-/// hasChatBetween) Firestore async olduğundan, aktif stream'lerden beslenen
-/// yerel ÖNBELLEKTEN yanıtlanır. Bu, gerçek kullanım akışlarını kapsar
-/// (sohbet listesi açık → thread'ler önbellekte). Kesin okunmamış SAYISI ve
-/// puan hesapları üretimde Cloud Functions'a taşınmalıdır (unreadCount 0/1 verir).
+/// **Kritik tasarım:** [startChat] döküman **hazır** olana kadar await edilir.
+/// Mesaj dinleyicisi sohbet yokken permission-denied yiyip UI'yi kilitlemesin
+/// diye [watchMessages] önce [ensureChatReady] yapar; stream hata verirse
+/// birkaç kez yeniden bağlanır.
 class FirebaseChatRepository implements ChatRepository {
   FirebaseChatRepository({FirebaseFirestore? firestore})
       : _db = firestore ?? FirebaseFirestore.instance;
 
   final FirebaseFirestore _db;
 
-  // --- Senkron metotlar için yerel önbellekler ---
   final Map<String, ChatThread> _threads = {};
   final Map<String, ({DateTime? at, String? sender})> _lastMsgMeta = {};
   final Map<String, Map<String, DateTime>> _lastRead = {};
-
-  /// chatId → (uid → sohbeti sildiği an). Tek taraflı sohbet silme filtresi.
   final Map<String, Map<String, DateTime>> _clearedAt = {};
 
-  /// startChat'in `chats/{chatId}` yazımı devam ediyor olabilir. Mesaj gönderme
-  /// kuralı bu dökümanın var olmasına bağlı (participants kontrolü), bu yüzden
-  /// mesaj yazmadan önce ilgili yazımı bekleriz (yarış durumunu önler).
+  /// chatId → tek uçuşan ensure Future (çift create yarışını önler: ??=).
   final Map<String, Future<void>> _pendingChatDoc = {};
 
   static String chatIdFor(String customerUid, String artisanUid) =>
@@ -43,10 +38,6 @@ class FirebaseChatRepository implements ChatRepository {
 
   bool _legacyHealAttempted = false;
 
-  /// `members` alanı olmayan ESKİ sohbet dökümanları yeni sorguda görünmez.
-  /// Bir kez, eski desenle (participants array-contains) bulunabilenlere
-  /// `members` alanını yazarak onarır. Kurallar eski desen sorgusuna izin
-  /// vermezse sessizce vazgeçer (yeni dökümanlar zaten sorunsuz).
   Future<void> _healLegacyThreads(String uid) async {
     if (_legacyHealAttempted) return;
     _legacyHealAttempted = true;
@@ -65,22 +56,13 @@ class FirebaseChatRepository implements ChatRepository {
         if (derived.isEmpty) continue;
         await doc.reference.set({'members': derived}, SetOptions(merge: true));
       }
-    } catch (_) {
-      // Erişim yoksa (kural ispatı) veya ağ hatasında onarım atlanır.
-    }
+    } catch (_) {/* kural/ağ */}
   }
 
   @override
   Stream<List<ChatThread>> watchThreads(String uid) {
-    // Üyelik `members.<uid> == true` EŞİTLİK filtresiyle sorgulanır: güvenlik
-    // kuralı motoru bu ispatı garantili yapar (array-contains + `in` kuralı
-    // sorgularda PERMISSION_DENIED verebiliyordu). Eşitlik filtresi otomatik
-    // indexle çalıştığından orderBy kaldırıldı; sıralama istemcide yapılır.
-    _healLegacyThreads(uid); // bir kez, arka planda; stream'i bekletmez.
-    return _chats
-        .where('members.$uid', isEqualTo: true)
-        .snapshots()
-        .map((snap) {
+    _healLegacyThreads(uid);
+    return _chats.where('members.$uid', isEqualTo: true).snapshots().map((snap) {
       final list = <ChatThread>[];
       for (final doc in snap.docs) {
         final t = _threadFromDoc(doc.id, doc.data());
@@ -91,9 +73,6 @@ class FirebaseChatRepository implements ChatRepository {
         );
         _lastRead[doc.id] = _readMap(doc.data()['lastRead']);
         _clearedAt[doc.id] = _readMap(doc.data()['clearedAt']);
-        // Kullanıcının sildiği sohbet, silme anından sonra yeni mesaj
-        // gelmediyse listeye girmez (önbelleğe girer — aktif işin "Sohbete
-        // Git" akışı çalışmaya devam etsin).
         final cleared = _clearedAt[doc.id]?[uid];
         if (cleared != null && !t.updatedAt.isAfter(cleared)) continue;
         list.add(t);
@@ -104,7 +83,31 @@ class FirebaseChatRepository implements ChatRepository {
   }
 
   @override
-  Stream<List<ChatMessage>> watchMessages(String chatId) {
+  Stream<List<ChatMessage>> watchMessages(String chatId) async* {
+    // 1) Sohbet dökümanını hazırla (önbellek / pending).
+    await ensureChatReady(chatId);
+
+    // 2) Snapshot dinle; permission-denied olursa bekle-yeniden bağlan.
+    //    StreamProvider ilk hatada "Bir sorun oluştu"ya kilitlenmesin.
+    const maxAttempts = 6;
+    for (var attempt = 0; attempt < maxAttempts; attempt++) {
+      try {
+        await for (final list in _messageSnapshots(chatId)) {
+          yield list;
+        }
+        return; // stream normal bitti
+      } catch (e, st) {
+        debugPrint(
+            '[chat] watchMessages hata (deneme ${attempt + 1}/$maxAttempts) '
+            '$chatId: $e\n$st');
+        if (attempt == maxAttempts - 1) rethrow;
+        await ensureChatReady(chatId);
+        await Future<void>.delayed(Duration(milliseconds: 350 * (attempt + 1)));
+      }
+    }
+  }
+
+  Stream<List<ChatMessage>> _messageSnapshots(String chatId) {
     return _chats
         .doc(chatId)
         .collection('messages')
@@ -125,6 +128,50 @@ class FirebaseChatRepository implements ChatRepository {
   }
 
   @override
+  Future<void> ensureChatReady(String chatId) async {
+    // Uçuşan create varsa onu bekle (tek Future paylaşılır).
+    final pending = _pendingChatDoc[chatId];
+    if (pending != null) {
+      try {
+        await pending;
+      } catch (e) {
+        debugPrint('[chat] pending ensure hata ($chatId): $e');
+      }
+    }
+
+    // Önbellekte thread varsa (startChat veya liste) recreate dene.
+    final cached = _threads[chatId];
+    if (cached != null) {
+      await _ensureChatDoc(
+        id: chatId,
+        customerUid: cached.customerUid,
+        customerName: cached.customerName,
+        customerPhotoUrl: cached.customerPhotoUrl,
+        artisanUid: cached.artisanUid,
+        artisanName: cached.artisanName,
+        artisanPhotoUrl: cached.artisanPhotoUrl,
+        now: DateTime.now(),
+      );
+      return;
+    }
+
+    // chatId'den uid türetilebiliyorsa iskelet oluşturmayı dene.
+    final parts = _uidsFromChatId(chatId);
+    if (parts != null) {
+      await _ensureChatDoc(
+        id: chatId,
+        customerUid: parts.$1,
+        customerName: 'Müşteri',
+        customerPhotoUrl: null,
+        artisanUid: parts.$2,
+        artisanName: 'Usta',
+        artisanPhotoUrl: null,
+        now: DateTime.now(),
+      );
+    }
+  }
+
+  @override
   ChatThread? getThread(String chatId) => _threads[chatId];
 
   @override
@@ -138,9 +185,8 @@ class FirebaseChatRepository implements ChatRepository {
   int unreadCount({required String chatId, required String uid}) {
     final meta = _lastMsgMeta[chatId];
     if (meta == null || meta.at == null || meta.sender == null) return 0;
-    if (meta.sender == uid) return 0; // son mesaj bizden → okunmamış yok
+    if (meta.sender == uid) return 0;
     final since = _lastRead[chatId]?[uid];
-    // Cloud Functions olmadan kesin sayı yerine ikili gösterge (0/1).
     return (since == null || meta.at!.isAfter(since)) ? 1 : 0;
   }
 
@@ -151,52 +197,161 @@ class FirebaseChatRepository implements ChatRepository {
   @override
   void markRead({required String chatId, required String uid}) {
     final now = DateTime.now();
-    (_lastRead[chatId] ??= {})[uid] = now; // önbelleği hemen güncelle
-    _chats.doc(chatId).set({
-      'lastRead': {uid: Timestamp.fromDate(now)},
-    }, SetOptions(merge: true));
+    (_lastRead[chatId] ??= {})[uid] = now;
+    // ignore: discarded_futures
+    Future<void>(() async {
+      try {
+        await _chats
+            .doc(chatId)
+            .update({'lastRead.$uid': Timestamp.fromDate(now)});
+      } catch (e) {
+        debugPrint('[chat] markRead atlandı ($chatId): $e');
+      }
+    });
   }
 
   @override
-  String startChat({
+  Future<String> startChat({
     required String customerUid,
     required String customerName,
     String? customerPhotoUrl,
     required String artisanUid,
     required String artisanName,
     String? artisanPhotoUrl,
-  }) {
+  }) async {
     final id = chatIdFor(customerUid, artisanUid);
     final now = DateTime.now();
-    // Önbelleğe hemen ekle (getThread/hasChatBetween anında çalışsın).
-    _threads.putIfAbsent(
-      id,
-      () => ChatThread(
-        id: id,
-        customerUid: customerUid,
-        artisanUid: artisanUid,
-        customerName: customerName,
-        artisanName: artisanName,
-        customerPhotoUrl: customerPhotoUrl,
-        artisanPhotoUrl: artisanPhotoUrl,
-        updatedAt: now,
-      ),
+    _threads[id] = ChatThread(
+      id: id,
+      customerUid: customerUid,
+      artisanUid: artisanUid,
+      customerName: customerName,
+      artisanName: artisanName,
+      customerPhotoUrl: customerPhotoUrl,
+      artisanPhotoUrl: artisanPhotoUrl,
+      createdAt: _threads[id]?.createdAt ?? now,
+      updatedAt: _threads[id]?.updatedAt ?? now,
+      lastMessage: _threads[id]?.lastMessage,
     );
-    // Yoksa oluştur (varsa alanları ezmeden bırak). Yazımı sakla ki ilk mesaj
-    // gönderilmeden önce dökümanın (participants) hazır olması garanti olsun.
-    _pendingChatDoc[id] = _chats.doc(id).set({
-      'participants': [customerUid, artisanUid],
-      // Güvenlik kuralları + liste sorgusu üyelik haritasını kullanır.
-      'members': {customerUid: true, artisanUid: true},
-      'customerUid': customerUid,
-      'artisanUid': artisanUid,
-      'customerName': customerName,
-      'artisanName': artisanName,
-      'customerPhotoURL': customerPhotoUrl,
-      'artisanPhotoURL': artisanPhotoUrl,
-      'updatedAt': Timestamp.fromDate(now),
-    }, SetOptions(merge: true));
+
+    await _ensureChatDoc(
+      id: id,
+      customerUid: customerUid,
+      customerName: customerName,
+      customerPhotoUrl: customerPhotoUrl,
+      artisanUid: artisanUid,
+      artisanName: artisanName,
+      artisanPhotoUrl: artisanPhotoUrl,
+      now: now,
+    );
     return id;
+  }
+
+  /// Tek uçuş: aynı chatId için eşzamanlı çağrılar aynı Future'ı paylaşır.
+  Future<void> _ensureChatDoc({
+    required String id,
+    required String customerUid,
+    required String customerName,
+    String? customerPhotoUrl,
+    required String artisanUid,
+    required String artisanName,
+    String? artisanPhotoUrl,
+    required DateTime now,
+  }) {
+    final inflight = _pendingChatDoc[id];
+    if (inflight != null) return inflight;
+
+    final future = _ensureChatDocBody(
+      id: id,
+      customerUid: customerUid,
+      customerName: customerName,
+      customerPhotoUrl: customerPhotoUrl,
+      artisanUid: artisanUid,
+      artisanName: artisanName,
+      artisanPhotoUrl: artisanPhotoUrl,
+      now: now,
+    );
+    _pendingChatDoc[id] = future;
+    future.whenComplete(() {
+      if (identical(_pendingChatDoc[id], future)) {
+        _pendingChatDoc.remove(id);
+      }
+    });
+    return future;
+  }
+
+  Future<void> _ensureChatDocBody({
+    required String id,
+    required String customerUid,
+    required String customerName,
+    String? customerPhotoUrl,
+    required String artisanUid,
+    required String artisanName,
+    String? artisanPhotoUrl,
+    required DateTime now,
+  }) async {
+    // Var mı?
+    try {
+      final snap = await _chats.doc(id).get();
+      if (snap.exists) {
+        final data = snap.data();
+        final members = data?['members'];
+        final needHeal = members is! Map ||
+            members[customerUid] != true ||
+            members[artisanUid] != true;
+        if (needHeal) {
+          final derived =
+              _membersFromChatId(id) ?? {customerUid: true, artisanUid: true};
+          try {
+            await _chats
+                .doc(id)
+                .set({'members': derived}, SetOptions(merge: true));
+          } catch (e) {
+            debugPrint('[chat] members heal ($id): $e');
+          }
+        }
+        // Önbelleği sunucu verisiyle tazele
+        if (data != null) _threads[id] = _threadFromDoc(id, data);
+        return;
+      }
+    } on FirebaseException catch (e) {
+      if (e.code != 'permission-denied') rethrow;
+      debugPrint('[chat] get reddi, create denenecek ($id): $e');
+    }
+
+    // Yok → oluştur
+    try {
+      await _chats.doc(id).set({
+        'participants': [customerUid, artisanUid],
+        'members': {customerUid: true, artisanUid: true},
+        'customerUid': customerUid,
+        'artisanUid': artisanUid,
+        'customerName': customerName,
+        'artisanName': artisanName,
+        // Null-aware map elemanı: değer null ise anahtar yazılmaz.
+        'customerPhotoURL': ?customerPhotoUrl,
+        'artisanPhotoURL': ?artisanPhotoUrl,
+        'createdAt': Timestamp.fromDate(now),
+        'updatedAt': Timestamp.fromDate(now),
+      });
+    } on FirebaseException catch (e) {
+      if (e.code == 'permission-denied') {
+        // Başka istemci oluşturmuş olabilir VEYA e-posta doğrulanmamış.
+        try {
+          final again = await _chats.doc(id).get();
+          if (again.exists) {
+            final data = again.data();
+            if (data != null) _threads[id] = _threadFromDoc(id, data);
+            return;
+          }
+        } catch (_) {/* ignore */}
+        debugPrint(
+          '[chat] sohbet oluşturulamadı ($id). '
+          'Olası neden: e-posta doğrulanmamış / App Check / üye değil. $e',
+        );
+      }
+      rethrow;
+    }
   }
 
   @override
@@ -210,13 +365,7 @@ class FirebaseChatRepository implements ChatRepository {
     final wasMasked = text != null && masked != text;
     final now = DateTime.now();
 
-    // Sohbet dökümanının yazımı sürüyorsa bekle: mesaj kuralı participants'a
-    // bakar, döküman yoksa reddedilir.
-    final pending = _pendingChatDoc[chatId];
-    if (pending != null) {
-      await pending;
-      _pendingChatDoc.remove(chatId);
-    }
+    await ensureChatReady(chatId);
 
     await _chats.doc(chatId).collection('messages').add({
       'senderUid': senderUid,
@@ -225,14 +374,14 @@ class FirebaseChatRepository implements ChatRepository {
       'createdAt': Timestamp.fromDate(now),
     });
 
-    await _chats.doc(chatId).set({
+    final meta = <String, dynamic>{
       'lastMessage': imageHandle != null ? '📷 Fotoğraf' : masked,
       'lastMessageSenderUid': senderUid,
       'updatedAt': Timestamp.fromDate(now),
-      // members alanı olmayan eski dökümanları iyileştir (chatId'den türet).
-      if (_membersFromChatId(chatId) != null)
-        'members': _membersFromChatId(chatId),
-    }, SetOptions(merge: true));
+    };
+    final members = _membersFromChatId(chatId);
+    if (members != null) meta['members'] = members;
+    await _chats.doc(chatId).set(meta, SetOptions(merge: true));
 
     return wasMasked;
   }
@@ -243,16 +392,12 @@ class FirebaseChatRepository implements ChatRepository {
     required String messageId,
     required String senderUid,
   }) async {
-    // Yumuşak silme: içerik alanları kaldırılır, `deleted` bayrağı kalır.
-    // Kural yalnızca göndereni ve yalnızca bu üç alanı değiştirmeye yetkilendirir.
     await _chats.doc(chatId).collection('messages').doc(messageId).update({
       'deleted': true,
       'text': FieldValue.delete(),
       'imageHandle': FieldValue.delete(),
     });
 
-    // Silinen SON mesajsa sohbet listesindeki önizleme de eski içeriği
-    // sızdırmasın (1 ek okuma; silme nadir bir işlem).
     final last = await _chats
         .doc(chatId)
         .collection('messages')
@@ -273,38 +418,46 @@ class FirebaseChatRepository implements ChatRepository {
     required String uid,
   }) async {
     final now = DateTime.now();
-    (_clearedAt[chatId] ??= {})[uid] = now; // önbelleği hemen güncelle
-    // Üye, sohbet dökümanını zaten güncelleyebilir (kural değişikliği
-    // gerekmez); karşı tarafın clearedAt'i korunur (nokta yolu merge).
-    await _chats.doc(chatId).set({
-      'clearedAt': {uid: Timestamp.fromDate(now)},
-    }, SetOptions(merge: true));
+    (_clearedAt[chatId] ??= {})[uid] = now;
+    await _chats.doc(chatId).update({
+      'clearedAt.$uid': Timestamp.fromDate(now),
+    });
   }
 
   @override
   DateTime? clearedAt({required String chatId, required String uid}) =>
       _clearedAt[chatId]?[uid];
 
-  /// `chat_<customerUid>__<artisanUid>` biçimindeki kimlikten üyelik haritası
-  /// türetir; biçim beklenmedikse null döner.
   static Map<String, bool>? _membersFromChatId(String chatId) {
+    final uids = _uidsFromChatId(chatId);
+    if (uids == null) return null;
+    return {uids.$1: true, uids.$2: true};
+  }
+
+  /// `chat_<customerUid>__<artisanUid>` → (customer, artisan).
+  static (String, String)? _uidsFromChatId(String chatId) {
     if (!chatId.startsWith('chat_')) return null;
     final parts = chatId.substring(5).split('__');
     if (parts.length != 2 || parts[0].isEmpty || parts[1].isEmpty) return null;
-    return {parts[0]: true, parts[1]: true};
+    return (parts[0], parts[1]);
   }
 
-  ChatThread _threadFromDoc(String id, Map<String, dynamic> d) => ChatThread(
-        id: id,
-        customerUid: (d['customerUid'] as String?) ?? '',
-        artisanUid: (d['artisanUid'] as String?) ?? '',
-        customerName: (d['customerName'] as String?) ?? '',
-        artisanName: (d['artisanName'] as String?) ?? '',
-        customerPhotoUrl: d['customerPhotoURL'] as String?,
-        artisanPhotoUrl: d['artisanPhotoURL'] as String?,
-        lastMessage: d['lastMessage'] as String?,
-        updatedAt: (d['updatedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
-      );
+  ChatThread _threadFromDoc(String id, Map<String, dynamic> d) {
+    final updated =
+        (d['updatedAt'] as Timestamp?)?.toDate() ?? DateTime.now();
+    return ChatThread(
+      id: id,
+      customerUid: (d['customerUid'] as String?) ?? '',
+      artisanUid: (d['artisanUid'] as String?) ?? '',
+      customerName: (d['customerName'] as String?) ?? '',
+      artisanName: (d['artisanName'] as String?) ?? '',
+      customerPhotoUrl: d['customerPhotoURL'] as String?,
+      artisanPhotoUrl: d['artisanPhotoURL'] as String?,
+      lastMessage: d['lastMessage'] as String?,
+      createdAt: (d['createdAt'] as Timestamp?)?.toDate(),
+      updatedAt: updated,
+    );
+  }
 
   Map<String, DateTime> _readMap(dynamic raw) {
     if (raw is! Map) return {};

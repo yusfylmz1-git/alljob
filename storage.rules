@@ -11,11 +11,13 @@ rules_version = '2';
 // Yollar (bkz. FirebaseStorageRepository): profile/, work/, job/, certificate/, chat/
 service firebase.storage {
   match /b/{bucket}/o {
-    // Ortak: geçerli bir görsel yükleme mi? (≤6 MB, image/* içerik tipi)
+    // Ortak: geçerli bir görsel yükleme mi? (≤6 MB).
+    // SVG/HTML image/* XSS riski → yalnız yaygın raster formatlar (S-STOR-1).
     function isValidImage() {
       return request.resource != null
         && request.resource.size < 6 * 1024 * 1024
-        && request.resource.contentType.matches('image/.*');
+        && request.resource.contentType.matches(
+            'image/(jpeg|jpg|png|webp|gif|heic|heif)');
     }
 
     // Takip Merkezi bulut yedeği ekleri (Faz 5): track/{uid}/{kayıtId}/{dosya}.
@@ -29,6 +31,16 @@ service firebase.storage {
         && request.auth.uid == uid
         && (request.resource == null
             || request.resource.size < 25 * 1024 * 1024);
+    }
+
+    // Platform marka varlıkları (logo vb.) — herkes okur; yalnız admin yazar.
+    // Yol: platform/{uid}/{dosya} — uid = yükleyen admin (denetim izi).
+    match /platform/{uid}/{fileName} {
+      allow read: if true;
+      allow write: if request.auth != null
+        && request.auth.uid == uid
+        && request.auth.token.get('admin', false) == true
+        && isValidImage();
     }
 
     // Yeni yükleme yolu: {klasör}/{uid}/{dosya} — herkes yalnızca KENDİ uid

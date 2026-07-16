@@ -36,6 +36,7 @@ class ChatThread {
     required this.customerName,
     required this.artisanName,
     required this.updatedAt,
+    this.createdAt,
     this.lastMessage,
     this.artisanPhotoUrl,
     this.customerPhotoUrl,
@@ -48,8 +49,13 @@ class ChatThread {
   final String artisanName;
   final String? lastMessage;
   final DateTime updatedAt;
+
+  /// Sohbet açılış anı (H6 kilit). Yoksa [updatedAt] kullanılır.
+  final DateTime? createdAt;
   final String? artisanPhotoUrl;
   final String? customerPhotoUrl;
+
+  DateTime get openedAt => createdAt ?? updatedAt;
 
   bool involves(String uid) => uid == customerUid || uid == artisanUid;
 

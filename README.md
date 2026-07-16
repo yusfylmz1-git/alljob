@@ -1,6 +1,6 @@
 # usta_cepte
 
-Usta Cepte - Hizmet pazaryeri
+Ustasından - Hizmet pazaryeri
 
 ## Getting Started
 

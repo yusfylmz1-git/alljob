@@ -7,7 +7,7 @@ void main() {
   group('MockChatRepository', () {
     test('sohbet başlatır ve mesaj gönderir', () async {
       final repo = MockChatRepository();
-      final chatId = repo.startChat(
+      final chatId = await repo.startChat(
         customerUid: 'c1',
         customerName: 'Müşteri',
         artisanUid: 'a1',
@@ -23,7 +23,7 @@ void main() {
 
     test('iletişim bilgisi maskelenir ve uyarı döner', () async {
       final repo = MockChatRepository();
-      final chatId = repo.startChat(
+      final chatId = await repo.startChat(
         customerUid: 'c1',
         customerName: 'Müşteri',
         artisanUid: 'a1',
@@ -38,7 +38,7 @@ void main() {
 
     test('sohbet listesi ilgili kullanıcı için görünür', () async {
       final repo = MockChatRepository();
-      repo.startChat(
+      await repo.startChat(
         customerUid: 'c1', customerName: 'M', artisanUid: 'a1', artisanName: 'U');
       final threads = await repo.watchThreads('a1').first;
       expect(threads.length, 1);
@@ -47,7 +47,7 @@ void main() {
 
     test('okunmamış sayısı ve okundu işaretleme çalışır', () async {
       final repo = MockChatRepository();
-      final chatId = repo.startChat(
+      final chatId = await repo.startChat(
         customerUid: 'c1', customerName: 'M', artisanUid: 'a1', artisanName: 'U');
       await repo.sendMessage(chatId: chatId, senderUid: 'c1', text: 'Merhaba');
 
@@ -64,7 +64,7 @@ void main() {
     test('mesaj silme: içerik kalkar, önizleme güncellenir, '
         'başkasının mesajı silinemez', () async {
       final repo = MockChatRepository();
-      final chatId = repo.startChat(
+      final chatId = await repo.startChat(
         customerUid: 'c1', customerName: 'M', artisanUid: 'a1', artisanName: 'U');
       await repo.sendMessage(chatId: chatId, senderUid: 'c1', text: 'İlk');
       await repo.sendMessage(chatId: chatId, senderUid: 'c1', text: 'Gizli no');
@@ -93,7 +93,7 @@ void main() {
     test('sohbeti benden sil: listeden düşer, karşı tarafta kalır, '
         'yeni mesajla boş döner', () async {
       final repo = MockChatRepository();
-      final chatId = repo.startChat(
+      final chatId = await repo.startChat(
         customerUid: 'c1', customerName: 'M', artisanUid: 'a1', artisanName: 'U');
       await repo.sendMessage(chatId: chatId, senderUid: 'a1', text: 'Eski');
 
@@ -112,13 +112,13 @@ void main() {
       expect(await repo.watchThreads('c1').first, hasLength(1));
     });
 
-    test('hasChatBetween sohbet geçmişini doğrular (PRD §5)', () {
+    test('hasChatBetween sohbet geçmişini doğrular (PRD §5)', () async {
       final repo = MockChatRepository();
       expect(
         repo.hasChatBetween(customerUid: 'c1', artisanUid: 'a1'),
         isFalse,
       );
-      repo.startChat(
+      await repo.startChat(
         customerUid: 'c1', customerName: 'M', artisanUid: 'a1', artisanName: 'U');
       expect(
         repo.hasChatBetween(customerUid: 'c1', artisanUid: 'a1'),

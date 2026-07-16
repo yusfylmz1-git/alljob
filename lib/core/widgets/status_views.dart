@@ -50,18 +50,22 @@ class LoadingView extends StatelessWidget {
 }
 
 /// Ortalanmış, dostça hata görünümü: yumuşak zeminli ikon + başlık + açıklama.
-/// Ham exception metni ASLA gösterilmez.
+/// Ham exception metni ASLA gösterilmez. [onRetry] varsa "Tekrar dene" çıkar.
 class ErrorView extends StatelessWidget {
   const ErrorView({
     super.key,
     required this.message,
     this.title = 'Bir sorun oluştu',
     this.icon = Icons.cloud_off_rounded,
+    this.onRetry,
+    this.retryLabel = 'Tekrar dene',
   });
 
   final String message;
   final String title;
   final IconData icon;
+  final VoidCallback? onRetry;
+  final String retryLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -97,6 +101,14 @@ class ErrorView extends StatelessWidget {
               style: theme.textTheme.bodyMedium
                   ?.copyWith(color: context.palette.inkMuted, height: 1.5),
             ),
+            if (onRetry != null) ...[
+              const SizedBox(height: 16),
+              FilledButton.tonalIcon(
+                onPressed: onRetry,
+                icon: const Icon(Icons.refresh, size: 18),
+                label: Text(retryLabel),
+              ),
+            ],
           ],
         ),
       ),

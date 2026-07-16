@@ -4,6 +4,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:usta_cepte/core/constants/app_constants.dart'
+    show AppConstants;
+
+import '../../../core/config/app_runtime_config.dart';
 import '../../../core/router/route_paths.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_palette.dart';
@@ -11,6 +15,7 @@ import '../../../core/theme/app_theme.dart';
 import '../../../core/widgets/app_menu_drawer.dart';
 import '../../../core/widgets/brand_mark.dart';
 import '../../../core/widgets/notification_bell.dart';
+import '../../../core/widgets/pull_to_refresh.dart';
 import '../../../core/widgets/responsive_center.dart';
 import '../../../core/widgets/role_bottom_bar.dart';
 import '../../../core/widgets/skeleton.dart';
@@ -23,6 +28,7 @@ import 'widgets/detailed_search_sheet.dart';
 
 /// Ekran A — Keşfet: lacivert hero içinde metin arama kutusu + "Detaylı Arama"
 /// açılır paneli, altında usta sonuç ızgarası (responsive).
+/// "İş İlanları" sekmesi yalnız usta modunda; müşteri başkalarının ilanını görmez.
 class CustomerDashboardScreen extends ConsumerStatefulWidget {
   const CustomerDashboardScreen({super.key});
 
@@ -31,8 +37,8 @@ class CustomerDashboardScreen extends ConsumerStatefulWidget {
       _CustomerDashboardScreenState();
 }
 
-/// Dar ekranda sonuç alanı görünümü: usta listesi veya iş ilanları.
-enum _ExploreView { artisans, jobs }
+/// Keşfet sekmeleri. [jobs] yalnız usta modunda segmentte görünür.
+enum _ExploreView { artisans, jobs, staff }
 
 class _CustomerDashboardScreenState
     extends ConsumerState<CustomerDashboardScreen> {
@@ -67,59 +73,59 @@ class _CustomerDashboardScreenState
 
   @override
   Widget build(BuildContext context) {
+    final runtime = ref.watch(appRuntimeConfigProvider).valueOrNull;
+    final showAnn = runtime?.hasAnnouncement == true;
+    // Yalnız usta modu: müşteri (ve misafir) başkalarının iş ilanlarını görmez.
+    final showJobsTab =
+        ref.watch(currentUserProvider.select((u) => u?.isArtisan ?? false));
+    // Müşteriye geçince jobs sekmesinde kalınırsa ustalar'a düş.
+    final effectiveView =
+        (!showJobsTab && _view == _ExploreView.jobs) ? _ExploreView.artisans : _view;
+
     return Scaffold(
       drawer: const AppMenuDrawer(),
       body: Column(
         children: [
           const _HeroHeader(),
+          if (showAnn) _PlatformAnnouncementBanner(config: runtime!),
           Expanded(
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                // Geniş ekran: ustaların hemen yanında ilan paneli.
-                if (constraints.maxWidth >= 1000) {
-                  return Row(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Expanded(
-                        child:
-                            _ResultsArea(scrollController: _scrollController),
+            child: Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                  child: SegmentedButton<_ExploreView>(
+                    segments: [
+                      const ButtonSegment(
+                        value: _ExploreView.artisans,
+                        icon: Icon(Icons.engineering_outlined, size: 18),
+                        label: Text('Ustalar'),
                       ),
-                      const VerticalDivider(width: 1, thickness: 1),
-                      const SizedBox(width: 400, child: _JobsPanel()),
+                      if (showJobsTab)
+                        const ButtonSegment(
+                          value: _ExploreView.jobs,
+                          icon: Icon(Icons.campaign_outlined, size: 18),
+                          label: Text('İş İlanları'),
+                        ),
+                      const ButtonSegment(
+                        value: _ExploreView.staff,
+                        icon: Icon(Icons.badge_outlined, size: 18),
+                        label: Text('Eleman'),
+                      ),
                     ],
-                  );
-                }
-                // Dar ekran: Ustalar / İş İlanları arasında geçiş.
-                return Column(
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-                      child: SegmentedButton<_ExploreView>(
-                        segments: const [
-                          ButtonSegment(
-                            value: _ExploreView.artisans,
-                            icon: Icon(Icons.engineering_outlined, size: 18),
-                            label: Text('Ustalar'),
-                          ),
-                          ButtonSegment(
-                            value: _ExploreView.jobs,
-                            icon: Icon(Icons.campaign_outlined, size: 18),
-                            label: Text('İş İlanları'),
-                          ),
-                        ],
-                        selected: {_view},
-                        onSelectionChanged: (s) =>
-                            setState(() => _view = s.first),
-                      ),
-                    ),
-                    Expanded(
-                      child: _view == _ExploreView.artisans
-                          ? _ResultsArea(scrollController: _scrollController)
-                          : const _JobsPanel(),
-                    ),
-                  ],
-                );
-              },
+                    selected: {effectiveView},
+                    onSelectionChanged: (s) =>
+                        setState(() => _view = s.first),
+                  ),
+                ),
+                Expanded(
+                  child: switch (effectiveView) {
+                    _ExploreView.artisans =>
+                      _ResultsArea(scrollController: _scrollController),
+                    _ExploreView.jobs => const _JobsPanel(),
+                    _ExploreView.staff => const _StaffExplorePanel(),
+                  },
+                ),
+              ],
             ),
           ),
         ],
@@ -130,11 +136,164 @@ class _CustomerDashboardScreenState
 }
 
 // ---------------------------------------------------------------------------
-// İş ilanları paneli — başkalarının verdiği açık ilanlar (herkes görür)
+// Eleman paneli — Keşfet sekmesi (iş arıyorum / eleman arıyorum)
+// ---------------------------------------------------------------------------
+
+class _StaffExplorePanel extends ConsumerWidget {
+  const _StaffExplorePanel();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final palette = context.palette;
+    final theme = Theme.of(context);
+    final user = ref.watch(currentUserProvider);
+
+    void go(String path) {
+      if (user == null) {
+        context.push(RoutePaths.login);
+        return;
+      }
+      context.push(path);
+    }
+
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        Text(
+          'Eleman',
+          style:
+              theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          'Başvuru formu yok. Net seçin: iş mi arıyorsunuz, eleman mı?',
+          style: theme.textTheme.bodySmall?.copyWith(color: palette.inkMuted),
+        ),
+        const SizedBox(height: 16),
+        _ExplorePathTile(
+          badge: 'ELEMAN',
+          title: 'İş arıyorum',
+          subtitle: 'Müsait profilinizi yayınlayın; işveren size yazsın',
+          color: palette.info,
+          surface: palette.infoSurface,
+          icon: Icons.work_outline_rounded,
+          onTap: () => go(RoutePaths.staffMyWorker),
+          secondaryLabel: 'İşveren ilanlarına bak',
+          onSecondary: () => go(RoutePaths.staffNeeds),
+          primaryButtonLabel: 'Eleman profilim',
+        ),
+        const SizedBox(height: 12),
+        _ExplorePathTile(
+          badge: 'İŞVEREN',
+          title: 'Eleman arıyorum',
+          subtitle: 'Listeden eleman seçin ve sohbeti siz başlatın',
+          color: palette.primary,
+          surface: palette.primaryContainer,
+          icon: Icons.person_search_rounded,
+          onTap: () => go(RoutePaths.staffWorkers),
+          secondaryLabel: 'İşveren ilanı aç',
+          onSecondary: () => go(RoutePaths.staffNeedNew),
+          primaryButtonLabel: 'Eleman ara',
+        ),
+      ],
+    );
+  }
+}
+
+class _ExplorePathTile extends StatelessWidget {
+  const _ExplorePathTile({
+    required this.badge,
+    required this.title,
+    required this.subtitle,
+    required this.color,
+    required this.surface,
+    required this.icon,
+    required this.onTap,
+    required this.secondaryLabel,
+    required this.onSecondary,
+    required this.primaryButtonLabel,
+  });
+
+  final String badge;
+  final String title;
+  final String subtitle;
+  final Color color;
+  final Color surface;
+  final IconData icon;
+  final VoidCallback onTap;
+  final String secondaryLabel;
+  final VoidCallback onSecondary;
+  final String primaryButtonLabel;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: palette.card,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: palette.border),
+        boxShadow: AppTheme.softShadow,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: surface,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(icon, color: color),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(badge,
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w800,
+                          color: color,
+                          letterSpacing: 0.3,
+                        )),
+                    Text(title,
+                        style: const TextStyle(fontWeight: FontWeight.w800)),
+                    Text(subtitle,
+                        style: TextStyle(
+                            fontSize: 12, color: palette.inkMuted)),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          FilledButton(
+              onPressed: onTap, child: Text(primaryButtonLabel)),
+          const SizedBox(height: 8),
+          OutlinedButton(
+              onPressed: onSecondary, child: Text(secondaryLabel)),
+        ],
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// İş ilanları paneli — yalnız usta modu (müşteri Keşfet'te görmez)
 // ---------------------------------------------------------------------------
 
 class _JobsPanel extends ConsumerWidget {
   const _JobsPanel();
+
+  Future<void> _refresh(WidgetRef ref) => awaitRefresh(() async {
+        ref.invalidate(openJobsProvider);
+        await ref.read(openJobsProvider.future);
+      });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -143,55 +302,118 @@ class _JobsPanel extends ConsumerWidget {
 
     return jobsAsync.when(
       loading: () => const SkeletonList(count: 4),
-      error: (e, _) => const _Centered(
-        icon: Icons.error_outline_rounded,
-        title: 'İlanlar yüklenemedi',
-        message: 'Lütfen tekrar deneyin.',
+      error: (e, _) => RefreshableEmpty(
+        onRefresh: () => _refresh(ref),
+        child: const _Centered(
+          icon: Icons.error_outline_rounded,
+          title: 'İlanlar yüklenemedi',
+          message: 'Lütfen tekrar deneyin.',
+        ),
       ),
       data: (jobs) {
         if (jobs.isEmpty) {
-          return const _Centered(
-            icon: Icons.campaign_outlined,
-            title: 'Henüz açık ilan yok',
-            message: 'Müşterilerin verdiği iş ilanları burada listelenir.',
+          return RefreshableEmpty(
+            onRefresh: () => _refresh(ref),
+            child: const _Centered(
+              icon: Icons.campaign_outlined,
+              title: 'Henüz açık ilan yok',
+              message:
+                  'Bölgenizdeki müşteriler ilan verince burada listelenir.',
+            ),
           );
         }
         return ResponsiveCenter(
           maxWidth: 720,
-          child: ListView.separated(
-            padding: const EdgeInsets.fromLTRB(16, 18, 16, 16),
-            itemCount: jobs.length + 1,
-            separatorBuilder: (_, i) =>
-                SizedBox(height: i == 0 ? 12 : 10),
-            itemBuilder: (context, i) {
-              if (i == 0) {
-                return Row(
-                  children: [
-                    Text('İş İlanları', style: theme.textTheme.titleMedium),
-                    const SizedBox(width: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: theme.colorScheme.surfaceContainer,
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Text(
-                        '${jobs.length}',
-                        style: theme.textTheme.labelMedium?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
-                          fontWeight: FontWeight.w600,
+          child: PullToRefresh(
+            onRefresh: () => _refresh(ref),
+            child: ListView.separated(
+              physics: kPullRefreshPhysics,
+              padding: const EdgeInsets.fromLTRB(16, 18, 16, 16),
+              itemCount: jobs.length + 1,
+              separatorBuilder: (_, i) =>
+                  SizedBox(height: i == 0 ? 12 : 10),
+              itemBuilder: (context, i) {
+                if (i == 0) {
+                  return Row(
+                    children: [
+                      Text('İş İlanları', style: theme.textTheme.titleMedium),
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: theme.colorScheme.surfaceContainer,
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Text(
+                          '${jobs.length}',
+                          style: theme.textTheme.labelMedium?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
                       ),
-                    ),
-                  ],
-                );
-              }
-              return NearbyJobCard(job: jobs[i - 1], ctaText: 'Detayı Gör');
-            },
+                    ],
+                  );
+                }
+                return NearbyJobCard(job: jobs[i - 1], ctaText: 'Detayı Gör');
+              },
+            ),
           ),
         );
       },
+    );
+  }
+}
+
+/// Admin `adminConfig/runtime` duyuru bandı (Keşfet).
+class _PlatformAnnouncementBanner extends StatelessWidget {
+  const _PlatformAnnouncementBanner({required this.config});
+  final AppRuntimeConfig config;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    final title = (config.announcementTitle ?? '').trim();
+    final body = (config.announcementBody ?? '').trim();
+    return Material(
+      color: palette.warningSurface,
+      child: SafeArea(
+        top: false,
+        bottom: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(Icons.campaign_outlined, color: palette.warning, size: 22),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (title.isNotEmpty)
+                      Text(
+                        title,
+                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                              fontWeight: FontWeight.w800,
+                            ),
+                      ),
+                    if (body.isNotEmpty)
+                      Text(
+                        body,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: palette.inkMuted,
+                              height: 1.3,
+                            ),
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
@@ -231,7 +453,7 @@ class _HeroHeader extends ConsumerWidget {
                   const BrandMark(size: 34),
                   const SizedBox(width: 10),
                   Text(
-                    'Usta Cepte',
+                    AppConstants.appName,
                     style: theme.textTheme.titleLarge?.copyWith(
                       color: Colors.white,
                       fontWeight: FontWeight.w800,
@@ -413,7 +635,7 @@ class _ResultsArea extends ConsumerWidget {
     return searchAsync.when(
       loading: () => const ResponsiveCenter(
         maxWidth: 1120,
-        child: SkeletonList(count: 6),
+        child: _ArtisanGridSkeleton(),
       ),
       error: (e, _) => const _Centered(
         icon: Icons.error_outline_rounded,
@@ -422,19 +644,32 @@ class _ResultsArea extends ConsumerWidget {
       ),
       data: (state) {
         if (!state.hasSearched) {
-          return const _Centered(
+          return _Centered(
             icon: Icons.search_rounded,
             title: 'Usta aramaya hazır',
-            message: 'Usta adı/meslek yazın veya detaylı aramayı kullanın. '
-                'Hiçbir filtre zorunlu değildir.',
+            message: 'Usta adı veya meslek yazın; dilerseniz detaylı arama ile '
+                'il / ilçe seçin. Filtre zorunlu değil.',
+            actionLabel: 'Tüm ustaları göster',
+            onAction: () =>
+                ref.read(artisanSearchControllerProvider.notifier).search(),
+            secondaryLabel: 'İş ilanı ver',
+            onSecondary: () => context.push(RoutePaths.newJob),
           );
         }
         if (state.items.isEmpty) {
-          return const _Centered(
+          return _Centered(
             icon: Icons.person_search_rounded,
             title: 'Sonuç bulunamadı',
             message:
-                'Bu kriterlere uygun usta yok. Farklı bir bölge veya meslek deneyin.',
+                'Bu kriterlere uygun usta yok. Filtreleri gevşetin veya '
+                'ilan verip ustaların size ulaşmasını sağlayın.',
+            actionLabel: 'Filtreleri temizle',
+            onAction: () {
+              ref.read(customerFilterProvider.notifier).clearAll();
+              ref.read(artisanSearchControllerProvider.notifier).search();
+            },
+            secondaryLabel: 'İş ilanı ver',
+            onSecondary: () => context.push(RoutePaths.newJob),
           );
         }
         return _ResultsGrid(state: state, scrollController: scrollController);
@@ -443,79 +678,123 @@ class _ResultsArea extends ConsumerWidget {
   }
 }
 
-class _ResultsGrid extends StatelessWidget {
+class _ResultsGrid extends ConsumerWidget {
   const _ResultsGrid({required this.state, required this.scrollController});
 
   final ArtisanSearchState state;
   final ScrollController scrollController;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final showFooter = state.hasMore;
     return ResponsiveCenter(
       maxWidth: 1120,
-      child: CustomScrollView(
-        controller: scrollController,
-        slivers: [
-          SliverPadding(
-            padding: const EdgeInsets.fromLTRB(16, 18, 16, 4),
-            sliver: SliverToBoxAdapter(
-              child: Row(
-                children: [
-                  Text('Ustalar', style: theme.textTheme.titleMedium),
-                  const SizedBox(width: 8),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 8, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: theme.colorScheme.surfaceContainer,
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Text(
-                      '${state.items.length}${state.hasMore ? '+' : ''}',
-                      style: theme.textTheme.labelMedium?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
-                        fontWeight: FontWeight.w600,
+      child: PullToRefresh(
+        onRefresh: () => awaitRefresh(
+          () => ref.read(artisanSearchControllerProvider.notifier).search(),
+        ),
+        child: CustomScrollView(
+          controller: scrollController,
+          physics: kPullRefreshPhysics,
+          slivers: [
+            SliverPadding(
+              padding: const EdgeInsets.fromLTRB(16, 18, 16, 4),
+              sliver: SliverToBoxAdapter(
+                child: Row(
+                  children: [
+                    Text('Ustalar', style: theme.textTheme.titleMedium),
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.surfaceContainer,
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Text(
+                        '${state.items.length}${state.hasMore ? '+' : ''}',
+                        style: theme.textTheme.labelMedium?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
-          ),
-          SliverPadding(
-            padding: const EdgeInsets.fromLTRB(14, 10, 14, 8),
-            sliver: SliverGrid(
-              // Geniş yatay kartlar — dar ekranda tek sütun, genişte 2 sütun.
-              gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-                maxCrossAxisExtent: 520,
-                mainAxisSpacing: 10,
-                crossAxisSpacing: 10,
-                // Kompakt usta kartı (tek blok satır) — eski ferah kart 152 idi.
-                mainAxisExtent: 84,
-              ),
-              delegate: SliverChildBuilderDelegate(
-                (context, index) {
-                  final artisan = state.items[index];
-                  return ArtisanCard(
-                    artisan: artisan,
-                    onTap: () =>
-                        context.push(RoutePaths.artisanProfile(artisan.uid)),
-                  );
-                },
-                childCount: state.items.length,
-              ),
-            ),
-          ),
-          if (showFooter)
-            const SliverToBoxAdapter(
-              child: Padding(
-                padding: EdgeInsets.symmetric(vertical: 20),
-                child: Center(child: CircularProgressIndicator()),
+            SliverPadding(
+              padding: const EdgeInsets.fromLTRB(12, 10, 12, 8),
+              sliver: SliverGrid(
+                // Kare tile: telefon ~2, tablet 3–4, masaüstü 5+ sütun.
+                gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                  maxCrossAxisExtent: 168,
+                  mainAxisSpacing: 10,
+                  crossAxisSpacing: 10,
+                  // Biraz dikey: avatar + ad + meslek + puan + durum.
+                  childAspectRatio: 0.78,
+                ),
+                delegate: SliverChildBuilderDelegate(
+                  (context, index) {
+                    final artisan = state.items[index];
+                    return ArtisanCard(
+                      artisan: artisan,
+                      onTap: () =>
+                          context.push(RoutePaths.artisanProfile(artisan.uid)),
+                    );
+                  },
+                  childCount: state.items.length,
+                ),
               ),
             ),
-        ],
+            if (showFooter)
+              const SliverToBoxAdapter(
+                child: Padding(
+                  padding: EdgeInsets.symmetric(vertical: 20),
+                  child: Center(child: CircularProgressIndicator()),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Yükleme: kare usta ızgarasına benzer iskelet.
+class _ArtisanGridSkeleton extends StatelessWidget {
+  const _ArtisanGridSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return GridView.builder(
+      padding: const EdgeInsets.fromLTRB(12, 18, 12, 16),
+      itemCount: 8,
+      gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+        maxCrossAxisExtent: 168,
+        mainAxisSpacing: 10,
+        crossAxisSpacing: 10,
+        childAspectRatio: 0.78,
+      ),
+      itemBuilder: (_, _) => Container(
+        decoration: BoxDecoration(
+          color: context.palette.card,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: context.palette.hairline),
+        ),
+        padding: const EdgeInsets.fromLTRB(8, 12, 8, 10),
+        child: const Column(
+          children: [
+            Expanded(child: Center(child: Skeleton.circle(size: 56))),
+            SizedBox(height: 8),
+            Skeleton(width: 72, height: 12, radius: 6),
+            SizedBox(height: 6),
+            Skeleton(width: 56, height: 10, radius: 5),
+            SizedBox(height: 8),
+            Skeleton(width: 48, height: 18, radius: 20),
+          ],
+        ),
       ),
     );
   }
@@ -526,11 +805,19 @@ class _Centered extends StatelessWidget {
     required this.icon,
     required this.title,
     required this.message,
+    this.actionLabel,
+    this.onAction,
+    this.secondaryLabel,
+    this.onSecondary,
   });
 
   final IconData icon;
   final String title;
   final String message;
+  final String? actionLabel;
+  final VoidCallback? onAction;
+  final String? secondaryLabel;
+  final VoidCallback? onSecondary;
 
   @override
   Widget build(BuildContext context) {
@@ -553,15 +840,39 @@ class _Centered extends StatelessWidget {
                   size: 36, color: theme.colorScheme.onSurfaceVariant),
             ),
             const SizedBox(height: 16),
-            Text(title, style: theme.textTheme.titleMedium),
+            Text(
+              title,
+              textAlign: TextAlign.center,
+              style: theme.textTheme.titleMedium
+                  ?.copyWith(fontWeight: FontWeight.w800),
+            ),
             const SizedBox(height: 6),
             ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 320),
-              child: Text(message,
-                  textAlign: TextAlign.center,
-                  style: theme.textTheme.bodyMedium
-                      ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+              child: Text(
+                message,
+                textAlign: TextAlign.center,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                  height: 1.35,
+                ),
+              ),
             ),
+            if (actionLabel != null && onAction != null) ...[
+              const SizedBox(height: 18),
+              FilledButton.icon(
+                onPressed: onAction,
+                icon: const Icon(Icons.arrow_forward_rounded, size: 18),
+                label: Text(actionLabel!),
+              ),
+            ],
+            if (secondaryLabel != null && onSecondary != null) ...[
+              const SizedBox(height: 8),
+              TextButton(
+                onPressed: onSecondary,
+                child: Text(secondaryLabel!),
+              ),
+            ],
           ],
         ),
       ),

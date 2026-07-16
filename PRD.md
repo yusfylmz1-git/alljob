@@ -4,7 +4,7 @@
 
 ## 1. Projenin Amacı ve Kapsamı
 
-Usta Cepte, evinde veya iş yerinde tamirat, tadilat veya teknik hizmete ihtiyaç
+Ustasından, evinde veya iş yerinde tamirat, tadilat veya teknik hizmete ihtiyaç
 duyan müşteriler ile güvenilir zanaatkârları buluşturan dijital bir pazaryeri
 platformudur.
 
@@ -213,7 +213,7 @@ Premium olmayan ustalar:
 
 ## Genel Değerlendirme
 
-Bu sürümle Usta Cepte, klasik bir "usta rehberi" olmaktan çıkarak aktif hizmet
+Bu sürümle Ustasından, klasik bir "usta rehberi" olmaktan çıkarak aktif hizmet
 veren ustaların yer aldığı canlı bir dijital pazar yerine dönüşmektedir. Müşteriler
 yalnızca hizmet vermeye hazır ustaları görürken, ustalar çalışma takvimlerini bir
 kez tanımlayarak sürekli uygulamayı açık tutmak zorunda kalmaz. İlk yıl ücretsiz

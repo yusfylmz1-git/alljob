@@ -108,7 +108,7 @@ class UrgentBadge extends StatelessWidget {
   }
 }
 
-/// İlan akış kartı — usta feed'i ve Keşfet "İş İlanları" panelinde ortak.
+/// İlan akış kartı — usta feed'i ve Keşfet "İş İlanları" (usta modu) paneli.
 /// KOMPAKT düzen (liste kalabalıklaşınca ekrana çok ilan sığsın): emoji rozeti
 /// + başlık/acil + tek satır açıklama + "📍 ilçe · zaman · N ilgilendi" meta
 /// satırı. Kartın tamamı tıklanabilir; ayrı CTA satırı kaldırıldı.

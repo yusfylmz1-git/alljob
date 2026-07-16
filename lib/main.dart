@@ -13,6 +13,7 @@ import 'app.dart';
 import 'core/config/backend_config.dart';
 import 'core/theme/accent_state.dart';
 import 'core/theme/theme_mode_state.dart';
+import 'features/membership/membership_package.dart';
 import 'features/onboarding/onboarding_state.dart';
 import 'firebase_options.dart';
 
@@ -38,10 +39,11 @@ Future<void> main() async {
       options: DefaultFirebaseOptions.currentPlatform,
     );
     // App Check: isteklerin GERÇEK uygulamadan geldiğini kanıtlar (bot/script
-    // trafiğine karşı). Debug derlemede Debug sağlayıcı (logcat'e basılan
-    // jeton Console'a eklenmeli), sürümde Play Integrity. Web yalnız reCAPTCHA
-    // anahtarı doluysa etkinleşir. NOT: Console'da zorlama (enforce) AÇILANA
-    // kadar jetonsuz istekler de kabul edilir — eski build'ler kırılmaz.
+    // trafiğine karşı). Debug: Debug sağlayıcı (logcat jetonu Console'a eklenmeli).
+    // Release: Play Integrity / App Attest. Web yalnız reCAPTCHA anahtarı doluysa.
+    // NOT: Firestore + Storage App Check ENFORCED (2026-07-14). Auth enforce YOK
+    // (web reCAPTCHA boşken girişi kırmamak için). Jetonsuz mobil debug →
+    // permission-denied → debug token ekle (docs/OPS_BILLING_APPCHECK.md).
     if (!kIsWeb) {
       await FirebaseAppCheck.instance.activate(
         androidProvider: kDebugMode
@@ -79,6 +81,8 @@ Future<void> main() async {
   // okunup provider'a override ile verilir (testler override'sız çalıştığı
   // için varsayılan "görüldü" kalır ve akışa hiç girmez).
   final seenOnboarding = await readOnboardingSeen();
+  final packageSeen = await readPackageSelectionSeen();
+  final selectedPackage = await readSelectedMembershipPackage();
 
   // Tema tercihi (Sistem/Açık/Koyu) cihazdan okunur; kayıt yoksa Sistem.
   final themeMode = await readThemeMode();
@@ -91,6 +95,10 @@ Future<void> main() async {
     ProviderScope(
       overrides: [
         onboardingSeenProvider.overrideWith((ref) => seenOnboarding),
+        packageSelectionSeenProvider.overrideWith((ref) => packageSeen),
+        selectedMembershipPackageProvider.overrideWith(
+          (ref) => selectedPackage,
+        ),
         themeModeProvider.overrideWith((ref) => themeMode),
         customerAccentIdProvider.overrideWith((ref) => customerAccentId),
         artisanAccentIdProvider.overrideWith((ref) => artisanAccentId),

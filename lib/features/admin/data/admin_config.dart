@@ -9,7 +9,7 @@
 /// `functions/index.js`'teki ADMIN_BOOTSTRAP_EMAILS ile eşleşmeli ve
 /// kullanıcı bootstrap akışını çalıştırmalıdır.
 const Set<String> kBootstrapAdminEmails = {
-  'aboneai.plus@gmail.com',
+  'nflx.tr.avs1@gmail.com',
 };
 
 /// Verilen e-posta bootstrap listesinde mi? (Küçük harfe indirger.)

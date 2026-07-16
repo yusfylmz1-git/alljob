@@ -44,39 +44,49 @@ class FirebaseJobRepository implements JobRepository {
 
   @override
   Stream<List<Job>> watchNearbyJobs({
-    required String professionCode,
+    String? professionCode,
+    List<String>? professionCodes,
     required List<ServiceArea> serviceAreas,
   }) {
-    // Sunucuda kategori+durum eşitliği + createdAt DESC sıralı ilk N ilan
-    // (composite index: jobs category,status,createdAt; `whereIn` aynı index'i
-    // çoklu eşitlik olarak kullanır). Böylece koleksiyon büyüdükçe okuma
-    // sayısı sabit kalır. Coğrafi eşleşme/süre dolumu istemcide.
-    //
-    // Hızlı Destek: her usta kendi mesleğinin YANINDA quick_support
-    // ilanlarını da alır; "Diğer" mesleği yalnızca quick_support'la eşleşir
-    // (istemcideki matchesArtisan da aynı kuralı uygular).
-    final categories = professionCode == kOtherProfession
-        ? [kQuickSupportCategory]
-        : {professionCode, kQuickSupportCategory}.toList();
+    // Basit sorgu: status + createdAt (mevcut composite index).
+    // category whereIn + orderBy bazı cihazlarda FAILED_PRECONDITION / uzun
+    // bekleme → ANR üretiyordu; meslek/bölge istemcide süzülür.
+    final codes = (professionCodes ??
+            (professionCode != null && professionCode.isNotEmpty
+                ? [professionCode]
+                : const <String>[]))
+        .where((c) => c.trim().isNotEmpty)
+        .toList();
+    if (codes.isEmpty) {
+      return Stream.value(const <Job>[]);
+    }
     return _jobs
-        .where('category', whereIn: categories)
         .where('status', isEqualTo: JobStatus.open.apiValue)
         .orderBy('createdAt', descending: true)
         .limit(AppConstants.nearbyJobsFetchCap)
         .snapshots()
         .map((s) {
-      final now = DateTime.now();
-      final list = s.docs
-          .map((d) => Job.fromMap(d.id, d.data()))
-          .where((j) => !j.isExpiredAt(now))
-          .where((j) => j.matchesArtisan(
-                professionCode: professionCode,
-                serviceAreas: serviceAreas,
-              ))
-          .toList()
-        // Her yeni ilan en üstte (usta #3); acil ilanlar rozetle vurgulanır.
-        ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
-      return list;
+      try {
+        final now = DateTime.now();
+        return s.docs
+            .map((d) {
+              try {
+                return Job.fromMap(d.id, d.data());
+              } catch (_) {
+                return null;
+              }
+            })
+            .whereType<Job>()
+            .where((j) => !j.moderationHidden)
+            .where((j) => !j.isExpiredAt(now))
+            .where((j) => j.matchesArtisan(
+                  professionCodes: codes,
+                  serviceAreas: serviceAreas,
+                ))
+            .toList(growable: false);
+      } catch (_) {
+        return const <Job>[];
+      }
     });
   }
 
@@ -96,6 +106,7 @@ class FirebaseJobRepository implements JobRepository {
       final now = DateTime.now();
       final list = s.docs
           .map((d) => Job.fromMap(d.id, d.data()))
+          .where((j) => !j.moderationHidden)
           .where((j) => !j.isExpiredAt(now))
           .toList()
         ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
@@ -129,6 +140,20 @@ class FirebaseJobRepository implements JobRepository {
   }
 
   @override
+  Stream<Job?> watchJobByChatId(String chatId) {
+    if (chatId.isEmpty) return Stream.value(null);
+    return _jobs
+        .where('chatId', isEqualTo: chatId)
+        .limit(1)
+        .snapshots()
+        .map((s) {
+      if (s.docs.isEmpty) return null;
+      final d = s.docs.first;
+      return Job.fromMap(d.id, d.data());
+    });
+  }
+
+  @override
   Future<void> selectOffer({
     required String jobId,
     required String offerId,
@@ -136,8 +161,26 @@ class FirebaseJobRepository implements JobRepository {
     required String customerId,
     required String chatId,
   }) async {
-    final batch = _db.batch();
+    // Önkoşul: ilan hâlâ open ve süresi dolmamış (çift seçim / yarış).
+    final jobSnap = await _jobs.doc(jobId).get();
+    if (!jobSnap.exists || jobSnap.data() == null) {
+      throw StateError('İlan bulunamadı');
+    }
+    final job = Job.fromMap(jobSnap.id, jobSnap.data()!);
+    if (job.status != JobStatus.open || job.isExpired) {
+      throw StateError('İlan artık usta seçimine kapalı');
+    }
+    if (job.customerId != customerId) {
+      throw StateError('Bu ilan size ait değil');
+    }
 
+    // `customerId` filtresi kural ispatı için zorunlu.
+    final offersSnap = await _offers
+        .where('jobId', isEqualTo: jobId)
+        .where('customerId', isEqualTo: customerId)
+        .get();
+
+    final batch = _db.batch();
     batch.update(_jobs.doc(jobId), {
       'status': JobStatus.workerSelected.apiValue,
       'selectedOfferId': offerId,
@@ -145,14 +188,6 @@ class FirebaseJobRepository implements JobRepository {
       'chatId': chatId,
     });
 
-    // `customerId` filtresi kural ispatı için zorunlu: `offers` okuma kuralı
-    // sahipliği sorgu filtresinden kanıtlayamazsa liste sorgusunun TAMAMI
-    // permission-denied olur (bkz. watchOffersForJob'daki aynı ders).
-    // İki eşitlik filtresi → composite index gerekmez.
-    final offersSnap = await _offers
-        .where('jobId', isEqualTo: jobId)
-        .where('customerId', isEqualTo: customerId)
-        .get();
     for (final d in offersSnap.docs) {
       final status = OfferStatus.fromString(d.data()['status'] as String?);
       if (status == OfferStatus.withdrawn) continue;

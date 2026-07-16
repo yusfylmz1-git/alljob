@@ -81,6 +81,11 @@ class CustomerFilterNotifier extends Notifier<CustomerFilter> {
   void clearSelections() {
     state = CustomerFilter(query: state.query);
   }
+
+  /// Metin + dropdown filtrelerinin tamamını sıfırlar (boş durum CTA).
+  void clearAll() {
+    state = const CustomerFilter();
+  }
 }
 
 final customerFilterProvider =

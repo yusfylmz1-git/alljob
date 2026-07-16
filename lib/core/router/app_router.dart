@@ -4,12 +4,16 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../data/models/app_user.dart';
+import '../../features/notifications/presentation/notification_prefs_screen.dart';
 import '../../features/notifications/presentation/notifications_screen.dart';
 import '../../features/artisan/presentation/artisan_profile_edit_screen.dart';
 import '../../features/artisan/presentation/premium_screen.dart';
 import '../../features/auth/application/auth_controller.dart';
+import '../../core/config/app_runtime_config.dart';
+import '../../core/config/app_version.dart';
+import '../../features/auth/presentation/force_update_screen.dart';
 import '../../features/auth/presentation/login_screen.dart';
-import '../../features/auth/presentation/register_screen.dart';
+import '../../features/auth/presentation/maintenance_screen.dart';
 import '../../features/auth/presentation/splash_screen.dart';
 import '../../features/auth/presentation/suspended_screen.dart';
 import '../../features/chat/presentation/chat_list_screen.dart';
@@ -22,10 +26,14 @@ import '../../features/jobs/presentation/my_jobs_screen.dart';
 import '../../features/jobs/presentation/my_offers_screen.dart';
 import '../../features/jobs/presentation/nearby_jobs_screen.dart';
 import '../../features/favorites/presentation/favorites_screen.dart';
+import '../../features/membership/membership_package.dart';
+import '../../features/membership/presentation/package_select_screen.dart';
 import '../../features/onboarding/onboarding_state.dart';
 import '../../features/onboarding/presentation/onboarding_screen.dart';
+import '../../features/profile/presentation/account_profile_edit_screen.dart';
 import '../../features/profile/presentation/profile_screen.dart';
 import '../../features/review/presentation/review_screen.dart';
+import '../../features/help/presentation/help_screen.dart';
 import '../../features/legal/presentation/legal_screen.dart';
 import '../../features/safety/presentation/blocked_users_screen.dart';
 import '../../features/tracking/presentation/track_detail_screen.dart';
@@ -33,6 +41,13 @@ import '../../features/tracking/presentation/track_edit_screen.dart';
 import '../../features/tracking/presentation/tracking_center_screen.dart';
 import '../../features/tracking/presentation/track_backup_screen.dart';
 import '../../features/tracking/presentation/tracking_trash_screen.dart';
+import '../../features/staffing/presentation/staffing_hub_screen.dart';
+import '../../features/staffing/presentation/worker_listing_edit_screen.dart';
+import '../../features/staffing/presentation/worker_browse_screen.dart';
+import '../../features/staffing/presentation/worker_listing_detail_screen.dart';
+import '../../features/staffing/presentation/staff_need_edit_screen.dart';
+import '../../features/staffing/presentation/staff_need_browse_screen.dart';
+import '../../features/staffing/presentation/my_staff_needs_screen.dart';
 import 'route_paths.dart';
 
 /// Uygulama yönlendiricisi. "Misafir-önce" akış + tek hesap, çift rol:
@@ -43,6 +58,8 @@ import 'route_paths.dart';
 final routerProvider = Provider<GoRouter>((ref) {
   final refresh = ValueNotifier<int>(0);
   ref.listen(authStateProvider, (_, _) => refresh.value++);
+  ref.listen(appRuntimeConfigProvider, (_, _) => refresh.value++);
+  ref.listen(packageSelectionSeenProvider, (_, _) => refresh.value++);
   ref.onDispose(refresh.dispose);
 
   return GoRouter(
@@ -54,11 +71,12 @@ final routerProvider = Provider<GoRouter>((ref) {
       final loc = state.matchedLocation;
 
       // Oturum durumu çözülene kadar splash'te bekle.
-      if (authState.isLoading) {
+      // hasValue/hasError: önceki veri varken yeniden yüklemede kilitlenme yok.
+      if (authState.isLoading && !authState.hasValue && !authState.hasError) {
         return loc == RoutePaths.splash ? null : RoutePaths.splash;
       }
 
-      final AppUser? user = authState.valueOrNull;
+      final AppUser? user = authState.asData?.value ?? authState.valueOrNull;
       final onAuthFlow =
           loc == RoutePaths.login || loc == RoutePaths.register;
 
@@ -71,6 +89,19 @@ final routerProvider = Provider<GoRouter>((ref) {
       // gerekiyorsa aşağıdaki genel kural home'dan tanıtıma yönlendirir.
       if (loc == RoutePaths.splash) return RoutePaths.home;
 
+      // Zorunlu güncelleme: admin minAppVersion > yüklü sürüm → her şey kilit.
+      // Config henüz yoksa fail-open (splash/ağ asılı kalmasın).
+      final minAppVersion =
+          ref.read(appRuntimeConfigProvider).valueOrNull?.minAppVersion;
+      final forceUpdate = isClientBelowMinVersion(
+        clientVersion: kClientVersion,
+        minAppVersion: minAppVersion,
+      );
+      if (forceUpdate) {
+        return loc == RoutePaths.forceUpdate ? null : RoutePaths.forceUpdate;
+      }
+      if (loc == RoutePaths.forceUpdate) return RoutePaths.home;
+
       // Onboarding cihazda BİR KEZ, oturumdan bağımsız gösterilir: yalnız
       // "oturum yok + splash" koşulu, oturumu açık kalan cihazlarda ve
       // kayıt-sonrası akışta tanıtımı HİÇ göstermiyordu (kullanıcı bildirimi).
@@ -78,6 +109,9 @@ final routerProvider = Provider<GoRouter>((ref) {
         return loc == RoutePaths.onboarding ? null : RoutePaths.onboarding;
       }
       if (loc == RoutePaths.onboarding) return RoutePaths.home;
+
+      // Eski kayıt rotası → Google giriş.
+      if (loc == RoutePaths.register) return RoutePaths.login;
 
       // Eski usta paneli ana sayfası → birleşik profil sayfası.
       if (loc == RoutePaths.panel) return RoutePaths.profile;
@@ -90,13 +124,25 @@ final routerProvider = Provider<GoRouter>((ref) {
           loc.startsWith(RoutePaths.favorites) ||
           loc.startsWith(RoutePaths.notifications) ||
           loc.startsWith(RoutePaths.tracking) ||
+          loc.startsWith(RoutePaths.staffing) ||
           loc.startsWith(RoutePaths.profile);
 
       // Misafir: keşif + profilleri gezebilir; korunan bölgeler girişe yönlenir.
       if (user == null) {
+        if (loc == RoutePaths.packageSelect) return RoutePaths.home;
         // Askı kapısından çıkış yapınca oturum kapanır → misafir olarak
         // ana ekrana dön (askı kapısı yalnız oturum açık + suspended içindir).
         if (loc == RoutePaths.suspended) return RoutePaths.home;
+        // M7 bakım: misafir de bakım ekranında (giriş açık kalsın admin için).
+        final maintenanceGuest = ref.read(appRuntimeConfigProvider).valueOrNull
+                ?.maintenanceMode ??
+            false;
+        if (maintenanceGuest &&
+            loc != RoutePaths.maintenance &&
+            loc != RoutePaths.login &&
+            loc != RoutePaths.register) {
+          return RoutePaths.maintenance;
+        }
         if (needsLogin) return RoutePaths.login;
         return null;
       }
@@ -108,6 +154,27 @@ final routerProvider = Provider<GoRouter>((ref) {
       }
       // Askıda değilken askı kapısına gidilmez.
       if (loc == RoutePaths.suspended) return RoutePaths.home;
+
+      // M7: bakım modu — superadmin hariç herkes bakım ekranında.
+      final maintenance = ref.read(appRuntimeConfigProvider).valueOrNull
+              ?.maintenanceMode ??
+          false;
+      if (maintenance && !user.isSuperAdmin) {
+        if (loc == RoutePaths.maintenance || loc == RoutePaths.login) {
+          return null;
+        }
+        return RoutePaths.maintenance;
+      }
+      if (!maintenance && loc == RoutePaths.maintenance) {
+        return RoutePaths.home;
+      }
+
+      // İlk oturum: plan seçimi zorunlu. Sonradan Profil’den /package-select
+      // ile değiştirilebilir (seen=true iken kilitleme yok).
+      final packageSeen = ref.read(packageSelectionSeenProvider);
+      if (!packageSeen && loc != RoutePaths.packageSelect) {
+        return RoutePaths.packageSelect;
+      }
 
       // Oturum açmışken auth ekranları → ana ekrana.
       if (onAuthFlow) return RoutePaths.home;
@@ -143,11 +210,27 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: RoutePaths.register,
-        builder: (_, _) => const RegisterScreen(),
+        builder: (_, _) => const LoginScreen(),
+      ),
+      GoRoute(
+        path: RoutePaths.packageSelect,
+        builder: (_, state) {
+          final changing =
+              state.uri.queryParameters['change'] == '1';
+          return PackageSelectScreen(changing: changing);
+        },
       ),
       GoRoute(
         path: RoutePaths.suspended,
         builder: (_, _) => const SuspendedScreen(),
+      ),
+      GoRoute(
+        path: RoutePaths.maintenance,
+        builder: (_, _) => const MaintenanceScreen(),
+      ),
+      GoRoute(
+        path: RoutePaths.forceUpdate,
+        builder: (_, _) => const ForceUpdateScreen(),
       ),
       GoRoute(
         path: RoutePaths.panel,
@@ -158,7 +241,9 @@ final routerProvider = Provider<GoRouter>((ref) {
         routes: [
           GoRoute(
             path: 'edit',
-            builder: (_, _) => const ArtisanProfileEditScreen(),
+            builder: (_, state) => ArtisanProfileEditScreen(
+              focusStep: state.uri.queryParameters['focus'],
+            ),
           ),
           GoRoute(
             path: 'jobs',
@@ -225,10 +310,49 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (_, _) => const ProfileScreen(),
         routes: [
           GoRoute(
+            path: 'edit',
+            builder: (_, _) => const AccountProfileEditScreen(),
+          ),
+          GoRoute(
             path: 'blocked',
             builder: (_, _) => const BlockedUsersScreen(),
           ),
+          GoRoute(
+            path: 'notification-prefs',
+            builder: (_, _) => const NotificationPrefsScreen(),
+          ),
         ],
+      ),
+      // Eleman — özel path'ler :id'den önce.
+      GoRoute(
+        path: RoutePaths.staffing,
+        builder: (_, _) => const StaffingHubScreen(),
+      ),
+      GoRoute(
+        path: RoutePaths.staffMyWorker,
+        builder: (_, _) => const WorkerListingEditScreen(),
+      ),
+      GoRoute(
+        path: RoutePaths.staffNeedNew,
+        builder: (_, _) => const StaffNeedEditScreen(),
+      ),
+      GoRoute(
+        path: RoutePaths.staffMyNeeds,
+        builder: (_, _) => const MyStaffNeedsScreen(),
+      ),
+      GoRoute(
+        path: RoutePaths.staffWorkers,
+        builder: (_, _) => const WorkerBrowseScreen(),
+      ),
+      GoRoute(
+        path: RoutePaths.staffNeeds,
+        builder: (_, _) => const StaffNeedBrowseScreen(),
+      ),
+      GoRoute(
+        path: '/staffing/workers/:id',
+        builder: (_, state) => WorkerListingDetailScreen(
+          listingId: state.pathParameters['id']!,
+        ),
       ),
       // Takip Merkezi — sıralama önemli: /tracking/new ve /tracking/trash,
       // /tracking/:id'den ÖNCE tanımlanmalı (aksi halde :id onları yakalar).
@@ -272,6 +396,11 @@ final routerProvider = Provider<GoRouter>((ref) {
                 LegalDocScreen(docId: state.pathParameters['doc']!),
           ),
         ],
+      ),
+      // Yardım / SSS — misafir dâhil açık.
+      GoRoute(
+        path: RoutePaths.help,
+        builder: (_, _) => const HelpScreen(),
       ),
     ],
     errorBuilder: (_, state) => Scaffold(

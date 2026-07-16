@@ -2,11 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/analytics/app_analytics.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/router/route_paths.dart';
 import '../../../core/theme/app_palette.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/snackbar_helper.dart';
+import '../../../core/utils/validators.dart';
 import '../../../core/widgets/app_image.dart';
 import '../../../core/widgets/gradient_app_bar.dart';
 import '../../../core/widgets/responsive_center.dart';
@@ -17,9 +19,11 @@ import '../../../data/models/offer.dart';
 import '../../../data/models/report.dart';
 import '../../artisan/application/my_profile_controller.dart';
 import '../../auth/application/auth_controller.dart';
+import '../../auth/presentation/email_verification_gate.dart';
 import '../../chat/data/chat_providers.dart';
 import '../../safety/presentation/report_sheet.dart';
 import '../data/job_providers.dart';
+import 'job_completion.dart';
 import 'widgets/job_widgets.dart';
 
 /// İlan detayı — müşteri teklifleri görür/seçer, usta teklif verir.
@@ -38,9 +42,11 @@ class JobDetailScreen extends ConsumerWidget {
       ),
       body: jobAsync.when(
         loading: () => const LoadingView(),
-        error: (_, _) => const ErrorView(
-            message: 'İlan yüklenemedi. Bağlantınızı kontrol edip '
-                'tekrar deneyin.'),
+        error: (_, _) => ErrorView(
+          message: 'İlan yüklenemedi. Bağlantınızı kontrol edip '
+              'tekrar deneyin.',
+          onRetry: () => ref.invalidate(jobProvider(jobId)),
+        ),
         data: (job) {
           if (job == null) {
             return const Center(child: Text('İlan bulunamadı.'));
@@ -163,15 +169,150 @@ class _JobHeaderCard extends StatelessWidget {
                 scrollDirection: Axis.horizontal,
                 itemCount: job.photos.length,
                 separatorBuilder: (_, _) => const SizedBox(width: 8),
-                itemBuilder: (_, i) => ClipRRect(
-                  borderRadius: BorderRadius.circular(12),
-                  child: SizedBox(
-                      width: 96, height: 96, child: AppImage(handle: job.photos[i])),
+                itemBuilder: (_, i) => Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(12),
+                    onTap: () => _openJobPhotoGallery(
+                      context,
+                      handles: job.photos,
+                      initialIndex: i,
+                    ),
+                    child: Hero(
+                      tag: 'job-photo-${job.jobId}-$i',
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: SizedBox(
+                          width: 96,
+                          height: 96,
+                          child: AppImage(
+                            handle: job.photos[i],
+                            memCacheWidth: 192,
+                            memCacheHeight: 192,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
                 ),
               ),
             ),
           ],
         ],
+      ),
+    );
+  }
+}
+
+/// İlan fotoğrafını tam ekran açar (yakınlaştırma + kaydırarak diğerleri).
+void _openJobPhotoGallery(
+  BuildContext context, {
+  required List<String> handles,
+  required int initialIndex,
+}) {
+  if (handles.isEmpty) return;
+  final index = initialIndex.clamp(0, handles.length - 1);
+  Navigator.of(context).push(
+    MaterialPageRoute<void>(
+      builder: (_) => _JobPhotoGalleryPage(
+        handles: handles,
+        initialIndex: index,
+      ),
+    ),
+  );
+}
+
+/// Siyah arka planlı tam ekran galeri — pinch-zoom ve yatay sayfalar.
+class _JobPhotoGalleryPage extends StatefulWidget {
+  const _JobPhotoGalleryPage({
+    required this.handles,
+    required this.initialIndex,
+  });
+
+  final List<String> handles;
+  final int initialIndex;
+
+  @override
+  State<_JobPhotoGalleryPage> createState() => _JobPhotoGalleryPageState();
+}
+
+class _JobPhotoGalleryPageState extends State<_JobPhotoGalleryPage> {
+  late final PageController _pageController;
+  late int _index;
+
+  @override
+  void initState() {
+    super.initState();
+    _index = widget.initialIndex;
+    _pageController = PageController(initialPage: widget.initialIndex);
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final total = widget.handles.length;
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(
+        backgroundColor: Colors.black,
+        foregroundColor: Colors.white,
+        elevation: 0,
+        title: total > 1
+            ? Text('${_index + 1} / $total',
+                style: const TextStyle(fontWeight: FontWeight.w600))
+            : null,
+      ),
+      body: SafeArea(
+        child: Stack(
+          alignment: Alignment.bottomCenter,
+          children: [
+            PageView.builder(
+              controller: _pageController,
+              itemCount: total,
+              onPageChanged: (i) => setState(() => _index = i),
+              itemBuilder: (_, i) {
+                final handle = widget.handles[i];
+                return InteractiveViewer(
+                  minScale: 1,
+                  maxScale: 5,
+                  child: Center(
+                    child: AppImage(
+                      handle: handle,
+                      fit: BoxFit.contain,
+                    ),
+                  ),
+                );
+              },
+            ),
+            if (total > 1)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 16),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: List.generate(total, (i) {
+                    final active = i == _index;
+                    return AnimatedContainer(
+                      duration: const Duration(milliseconds: 180),
+                      margin: const EdgeInsets.symmetric(horizontal: 3),
+                      width: active ? 10 : 6,
+                      height: 6,
+                      decoration: BoxDecoration(
+                        color: active
+                            ? Colors.white
+                            : Colors.white.withValues(alpha: 0.35),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                    );
+                  }),
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }
@@ -232,8 +373,9 @@ class _OwnerOffersSection extends ConsumerWidget {
     );
     if (confirmed != true) return;
 
-    final chatId = _chatIdFor(ref, offer);
+    final String chatId;
     try {
+      chatId = await _chatIdFor(ref, offer);
       await ref.read(jobRepositoryProvider).selectOffer(
             jobId: job.jobId,
             offerId: offer.offerId,
@@ -252,8 +394,8 @@ class _OwnerOffersSection extends ConsumerWidget {
     context.push(RoutePaths.chatThread(chatId));
   }
 
-  /// Bu ustayla (zaten açılmış) sohbete gider; yoksa oluşturur (idempotent).
-  String _chatIdFor(WidgetRef ref, Offer offer) {
+  /// Bu ustayla sohbeti hazırlar (döküman yazılana kadar bekler).
+  Future<String> _chatIdFor(WidgetRef ref, Offer offer) {
     return ref.read(chatRepositoryProvider).startChat(
           customerUid: job.customerId,
           customerName: job.customerName,
@@ -264,9 +406,17 @@ class _OwnerOffersSection extends ConsumerWidget {
         );
   }
 
-  void _openChat(BuildContext context, WidgetRef ref, Offer offer) {
-    final chatId = _chatIdFor(ref, offer);
-    context.push(RoutePaths.chatThread(chatId));
+  Future<void> _openChat(BuildContext context, WidgetRef ref, Offer offer) async {
+    try {
+      final chatId = await _chatIdFor(ref, offer);
+      if (!context.mounted) return;
+      context.push(RoutePaths.chatThread(chatId));
+    } catch (_) {
+      if (context.mounted) {
+        context.showError(
+            'Sohbet açılamadı. E-posta doğrulamanızı kontrol edip tekrar deneyin.');
+      }
+    }
   }
 
   @override
@@ -515,9 +665,13 @@ class _EditJobSheetState extends State<_EditJobSheet> {
                     labelText: 'İlan Başlığı',
                     prefixIcon: Icon(Icons.title),
                   ),
-                  validator: (v) => (v == null || v.trim().length < 5)
-                      ? 'En az 5 karakter girin.'
-                      : null,
+                  validator: (v) => Validators.freeText(
+                    v,
+                    min: 5,
+                    max: AppConstants.maxJobTitleLength,
+                    field: 'Başlık',
+                    required: true,
+                  ),
                 ),
                 const SizedBox(height: 12),
                 TextFormField(
@@ -529,9 +683,13 @@ class _EditJobSheetState extends State<_EditJobSheet> {
                     labelText: 'Açıklama',
                     alignLabelWithHint: true,
                   ),
-                  validator: (v) => (v == null || v.trim().length < 10)
-                      ? 'En az 10 karakter girin.'
-                      : null,
+                  validator: (v) => Validators.freeText(
+                    v,
+                    min: 10,
+                    max: AppConstants.maxJobDescriptionLength,
+                    field: 'Açıklama',
+                    required: true,
+                  ),
                 ),
                 const SizedBox(height: 8),
                 SizedBox(
@@ -544,8 +702,10 @@ class _EditJobSheetState extends State<_EditJobSheet> {
                       Navigator.pop(
                           context,
                           (
-                            _titleController.text.trim(),
-                            _descController.text.trim()
+                            Validators.sanitizeFreeText(
+                                _titleController.text),
+                            Validators.sanitizeFreeText(
+                                _descController.text),
                           ));
                     },
                     icon: const Icon(Icons.save_outlined),
@@ -698,6 +858,41 @@ class _PremiumTag extends StatelessWidget {
   }
 }
 
+/// İlan üzerindeki sohbeti açar: kayıtlı [Job.chatId] veya seçili ustadan
+/// deterministik id. Sohbet dökümanı yoksa oluşturmayı dener (idempotent).
+Future<void> _openJobChat(BuildContext context, WidgetRef ref, Job job) async {
+  final artisanId = job.selectedArtisanId;
+  final stored = job.chatId;
+  if ((stored == null || stored.isEmpty) && artisanId == null) {
+    context.showError('Sohbet bulunamadı.');
+    return;
+  }
+  final repo = ref.read(chatRepositoryProvider);
+  try {
+    final String chatId;
+    if (artisanId != null) {
+      chatId = await repo.startChat(
+        customerUid: job.customerId,
+        customerName: job.customerName,
+        customerPhotoUrl: job.customerPhotoUrl,
+        artisanUid: artisanId,
+        artisanName: 'Usta',
+        artisanPhotoUrl: null,
+      );
+    } else {
+      chatId = stored!;
+      await repo.ensureChatReady(chatId);
+    }
+    if (!context.mounted) return;
+    context.push(RoutePaths.chatThread(chatId));
+  } catch (_) {
+    if (context.mounted) {
+      context.showError(
+          'Sohbet açılamadı. E-posta doğrulamanızı kontrol edip tekrar deneyin.');
+    }
+  }
+}
+
 /// İş bir ustaya bağlandığında müşteri/usta için: yaşam döngüsü + sohbet +
 /// tamamlama onayları + (müşteri) değerlendirme (#4, #10).
 class _AssignedCard extends ConsumerWidget {
@@ -718,11 +913,7 @@ class _AssignedCard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final repo = ref.read(jobRepositoryProvider);
     final status = job.status;
-    final myConfirmed =
-        isOwner ? job.customerConfirmedDone : job.artisanConfirmedDone;
-    final canConfirm = (status == JobStatus.workerSelected ||
-            status == JobStatus.inProgress) &&
-        !myConfirmed;
+    final copy = JobCompletionCopy.of(job, isOwner: isOwner);
 
     // Şikayet açık: yaşam döngüsü donar; stepper yerine sorun paneli.
     if (status == JobStatus.disputed) {
@@ -733,7 +924,9 @@ class _AssignedCard extends ConsumerWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _LifecycleStepper(job: job),
-        const SizedBox(height: 16),
+        const SizedBox(height: 12),
+        JobCompletionStatusBanner(job: job, isOwner: isOwner),
+        const SizedBox(height: 12),
         Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
@@ -745,37 +938,22 @@ class _AssignedCard extends ConsumerWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Sohbet
-              if (job.chatId != null)
+              // Sohbet — chatId yoksa seçili ustadan deterministik id üretilir.
+              if (job.chatId != null || job.selectedArtisanId != null)
                 SizedBox(
                   width: double.infinity,
                   child: FilledButton.icon(
-                    onPressed: () =>
-                        context.push(RoutePaths.chatThread(job.chatId!)),
+                    onPressed: () => _openJobChat(context, ref, job),
                     icon: const Icon(Icons.chat_bubble_outline),
                     label: const Text('Sohbete Git'),
                   ),
                 ),
 
-              // İşe başla (workerSelected → inProgress)
-              if (status == JobStatus.workerSelected) ...[
-                const SizedBox(height: 10),
-                SizedBox(
-                  width: double.infinity,
-                  child: OutlinedButton.icon(
-                    onPressed: () => _busyGuard(
-                        context, () => repo.markStarted(job.jobId)),
-                    icon: const Icon(Icons.play_arrow_rounded),
-                    label: const Text('İşe Başlandı'),
-                  ),
-                ),
-              ],
-
               // Tamamlama onayları (iki taraflı, #10)
               if (status == JobStatus.workerSelected ||
                   status == JobStatus.inProgress) ...[
                 const SizedBox(height: 14),
-                _ConfirmRow(
+                JobConfirmRow(
                   customerDone: job.customerConfirmedDone,
                   artisanDone: job.artisanConfirmedDone,
                 ),
@@ -785,28 +963,42 @@ class _AssignedCard extends ConsumerWidget {
                   child: FilledButton.icon(
                     style: FilledButton.styleFrom(
                         backgroundColor: context.palette.success),
-                    onPressed: canConfirm
+                    onPressed: copy.canConfirm
                         ? () => _busyGuard(
                             context,
                             () => repo.confirmDone(
                                 jobId: job.jobId, byCustomer: isOwner))
                         : null,
                     icon: const Icon(Icons.check_circle_outline),
-                    label: Text(myConfirmed
-                        ? 'Onayladınız, karşı taraf bekleniyor'
-                        : 'İşi Tamamladım'),
+                    label: Text(
+                      copy.canConfirm
+                          ? copy.confirmLabel
+                          : copy.confirmedLabel,
+                    ),
                   ),
                 ),
-                // Tek taraf onayladıysa geri sayım bilgisi (autoCompleteAt'i
-                // CF yazar; süre dolunca iş otomatik tamamlanır).
-                if (job.autoCompleteAt != null &&
-                    job.customerConfirmedDone != job.artisanConfirmedDone) ...[
+                if (copy.showCountdown && job.autoCompleteAt != null) ...[
                   const SizedBox(height: 8),
                   _InlineNotice(
                     icon: Icons.schedule,
-                    text: 'Karşı taraf '
-                        '${_formatDate(job.autoCompleteAt!)} tarihine kadar '
-                        'yanıt vermezse iş otomatik tamamlanacak.',
+                    text: copy.remaining != null
+                        ? 'Otomatik tamamlanmaya kalan: '
+                            '${JobCompletionCopy.formatRemaining(copy.remaining!)} '
+                            '(${_formatDate(job.autoCompleteAt!)})'
+                        : 'Süre doldu; iş yakında otomatik tamamlanır.',
+                  ),
+                ],
+                // İşe başla — ikincil (zorunlu değil)
+                if (status == JobStatus.workerSelected) ...[
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    width: double.infinity,
+                    child: TextButton.icon(
+                      onPressed: () => _busyGuard(
+                          context, () => repo.markStarted(job.jobId)),
+                      icon: const Icon(Icons.play_arrow_rounded, size: 18),
+                      label: const Text('İşe başlandı olarak işaretle (isteğe bağlı)'),
+                    ),
                   ),
                 ],
               ],
@@ -982,12 +1174,11 @@ class _DisputePanel extends ConsumerWidget {
                 icon: Icons.schedule,
                 text: 'Bildirim tarihi: ${_formatDate(job.disputedAt!)}'),
           const SizedBox(height: 12),
-          if (job.chatId != null)
+          if (job.chatId != null || job.selectedArtisanId != null)
             SizedBox(
               width: double.infinity,
               child: FilledButton.icon(
-                onPressed: () =>
-                    context.push(RoutePaths.chatThread(job.chatId!)),
+                onPressed: () => _openJobChat(context, ref, job),
                 icon: const Icon(Icons.chat_bubble_outline),
                 label: const Text('Sohbete Git'),
               ),
@@ -1266,58 +1457,6 @@ class _StepDot extends StatelessWidget {
   }
 }
 
-class _ConfirmRow extends StatelessWidget {
-  const _ConfirmRow({required this.customerDone, required this.artisanDone});
-  final bool customerDone;
-  final bool artisanDone;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Expanded(
-            child: _ConfirmChip(label: 'Müşteri onayı', done: customerDone)),
-        const SizedBox(width: 8),
-        Expanded(child: _ConfirmChip(label: 'Usta onayı', done: artisanDone)),
-      ],
-    );
-  }
-}
-
-class _ConfirmChip extends StatelessWidget {
-  const _ConfirmChip({required this.label, required this.done});
-  final String label;
-  final bool done;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-      decoration: BoxDecoration(
-        color: done ? context.palette.successSurface : context.palette.surfaceMuted,
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(done ? Icons.check_circle : Icons.radio_button_unchecked,
-              size: 16,
-              color: done ? context.palette.success : context.palette.inkFaint),
-          const SizedBox(width: 6),
-          Flexible(
-            child: Text(label,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    color: done ? context.palette.success : context.palette.inkMuted)),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 class _InlineNotice extends StatelessWidget {
   const _InlineNotice({required this.icon, required this.text});
   final IconData icon;
@@ -1347,6 +1486,38 @@ class _ArtisanOfferSection extends ConsumerWidget {
   const _ArtisanOfferSection({required this.job});
   final Job job;
 
+  /// Zaten iletişime geçilmişse yalnız sohbeti açar.
+  ///
+  /// ÖNEMLİ: Tekrar `submitOffer` çağrılmaz — döküman zaten varken `set()`
+  /// Firestore'da update sayılır; kural yalnız note/price/status'a izin verir
+  /// → permission-denied → "İletişim başlatılamadı" ve sohbet hiç açılmazdı.
+  Future<void> _openChat(BuildContext context, WidgetRef ref) async {
+    final user = ref.read(currentUserProvider);
+    if (user == null) {
+      context.showError('Sohbete gitmek için giriş yapmalısınız.');
+      return;
+    }
+    final draft = ref.read(myProfileControllerProvider).valueOrNull;
+    try {
+      final chatId = await ref.read(chatRepositoryProvider).startChat(
+            customerUid: job.customerId,
+            customerName: job.customerName,
+            customerPhotoUrl: job.customerPhotoUrl,
+            artisanUid: user.uid,
+            artisanName: draft?.displayName ?? user.displayName,
+            artisanPhotoUrl: draft?.profilePhotoUrl ?? user.profilePhotoUrl,
+          );
+      if (!context.mounted) return;
+      context.push(RoutePaths.chatThread(chatId));
+    } catch (_) {
+      if (context.mounted) {
+        context.showError(
+            'Sohbet açılamadı. E-posta doğrulamanızı kontrol edip tekrar deneyin.');
+      }
+    }
+  }
+
+  /// İlk iletişim: ilgi kaydı + sohbet aç (idempotent — mevcut ilgiyi bozmaz).
   Future<void> _contact(BuildContext context, WidgetRef ref) async {
     final user = ref.read(currentUserProvider);
     final draft = ref.read(myProfileControllerProvider).valueOrNull;
@@ -1355,13 +1526,39 @@ class _ArtisanOfferSection extends ConsumerWidget {
       return;
     }
     final profile = draft.profile;
-    if (profile.profession.isEmpty || profile.serviceAreas.isEmpty) {
+    if (profile.professionCodes.isEmpty || profile.serviceAreas.isEmpty) {
       context.showError('Önce profilinizi (meslek + bölge) tamamlayın.');
       return;
     }
 
+    // H3: meslek + il/ilçe eşleşmesi (sunucu rules da aynı mantığı zorlar).
+    if (!job.matchesArtisan(
+      professionCodes: profile.professionCodes,
+      serviceAreas: profile.serviceAreas,
+    )) {
+      context.showError(
+          'Bu ilan meslek veya hizmet bölgenizle eşleşmiyor. '
+          'Profilinizdeki meslek ve bölgeleri kaydedip kontrol edin.');
+      return;
+    }
+
+    // Sunucu da zorlar (offers create + isEmailVerified + eşleşme).
+    final emailOk = await ensureEmailVerified(
+      context,
+      ref,
+      actionLabel: 'ilan üzerinden iletişime geçmek',
+    );
+    if (!emailOk || !context.mounted) return;
+
+    final offerRepo = ref.read(offerRepositoryProvider);
+    // Liste stream yüklenmeden / geri çek sonrası: sunucudan net durum.
+    final existing = await offerRepo.myOfferFor(
+      jobId: job.jobId,
+      artisanUid: user.uid,
+    );
+    if (!context.mounted) return;
+
     final now = DateTime.now();
-    // İlgi kaydı (fiyat/not yok) — müşteri "İlgilenen Ustalar"da görsün.
     final interest = Offer(
       offerId: Offer.idFor(job.jobId, user.uid),
       jobId: job.jobId,
@@ -1370,7 +1567,7 @@ class _ArtisanOfferSection extends ConsumerWidget {
       customerId: job.customerId,
       artisanName: draft.displayName,
       artisanPhotoUrl: draft.profilePhotoUrl,
-      professionNameTR: kProfessionNames[profile.profession] ?? '',
+      professionNameTR: profile.professionLabelsTR(kProfessionNames),
       experienceYears: profile.experienceYears,
       rating: profile.averageRating,
       totalReviews: profile.totalReviews,
@@ -1380,12 +1577,14 @@ class _ArtisanOfferSection extends ConsumerWidget {
       price: null,
       note: '',
       status: OfferStatus.pending,
-      createdAt: now,
+      createdAt: existing?.createdAt ?? now,
       updatedAt: now,
     );
     try {
-      await ref.read(offerRepositoryProvider).submitOffer(interest);
-      final chatId = ref.read(chatRepositoryProvider).startChat(
+      // Idempotent: yoksa create, withdrawn→pending, zaten aktifse no-op.
+      await offerRepo.submitOffer(interest);
+      if (existing == null) await AppAnalytics.sendOffer();
+      final chatId = await ref.read(chatRepositoryProvider).startChat(
             customerUid: job.customerId,
             customerName: job.customerName,
             customerPhotoUrl: job.customerPhotoUrl,
@@ -1395,8 +1594,15 @@ class _ArtisanOfferSection extends ConsumerWidget {
           );
       if (!context.mounted) return;
       context.push(RoutePaths.chatThread(chatId));
-    } catch (_) {
-      if (context.mounted) {
+    } catch (e) {
+      if (!context.mounted) return;
+      final s = e.toString();
+      if (s.contains('permission-denied') || s.contains('PERMISSION_DENIED')) {
+        context.showError(
+            'İletişim başlatılamadı: e-posta doğrulaması, profil eşleşmesi '
+            '(meslek/bölge kayıtlı mı?) veya oturum yetkisi. '
+            'Profili kaydedip tekrar deneyin.');
+      } else {
         context.showError('İletişim başlatılamadı, tekrar deneyin.');
       }
     }
@@ -1419,6 +1625,8 @@ class _ArtisanOfferSection extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final user = ref.watch(currentUserProvider);
     final status = job.effectiveStatus;
+    final draft = ref.watch(myProfileControllerProvider).valueOrNull;
+    final profile = draft?.profile;
 
     // İş bu ustaya verildiyse: yaşam döngüsü + sohbet + tamamlama onayı.
     if (job.selectedArtisanId != null && job.selectedArtisanId == user?.uid) {
@@ -1434,9 +1642,40 @@ class _ArtisanOfferSection extends ConsumerWidget {
       );
     }
 
+    // H3: eşleşmeyen ustaya "İletişime Geç" gösterme.
+    final matches = profile != null &&
+        profile.professionCodes.isNotEmpty &&
+        profile.serviceAreas.isNotEmpty &&
+        job.matchesArtisan(
+          professionCodes: profile.professionCodes,
+          serviceAreas: profile.serviceAreas,
+        );
+    if (!matches) {
+      final incomplete = profile == null ||
+          profile.professionCodes.isEmpty ||
+          profile.serviceAreas.isEmpty;
+      return _NoticeCard(
+        icon: Icons.location_off_outlined,
+        text: incomplete
+            ? 'İletişime geçmek için profilinizde en az bir meslek ve '
+                'hizmet bölgesi tanımlayın.'
+            : 'Bu ilan meslek veya hizmet bölgenizle eşleşmiyor. '
+                'Yalnızca uyumlu ilanlara teklif verebilirsiniz.',
+      );
+    }
+
     // Zaten iletişime geçildiyse: sohbete git / geri çek.
-    final myOffers = ref.watch(myOffersProvider(user?.uid ?? '')).valueOrNull;
+    // Stream yüklenirken "İletişime Geç" göstermek mevcut teklife full set
+    // yarışına yol açıyordu → loading ayrımı.
+    final myOffersAsync = ref.watch(myOffersProvider(user?.uid ?? ''));
+    if (myOffersAsync.isLoading) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 24),
+        child: LoadingView(compact: true, label: 'İletişim durumu…'),
+      );
+    }
     Offer? existing;
+    final myOffers = myOffersAsync.valueOrNull;
     if (myOffers != null) {
       for (final o in myOffers) {
         if (o.jobId == job.jobId && o.status != OfferStatus.withdrawn) {
@@ -1480,7 +1719,8 @@ class _ArtisanOfferSection extends ConsumerWidget {
               children: [
                 Expanded(
                   child: FilledButton.icon(
-                    onPressed: () => _contact(context, ref),
+                    // Tekrar teklif yazma — yalnız sohbeti aç.
+                    onPressed: () => _openChat(context, ref),
                     icon: const Icon(Icons.chat_bubble_outline),
                     label: const Text('Sohbete Git'),
                   ),

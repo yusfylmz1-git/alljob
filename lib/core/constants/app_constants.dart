@@ -3,13 +3,16 @@
 class AppConstants {
   AppConstants._();
 
-  static const String appName = 'Usta Cepte';
+  /// Kullanıcıya görünen marka adı (launcher, splash, drawer, yasal metinler).
+  static const String appName = 'Ustasından';
   static const String appSlogan = 'Bölgenizdeki en iyi ustalar cebinizde';
 
   // Form / içerik limitleri
   static const int minPasswordLength = 6;
   static const int maxAboutLength = 500;
   static const int maxDisplayNameLength = 60;
+  /// Usta profili deneyim yılı üst sınırı (21331231 gibi abartı engellenir).
+  static const int maxExperienceYears = 60;
 
   // Listeleme
   static const int artisanPageSize = 20;
@@ -19,6 +22,15 @@ class AppConstants {
   static const int maxJobTitleLength = 80;
   static const int maxJobDescriptionLength = 600;
   static const int maxOfferNoteLength = 300;
+
+  // Sohbet mesajı metin tavanı (firestore.rules ile hizalı).
+  static const int maxMessageLength = 4000;
+
+  /// İki metin/foto mesajı arası minimum süre (istemci spam koruması).
+  static const Duration minMessageInterval = Duration(milliseconds: 1200);
+
+  /// Son 60 sn içinde en fazla bu kadar mesaj (istemci tavanı).
+  static const int maxMessagesPerMinute = 20;
 
   // Yeni ustaya tanınan görünürlük desteği süresi (PRD §3).
   // Bu süre boyunca "Yeni Usta" rozeti gösterilir; puana yansımaz.

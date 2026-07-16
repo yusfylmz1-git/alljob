@@ -25,8 +25,7 @@ final offerRepositoryProvider = Provider<OfferRepository>((ref) {
   return MockOfferRepository(ref.watch(mockDatabaseProvider));
 });
 
-/// Keşfet ekranındaki herkese açık iş ilanları paneli — tüm açık ilanlar,
-/// en yeni en üstte (misafir dahil herkes görür).
+/// Keşfet "İş İlanları" paneli (yalnız usta modu): tüm açık ilanlar, en yeni üstte.
 final openJobsProvider = StreamProvider<List<Job>>(
   (ref) => ref.watch(jobRepositoryProvider).watchOpenJobs(),
 );
@@ -40,6 +39,11 @@ final myJobsProvider = StreamProvider.family<List<Job>, String>(
 /// Tek bir ilanı canlı izler (detay ekranı).
 final jobProvider = StreamProvider.family<Job?, String>(
   (ref, jobId) => ref.watch(jobRepositoryProvider).watchJob(jobId),
+);
+
+/// Sohbet ekranı üst bandı: bu sohbete bağlı aktif/bağlı iş.
+final jobByChatIdProvider = StreamProvider.family<Job?, String>(
+  (ref, chatId) => ref.watch(jobRepositoryProvider).watchJobByChatId(chatId),
 );
 
 /// Bir ilana gelen teklifler (müşteri incelemesi). Sorgu, güvenlik kuralının
@@ -67,27 +71,27 @@ final assignedJobsProvider = StreamProvider.family<List<Job>, String>(
       ref.watch(jobRepositoryProvider).watchAssignedJobs(artisanUid),
 );
 
-/// Oturum açmış ustaya uygun açık ilanlar (Yakındaki İşler). Ustanın kayıtlı
-/// profilindeki meslek + hizmet bölgelerine göre eşleşir. Profil eksikse veya
-/// usta MÜSAİT DEĞİLSE boş döner (müsait olmayan usta ilanları göremez).
-/// Çift rol: kullanıcının müşteri olarak verdiği KENDİ ilanları feed'e düşmez.
+/// Oturum açmış ustaya uygun açık ilanlar (Yakındaki İşler).
+///
+/// ÖNEMLİ: `async*` + `await ref.watch(...future)` kullanma — Riverpod'da
+/// async gap sonrası watch ANR / yeniden giriş döngüsü üretebiliyor.
+/// Profil henüz yoksa boş liste; ekran profil loading'ini ayrıca gösterir.
 final nearbyJobsProvider = StreamProvider<List<Job>>((ref) {
   final draft = ref.watch(myProfileControllerProvider).valueOrNull;
-  if (draft == null) return const Stream.empty();
+  if (draft == null) {
+    return Stream.value(const <Job>[]);
+  }
   final profile = draft.profile;
-  if (profile.profession.isEmpty ||
+  if (profile.professionCodes.isEmpty ||
       profile.serviceAreas.isEmpty ||
       !profile.isAvailable) {
     return Stream.value(const <Job>[]);
   }
-  return ref
-      .watch(jobRepositoryProvider)
-      .watchNearbyJobs(
-        professionCode: profile.profession,
+  final uid = profile.uid;
+  return ref.read(jobRepositoryProvider).watchNearbyJobs(
+        professionCodes: profile.professionCodes,
         serviceAreas: profile.serviceAreas,
-      )
-      .map((jobs) =>
-          jobs.where((j) => j.customerId != profile.uid).toList());
+      ).map((jobs) => jobs.where((j) => j.customerId != uid).toList());
 });
 
 /// Ustanın şu an müsait olup olmadığı (feed/ekran mesajları için kısayol).

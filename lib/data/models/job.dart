@@ -1,14 +1,22 @@
 import 'geo_models.dart';
 
-/// "Hızlı Destek" ilan kategorisi (ayak işleri / küçük görevler): meslek
-/// gerektirmez, İLÇEDEKİ TÜM ustalarla eşleşir. Usta mesleği olarak SEÇİLEMEZ
-/// (professions.json'da yok); yalnızca ilan kategorisidir.
+/// "Hızlı Destek" ilan kategorisi — ayak işleri (market, taşıma, kısa yardım).
+/// Yalnız [kOtherProfession] ("Hızlı Destek") mesleğini seçen ustalara düşer.
 /// CF paritesi: functions/index.js QUICK_SUPPORT_CATEGORY.
 const kQuickSupportCategory = 'quick_support';
 
-/// "Diğer / Hızlı Destek" mesleği: bu mesleği seçen usta YALNIZCA Hızlı
-/// Destek ilanlarını görür/alır (klasik meslek ilanları ona gitmez).
+/// Usta profilindeki "Hızlı Destek" mesleği (JSON code: `other`, geriye uyum).
+/// Yalnız bunu seçen usta klasik meslek ilanlarını almaz; Hızlı Destek ilanlarını alır.
+/// Klasik meslek + Hızlı Destek birlikte seçilebilir.
 const kOtherProfession = 'other';
+
+/// Bu meslek kodları Hızlı Destek (ayak işi) ilanlarını alabilir.
+bool isQuickSupportProviderCodes(Iterable<String> codes) {
+  for (final c in codes) {
+    if (c == kOtherProfession || c == kQuickSupportCategory) return true;
+  }
+  return false;
+}
 
 /// İş ilanı fiyat tipi (#8): sabit fiyat beklentisi veya "keşif gerekli".
 enum JobPriceType {
@@ -195,6 +203,7 @@ class Job {
     this.disputeNote,
     this.disputedAt,
     this.statusBeforeDispute,
+    this.moderationHidden = false,
   });
 
   final String jobId;
@@ -246,6 +255,9 @@ class Job {
 
   final DateTime createdAt;
   final DateTime expiresAt;
+
+  /// Yönetici tarafından gizlendi mi? Yalnız CF yazar; eksik alan = görünür.
+  final bool moderationHidden;
 
   /// Yayından sonra ilan içeriğinin (başlık/açıklama/bütçe) düzenlenebildiği
   /// pencere. Kural tarafında yalnız `open` durumu doğrulanır (createdAt ISO
@@ -340,6 +352,7 @@ class Job {
           : (statusBeforeDispute ?? this.statusBeforeDispute),
       createdAt: createdAt,
       expiresAt: expiresAt ?? this.expiresAt,
+      moderationHidden: moderationHidden,
     );
   }
 
@@ -367,6 +380,10 @@ class Job {
         'cancelReason': cancelReason?.apiValue,
         'createdAt': createdAt.toIso8601String(),
         'expiresAt': expiresAt.toIso8601String(),
+        // H4: rules süre kontrolü (ISO string rules'ta zor; ms karşılaştırılır).
+        'expiresAtMs': expiresAt.millisecondsSinceEpoch,
+        // Yeni ilanlar her zaman görünür; gizleme yalnız CF.
+        'moderationHidden': false,
       };
 
   factory Job.fromMap(String jobId, Map<String, dynamic> map) {
@@ -410,6 +427,7 @@ class Job {
           DateTime.now(),
       expiresAt: DateTime.tryParse(map['expiresAt']?.toString() ?? '') ??
           DateTime.now().add(JobDuration.day3.duration),
+      moderationHidden: map['moderationHidden'] == true,
     );
   }
 
@@ -418,20 +436,33 @@ class Job {
   /// örtüşmeli (il+ilçe; mahalle verilmişse ve usta o mahalleyi de seçmişse
   /// daha spesifik eşleşir, ama ilçe düzeyi eşleşmesi yeterlidir).
   ///
-  /// Hızlı Destek istisnaları:
-  ///  - İlan [kQuickSupportCategory] ise meslek ARANMAZ — ilçedeki her usta
-  ///    ("Diğer" dahil) eşleşir.
-  ///  - Usta mesleği [kOtherProfession] ise YALNIZCA Hızlı Destek ilanları
-  ///    eşleşir (klasik meslek ilanları ona gitmez).
+  /// Hızlı Destek:
+  ///  - İlan [kQuickSupportCategory] → yalnız Hızlı Destek mesleği + aynı ilçe.
+  ///  - Yalnız Hızlı Destek seçen usta klasik meslek ilanlarını almaz.
+  ///
+  /// [professionCodes] çoklu meslek; [professionCode] tekil (geriye uyum).
   bool matchesArtisan({
-    required String professionCode,
+    String? professionCode,
+    List<String>? professionCodes,
     required List<ServiceArea> serviceAreas,
   }) {
+    final codes = (professionCodes ??
+            (professionCode != null && professionCode.isNotEmpty
+                ? [professionCode]
+                : const <String>[]))
+        .map((c) => c.trim())
+        .where((c) => c.isNotEmpty)
+        .toList();
     final areaMatch = serviceAreas.any(
       (a) => a.province == province && a.district == district,
     );
-    if (category == kQuickSupportCategory) return areaMatch;
-    if (professionCode == kOtherProfession) return false;
-    return professionCode == category && areaMatch;
+    if (category == kQuickSupportCategory) {
+      return areaMatch && isQuickSupportProviderCodes(codes);
+    }
+    final matchable = codes
+        .where((c) => c != kOtherProfession && c != kQuickSupportCategory)
+        .toList(growable: false);
+    if (matchable.isEmpty) return false;
+    return matchable.contains(category) && areaMatch;
   }
 }

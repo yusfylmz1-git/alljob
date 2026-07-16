@@ -5,7 +5,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
-import '../../../core/constants/app_constants.dart';
 import '../../../core/router/route_paths.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_palette.dart';
@@ -21,19 +20,20 @@ import '../../../data/models/job.dart';
 import '../../../data/models/offer.dart';
 import '../../../data/models/user_role.dart';
 import '../../artisan/application/my_profile_controller.dart';
+import '../../artisan/data/shop_completion.dart';
+import '../../artisan/presentation/widgets/shop_completion_banner.dart';
 import '../../auth/application/auth_controller.dart';
 import '../../auth/data/auth_repository.dart';
 import '../../auth/presentation/phone_verification_sheet.dart';
 import '../../favorites/data/favorite_providers.dart';
 import '../../jobs/data/job_providers.dart';
+import '../../membership/membership_access.dart';
+import '../../membership/membership_package.dart';
 
-/// TEK birleşik profil sayfası (alt bar → Profil). Her iki modda da AYNI
-/// sayfa açılır; içerik aktif moda göre şekillenir:
-///  - Üstte kimlik (avatar + ad + mavi tik + e-posta),
-///  - hemen altında NET mod anahtarı (Müşteri | Usta),
-///  - altında gruplu, sade menü satırları (Uber/Airbnb ayarlar dili).
-/// Eski kurgu (müşteride /profile, ustada /panel dashboard'u) iki farklı
-/// "profil" hissi veriyordu — kullanıcı geri bildirimiyle birleştirildi.
+/// Profil (alt bar): tek hesap, iki yüzey.
+///  - Müşteri: talepler (ilanlar, takip) — "iş seçimi" yok.
+///  - Usta: dükkân + işler (müsaitlik, vitrin, yakındaki işler).
+/// Ortak hesap/ayar en altta; araçlar (takip, eleman) kısa grup.
 class ProfileScreen extends ConsumerWidget {
   const ProfileScreen({super.key});
 
@@ -65,7 +65,7 @@ class _Body extends ConsumerWidget {
     return ListView(
       padding: EdgeInsets.zero,
       children: [
-        _Hero(user: user, draft: draft),
+        _Hero(user: user, draft: draft, artisanMode: artisanMode),
         ResponsiveCenter(
           maxWidth: 720,
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
@@ -74,13 +74,22 @@ class _Body extends ConsumerWidget {
             children: [
               if (user.hasArtisanProfile) ...[
                 _ModeSwitcher(user: user),
-                const SizedBox(height: 20),
+                const SizedBox(height: 8),
+                Text(
+                  artisanMode
+                      ? 'Usta dükkânı — müsaitlik, vitrin ve işler'
+                      : 'Müşteri hesabı — ilanlar ve takip',
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                ),
+                const SizedBox(height: 18),
               ],
               if (artisanMode)
-                _ArtisanSections(user: user, draft: draft)
+                _ArtisanHome(user: user, draft: draft)
               else
-                _CustomerSections(user: user),
-              // Kişisel araçlar — her iki modda da görünür (mesleğe bağlı değil).
+                _CustomerHome(user: user),
               const _SectionLabel('ARAÇLAR'),
               _Group(children: [
                 _MenuRow(
@@ -88,14 +97,20 @@ class _Body extends ConsumerWidget {
                   iconColor: context.palette.primary,
                   iconSurface: context.palette.primaryContainer,
                   title: 'Takip Merkezi',
-                  subtitle: 'Randevu, görev, hatırlatma… hepsi bir yerde',
+                  subtitle: 'Randevu ve hatırlatmalar',
                   onTap: () => context.push(RoutePaths.tracking),
                 ),
+                _MenuRow(
+                  icon: Icons.badge_outlined,
+                  iconColor: context.palette.info,
+                  iconSurface: context.palette.infoSurface,
+                  title: 'Eleman',
+                  subtitle: 'İş ara veya eleman bul',
+                  onTap: () => context.push(RoutePaths.staffing),
+                ),
               ]),
-              const SizedBox(height: 20),
-              const _SectionLabel('HESAP'),
+              const _SectionLabel('HESABIM'),
               _AccountGroup(user: user),
-              const SizedBox(height: 20),
               _Group(children: [
                 _MenuRow(
                   icon: Icons.logout_rounded,
@@ -115,7 +130,7 @@ class _Body extends ConsumerWidget {
                   iconSurface: context.palette.danger.withValues(alpha: 0.10),
                   title: 'Hesabı Sil',
                   titleColor: context.palette.danger,
-                  subtitle: 'Hesabınız ve verileriniz kalıcı olarak silinir',
+                  subtitle: 'Kalıcı — geri alınamaz',
                   onTap: () => _deleteAccountFlow(context, ref),
                 ),
               ]),
@@ -128,13 +143,18 @@ class _Body extends ConsumerWidget {
 }
 
 // ---------------------------------------------------------------------------
-// Hero — kimlik: avatar + ad (+ mavi tik) + e-posta (+ ustada meslek)
+// Hero — kimlik: avatar + ad (+ mavi tik); e-posta hesap bölümünde
 // ---------------------------------------------------------------------------
 
 class _Hero extends StatelessWidget {
-  const _Hero({required this.user, required this.draft});
+  const _Hero({
+    required this.user,
+    required this.draft,
+    required this.artisanMode,
+  });
   final AppUser user;
   final MyProfileDraft? draft;
+  final bool artisanMode;
 
   @override
   Widget build(BuildContext context) {
@@ -142,7 +162,7 @@ class _Hero extends StatelessWidget {
     final name = user.displayName.trim();
     final initials = name.isEmpty ? '?' : name.substring(0, 1).toUpperCase();
     final photo = draft?.profilePhotoUrl ?? user.profilePhotoUrl;
-    final profession = user.isArtisan && draft != null
+    final profession = artisanMode && draft != null
         ? kProfessionNames[draft!.profile.profession]
         : null;
 
@@ -162,41 +182,91 @@ class _Hero extends StatelessWidget {
                 alignment: Alignment.centerLeft,
                 child: DrawerMenuButton(),
               ),
-              Container(
-                padding: const EdgeInsets.all(3),
-                decoration: const BoxDecoration(
-                  gradient: AppColors.brandGradient,
-                  shape: BoxShape.circle,
-                ),
-                child: Container(
-                  padding: const EdgeInsets.all(2.5),
-                  decoration: const BoxDecoration(
-                    color: Color(0xFF13293F),
-                    shape: BoxShape.circle,
-                  ),
-                  child: ClipOval(
-                    child: SizedBox(
-                      width: 72,
-                      height: 72,
-                      child: photo != null
-                          ? AppImage(handle: photo)
-                          : Container(
-                              color: Colors.white12,
-                              alignment: Alignment.center,
-                              child: Text(
-                                initials,
-                                style: const TextStyle(
-                                  fontSize: 26,
-                                  fontWeight: FontWeight.w700,
-                                  color: Colors.white,
+              // Avatar + altındaki kalem → profil / vitrin düzenleme.
+              Tooltip(
+                message: 'Profili düzenle',
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(40),
+                    onTap: () => context.push(RoutePaths.profileEdit),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 4),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(3),
+                            decoration: const BoxDecoration(
+                              gradient: AppColors.brandGradient,
+                              shape: BoxShape.circle,
+                            ),
+                            child: Container(
+                              padding: const EdgeInsets.all(2.5),
+                              decoration: const BoxDecoration(
+                                color: Color(0xFF13293F),
+                                shape: BoxShape.circle,
+                              ),
+                              child: ClipOval(
+                                child: SizedBox(
+                                  width: 72,
+                                  height: 72,
+                                  child: photo != null
+                                      ? AppImage(handle: photo)
+                                      : Container(
+                                          color: Colors.white12,
+                                          alignment: Alignment.center,
+                                          child: Text(
+                                            initials,
+                                            style: const TextStyle(
+                                              fontSize: 26,
+                                              fontWeight: FontWeight.w700,
+                                              color: Colors.white,
+                                            ),
+                                          ),
+                                        ),
                                 ),
                               ),
                             ),
+                          ),
+                          const SizedBox(height: 8),
+                          // Resmin altı: kalem + "Düzenle"
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 10, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.14),
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(
+                                color: Colors.white.withValues(alpha: 0.28),
+                              ),
+                            ),
+                            child: const Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.edit_outlined,
+                                    size: 14, color: Colors.white),
+                                SizedBox(width: 4),
+                                Text(
+                                  'Düzenle',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w700,
+                                    letterSpacing: 0.2,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 10),
               Row(
                 mainAxisSize: MainAxisSize.min,
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -218,14 +288,17 @@ class _Hero extends StatelessWidget {
                   ],
                 ],
               ),
-              const SizedBox(height: 2),
-              Text(
-                profession != null ? '$profession · ${user.email}' : user.email,
-                overflow: TextOverflow.ellipsis,
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: Colors.white.withValues(alpha: 0.72),
+              if (profession != null && profession.isNotEmpty) ...[
+                const SizedBox(height: 4),
+                Text(
+                  profession,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: Colors.white.withValues(alpha: 0.78),
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
-              ),
+              ],
             ],
           ),
         ),
@@ -235,7 +308,7 @@ class _Hero extends StatelessWidget {
 }
 
 // ---------------------------------------------------------------------------
-// Mod anahtarı — Müşteri | Usta (tek, belirgin, hep aynı yerde)
+// Mod anahtarı — Müşteri hesabı | Usta dükkânı
 // ---------------------------------------------------------------------------
 
 class _ModeSwitcher extends ConsumerWidget {
@@ -263,12 +336,12 @@ class _ModeSwitcher extends ConsumerWidget {
         ButtonSegment(
           value: UserRole.customer,
           label: Text('Müşteri'),
-          icon: Icon(Icons.person_search_outlined),
+          icon: Icon(Icons.person_outline_rounded),
         ),
         ButtonSegment(
           value: UserRole.artisan,
-          label: Text('Usta'),
-          icon: Icon(Icons.handyman_outlined),
+          label: Text('Usta dükkânı'),
+          icon: Icon(Icons.storefront_outlined),
         ),
       ],
       selected: {user.activeMode},
@@ -290,20 +363,17 @@ class _ModeSwitcher extends ConsumerWidget {
 }
 
 // ---------------------------------------------------------------------------
-// Usta modu bölümleri
+// Usta dükkânı — müsaitlik, vitrin, işler (müşteri menüsü yok)
 // ---------------------------------------------------------------------------
 
-class _ArtisanSections extends ConsumerWidget {
-  const _ArtisanSections({required this.user, required this.draft});
+class _ArtisanHome extends ConsumerWidget {
+  const _ArtisanHome({required this.user, required this.draft});
   final AppUser user;
   final MyProfileDraft? draft;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final profile = draft?.profile;
-    final profileComplete = profile != null &&
-        profile.profession.isNotEmpty &&
-        profile.serviceAreas.isNotEmpty;
     final nearbyCount = ref.watch(nearbyJobsProvider).valueOrNull?.length ?? 0;
     final offers =
         ref.watch(myOffersProvider(user.uid)).valueOrNull ?? const <Offer>[];
@@ -314,38 +384,40 @@ class _ArtisanSections extends ConsumerWidget {
     final reviews = profile?.totalReviews ?? 0;
     final shopSubtitle = reviews > 0
         ? '★ ${rating.toStringAsFixed(1)} · $reviews değerlendirme'
-        : 'Müşterilerin gördüğü vitrin';
+        : 'Müşterilerin gördüğü dükkân';
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        if (profile != null && !profileComplete) ...[
-          _WarningBanner(
-            text: 'Profilini tamamla — meslek ve hizmet bölgesi ekleyince '
-                'aramada görünmeye başlarsın.',
-            actionLabel: 'Tamamla',
-            onAction: () => context.push(RoutePaths.panelEdit),
-          ),
-          const SizedBox(height: 20),
-        ],
         const _SectionLabel('DÜKKÂNIM'),
         _Group(children: [
           _AvailabilityRow(draft: draft),
+        ]),
+        _ShopVitrineCard(
+          user: user,
+          draft: draft,
+          shopSubtitle: shopSubtitle,
+        ),
+        const SizedBox(height: 4),
+        const _SectionLabel('İŞLER'),
+        _Group(children: [
           _MenuRow(
-            icon: Icons.storefront_outlined,
-            iconColor: context.palette.primary,
-            iconSurface: context.palette.primaryContainer,
-            title: 'Dükkânımı Gör',
-            subtitle: shopSubtitle,
-            onTap: () => context.push(RoutePaths.artisanProfile(user.uid)),
-          ),
-          _MenuRow(
-            icon: Icons.edit_outlined,
+            icon: Icons.work_outline,
             iconColor: context.palette.info,
             iconSurface: context.palette.infoSurface,
-            title: 'Profili Düzenle',
-            subtitle: 'Meslek, bölge, fotoğraflar, çalışma takvimi',
-            onTap: () => context.push(RoutePaths.panelEdit),
+            title: 'Yakındaki işler',
+            subtitle: 'Meslek ve bölgene uygun',
+            badge: nearbyCount,
+            onTap: () => context.push(RoutePaths.panelJobs),
+          ),
+          _MenuRow(
+            icon: Icons.work_history_outlined,
+            iconColor: context.palette.primary,
+            iconSurface: context.palette.primaryContainer,
+            title: 'İlgilendiğim işler',
+            subtitle: 'Başvuru ve yürüyenler',
+            badge: pendingOffers,
+            onTap: () => context.push(RoutePaths.panelOffers),
           ),
           _MenuRow(
             icon: profile?.hasActivePremium == true
@@ -353,48 +425,109 @@ class _ArtisanSections extends ConsumerWidget {
                 : Icons.workspace_premium_outlined,
             iconColor: context.palette.premium,
             iconSurface: context.palette.premiumSurface,
-            title: 'Premium',
-            subtitle: profile == null
-                ? null
-                : (profile.hasActivePremium
-                    ? (profile.premiumExpiresAt != null
-                        ? '${DateFormat('d MMM yyyy', 'tr_TR').format(profile.premiumExpiresAt!)} tarihine kadar aktif'
-                        : 'Aktif')
-                    : (AppConstants.premiumFreeDuringBeta
-                        ? 'Beta süresince tüm özellikler ücretsiz'
-                        : 'Aramada görünmek için gerekli')),
+            title: 'Pro üyelik',
+            subtitle: ref.watch(artisanProAccessProvider)
+                ? 'Pro özellikler açık'
+                : 'Müsaitlik ve işler için',
             onTap: () => context.push(RoutePaths.panelPremium),
           ),
         ]),
-        const _SectionLabel('İŞLERİM'),
-        _Group(children: [
-          _MenuRow(
-            icon: Icons.work_outline,
-            iconColor: context.palette.info,
-            iconSurface: context.palette.infoSurface,
-            title: 'Yakınımdaki İşler',
-            subtitle: 'Mesleğine ve bölgene uygun açık ilanlar',
-            badge: nearbyCount,
-            onTap: () => context.push(RoutePaths.panelJobs),
-          ),
-          _MenuRow(
-            icon: Icons.forum_outlined,
-            iconColor: context.palette.primary,
-            iconSurface: context.palette.primaryContainer,
-            title: 'İletişimlerim',
-            subtitle: 'İlgilendiğin ve yürüyen işler',
-            badge: pendingOffers,
-            onTap: () => context.push(RoutePaths.panelOffers),
-          ),
-          _MenuRow(
-            icon: Icons.notifications_none_rounded,
-            iconColor: context.palette.warning,
-            iconSurface: context.palette.warningSurface,
-            title: 'Bildirimler',
-            onTap: () => context.push(RoutePaths.panelNotifications),
-          ),
-        ]),
       ],
+    );
+  }
+}
+
+/// Tek vitrin kartı: tamamla / görüntüle + düzenle (çift menü yok).
+class _ShopVitrineCard extends StatelessWidget {
+  const _ShopVitrineCard({
+    required this.user,
+    required this.draft,
+    required this.shopSubtitle,
+  });
+  final AppUser user;
+  final MyProfileDraft? draft;
+  final String shopSubtitle;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final palette = context.palette;
+    final completion = ShopCompletion.from(user: user, draft: draft);
+
+    if (!completion.isComplete) {
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 16),
+        child: ShopCompletionBanner(
+          completion: completion,
+          title: 'Vitrini tamamla — aramada görün',
+        ),
+      );
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: Material(
+        color: palette.card,
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: palette.border),
+            boxShadow: AppTheme.softShadow,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  Icon(Icons.storefront_rounded,
+                      color: palette.primary, size: 22),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Vitrinim',
+                          style: theme.textTheme.titleSmall
+                              ?.copyWith(fontWeight: FontWeight.w800),
+                        ),
+                        Text(
+                          shopSubtitle,
+                          style: theme.textTheme.bodySmall
+                              ?.copyWith(color: palette.inkMuted),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () =>
+                          context.push(RoutePaths.artisanProfile(user.uid)),
+                      icon: const Icon(Icons.visibility_outlined, size: 18),
+                      label: const Text('Görüntüle'),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: FilledButton.icon(
+                      onPressed: () => context.push(RoutePaths.panelEdit),
+                      icon: const Icon(Icons.edit_outlined, size: 18),
+                      label: const Text('Düzenle'),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
@@ -412,7 +545,8 @@ class _AvailabilityRow extends ConsumerWidget {
 
     Future<void> onChanged(bool value) async {
       if (profile == null) return;
-      if (value && !profile.hasPremiumAccess) {
+      // Faz 2: plan (ücretsiz) veya ödeme kilidi.
+      if (value && !ref.read(artisanProAccessProvider)) {
         context.push(RoutePaths.panelPremium);
         return;
       }
@@ -452,11 +586,11 @@ class _AvailabilityRow extends ConsumerWidget {
 }
 
 // ---------------------------------------------------------------------------
-// Müşteri modu bölümleri
+// Müşteri hesabı — ilan / takip (iş seçimi / dükkân yok)
 // ---------------------------------------------------------------------------
 
-class _CustomerSections extends ConsumerWidget {
-  const _CustomerSections({required this.user});
+class _CustomerHome extends ConsumerWidget {
+  const _CustomerHome({required this.user});
   final AppUser user;
 
   Future<void> _becomeArtisan(BuildContext context, WidgetRef ref) async {
@@ -465,9 +599,9 @@ class _CustomerSections extends ConsumerWidget {
       builder: (ctx) => AlertDialog(
         title: const Text('Hizmet Vermeye Başla'),
         content: const Text(
-            'Hesabınıza bir usta profili eklenecek. Meslek ve hizmet '
+            'Hesabınıza bir usta dükkânı eklenecek. Meslek ve hizmet '
             'bölgenizi belirledikten sonra müşteriler sizi bulabilir. '
-            'İstediğiniz zaman Müşteri Moduna geri dönebilirsiniz.'),
+            'İstediğiniz zaman Müşteri hesabına dönebilirsiniz.'),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(ctx, false),
@@ -484,7 +618,7 @@ class _CustomerSections extends ConsumerWidget {
     if (!context.mounted) return;
     if (ok) {
       context.showSuccess(
-          'Usta profiliniz açıldı. Şimdi meslek ve bölgenizi belirleyin.');
+          'Usta dükkânınız açıldı. Şimdi meslek ve bölgenizi belirleyin.');
       context.go(RoutePaths.panelEdit);
     } else {
       final error = ref.read(authControllerProvider).error;
@@ -509,7 +643,7 @@ class _CustomerSections extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const _SectionLabel('AKTİVİTEM'),
+        const _SectionLabel('TALEPLERİM'),
         _Group(children: [
           _MenuRow(
             icon: Icons.campaign_outlined,
@@ -517,8 +651,8 @@ class _CustomerSections extends ConsumerWidget {
             iconSurface: context.palette.primaryContainer,
             title: 'İlanlarım',
             subtitle: activeJobs > 0
-                ? '$activeJobs aktif ilan'
-                : 'Verdiğin iş ilanları',
+                ? '$activeJobs aktif talep'
+                : 'Verdiğiniz hizmet ilanları',
             badge: jobs.length,
             onTap: () => context.push(RoutePaths.myJobs),
           ),
@@ -526,21 +660,21 @@ class _CustomerSections extends ConsumerWidget {
             icon: Icons.favorite_border,
             iconColor: context.palette.danger,
             iconSurface: context.palette.danger.withValues(alpha: 0.10),
-            title: 'Takip Ettiklerim',
-            subtitle: 'Takip ettiğin ustalar',
+            title: 'Takip ettiklerim',
+            subtitle: 'Favori ustalar',
             badge: favs.length,
             onTap: () => context.push(RoutePaths.favorites),
           ),
         ]),
         if (!user.hasArtisanProfile) ...[
-          const _SectionLabel('USTA MISIN?'),
+          const _SectionLabel('HİZMET VER'),
           _Group(children: [
             _MenuRow(
               icon: Icons.handyman_outlined,
               iconColor: context.palette.onSecondaryContainer,
               iconSurface: context.palette.secondaryContainer,
-              title: 'Hizmet Vermeye Başla',
-              subtitle: 'Usta profili aç, bölgendeki işlere ulaş',
+              title: 'Usta dükkânı aç',
+              subtitle: 'Meslek ve bölge ekle, iş al',
               onTap: () => _becomeArtisan(context, ref),
             ),
           ]),
@@ -721,16 +855,33 @@ class _AccountGroup extends ConsumerWidget {
     final theme = Theme.of(context);
     final since = DateFormat('MMMM yyyy', 'tr_TR').format(user.createdAt);
 
+    final plan = ref.watch(selectedMembershipPackageProvider) ??
+        MembershipPackage.free;
+
     return _Group(children: [
+      _MenuRow(
+        icon: Icons.person_outline_rounded,
+        iconColor: context.palette.primary,
+        iconSurface: context.palette.primaryContainer,
+        title: 'Profili düzenle',
+        subtitle: 'Ad ve fotoğraf',
+        onTap: () => context.push(RoutePaths.profileEdit),
+      ),
+      _MenuRow(
+        icon: Icons.workspace_premium_outlined,
+        iconColor: context.palette.primary,
+        iconSurface: context.palette.primaryContainer,
+        title: 'Plan: ${plan.titleTR}',
+        subtitle: '$since · ${plan.summaryTR}',
+        onTap: () => context.push('${RoutePaths.packageSelect}?change=1'),
+      ),
       if (user.phoneVerified)
         _MenuRow(
           icon: Icons.verified,
           iconColor: context.palette.verified,
           iconSurface: context.palette.info.withValues(alpha: 0.10),
-          title: 'Doğrulanmış Hesap',
-          subtitle: user.hasArtisanProfile
-              ? 'Profilinde mavi tik görünüyor'
-              : 'Telefon numaran doğrulandı',
+          title: 'Telefon doğrulandı',
+          subtitle: user.hasArtisanProfile ? 'Mavi tik aktif' : null,
           trailing: Icon(Icons.check_circle,
               color: context.palette.success, size: 22),
         )
@@ -739,63 +890,126 @@ class _AccountGroup extends ConsumerWidget {
           icon: Icons.verified_outlined,
           iconColor: context.palette.verified,
           iconSurface: context.palette.info.withValues(alpha: 0.10),
-          title: user.hasArtisanProfile
-              ? 'Mavi Tik Al'
-              : 'Telefonunu Doğrula',
-          subtitle: user.hasArtisanProfile
-              ? 'Telefonunu doğrula, profilinde mavi tik kazan'
-              : 'Hesabını güvene al, doğrulanmış rozeti kazan',
+          title: user.hasArtisanProfile ? 'Mavi tik al' : 'Telefonu doğrula',
+          subtitle: 'Hesabı güvene al',
           onTap: () => _verifyPhone(context, ref),
         ),
-      if (user.emailVerified)
-        _MenuRow(
-          icon: Icons.mail_outline,
-          iconColor: theme.colorScheme.onSurfaceVariant,
-          iconSurface: theme.colorScheme.surfaceContainer,
-          title: 'E-posta',
-          trailing: Text(
-            user.email,
-            style: theme.textTheme.bodySmall
-                ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+      Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _MenuRow(
+            icon: user.emailVerified
+                ? Icons.mark_email_read_outlined
+                : Icons.mail_outline,
+            iconColor: user.emailVerified
+                ? context.palette.success
+                : context.palette.warning,
+            iconSurface: user.emailVerified
+                ? context.palette.success.withValues(alpha: 0.10)
+                : context.palette.warning.withValues(alpha: 0.10),
+            title: 'E-posta',
+            subtitle: user.email.isEmpty ? 'Kayıtlı e-posta yok' : user.email,
+            trailing: user.emailVerified
+                ? Icon(Icons.check_circle,
+                    color: context.palette.success, size: 22)
+                : Text(
+                    'Doğrulanmadı',
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: context.palette.warning,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
           ),
-        )
-      else
-        _MenuRow(
-          icon: Icons.mark_email_unread_outlined,
-          iconColor: context.palette.warning,
-          iconSurface: context.palette.warning.withValues(alpha: 0.10),
-          title: 'E-postanı Doğrula',
-          subtitle: '${user.email} henüz doğrulanmadı',
-          onTap: () => _verifyEmail(context, ref, user),
-        ),
-      _MenuRow(
-        icon: Icons.calendar_today_outlined,
-        iconColor: theme.colorScheme.onSurfaceVariant,
-        iconSurface: theme.colorScheme.surfaceContainer,
-        title: 'Üyelik',
-        trailing: Text(
-          '$since itibarıyla',
-          style: theme.textTheme.bodySmall
-              ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
-        ),
+          if (!user.emailVerified)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
+              child: FilledButton.tonalIcon(
+                onPressed: () => _verifyEmail(context, ref, user),
+                icon: const Icon(Icons.mark_email_unread_outlined, size: 18),
+                label: const Text('E-postayı doğrula'),
+              ),
+            ),
+        ],
       ),
       _MenuRow(
-        icon: Icons.block_outlined,
+        icon: Icons.tune_rounded,
         iconColor: theme.colorScheme.onSurfaceVariant,
         iconSurface: theme.colorScheme.surfaceContainer,
-        title: 'Engellenen Kullanıcılar',
-        subtitle: 'Engellediğiniz kişileri yönetin',
-        onTap: () => context.push(RoutePaths.blockedUsers),
+        title: 'Tercihler',
+        subtitle: 'Bildirimler ve engellenenler',
+        onTap: () => _openPreferences(context),
       ),
       _MenuRow(
-        icon: Icons.policy_outlined,
+        icon: Icons.help_outline_rounded,
         iconColor: theme.colorScheme.onSurfaceVariant,
         iconSurface: theme.colorScheme.surfaceContainer,
-        title: 'Yasal Metinler',
-        subtitle: 'Kullanım koşulları, gizlilik, KVKK',
-        onTap: () => context.push(RoutePaths.legal),
+        title: 'Yardım ve yasal',
+        subtitle: 'SSS, gizlilik, KVKK',
+        onTap: () => _openHelpLegal(context),
       ),
     ]);
+  }
+
+  void _openPreferences(BuildContext context) {
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.notifications_active_outlined),
+              title: const Text('Bildirim tercihleri'),
+              onTap: () {
+                Navigator.pop(ctx);
+                context.push(RoutePaths.notificationPrefs);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.block_outlined),
+              title: const Text('Engellenen kullanıcılar'),
+              onTap: () {
+                Navigator.pop(ctx);
+                context.push(RoutePaths.blockedUsers);
+              },
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _openHelpLegal(BuildContext context) {
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.help_outline_rounded),
+              title: const Text('Yardım / SSS'),
+              onTap: () {
+                Navigator.pop(ctx);
+                context.push(RoutePaths.help);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.policy_outlined),
+              title: const Text('Yasal metinler'),
+              onTap: () {
+                Navigator.pop(ctx);
+                context.push(RoutePaths.legal);
+              },
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
   }
 }
 
@@ -958,38 +1172,4 @@ class _MenuRow extends StatelessWidget {
   }
 }
 
-class _WarningBanner extends StatelessWidget {
-  const _WarningBanner({
-    required this.text,
-    required this.actionLabel,
-    required this.onAction,
-  });
 
-  final String text;
-  final String actionLabel;
-  final VoidCallback onAction;
-
-  @override
-  Widget build(BuildContext context) {
-    final palette = context.palette;
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: palette.warningSurface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: palette.warning.withValues(alpha: 0.35)),
-      ),
-      child: Row(
-        children: [
-          Icon(Icons.info_outline, color: palette.warning),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(text, style: TextStyle(color: palette.warning)),
-          ),
-          const SizedBox(width: 8),
-          FilledButton(onPressed: onAction, child: Text(actionLabel)),
-        ],
-      ),
-    );
-  }
-}

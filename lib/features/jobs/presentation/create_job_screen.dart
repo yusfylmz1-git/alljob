@@ -3,21 +3,26 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 
+import '../../../core/analytics/app_analytics.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/router/route_paths.dart';
 import '../../../core/theme/app_palette.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/snackbar_helper.dart';
+import '../../../core/utils/validators.dart';
 import '../../../core/widgets/app_button.dart';
 import '../../../core/widgets/app_image.dart';
 import '../../../core/widgets/gradient_app_bar.dart';
 import '../../../core/widgets/responsive_center.dart';
+import '../../../core/widgets/searchable_select_field.dart';
 import '../../../data/local/local_data_service.dart';
 import '../../../data/models/geo_models.dart';
 import '../../../data/models/job.dart';
 import '../../auth/application/auth_controller.dart';
+import '../../auth/presentation/email_verification_gate.dart';
 import '../../storage/storage_repository.dart';
 import '../data/job_providers.dart';
+import '../data/quick_support.dart';
 
 /// Müşterinin yeni iş ilanı oluşturduğu ekran (İş İlanı Ver).
 class CreateJobScreen extends ConsumerStatefulWidget {
@@ -93,6 +98,7 @@ class _CreateJobScreenState extends ConsumerState<CreateJobScreen> {
   }
 
   Future<void> _submit() async {
+    if (_submitting) return; // çift tık → çift ilan
     if (!_formKey.currentState!.validate()) return;
     if (_category == null) {
       context.showError('Lütfen bir meslek/kategori seçin.');
@@ -108,7 +114,18 @@ class _CreateJobScreenState extends ConsumerState<CreateJobScreen> {
       return;
     }
 
+    // Sunucu da zorlar (firestore.rules isEmailVerified); UX için önce UI.
+    // Çift gönderimi engellemek için kilidi e-posta sheet'ten ÖNCE al.
     setState(() => _submitting = true);
+    final emailOk = await ensureEmailVerified(
+      context,
+      ref,
+      actionLabel: 'ilan vermek',
+    );
+    if (!emailOk || !mounted) {
+      if (mounted) setState(() => _submitting = false);
+      return;
+    }
     final now = DateTime.now();
 
     final job = Job(
@@ -116,8 +133,8 @@ class _CreateJobScreenState extends ConsumerState<CreateJobScreen> {
       customerId: user.uid,
       customerName: user.displayName,
       customerPhotoUrl: user.profilePhotoUrl,
-      title: _titleController.text.trim(),
-      description: _descController.text.trim(),
+      title: Validators.sanitizeFreeText(_titleController.text),
+      description: Validators.sanitizeFreeText(_descController.text),
       category: _category!,
       province: _province!.name,
       district: _district!.name,
@@ -135,14 +152,24 @@ class _CreateJobScreenState extends ConsumerState<CreateJobScreen> {
 
     try {
       await ref.read(jobRepositoryProvider).createJob(job);
+      await AppAnalytics.createJob(category: job.category);
       if (!mounted) return;
       context.showSuccess(
           'İlanınız yayında 🎉 Bölgenizdeki ustalar haberdar ediliyor.');
       context.go(RoutePaths.myJobs);
-    } catch (_) {
+    } catch (e) {
       if (!mounted) return;
       setState(() => _submitting = false);
-      context.showError('İlan yayınlanamadı, tekrar deneyin.');
+      final msg = e.toString();
+      if (msg.contains('permission-denied') ||
+          msg.contains('PERMISSION_DENIED')) {
+        context.showError(
+            'İlan yayınlanamadı. Olası nedenler: e-posta doğrulanmamış, '
+            'hesap askıda veya güvenlik (App Check) jetonu eksik. '
+            'Profil → E-posta doğrula; debug build ise App Check token ekleyin.');
+      } else {
+        context.showError('İlan yayınlanamadı, tekrar deneyin.');
+      }
     }
   }
 
@@ -201,9 +228,13 @@ class _CreateJobScreenState extends ConsumerState<CreateJobScreen> {
                     decoration: const InputDecoration(
                       hintText: 'Örn. Banyo bataryası değişimi',
                     ),
-                    validator: (v) => (v == null || v.trim().length < 5)
-                        ? 'En az 5 karakter girin.'
-                        : null,
+                    validator: (v) => Validators.freeText(
+                      v,
+                      min: 5,
+                      max: AppConstants.maxJobTitleLength,
+                      field: 'Başlık',
+                      required: true,
+                    ),
                   ),
                   const SizedBox(height: 4),
                   _Label('Kategori (Meslek)'),
@@ -220,15 +251,16 @@ class _CreateJobScreenState extends ConsumerState<CreateJobScreen> {
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Icon(Icons.bolt,
                               color: context.palette.warning, size: 20),
                           const SizedBox(width: 10),
                           Expanded(
                             child: Text(
-                              'Hızlı Destek: montaj, taşıma, ufak tamirat gibi '
-                              'ayak işleri için. İlanınız meslek filtresi olmadan '
-                              'ilçenizdeki TÜM ustalara bildirilir.',
+                              'Hızlı Destek: market, taşıma, kısa gidiş gibi '
+                              'ayak işleri. İlan yalnızca Hızlı Destek '
+                              'hizmeti veren kişilere gider (ilçeniz).',
                               style: Theme.of(context)
                                   .textTheme
                                   .bodySmall
@@ -237,6 +269,32 @@ class _CreateJobScreenState extends ConsumerState<CreateJobScreen> {
                           ),
                         ],
                       ),
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      'Hızlı örnek seç (başlık + açıklama dolar)',
+                      style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                            fontWeight: FontWeight.w700,
+                          ),
+                    ),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        for (final ex in kQuickSupportExamples)
+                          ActionChip(
+                            avatar: Icon(Icons.bolt,
+                                size: 16, color: context.palette.warning),
+                            label: Text(ex.label),
+                            onPressed: () {
+                              setState(() {
+                                _titleController.text = ex.title;
+                                _descController.text = ex.description;
+                              });
+                            },
+                          ),
+                      ],
                     ),
                   ],
                 ],
@@ -276,9 +334,13 @@ class _CreateJobScreenState extends ConsumerState<CreateJobScreen> {
                       hintText: 'İşi mümkün olduğunca ayrıntılı anlatın.',
                       alignLabelWithHint: true,
                     ),
-                    validator: (v) => (v == null || v.trim().length < 10)
-                        ? 'En az 10 karakter girin.'
-                        : null,
+                    validator: (v) => Validators.freeText(
+                      v,
+                      min: 10,
+                      max: AppConstants.maxJobDescriptionLength,
+                      field: 'Açıklama',
+                      required: true,
+                    ),
                   ),
                   const SizedBox(height: 4),
                   Row(
@@ -488,30 +550,35 @@ class _CategoryDropdown extends ConsumerWidget {
     return professionsAsync.when(
       loading: () => const LinearProgressIndicator(),
       error: (_, _) => const Text('Meslek listesi yüklenemedi'),
-      data: (professions) => DropdownButtonFormField<String>(
-        initialValue: value,
-        isExpanded: true,
-        decoration: const InputDecoration(prefixIcon: Icon(Icons.handyman_outlined)),
-        hint: const Text('Kategori seçin'),
-        // En üstte Hızlı Destek (ayak işleri; meslek gerektirmez). "Diğer"
-        // usta MESLEĞİDİR, ilan kategorisi olamaz (Hızlı Destek onu kapsar).
-        items: [
-          const DropdownMenuItem(
-            value: kQuickSupportCategory,
-            child: Text('⚡ Hızlı Destek (ayak işleri)'),
-          ),
+      data: (professions) {
+        // Hızlı Destek (ayak işi) en üstte; usta mesleği "other" ilan kategorisi değil.
+        final labels = <String, String>{
+          kQuickSupportCategory: '⚡ Hızlı Destek (ayak işleri)',
+          for (final p in professions)
+            if (p.code != kOtherProfession) p.code: p.nameTR,
+        };
+        final codes = [
+          kQuickSupportCategory,
           ...professions
               .where((p) => p.code != kOtherProfession)
-              .map((p) =>
-                  DropdownMenuItem(value: p.code, child: Text(p.nameTR))),
-        ],
-        onChanged: onChanged,
-      ),
+              .map((p) => p.code),
+        ];
+        return SearchableSelectField<String>(
+          label: 'Kategori',
+          value: value,
+          items: codes,
+          itemLabel: (c) => labels[c] ?? c,
+          hint: 'Kategori seçin',
+          searchHint: 'Meslek ara (örn. elektrik…)',
+          prefixIcon: Icons.handyman_outlined,
+          onSelected: onChanged,
+        );
+      },
     );
   }
 }
 
-/// İl → ilçe tek konum seçici.
+/// İl → ilçe tek konum seçici (aramalı).
 class _LocationPicker extends ConsumerWidget {
   const _LocationPicker({
     required this.province,
@@ -533,53 +600,44 @@ class _LocationPicker extends ConsumerWidget {
         provincesAsync.when(
           loading: () => const LinearProgressIndicator(),
           error: (_, _) => const Text('İl verisi yüklenemedi'),
-          data: (provinces) => _dropdown<Province>(
+          data: (provinces) => SearchableSelectField<Province>(
             label: 'İl',
             value: province,
             items: provinces,
             itemLabel: (p) => p.name,
-            onChanged: onProvince,
+            searchHint: 'İl ara…',
+            prefixIcon: Icons.map_outlined,
+            equals: (a, b) => a.id == b.id,
+            onSelected: (p) => onProvince(p),
           ),
         ),
         const SizedBox(height: 8),
         if (province == null)
-          _dropdown<District>(label: 'İlçe', value: null, items: const [], itemLabel: (d) => d.name, onChanged: null)
+          SearchableSelectField<District>(
+            label: 'İlçe',
+            value: null,
+            items: const [],
+            itemLabel: (d) => d.name,
+            enabled: false,
+            hint: 'Önce il seçin',
+            onSelected: (_) {},
+          )
         else
           ref.watch(districtsProvider(province!.id)).when(
                 loading: () => const LinearProgressIndicator(),
                 error: (_, _) => const Text('İlçe verisi yüklenemedi'),
-                data: (districts) => _dropdown<District>(
+                data: (districts) => SearchableSelectField<District>(
                   label: 'İlçe',
                   value: district,
                   items: districts,
                   itemLabel: (d) => d.name,
-                  onChanged: onDistrict,
+                  searchHint: 'İlçe ara…',
+                  prefixIcon: Icons.location_city_outlined,
+                  equals: (a, b) => a.id == b.id,
+                  onSelected: (d) => onDistrict(d),
                 ),
               ),
       ],
-    );
-  }
-
-  Widget _dropdown<T>({
-    required String label,
-    required T? value,
-    required List<T> items,
-    required String Function(T) itemLabel,
-    required ValueChanged<T?>? onChanged,
-  }) {
-    return DropdownButtonFormField<T>(
-      initialValue: value,
-      isExpanded: true,
-      isDense: true,
-      decoration: InputDecoration(
-        labelText: label,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-      ),
-      items: items
-          .map((e) => DropdownMenuItem<T>(
-              value: e, child: Text(itemLabel(e), overflow: TextOverflow.ellipsis)))
-          .toList(),
-      onChanged: onChanged,
     );
   }
 }

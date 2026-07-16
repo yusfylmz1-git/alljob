@@ -7,15 +7,19 @@ import '../../../core/router/route_paths.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_palette.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../core/utils/snackbar_helper.dart';
 import '../../../core/widgets/app_button.dart';
 import '../../../core/widgets/app_image.dart';
 import '../../../core/widgets/rating_stars.dart';
 import '../../../core/widgets/responsive_center.dart';
 import '../../../core/widgets/status_views.dart';
+import '../../../data/local/mock_database.dart' show kProfessionNames;
+import '../../../data/models/artisan_profile.dart';
 import '../../../data/models/review.dart';
 import '../../artisan/data/artisan_providers.dart';
 import '../../artisan/data/artisan_repository.dart';
 import '../../auth/application/auth_controller.dart';
+import '../../auth/presentation/email_verification_gate.dart';
 import '../../chat/data/chat_providers.dart';
 import '../../favorites/presentation/favorite_button.dart';
 
@@ -47,57 +51,137 @@ class ArtisanProfileScreen extends ConsumerWidget {
   }
 }
 
-class _ProfileBody extends StatelessWidget {
+class _ProfileBody extends ConsumerWidget {
   const _ProfileBody({required this.detail});
   final ArtisanDetail detail;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final profile = detail.profile;
+    final me = ref.watch(currentUserProvider)?.uid;
+    final isOwner = me != null && me == detail.uid;
+    final theme = Theme.of(context);
+    final palette = context.palette;
+
     return Column(
       children: [
         Expanded(
           child: ListView(
             padding: EdgeInsets.zero,
             children: [
-              _HeroHeader(detail: detail),
+              _HeroHeader(detail: detail, isOwner: isOwner),
               ResponsiveCenter(
                 maxWidth: 760,
-                padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
+                    // Instagram tarzı: bio + meslek etiketleri
                     if (profile.aboutText.isNotEmpty) ...[
-                      _Section(
-                        icon: Icons.person_outline_rounded,
-                        title: 'Hakkımda',
-                        child: Text(profile.aboutText,
-                            style: Theme.of(context).textTheme.bodyMedium),
+                      Text(
+                        profile.aboutText,
+                        style: theme.textTheme.bodyLarge?.copyWith(height: 1.4),
                       ),
-                      const SizedBox(height: 14),
+                      const SizedBox(height: 12),
+                    ] else if (isOwner) ...[
+                      Text(
+                        'Henüz “Hakkımda” yazmadınız. Müşteriler sizi buradan tanır — '
+                        'Profili Düzenle’den ekleyin.',
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: palette.inkMuted,
+                          fontStyle: FontStyle.italic,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
                     ],
-                    _Section(
-                      icon: Icons.location_on_outlined,
-                      title: 'Hizmet Bölgeleri',
-                      child: Wrap(
+                    if (profile.professionCodes.isNotEmpty) ...[
+                      Wrap(
                         spacing: 8,
                         runSpacing: 8,
-                        children: profile.serviceAreas
-                            .map((a) => Chip(
-                                  avatar: const Icon(Icons.location_on,
-                                      size: 16),
-                                  label: Text(a.labelTR),
-                                ))
-                            .toList(),
+                        children: [
+                          for (final code in profile.professionCodes)
+                            Chip(
+                              avatar: Icon(Icons.handyman_outlined,
+                                  size: 16, color: palette.primary),
+                              label: Text(
+                                kProfessionNames[code] ?? code,
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.w600, fontSize: 13),
+                              ),
+                              backgroundColor: palette.primaryContainer
+                                  .withValues(alpha: 0.55),
+                              side: BorderSide.none,
+                              visualDensity: VisualDensity.compact,
+                            ),
+                        ],
                       ),
+                      const SizedBox(height: 16),
+                    ],
+
+                    // İş fotoğrafları — vitrinin kalbi (IG grid)
+                    _Section(
+                      icon: Icons.photo_library_outlined,
+                      title: profile.workPhotos.isEmpty
+                          ? 'İş fotoğrafları'
+                          : 'İş fotoğrafları (${profile.workPhotos.length})',
+                      trailing: isOwner && profile.workPhotos.isEmpty
+                          ? TextButton(
+                              onPressed: () =>
+                                  context.push(RoutePaths.panelEdit),
+                              child: const Text('Ekle'),
+                            )
+                          : null,
+                      child: profile.workPhotos.isEmpty
+                          ? Text(
+                              isOwner
+                                  ? 'Henüz iş fotoğrafı yok. Müşteriler yaptığınız '
+                                      'işleri görmek ister — galerinizi doldurun.'
+                                  : 'Bu usta henüz iş fotoğrafı eklememiş.',
+                              style: theme.textTheme.bodyMedium
+                                  ?.copyWith(color: palette.inkMuted),
+                            )
+                          : _WorkPhotoGrid(handles: profile.workPhotos),
                     ),
                     const SizedBox(height: 14),
+
+                    _Section(
+                      icon: Icons.location_on_outlined,
+                      title: 'Hizmet bölgeleri',
+                      child: profile.serviceAreas.isEmpty
+                          ? Text(
+                              isOwner
+                                  ? 'Bölge eklenmemiş. Aramada görünmek için il/ilçe seçin.'
+                                  : 'Bölge bilgisi yok.',
+                              style: theme.textTheme.bodyMedium
+                                  ?.copyWith(color: palette.inkMuted),
+                            )
+                          : Wrap(
+                              spacing: 8,
+                              runSpacing: 8,
+                              children: profile.serviceAreas
+                                  .map((a) => Chip(
+                                        avatar: const Icon(Icons.location_on,
+                                            size: 16),
+                                        label: Text(a.labelTR),
+                                      ))
+                                  .toList(),
+                            ),
+                    ),
+                    const SizedBox(height: 14),
+
+                    _Section(
+                      icon: Icons.schedule_outlined,
+                      title: 'Çalışma saatleri',
+                      child: _ScheduleBlock(profile: profile),
+                    ),
+                    const SizedBox(height: 14),
+
                     if (profile.certificates.isNotEmpty) ...[
                       _Section(
                         icon: Icons.verified_outlined,
-                        title: 'Sertifikalar ve Belgeler',
+                        title: 'Sertifikalar ve belgeler',
                         child: SizedBox(
-                          height: 96,
+                          height: 100,
                           child: ListView.separated(
                             scrollDirection: Axis.horizontal,
                             itemCount: profile.certificates.length,
@@ -109,10 +193,13 @@ class _ProfileBody extends StatelessWidget {
                               child: ClipRRect(
                                 borderRadius: BorderRadius.circular(12),
                                 child: SizedBox(
-                                  width: 96,
-                                  height: 96,
+                                  width: 100,
+                                  height: 100,
                                   child: AppImage(
-                                      handle: profile.certificates[i]),
+                                    handle: profile.certificates[i],
+                                    memCacheWidth: 200,
+                                    memCacheHeight: 200,
+                                  ),
                                 ),
                               ),
                             ),
@@ -120,16 +207,153 @@ class _ProfileBody extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(height: 14),
+                    ] else if (isOwner) ...[
+                      _Section(
+                        icon: Icons.verified_outlined,
+                        title: 'Sertifikalar',
+                        trailing: TextButton(
+                          onPressed: () => context.push(RoutePaths.panelEdit),
+                          child: const Text('Ekle'),
+                        ),
+                        child: Text(
+                          'Belge eklemek güveni artırır (isteğe bağlı).',
+                          style: theme.textTheme.bodyMedium
+                              ?.copyWith(color: palette.inkMuted),
+                        ),
+                      ),
+                      const SizedBox(height: 14),
                     ],
+
                     _ReviewsSection(reviews: detail.reviews),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 12),
                   ],
                 ),
               ),
             ],
           ),
         ),
-        _ChatBar(detail: detail),
+        if (isOwner)
+          SafeArea(
+            top: false,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () => context.push(RoutePaths.panelEdit),
+                      icon: const Icon(Icons.edit_outlined, size: 18),
+                      label: const Text('Vitrini düzenle'),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: FilledButton.icon(
+                      onPressed: () => context.pop(),
+                      icon: const Icon(Icons.check_rounded, size: 18),
+                      label: const Text('Tamam'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          )
+        else
+          _ChatBar(detail: detail),
+      ],
+    );
+  }
+}
+
+/// 3 sütunlu iş fotoğrafı ızgarası (Instagram vitrin).
+class _WorkPhotoGrid extends StatelessWidget {
+  const _WorkPhotoGrid({required this.handles});
+  final List<String> handles;
+
+  @override
+  Widget build(BuildContext context) {
+    return GridView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: handles.length,
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 3,
+        mainAxisSpacing: 4,
+        crossAxisSpacing: 4,
+      ),
+      itemBuilder: (context, i) {
+        final h = handles[i];
+        return GestureDetector(
+          onTap: () => _showCertificate(context, h),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: AppImage(
+              handle: h,
+              fit: BoxFit.cover,
+              memCacheWidth: 320,
+              memCacheHeight: 320,
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _ScheduleBlock extends StatelessWidget {
+  const _ScheduleBlock({required this.profile});
+  final ArtisanProfile profile;
+
+  static const _days = ['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz'];
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final palette = context.palette;
+    final p = profile;
+    if (p.manualPause) {
+      return Text('Şu an geçici olarak müsait değil.',
+          style: theme.textTheme.bodyMedium?.copyWith(color: palette.warning));
+    }
+    if (p.alwaysAvailable) {
+      return Row(
+        children: [
+          Icon(Icons.all_inclusive, size: 18, color: palette.success),
+          const SizedBox(width: 8),
+          Text('Her zaman müsait',
+              style: theme.textTheme.bodyMedium
+                  ?.copyWith(fontWeight: FontWeight.w600)),
+        ],
+      );
+    }
+    final days = p.weeklySchedule.days;
+    if (days.every((d) => !d.enabled)) {
+      return Text('Çalışma saatleri belirtilmemiş.',
+          style: theme.textTheme.bodyMedium?.copyWith(color: palette.inkMuted));
+    }
+    return Column(
+      children: [
+        for (final d in days)
+          if (d.enabled)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: Row(
+                children: [
+                  SizedBox(
+                    width: 36,
+                    child: Text(
+                      _days[(d.weekday - 1).clamp(0, 6)],
+                      style: theme.textTheme.labelLarge
+                          ?.copyWith(fontWeight: FontWeight.w800),
+                    ),
+                  ),
+                  Text(
+                    '${d.startLabel} – ${d.endLabel}',
+                    style: theme.textTheme.bodyMedium,
+                  ),
+                ],
+              ),
+            ),
       ],
     );
   }
@@ -165,10 +389,11 @@ void _showCertificate(BuildContext context, String handle) {
 }
 
 /// Lacivert gradyan hero: geri butonu, canlı halkalı avatar, ad + doğrulama,
-/// meslek, müsaitlik durumu ve beyaz istatistik kartı.
+/// meslek, müsaitlik durumu ve Instagram tarzı istatistik kartı.
 class _HeroHeader extends StatelessWidget {
-  const _HeroHeader({required this.detail});
+  const _HeroHeader({required this.detail, this.isOwner = false});
   final ArtisanDetail detail;
+  final bool isOwner;
 
   @override
   Widget build(BuildContext context) {
@@ -232,28 +457,41 @@ class _HeroHeader extends StatelessWidget {
                     color: Color(0xFF13293F),
                     shape: BoxShape.circle,
                   ),
-                  child: detail.profilePhotoUrl != null
-                      ? CircleAvatar(
-                          radius: 46,
-                          backgroundColor: Colors.white24,
-                          foregroundImage:
-                              NetworkImage(detail.profilePhotoUrl!),
-                        )
-                      : Container(
+                  child: Builder(
+                    builder: (context) {
+                      final letter = Container(
+                        width: 92,
+                        height: 92,
+                        decoration: const BoxDecoration(
+                          gradient: AppColors.brandGradient,
+                          shape: BoxShape.circle,
+                        ),
+                        alignment: Alignment.center,
+                        child: Text(initials,
+                            style: const TextStyle(
+                              fontSize: 34,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.white,
+                            )),
+                      );
+                      final url = detail.profilePhotoUrl?.trim();
+                      if (url == null || url.isEmpty) return letter;
+                      return ClipOval(
+                        child: SizedBox(
                           width: 92,
                           height: 92,
-                          decoration: const BoxDecoration(
-                            gradient: AppColors.brandGradient,
-                            shape: BoxShape.circle,
+                          child: AppImage(
+                            handle: url,
+                            width: 92,
+                            height: 92,
+                            memCacheWidth: 184,
+                            memCacheHeight: 184,
+                            placeholder: letter,
                           ),
-                          alignment: Alignment.center,
-                          child: Text(initials,
-                              style: const TextStyle(
-                                fontSize: 34,
-                                fontWeight: FontWeight.w700,
-                                color: Colors.white,
-                              )),
                         ),
+                      );
+                    },
+                  ),
                 ),
               ),
               const SizedBox(height: 12),
@@ -268,11 +506,11 @@ class _HeroHeader extends StatelessWidget {
                           fontWeight: FontWeight.w800,
                         )),
                   ),
-                  if (profile.isVerified) ...[
+                  if (profile.showVerifiedBadge) ...[
                     const SizedBox(width: 6),
-                    const Tooltip(
-                      message: 'Doğrulanmış Usta',
-                      child: Icon(Icons.verified,
+                    Tooltip(
+                      message: profile.verifiedBadgeTooltip,
+                      child: const Icon(Icons.verified,
                           color: Color(0xFF60A5FA), size: 22),
                     ),
                   ],
@@ -332,7 +570,7 @@ class _HeroHeader extends StatelessWidget {
                 ),
               ],
               const SizedBox(height: 18),
-              // İstatistik kartı.
+              // İstatistik kartı — IG: gönderi · etkileşim · iş · deneyim.
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 12),
                 child: Container(
@@ -345,31 +583,44 @@ class _HeroHeader extends StatelessWidget {
                   child: Row(
                     children: [
                       _Stat(
-                        value: profile.averageRating.toStringAsFixed(1),
+                        value: '${profile.workPhotos.length}',
+                        label: 'Fotoğraf',
+                      ),
+                      _statDivider(theme),
+                      _Stat(
+                        value: profile.averageRating > 0
+                            ? profile.averageRating.toStringAsFixed(1)
+                            : '—',
                         label: 'Puan',
                         icon: Icons.star_rounded,
                         iconColor: context.palette.star,
                       ),
                       _statDivider(theme),
                       _Stat(
-                        value: '${profile.totalReviews}',
-                        label: 'Değerlendirme',
-                      ),
-                      _statDivider(theme),
-                      // Yalnızca CF yazar (onJobWritten) → güvenilir sayı.
-                      _Stat(
                         value: '${profile.completedJobs}',
-                        label: 'Tamamlanan İş',
+                        label: 'İş',
                       ),
                       _statDivider(theme),
                       _Stat(
-                        value: '${profile.experienceYears} yıl',
+                        value: profile.experienceYears > 0
+                            ? '${profile.experienceYears}y'
+                            : '—',
                         label: 'Deneyim',
                       ),
                     ],
                   ),
                 ),
               ),
+              if (isOwner) ...[
+                const SizedBox(height: 12),
+                Text(
+                  'Müşterilerin gördüğü vitrininiz · düzenlemek için aşağı kaydırın',
+                  textAlign: TextAlign.center,
+                  style: theme.textTheme.labelMedium?.copyWith(
+                    color: Colors.white.withValues(alpha: 0.75),
+                  ),
+                ),
+              ],
             ],
           ),
         ),
@@ -471,10 +722,12 @@ class _Section extends StatelessWidget {
     required this.icon,
     required this.title,
     required this.child,
+    this.trailing,
   });
   final IconData icon;
   final String title;
   final Widget child;
+  final Widget? trailing;
 
   @override
   Widget build(BuildContext context) {
@@ -502,9 +755,12 @@ class _Section extends StatelessWidget {
                     size: 18, color: context.palette.onPrimaryContainer),
               ),
               const SizedBox(width: 10),
-              Text(title,
-                  style: theme.textTheme.titleMedium
-                      ?.copyWith(fontWeight: FontWeight.w700)),
+              Expanded(
+                child: Text(title,
+                    style: theme.textTheme.titleMedium
+                        ?.copyWith(fontWeight: FontWeight.w700)),
+              ),
+              ?trailing,
             ],
           ),
           const SizedBox(height: 12),
@@ -627,22 +883,40 @@ class _ChatBar extends ConsumerWidget {
           child: AppButton(
             label: isGuest ? 'Sohbet için giriş yap' : 'Sohbet Başlat',
             icon: isGuest ? Icons.login : Icons.chat_bubble_outline,
-            onPressed: () {
+            onPressed: () async {
               if (isGuest) {
                 // Misafir iletişime geçmek isterse girişe yönlendir (PRD §2).
                 context.push(RoutePaths.login);
                 return;
               }
-              // Oturum açmış müşteri: sohbeti başlat/aç ve sohbet ekranına git.
-              final chatId = ref.read(chatRepositoryProvider).startChat(
-                    customerUid: user.uid,
-                    customerName: user.displayName,
-                    customerPhotoUrl: user.profilePhotoUrl,
-                    artisanUid: detail.uid,
-                    artisanName: detail.displayName,
-                    artisanPhotoUrl: detail.profilePhotoUrl,
-                  );
-              context.push(RoutePaths.chatThread(chatId));
+              // M3: e-posta doğrulama (rules chat create da ister).
+              final emailOk = await ensureEmailVerified(
+                context,
+                ref,
+                actionLabel: 'sohbet başlatmak',
+              );
+              if (!emailOk || !context.mounted) return;
+              if (user.suspended) {
+                context.showError('Hesabınız askıya alındığı için sohbet açılamaz.');
+                return;
+              }
+              try {
+                final chatId = await ref.read(chatRepositoryProvider).startChat(
+                      customerUid: user.uid,
+                      customerName: user.displayName,
+                      customerPhotoUrl: user.profilePhotoUrl,
+                      artisanUid: detail.uid,
+                      artisanName: detail.displayName,
+                      artisanPhotoUrl: detail.profilePhotoUrl,
+                    );
+                if (!context.mounted) return;
+                context.push(RoutePaths.chatThread(chatId));
+              } catch (_) {
+                if (context.mounted) {
+                  context.showError(
+                      'Sohbet açılamadı. E-posta doğrulamanızı kontrol edin.');
+                }
+              }
             },
           ),
         ),

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/widgets/searchable_select_field.dart';
 import '../../../../data/local/local_data_service.dart';
 import '../../../../data/models/geo_models.dart';
 import '../../../../data/models/profession.dart';
@@ -32,52 +33,74 @@ class _DetailedSearchSheet extends ConsumerWidget {
     final provinceField = provincesAsync.when(
       loading: () => const _DropdownSkeleton(label: 'İl'),
       error: (_, _) => const Text('İl verisi yüklenemedi'),
-      data: (provinces) => _AllOrOneDropdown<Province>(
+      data: (provinces) => SearchableSelectField<Province>(
         label: 'İl',
-        icon: Icons.location_city_outlined,
         value: filter.province,
         items: provinces,
         itemLabel: (p) => p.name,
-        onChanged: (p) {
+        searchHint: 'İl ara…',
+        prefixIcon: Icons.location_city_outlined,
+        allowClear: true,
+        clearLabel: 'Tümü',
+        equals: (a, b) => a.id == b.id,
+        onSelected: (p) {
           notifier.setProvince(p);
           // İl değişince ilçe "Tümü"ye döner (tutarsız seçim önlenir).
+          notifier.setDistrict(null);
+        },
+        onClear: () {
+          notifier.setProvince(null);
           notifier.setDistrict(null);
         },
       ),
     );
 
     final districtField = filter.province == null
-        ? const _AllOrOneDropdown<District>(
+        ? SearchableSelectField<District>(
             label: 'İlçe',
-            icon: Icons.map_outlined,
             value: null,
-            items: [],
-            itemLabel: _districtLabel,
-            onChanged: null,
+            items: const [],
+            itemLabel: (d) => d.name,
+            prefixIcon: Icons.map_outlined,
+            enabled: false,
+            allowClear: true,
+            clearLabel: 'Tümü',
+            hint: 'Önce il seçin',
+            onSelected: (_) {},
           )
         : ref.watch(districtsProvider(filter.province!.id)).when(
               loading: () => const _DropdownSkeleton(label: 'İlçe'),
               error: (_, _) => const Text('İlçe verisi yüklenemedi'),
-              data: (districts) => _AllOrOneDropdown<District>(
+              data: (districts) => SearchableSelectField<District>(
                 label: 'İlçe',
-                icon: Icons.map_outlined,
                 value: filter.district,
                 items: districts,
                 itemLabel: (d) => d.name,
-                onChanged: notifier.setDistrict,
+                searchHint: 'İlçe ara…',
+                prefixIcon: Icons.map_outlined,
+                allowClear: true,
+                clearLabel: 'Tümü',
+                equals: (a, b) => a.id == b.id,
+                onSelected: notifier.setDistrict,
+                onClear: () => notifier.setDistrict(null),
               ),
             );
 
     final professionField = professionsAsync.when(
       loading: () => const _DropdownSkeleton(label: 'Meslek'),
       error: (_, _) => const Text('Meslek verisi yüklenemedi'),
-      data: (professions) => _AllOrOneDropdown<Profession>(
+      data: (professions) => SearchableSelectField<Profession>(
         label: 'Meslek',
-        icon: Icons.handyman_outlined,
         value: _professionByCode(professions, filter.profession),
         items: professions,
         itemLabel: (p) => p.nameTR,
-        onChanged: (p) => notifier.setProfession(p?.code),
+        searchHint: 'Meslek ara (örn. elektrik…)',
+        prefixIcon: Icons.handyman_outlined,
+        allowClear: true,
+        clearLabel: 'Tümü',
+        equals: (a, b) => a.code == b.code,
+        onSelected: (p) => notifier.setProfession(p.code),
+        onClear: () => notifier.setProfession(null),
       ),
     );
 
@@ -110,7 +133,7 @@ class _DetailedSearchSheet extends ConsumerWidget {
           const SizedBox(height: 4),
           Text(
             'Hiçbir alan zorunlu değildir — "Tümü" bırakılan alanlar '
-            'aramayı daraltmaz.',
+            'aramayı daraltmaz. Listelerde yazarak arayabilirsiniz.',
             style: theme.textTheme.bodySmall
                 ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
           ),
@@ -134,60 +157,12 @@ class _DetailedSearchSheet extends ConsumerWidget {
     );
   }
 
-  static String _districtLabel(District d) => d.name;
-
   static Profession? _professionByCode(List<Profession> list, String? code) {
     if (code == null) return null;
     for (final p in list) {
       if (p.code == code) return p;
     }
     return null;
-  }
-}
-
-/// Başında "Tümü" (null) seçeneği bulunan dropdown — null değer "filtre yok"
-/// anlamına gelir (il ve ilçeye Tümü seçeneği, #6).
-class _AllOrOneDropdown<T> extends StatelessWidget {
-  const _AllOrOneDropdown({
-    required this.label,
-    required this.icon,
-    required this.value,
-    required this.items,
-    required this.itemLabel,
-    required this.onChanged,
-  });
-
-  final String label;
-  final IconData icon;
-  final T? value;
-  final List<T> items;
-  final String Function(T) itemLabel;
-  final ValueChanged<T?>? onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    return DropdownButtonFormField<T?>(
-      initialValue: value,
-      isExpanded: true,
-      borderRadius: BorderRadius.circular(12),
-      icon: const Icon(Icons.keyboard_arrow_down_rounded),
-      decoration: InputDecoration(
-        labelText: label,
-        prefixIcon: Icon(icon, size: 20),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-      ),
-      items: [
-        DropdownMenuItem<T?>(value: null, child: const Text('Tümü')),
-        ...items.map((e) => DropdownMenuItem<T?>(
-              value: e,
-              child: Text(itemLabel(e), overflow: TextOverflow.ellipsis),
-            )),
-      ],
-      // Kapalıyken (onChanged == null) bile "Tümü" yazsın.
-      disabledHint: const Text('Tümü'),
-      hint: const Text('Tümü'),
-      onChanged: onChanged,
-    );
   }
 }
 

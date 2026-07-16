@@ -6,6 +6,7 @@ import '../../../core/router/route_paths.dart';
 import '../../../core/theme/app_palette.dart';
 import '../../../core/widgets/app_image.dart';
 import '../../../core/widgets/gradient_app_bar.dart';
+import '../../../core/widgets/pull_to_refresh.dart';
 import '../../../core/widgets/responsive_center.dart';
 import '../../../core/widgets/status_views.dart';
 import '../../../data/models/app_notification.dart';
@@ -59,40 +60,59 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
       ),
       body: notifsAsync.when(
         loading: () => const LoadingView(),
-        error: (_, _) => const ErrorView(
-            message: 'Bildirimler yüklenemedi. Bağlantınızı kontrol edip '
-                'tekrar deneyin.'),
+        error: (_, _) => RefreshableEmpty(
+          onRefresh: () => awaitRefresh(() async {
+            ref.invalidate(myNotificationsProvider(user.uid));
+            ref.invalidate(followersProvider(user.uid));
+            await ref.read(myNotificationsProvider(user.uid).future);
+          }),
+          child: const ErrorView(
+              message: 'Bildirimler yüklenemedi. Bağlantınızı kontrol edip '
+                  'tekrar deneyin.'),
+        ),
         data: (items) {
+          Future<void> refresh() => awaitRefresh(() async {
+                ref.invalidate(myNotificationsProvider(user.uid));
+                ref.invalidate(followersProvider(user.uid));
+                await ref.read(myNotificationsProvider(user.uid).future);
+              });
           _markVisibleRead(user.uid, items);
           if (items.isEmpty && followers.isEmpty) {
-            return const _EmptyNotifications();
+            return RefreshableEmpty(
+              onRefresh: refresh,
+              child: const _EmptyNotifications(),
+            );
           }
           final groups = _groupByAge(items);
           return ResponsiveCenter(
             maxWidth: 720,
-            child: ListView(
-              padding: const EdgeInsets.all(16),
-              children: [
-                for (final g in groups) ...[
-                  _SectionHeader(title: g.$1),
-                  const SizedBox(height: 8),
-                  for (final n in g.$2) ...[
-                    _NotificationTile(notification: n),
+            child: PullToRefresh(
+              onRefresh: refresh,
+              child: ListView(
+                physics: kPullRefreshPhysics,
+                padding: const EdgeInsets.all(16),
+                children: [
+                  for (final g in groups) ...[
+                    _SectionHeader(title: g.$1),
                     const SizedBox(height: 8),
+                    for (final n in g.$2) ...[
+                      _NotificationTile(notification: n),
+                      const SizedBox(height: 8),
+                    ],
+                    const SizedBox(height: 10),
                   ],
-                  const SizedBox(height: 10),
-                ],
-                if (followers.isNotEmpty) ...[
-                  const SizedBox(height: 6),
-                  _SectionHeader(
-                      title: 'Sizi Takip Edenler (${followers.length})'),
-                  const SizedBox(height: 8),
-                  for (final f in followers) ...[
-                    _FollowerTile(follower: f),
+                  if (followers.isNotEmpty) ...[
+                    const SizedBox(height: 6),
+                    _SectionHeader(
+                        title: 'Sizi Takip Edenler (${followers.length})'),
                     const SizedBox(height: 8),
+                    for (final f in followers) ...[
+                      _FollowerTile(follower: f),
+                      const SizedBox(height: 8),
+                    ],
                   ],
                 ],
-              ],
+              ),
             ),
           );
         },

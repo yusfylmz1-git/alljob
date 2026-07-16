@@ -7,6 +7,7 @@ import '../../../core/theme/app_palette.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/widgets/app_image.dart';
 import '../../../core/widgets/gradient_app_bar.dart';
+import '../../../core/widgets/pull_to_refresh.dart';
 import '../../../core/widgets/responsive_center.dart';
 import '../../../core/widgets/skeleton.dart';
 import '../../../core/widgets/status_views.dart';
@@ -30,18 +31,40 @@ class FavoritesScreen extends ConsumerWidget {
           ? const Center(child: Text('Oturum bulunamadı.'))
           : ref.watch(favoritesProvider(user.uid)).when(
                 loading: () => const SkeletonList(),
-                error: (_, _) => const ErrorView(
-                    message: 'Takip listesi yüklenemedi. Bağlantınızı '
-                        'kontrol edip tekrar deneyin.'),
+                error: (_, _) => RefreshableEmpty(
+                  onRefresh: () => awaitRefresh(() async {
+                    ref.invalidate(favoritesProvider(user.uid));
+                    await ref.read(favoritesProvider(user.uid).future);
+                  }),
+                  child: const ErrorView(
+                      message: 'Takip listesi yüklenemedi. Bağlantınızı '
+                          'kontrol edip tekrar deneyin.'),
+                ),
                 data: (favs) => favs.isEmpty
-                    ? const _EmptyFavorites()
+                    ? RefreshableEmpty(
+                        onRefresh: () => awaitRefresh(() async {
+                          ref.invalidate(favoritesProvider(user.uid));
+                          await ref.read(favoritesProvider(user.uid).future);
+                        }),
+                        child: const _EmptyFavorites(),
+                      )
                     : ResponsiveCenter(
                         maxWidth: 720,
-                        child: ListView.separated(
-                          padding: const EdgeInsets.all(16),
-                          itemCount: favs.length,
-                          separatorBuilder: (_, _) => const SizedBox(height: 10),
-                          itemBuilder: (_, i) => _FavoriteTile(fav: favs[i]),
+                        child: PullToRefresh(
+                          onRefresh: () => awaitRefresh(() async {
+                            ref.invalidate(favoritesProvider(user.uid));
+                            await ref
+                                .read(favoritesProvider(user.uid).future);
+                          }),
+                          child: ListView.separated(
+                            physics: kPullRefreshPhysics,
+                            padding: const EdgeInsets.all(16),
+                            itemCount: favs.length,
+                            separatorBuilder: (_, _) =>
+                                const SizedBox(height: 10),
+                            itemBuilder: (_, i) =>
+                                _FavoriteTile(fav: favs[i]),
+                          ),
                         ),
                       ),
               ),

@@ -1,13 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'admin_chrome.dart';
 
 import '../../../core/theme/app_palette.dart';
 import '../../../core/utils/snackbar_helper.dart';
-import '../../../core/widgets/gradient_app_bar.dart';
 import '../../../core/widgets/responsive_center.dart';
 import '../../../core/widgets/status_views.dart';
 import '../../../data/models/job.dart';
-import '../../auth/application/auth_controller.dart';
 import '../data/admin_dispute_repository.dart';
 import '../data/admin_providers.dart';
 import 'admin_users_screen.dart';
@@ -26,7 +25,9 @@ class AdminDisputesScreen extends ConsumerWidget {
     final controller = ref.read(disputeQueueControllerProvider.notifier);
 
     return Scaffold(
-      appBar: GradientAppBar(
+      backgroundColor: AdminChrome.surface,
+      appBar: AdminChrome.pageHeader(
+        context: context,
         title: 'Anlaşmazlıklar',
         icon: Icons.gavel_outlined,
         subtitle: pageAsync.valueOrNull == null
@@ -38,12 +39,6 @@ class AdminDisputesScreen extends ConsumerWidget {
             tooltip: 'Yenile',
             icon: const Icon(Icons.refresh_rounded),
             onPressed: controller.refresh,
-          ),
-          IconButton(
-            tooltip: 'Çıkış',
-            icon: const Icon(Icons.logout_rounded),
-            onPressed: () =>
-                ref.read(authControllerProvider.notifier).signOut(),
           ),
         ],
       ),

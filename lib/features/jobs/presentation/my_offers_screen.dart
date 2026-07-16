@@ -6,6 +6,7 @@ import '../../../core/router/route_paths.dart';
 import '../../../core/theme/app_palette.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/widgets/gradient_app_bar.dart';
+import '../../../core/widgets/pull_to_refresh.dart';
 import '../../../core/widgets/responsive_center.dart';
 import '../../../core/widgets/skeleton.dart';
 import '../../../core/widgets/status_views.dart';
@@ -13,7 +14,7 @@ import '../../../data/models/offer.dart';
 import '../../auth/application/auth_controller.dart';
 import '../data/job_providers.dart';
 
-/// Usta: iletişime geçtiğim işler (İletişimlerim).
+/// Usta: ilgilendiğim / teklif verdiğim işler.
 class MyOffersScreen extends ConsumerWidget {
   const MyOffersScreen({super.key});
 
@@ -22,27 +23,48 @@ class MyOffersScreen extends ConsumerWidget {
     final user = ref.watch(currentUserProvider);
     return Scaffold(
       appBar: const GradientAppBar(
-        title: 'İletişimlerim',
-        icon: Icons.forum_outlined,
+        title: 'İlgilendiğim işler',
+        icon: Icons.work_history_outlined,
       ),
       body: user == null
           ? const Center(child: Text('Oturum bulunamadı.'))
           : ref.watch(myOffersProvider(user.uid)).when(
                 loading: () => const SkeletonList(),
-                error: (_, _) => const ErrorView(
-                    message: 'Liste yüklenemedi. Bağlantınızı kontrol edip '
-                        'tekrar deneyin.'),
+                error: (_, _) => RefreshableEmpty(
+                  onRefresh: () => awaitRefresh(() async {
+                    ref.invalidate(myOffersProvider(user.uid));
+                    await ref.read(myOffersProvider(user.uid).future);
+                  }),
+                  child: const ErrorView(
+                      message: 'Liste yüklenemedi. Bağlantınızı kontrol edip '
+                          'tekrar deneyin.'),
+                ),
                 data: (offers) {
                   final active =
                       offers.where((o) => o.status != OfferStatus.withdrawn).toList();
-                  if (active.isEmpty) return const _EmptyOffers();
+                  if (active.isEmpty) {
+                    return RefreshableEmpty(
+                      onRefresh: () => awaitRefresh(() async {
+                        ref.invalidate(myOffersProvider(user.uid));
+                        await ref.read(myOffersProvider(user.uid).future);
+                      }),
+                      child: const _EmptyOffers(),
+                    );
+                  }
                   return ResponsiveCenter(
                     maxWidth: 720,
-                    child: ListView.separated(
-                      padding: const EdgeInsets.all(16),
-                      itemCount: active.length,
-                      separatorBuilder: (_, _) => const SizedBox(height: 10),
-                      itemBuilder: (_, i) => _MyOfferTile(offer: active[i]),
+                    child: PullToRefresh(
+                      onRefresh: () => awaitRefresh(() async {
+                        ref.invalidate(myOffersProvider(user.uid));
+                        await ref.read(myOffersProvider(user.uid).future);
+                      }),
+                      child: ListView.separated(
+                        physics: kPullRefreshPhysics,
+                        padding: const EdgeInsets.all(16),
+                        itemCount: active.length,
+                        separatorBuilder: (_, _) => const SizedBox(height: 10),
+                        itemBuilder: (_, i) => _MyOfferTile(offer: active[i]),
+                      ),
                     ),
                   );
                 },
@@ -60,7 +82,7 @@ class _MyOfferTile extends StatelessWidget {
     final palette = context.palette;
     final (Color fg, Color bg, String label) = switch (offer.status) {
       OfferStatus.pending =>
-        (palette.info, palette.infoSurface, 'İletişimde'),
+        (palette.info, palette.infoSurface, 'İlgileniyorsunuz'),
       OfferStatus.accepted =>
         (palette.success, palette.successSurface, 'Seçildiniz'),
       OfferStatus.rejected =>
@@ -142,14 +164,15 @@ class _EmptyOffers extends StatelessWidget {
                   size: 34, color: context.palette.onPrimaryContainer),
             ),
             const SizedBox(height: 16),
-            Text('Henüz iletişime geçmediniz',
+            Text('Henüz bir işle ilgilenmediniz',
                 style: Theme.of(context)
                     .textTheme
                     .titleMedium
                     ?.copyWith(fontWeight: FontWeight.w700)),
             const SizedBox(height: 6),
             Text(
-              'Yakınımdaki İşler bölümünden ilanları inceleyip müşterilerle iletişime geçin.',
+              'Hizmetlerim (yakındaki işler) bölümünden ilanları inceleyip '
+              'ilgilendiğiniz işlere başvurun.',
               textAlign: TextAlign.center,
               style: Theme.of(context)
                   .textTheme

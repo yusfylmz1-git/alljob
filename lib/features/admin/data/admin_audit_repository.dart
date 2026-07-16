@@ -38,6 +38,15 @@ class AuditEntry {
         'grant_admin' => 'Yönetici yetkisi verildi',
         'set_role' => 'Rol atandı',
         'revoke_admin' => 'Yönetici yetkisi kaldırıldı',
+        'set_capabilities' => 'Yetkiler güncellendi',
+        'invite_create' => 'Moderatör daveti oluşturuldu',
+        'invite_accept' => 'Davet kabul edildi',
+        'invite_revoke' => 'Davet iptal edildi',
+        'stats_rebuild' => 'İstatistikler yeniden kuruldu',
+        'moderate_job' => 'İlan moderasyonu',
+        'set_artisan_flags' => 'Usta bayrakları',
+        'hide_review' => 'Değerlendirme gizleme',
+        'get_chat_transcript' => 'Sohbet kanıtı okundu',
         'suspend_user' => 'Kullanıcı askıya alındı',
         'unsuspend_user' => 'Askı kaldırıldı',
         'resolve_report' => 'Şikayet karara bağlandı',
@@ -83,8 +92,15 @@ enum AuditCategory {
 
   bool matches(AuditEntry e) => switch (this) {
         AuditCategory.all => true,
-        AuditCategory.roles =>
-          const {'grant_admin', 'set_role', 'revoke_admin'}.contains(e.action),
+        AuditCategory.roles => const {
+            'grant_admin',
+            'set_role',
+            'revoke_admin',
+            'set_capabilities',
+            'invite_create',
+            'invite_accept',
+            'invite_revoke',
+          }.contains(e.action),
         AuditCategory.suspension =>
           const {'suspend_user', 'unsuspend_user'}.contains(e.action),
         AuditCategory.reports => const {

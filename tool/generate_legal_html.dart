@@ -110,17 +110,17 @@ String _shell({
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>$title — Usta Cepte</title>
+<title>$title — $kAppBrandName</title>
 <style>$_style</style>
 </head>
 <body>
 <header>
-  <div class="brand">Usta Cepte</div>
+  <div class="brand">$kAppBrandName</div>
   <h1>$title</h1>
   <p class="updated">Son güncelleme: $kLegalUpdated</p>
 </header>
 $content
-<footer>Usta Cepte · İletişim: <a href="mailto:$kLegalContactEmail">$kLegalContactEmail</a></footer>
+<footer>$kAppBrandName · İletişim: <a href="mailto:$kLegalContactEmail">$kLegalContactEmail</a></footer>
 </body>
 </html>
 ''';

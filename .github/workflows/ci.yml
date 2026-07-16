@@ -1,0 +1,53 @@
+# Her push / PR: analyze + test + functions syntax check.
+# Mağazaya giden "0 hata" disiplininin temel ayağı (YOL_HARITASI Sprint 2).
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  flutter:
+    name: Flutter analyze + test
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: pub get
+        run: flutter pub get
+
+      - name: analyze
+        run: flutter analyze --no-fatal-infos
+
+      - name: test
+        run: flutter test
+
+  functions:
+    name: Cloud Functions syntax
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: functions
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: functions/package-lock.json
+
+      - name: npm ci
+        run: npm ci --ignore-scripts
+
+      - name: syntax check
+        run: node --check index.js

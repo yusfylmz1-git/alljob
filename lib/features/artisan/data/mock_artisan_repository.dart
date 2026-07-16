@@ -23,9 +23,9 @@ class MockArtisanRepository implements ArtisanRepository {
     // Opsiyonel filtre (PRD §3): verilen alanlar AND; boş alan tümünü kabul eder.
     // Meslek seçilmemiş kayıtlar (yeni ustalar) listelenmez.
     final matches = _db.all.where((r) {
-      if (r.profile.profession.isEmpty) return false;
+      if (r.profile.professionCodes.isEmpty) return false;
       if (filter.professionCode != null &&
-          r.profile.profession != filter.professionCode) {
+          !r.profile.professionCodes.contains(filter.professionCode)) {
         return false;
       }
       // Temel kural: müsait olmayan usta müşteri aramasında GÖSTERİLMEZ.
@@ -33,7 +33,8 @@ class MockArtisanRepository implements ArtisanRepository {
       if (!r.profile.isAvailableAt(now)) return false;
       if (!filter.matchesQuery(
         displayName: r.displayName,
-        professionNameTR: kProfessionNames[r.profile.profession] ?? '',
+        professionNameTR:
+            r.profile.professionLabelsTR(kProfessionNames),
       )) {
         return false;
       }
@@ -69,7 +70,8 @@ class MockArtisanRepository implements ArtisanRepository {
     return ArtisanDetail(
       uid: record.uid,
       displayName: record.displayName,
-      professionNameTR: kProfessionNames[record.profile.profession] ?? '',
+      professionNameTR:
+          record.profile.professionLabelsTR(kProfessionNames),
       profile: record.profile,
       reviews: record.reviews,
       profilePhotoUrl: record.profilePhotoUrl,
@@ -80,11 +82,13 @@ class MockArtisanRepository implements ArtisanRepository {
         uid: r.uid,
         displayName: r.displayName,
         professionCode: r.profile.profession,
-        professionNameTR: kProfessionNames[r.profile.profession] ?? '',
+        professionNameTR:
+            r.profile.professionLabelsTR(kProfessionNames),
         experienceYears: r.profile.experienceYears,
         averageRating: r.profile.averageRating,
         totalReviews: r.profile.totalReviews,
-        isVerified: r.profile.isVerified,
+        isVerified: r.profile.showVerifiedBadge,
+        isEmailVerified: r.profile.emailVerified,
         isPremium: r.profile.isPremium,
         isAvailable: r.profile.isAvailable,
         isNewArtisan: r.profile.isNewArtisan,

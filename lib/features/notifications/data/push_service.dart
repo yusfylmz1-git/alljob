@@ -23,8 +23,8 @@ const String kWebVapidKey = '';
 ///
 /// Sorumluluklar:
 ///  - İzin iste (Android 13+/iOS runtime izni).
-///  - Cihaz token'ını al ve `users/{uid}.fcmTokens` dizisine kaydet
-///    (`arrayUnion`); token yenilenince güncelle.
+///  - Cihaz token'ını al ve `users/{uid}/private/push.fcmTokens` dizisine
+///    kaydet (`arrayUnion`); public `users` dökümanına YAZILMAZ (H2).
 ///  - Çıkışta token'ı diziden çıkar + geçersiz kıl (`deleteToken`).
 ///  - Ön planda gelen bildirimi in-app SnackBar ile göster.
 ///  - Bildirime dokununca (arka plan/kapalıdan açılış dahil) ilgili sohbete git.
@@ -83,9 +83,11 @@ class PushService {
     try {
       final token = await _getToken();
       if (token != null) {
-        await _db.collection('users').doc(uid).set({
+        await _pushRef(uid).set({
           'fcmTokens': FieldValue.arrayRemove([token]),
         }, SetOptions(merge: true));
+        // Legacy public alandan da düş (eski kurulumlar).
+        await _stripPublicToken(uid, token);
       }
       await _messaging.deleteToken();
     } catch (e) {
@@ -100,10 +102,38 @@ class PushService {
     return _messaging.getToken();
   }
 
+  DocumentReference<Map<String, dynamic>> _pushRef(String uid) =>
+      _db.collection('users').doc(uid).collection('private').doc('push');
+
   Future<void> _saveToken(String uid, String token) async {
-    await _db.collection('users').doc(uid).set({
+    await _pushRef(uid).set({
       'fcmTokens': FieldValue.arrayUnion([token]),
+      'updatedAt': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
+    // Public dökümandaki eski fcmTokens/email sızıntısını temizle (H2).
+    await _stripPublicPii(uid, token);
+  }
+
+  Future<void> _stripPublicToken(String uid, String token) async {
+    try {
+      await _db.collection('users').doc(uid).set({
+        'fcmTokens': FieldValue.arrayRemove([token]),
+      }, SetOptions(merge: true));
+    } catch (_) {
+      /* kural veya alan yok — yok say */
+    }
+  }
+
+  Future<void> _stripPublicPii(String uid, String token) async {
+    try {
+      await _db.collection('users').doc(uid).set({
+        'email': FieldValue.delete(),
+        'fcmTokens': FieldValue.delete(),
+      }, SetOptions(merge: true));
+    } catch (_) {
+      // Eski kurallar / yok alan — private push yine yazıldı.
+      await _stripPublicToken(uid, token);
+    }
   }
 
   void _wireHandlers() {

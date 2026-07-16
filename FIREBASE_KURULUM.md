@@ -1,4 +1,4 @@
-# 🔥 Firebase Kurulum Rehberi — Usta Cepte
+# 🔥 Firebase Kurulum Rehberi — Ustasından
 
 Bu belge, uygulamayı bellek içi mock'tan **Firebase** backend'ine geçirmek için
 adım adım yol gösterir. Kod tarafı **hazır**: tek yapman gereken CLI kurulumunu

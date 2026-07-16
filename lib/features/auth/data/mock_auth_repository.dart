@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import '../../../core/utils/validators.dart';
 import '../../../data/models/app_user.dart';
 import '../../../data/models/user_role.dart';
 import '../../admin/data/admin_config.dart';
@@ -59,13 +60,16 @@ class MockAuthRepository implements AuthRepository {
     required String password,
   }) async {
     await _delay();
+    final name = Validators.normalizeDisplayName(displayName);
+    final nameErr = Validators.displayName(name);
+    if (nameErr != null) throw AuthException(nameErr);
     final key = email.trim().toLowerCase();
     if (_accounts.containsKey(key)) throw AuthException.emailInUse;
     if (password.length < 6) throw AuthException.weakPassword;
 
     final user = AppUser(
       uid: 'mock_${DateTime.now().millisecondsSinceEpoch}',
-      displayName: displayName.trim(),
+      displayName: name,
       email: email.trim(),
       createdAt: DateTime.now(),
     );
@@ -189,8 +193,14 @@ class MockAuthRepository implements AuthRepository {
     await _delay();
     final user = _current;
     if (user == null) return;
+    String? name = displayName;
+    if (displayName != null) {
+      name = Validators.normalizeDisplayName(displayName);
+      final nameErr = Validators.displayName(name);
+      if (nameErr != null) throw AuthException(nameErr);
+    }
     final updated = user.copyWith(
-      displayName: displayName,
+      displayName: name,
       profilePhotoUrl: profilePhotoUrl,
     );
     _store(updated);

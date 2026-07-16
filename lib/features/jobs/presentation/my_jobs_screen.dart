@@ -9,6 +9,7 @@ import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/snackbar_helper.dart';
 import '../../../core/widgets/app_menu_drawer.dart';
 import '../../../core/widgets/gradient_app_bar.dart';
+import '../../../core/widgets/pull_to_refresh.dart';
 import '../../../core/widgets/responsive_center.dart';
 import '../../../core/widgets/role_bottom_bar.dart';
 import '../../../core/widgets/skeleton.dart';
@@ -167,37 +168,59 @@ class _MyJobsScreenState extends ConsumerState<MyJobsScreen> {
             ? const Center(child: Text('Oturum bulunamadı.'))
             : jobsAsync!.when(
                   loading: () => const SkeletonList(),
-                  error: (_, _) => const ErrorView(
-                      message: 'İlanlar yüklenemedi. Bağlantınızı kontrol '
-                          'edip tekrar deneyin.'),
+                  error: (_, _) => RefreshableEmpty(
+                    onRefresh: () => awaitRefresh(() async {
+                      ref.invalidate(myJobsProvider(user.uid));
+                      await ref.read(myJobsProvider(user.uid).future);
+                    }),
+                    child: ErrorView(
+                        message: 'İlanlar yüklenemedi. Bağlantınızı kontrol '
+                            'edip tekrar deneyin.',
+                        onRetry: () =>
+                            ref.invalidate(myJobsProvider(user.uid))),
+                  ),
                   data: (jobs) => jobs.isEmpty
-                      ? const _EmptyJobs()
+                      ? RefreshableEmpty(
+                          onRefresh: () => awaitRefresh(() async {
+                            ref.invalidate(myJobsProvider(user.uid));
+                            await ref.read(myJobsProvider(user.uid).future);
+                          }),
+                          child: const _EmptyJobs(),
+                        )
                       : ResponsiveCenter(
                           maxWidth: 720,
-                          child: ListView.separated(
-                            padding: const EdgeInsets.all(16),
-                            itemCount: jobs.length,
-                            separatorBuilder: (_, _) =>
-                                const SizedBox(height: 12),
-                            itemBuilder: (_, i) {
-                              final job = jobs[i];
-                              return _JobCard(
-                                job: job,
-                                selectionMode: _selectionMode,
-                                selected: _selected.contains(job.jobId),
-                                onToggle: job.canDelete
-                                    ? () => _toggleSelected(job.jobId)
-                                    : null,
-                                // Uzun basış da seçim modunu açar (Android
-                                // alışkanlığı) — yalnız silinebilir ilanlarda.
-                                onEnterSelection: job.canDelete
-                                    ? () => setState(() {
-                                          _selectionMode = true;
-                                          _selected.add(job.jobId);
-                                        })
-                                    : null,
-                              );
-                            },
+                          child: PullToRefresh(
+                            onRefresh: () => awaitRefresh(() async {
+                              ref.invalidate(myJobsProvider(user.uid));
+                              await ref
+                                  .read(myJobsProvider(user.uid).future);
+                            }),
+                            child: ListView.separated(
+                              physics: kPullRefreshPhysics,
+                              padding: const EdgeInsets.all(16),
+                              itemCount: jobs.length,
+                              separatorBuilder: (_, _) =>
+                                  const SizedBox(height: 12),
+                              itemBuilder: (_, i) {
+                                final job = jobs[i];
+                                return _JobCard(
+                                  job: job,
+                                  selectionMode: _selectionMode,
+                                  selected: _selected.contains(job.jobId),
+                                  onToggle: job.canDelete
+                                      ? () => _toggleSelected(job.jobId)
+                                      : null,
+                                  // Uzun basış da seçim modunu açar (Android
+                                  // alışkanlığı) — yalnız silinebilir ilanlarda.
+                                  onEnterSelection: job.canDelete
+                                      ? () => setState(() {
+                                            _selectionMode = true;
+                                            _selected.add(job.jobId);
+                                          })
+                                      : null,
+                                );
+                              },
+                            ),
                           ),
                         ),
                 ),

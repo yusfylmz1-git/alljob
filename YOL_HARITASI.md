@@ -1,4 +1,4 @@
-# 🗺️ Usta Cepte — Proje Denetimi ve Yol Haritası
+# 🗺️ Ustasından — Proje Denetimi ve Yol Haritası
 
 > Proje yöneticisi bakışıyla dürüst durum tespiti (2026-07-10).
 > Amaç: "0 hata" hedefine giden, mağazaya çıkabilir, gerçek kullanıcıya

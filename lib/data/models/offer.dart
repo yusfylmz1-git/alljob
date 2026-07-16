@@ -50,7 +50,7 @@ class Offer {
 
   final String offerId;
   final String jobId;
-  final String jobTitle; // denormalize — ustanın "İletişimlerim" listesi için
+  final String jobTitle; // denormalize — ustanın "İlgilendiğim işler" listesi
   final String artisanId;
   final String customerId; // kural + sohbet için
 

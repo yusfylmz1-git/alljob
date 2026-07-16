@@ -18,6 +18,7 @@ abstract class ReviewRepository {
     required String chatId,
     required int rating,
     required List<String> tags,
+    String? jobId,
   });
 
   /// Bu müşterinin bu ustaya daha önce verdiği değerlendirme (yoksa null) —
@@ -44,6 +45,7 @@ class MockReviewRepository implements ReviewRepository {
     required String chatId,
     required int rating,
     required List<String> tags,
+    String? jobId,
   }) async {
     // İkinci değerlendirme mevcut kaydı günceller (Firestore paritesi).
     _db.addReview(
@@ -91,6 +93,7 @@ class FirebaseReviewRepository implements ReviewRepository {
     required String chatId,
     required int rating,
     required List<String> tags,
+    String? jobId,
   }) async {
     final review = Review(
       id: chatId,
@@ -106,7 +109,10 @@ class FirebaseReviewRepository implements ReviewRepository {
     // başına TEK döküman. İlk gönderim create; sonrakiler AYNI dökümanın
     // üzerine yazar (kural yalnız rating/tags/createdAt/ad değişimine izin
     // verir). Ortalamayı CF `onReviewWritten` delta ile işler.
-    await _reviews.doc(chatId).set(review.toMap());
+    // jobId: H6 tamamlanmış iş yolu (rules).
+    final map = review.toMap();
+    if (jobId != null && jobId.isNotEmpty) map['jobId'] = jobId;
+    await _reviews.doc(chatId).set(map);
   }
 
   @override
@@ -129,7 +135,11 @@ class FirebaseReviewRepository implements ReviewRepository {
         .orderBy('createdAt', descending: true)
         .limit(50)
         .get();
-    return snap.docs.map((d) => Review.fromMap(d.id, d.data())).toList();
+    // H5: admin soft-hide — consumer listesinde gösterme.
+    return snap.docs
+        .where((d) => d.data()['hiddenByAdmin'] != true)
+        .map((d) => Review.fromMap(d.id, d.data()))
+        .toList();
   }
 }
 

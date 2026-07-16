@@ -1,59 +1,214 @@
 <!DOCTYPE html>
 <html lang="tr">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Yasal Metinler — Usta Cepte</title>
-<style>:root { color-scheme: light dark; }
-* { box-sizing: border-box; }
-body {
-  margin: 0; padding: 0 20px 64px;
-  font: 16px/1.6 -apple-system, "Segoe UI", Roboto, Ubuntu, sans-serif;
-  background: #f7f7f9; color: #1d2733;
-}
-@media (prefers-color-scheme: dark) {
-  body { background: #12161c; color: #e6e9ee; }
-  header p, .updated, footer { color: #98a2b3 !important; }
-  main { background: #1a2029 !important; border-color: #2a3341 !important; }
-  a { color: #7fb2ff; }
-}
-header { max-width: 760px; margin: 0 auto; padding: 36px 0 16px; }
-header h1 { margin: 0 0 4px; font-size: 26px; }
-header .brand { font-weight: 800; color: #e8611a; letter-spacing: .2px; }
-header p { margin: 0; color: #5b6675; }
-.updated { font-size: 13px; color: #5b6675; margin-top: 6px; }
-main {
-  max-width: 760px; margin: 16px auto 0; padding: 8px 28px 28px;
-  background: #fff; border: 1px solid #e4e7ec; border-radius: 14px;
-}
-main h2 { font-size: 17px; margin: 26px 0 8px; }
-main p, main li { font-size: 15px; }
-a { color: #0b57d0; text-decoration: none; }
-a:hover { text-decoration: underline; }
-footer {
-  max-width: 760px; margin: 24px auto 0; color: #5b6675; font-size: 13px;
-  text-align: center;
-}
-ul, ol { padding-left: 22px; margin: 8px 0; }
-li { margin: 4px 0; }
-</style>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Ustasından — Bölgendeki ustaları bul, ilan ver, anlaş</title>
+  <meta name="description" content="Ustasından ile boyacı, elektrikçi, tesisatçı ve daha birçok ustayı bölgene göre bul. İş ilanı ver, teklif al, güvenli sohbetle anlaş.">
+  <meta name="theme-color" content="#e8611a">
+  <link rel="canonical" href="https://alljob1.web.app/">
+  <meta property="og:title" content="Ustasından">
+  <meta property="og:description" content="Bölgendeki ustaları bul, iş ilanı ver, güvenle anlaş.">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://alljob1.web.app/">
+  <link rel="stylesheet" href="assets/site.css">
 </head>
 <body>
-<header>
-  <div class="brand">Usta Cepte</div>
-  <h1>Yasal Metinler</h1>
-  <p class="updated">Son güncelleme: 12 Temmuz 2026</p>
-</header>
-<main>
-<p>Yasal metinlerimiz:</p>
-<ul>
-  <li><a href="kullanim-kosullari.html">Kullanım Koşulları</a></li>
-  <li><a href="gizlilik-politikasi.html">Gizlilik Politikası</a></li>
-  <li><a href="kvkk-aydinlatma.html">KVKK Aydınlatma Metni</a></li>
-  <li><a href="hesap-silme.html">Hesap Silme Talimatı</a></li>
-</ul>
-</main>
+  <a class="skip-link" href="#icerik">İçeriğe geç</a>
 
-<footer>Usta Cepte · İletişim: <a href="mailto:aboneai.plus@gmail.com">aboneai.plus@gmail.com</a></footer>
+  <header class="topnav">
+    <div class="topnav-inner">
+      <a class="logo" href="/">
+        <span class="logo-mark" aria-hidden="true">U</span>
+        Ustasından
+      </a>
+      <nav class="nav-links" aria-label="Ana menü">
+        <a href="#nasil">Nasıl çalışır</a>
+        <a href="#ozellikler">Özellikler</a>
+        <a href="#yasal">Yasal</a>
+        <a class="btn btn-primary btn-sm" href="#indir">Uygulama</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="icerik">
+    <section class="hero">
+      <div>
+        <span class="eyebrow">Hizmet pazaryeri · Türkiye</span>
+        <h1>İhtiyacın olan ustayı<br>cebine getir.</h1>
+        <p class="lead">
+          Boya, elektrik, su tesisatı, tadilat ve daha fazlası.
+          Bölgendeki ustaları gör, iş ilanı aç, teklifleri karşılaştır,
+          uygulama içi sohbetle anlaş.
+        </p>
+        <div class="hero-actions" id="indir">
+          <!-- Play linki yayın sonrası güncellenecek -->
+          <a class="btn btn-primary" href="mailto:aboneai.plus@gmail.com?subject=Usta%20Cepte%20bilgi">
+            Bilgi al
+          </a>
+          <a class="btn btn-ghost" href="#nasil">Nasıl çalışır?</a>
+        </div>
+        <p class="hero-note">
+          Android uygulaması yakında Google Play’de.
+          Bu site tanıtım ve yasal metinler içindir.
+        </p>
+      </div>
+
+      <div class="hero-card" aria-hidden="false">
+        <div class="phone-mock">
+          <div class="bar"></div>
+          <span class="chip">Ustasından</span>
+          <h3>Bugün ne lazım?</h3>
+          <p style="margin:0;color:#98a2b3;font-size:0.9rem;">
+            Meslek ve il seç → ustaları listele veya ilan ver.
+          </p>
+          <ul>
+            <li><strong>Yakındaki ustalar</strong>Meslek + il filtresi</li>
+            <li><strong>İş ilanı</strong>Teklif topla, karşılaştır</li>
+            <li><strong>Güvenli sohbet</strong>Telefon numarası gizli kalır</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section class="block" id="ozellikler">
+      <h2>Neden Ustasından?</h2>
+      <p class="sub">
+        Klasik “rehber” listesinden farklı: hem ustayı bulabilir hem iş ilanı
+        açıp teklif alabilirsin.
+      </p>
+      <div class="grid-3">
+        <article class="card">
+          <div class="icon" aria-hidden="true">📍</div>
+          <h3>Bölgene göre</h3>
+          <p>İl ve meslek ile filtrele; sana yakın ustaları gör.</p>
+        </article>
+        <article class="card">
+          <div class="icon" aria-hidden="true">📋</div>
+          <h3>İlan ve teklif</h3>
+          <p>İhtiyacını yaz, ustalardan teklif gelsin; sen seç.</p>
+        </article>
+        <article class="card">
+          <div class="icon" aria-hidden="true">💬</div>
+          <h3>Uygulama içi mesaj</h3>
+          <p>Görüşmeyi uygulamada yürüt; iletişim bilgisi zorunlu değil.</p>
+        </article>
+        <article class="card">
+          <div class="icon" aria-hidden="true">⭐</div>
+          <h3>Değerlendirmeler</h3>
+          <p>İş bitince puan ve yorum; sonraki kullanıcılar görsün.</p>
+        </article>
+        <article class="card">
+          <div class="icon" aria-hidden="true">🛡️</div>
+          <h3>Hesap ve güvenlik</h3>
+          <p>Google ile giriş, şikayet ve destek kanalları.</p>
+        </article>
+        <article class="card">
+          <div class="icon" aria-hidden="true">🧰</div>
+          <h3>Ustalar için vitrin</h3>
+          <p>Profil, portföy fotoğrafları ve mesleğini öne çıkar.</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="block" id="nasil">
+      <h2>Nasıl çalışır?</h2>
+      <p class="sub">Üç adımda başla — üyelik ücretsiz.</p>
+      <div class="steps">
+        <div class="step">
+          <div>
+            <h3>Uygulamayı indir ve giriş yap</h3>
+            <p>Google hesabınla hızlıca kaydol. İstersen müşteri, istersen usta olarak kullan.</p>
+          </div>
+        </div>
+        <div class="step">
+          <div>
+            <h3>Usta bul veya ilan ver</h3>
+            <p>Arama ile usta seç ya da iş ilanı oluşturup teklif bekle.</p>
+          </div>
+        </div>
+        <div class="step">
+          <div>
+            <h3>Sohbet et ve anlaş</h3>
+            <p>Detayları konuş, işi ilerlet; bitince değerlendirme bırak.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="block" id="yasal">
+      <h2>Yasal ve hesap</h2>
+      <p class="sub">Play Store ve kullanıcı hakları için gerekli metinler.</p>
+      <div class="grid-3">
+        <a class="card" href="kullanim-kosullari.html">
+          <h3>Kullanım Koşulları</h3>
+          <p>Hizmeti kullanırken geçerli kurallar.</p>
+        </a>
+        <a class="card" href="gizlilik-politikasi.html">
+          <h3>Gizlilik Politikası</h3>
+          <p>Hangi veriyi neden işlediğimiz.</p>
+        </a>
+        <a class="card" href="kvkk-aydinlatma.html">
+          <h3>KVKK Aydınlatma</h3>
+          <p>6698 sayılı kanun kapsamında bilgilendirme.</p>
+        </a>
+        <a class="card" href="hesap-silme.html">
+          <h3>Hesap silme</h3>
+          <p>Hesabını ve verilerini nasıl silersin.</p>
+        </a>
+        <a class="card" href="mailto:aboneai.plus@gmail.com">
+          <h3>İletişim</h3>
+          <p>aboneai.plus@gmail.com</p>
+        </a>
+      </div>
+    </section>
+
+    <div class="cta-band">
+      <div class="cta-inner">
+        <div>
+          <h2>Usta mısın, iş mi arıyorsun?</h2>
+          <p>Uygulama yayına girdiğinde buradan Play linki eklenecek.</p>
+        </div>
+        <a class="btn btn-primary" href="mailto:aboneai.plus@gmail.com?subject=Usta%20Cepte">
+          Bize yaz
+        </a>
+      </div>
+    </div>
+  </main>
+
+  <footer class="site-footer">
+    <div class="footer-inner">
+      <div>
+        <a class="logo" href="/">
+          <span class="logo-mark" aria-hidden="true">U</span>
+          Ustasından
+        </a>
+        <p style="margin-top:12px;">
+          Müşteri ile ustayı buluşturan hizmet pazaryeri.
+        </p>
+      </div>
+      <div>
+        <h4>Bağlantılar</h4>
+        <ul>
+          <li><a href="#nasil">Nasıl çalışır</a></li>
+          <li><a href="#ozellikler">Özellikler</a></li>
+          <li><a href="#indir">Uygulama</a></li>
+        </ul>
+      </div>
+      <div>
+        <h4>Yasal</h4>
+        <ul>
+          <li><a href="gizlilik-politikasi.html">Gizlilik</a></li>
+          <li><a href="kullanim-kosullari.html">Koşullar</a></li>
+          <li><a href="kvkk-aydinlatma.html">KVKK</a></li>
+          <li><a href="hesap-silme.html">Hesap silme</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      © 2026 Ustasından ·
+      <a href="mailto:aboneai.plus@gmail.com">aboneai.plus@gmail.com</a>
+    </div>
+  </footer>
 </body>
 </html>

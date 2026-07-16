@@ -7,8 +7,11 @@
     <uses-permission android:name="android.permission.VIBRATE"/>
     <!-- Takip Merkezi Faz 3: ses notu kaydı (record paketi). -->
     <uses-permission android:name="android.permission.RECORD_AUDIO"/>
+    <!-- Profil / iş fotoğrafı: kamera ile çek (image_picker). -->
+    <uses-permission android:name="android.permission.CAMERA"/>
+    <uses-feature android:name="android.hardware.camera" android:required="false"/>
     <application
-        android:label="Usta Cepte"
+        android:label="Ustasından"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
         android:enableOnBackInvokedCallback="true">

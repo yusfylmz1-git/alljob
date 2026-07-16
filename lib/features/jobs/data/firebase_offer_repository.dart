@@ -5,9 +5,11 @@ import 'offer_repository.dart';
 
 /// Firestore `offers` ile çalışan [OfferRepository]. Tekillik döküman ID'si
 /// ([Offer.idFor]) ile sağlanır. `jobs.offerCount` sayacını `onOfferWritten`
-/// Cloud Function'ı tutar (istemci artık yazmaz) — böylece sayaç her zaman
-/// tutarlıdır ve güvenlik kuralı istemciye offerCount yazma izni vermek
-/// zorunda değildir.
+/// Cloud Function'ı tutar (istemci artık yazmaz).
+///
+/// **Idempotent submit:** Döküman yoksa create; `withdrawn` ise yalnız
+/// rules'ın izin verdiği alanlarla `pending`'e döner; zaten aktifse no-op.
+/// Full `set` mevcut dökümanda permission-denied üretir (H1 alan kısıtı).
 class FirebaseOfferRepository implements OfferRepository {
   FirebaseOfferRepository({FirebaseFirestore? firestore})
       : _db = firestore ?? FirebaseFirestore.instance;
@@ -19,9 +21,36 @@ class FirebaseOfferRepository implements OfferRepository {
 
   @override
   Future<void> submitOffer(Offer offer) async {
-    // offerCount sunucuda (onOfferWritten CF) güncellenir; istemci yalnızca
-    // teklif dökümanını yazar.
-    await _offers.doc(offer.offerId).set(offer.toMap());
+    final ref = _offers.doc(offer.offerId);
+    final snap = await ref.get();
+
+    if (!snap.exists) {
+      // İlk ilgi: create (rules: isEmailVerified + H3 + open job).
+      await ref.set(offer.toMap());
+      return;
+    }
+
+    final data = snap.data() ?? const <String, dynamic>{};
+    final status = OfferStatus.fromString(data['status'] as String?);
+
+    // Zaten aktif ilgi → tekrar yazma (sohbet açmak yeterli).
+    if (status == OfferStatus.pending || status == OfferStatus.accepted) {
+      return;
+    }
+
+    // Geri çekilmiş → rules-legal alanlarla yeniden pending.
+    if (status == OfferStatus.withdrawn) {
+      await ref.update({
+        'status': OfferStatus.pending.apiValue,
+        'updatedAt': DateTime.now().toIso8601String(),
+        'note': offer.note,
+        'price': offer.price,
+        'priceType': offer.priceType.apiValue,
+      });
+      return;
+    }
+
+    // rejected: başka usta seçildiyse iş kapalıdır; sessiz no-op.
   }
 
   @override
@@ -29,9 +58,7 @@ class FirebaseOfferRepository implements OfferRepository {
     required String jobId,
     required String customerId,
   }) {
-    // customerId filtresi güvenlik kuralının sorgudan KANITLANMASI içindir
-    // (offers.read: müşteri yalnız kendi ilanının tekliflerini okuyabilir).
-    // İki eşitlik filtresi composite index gerektirmez.
+    // customerId filtresi güvenlik kuralının sorgudan KANITLANMASI içindir.
     return _offers
         .where('jobId', isEqualTo: jobId)
         .where('customerId', isEqualTo: customerId)
@@ -83,7 +110,6 @@ class FirebaseOfferRepository implements OfferRepository {
         OfferStatus.withdrawn) {
       return;
     }
-    // offerCount'u onOfferWritten CF yeniden hesaplar (istemci dokunmaz).
     await ref.update({
       'status': OfferStatus.withdrawn.apiValue,
       'updatedAt': DateTime.now().toIso8601String(),

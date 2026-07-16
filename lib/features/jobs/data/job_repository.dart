@@ -11,24 +11,28 @@ abstract interface class JobRepository {
   /// Müşterinin kendi ilanları (İlanlarım) — en yeni en üstte.
   Stream<List<Job>> watchMyJobs(String customerUid);
 
-  /// Ustaya uygun açık ilanlar (Yakındaki İşler, #1): meslek + hizmet bölgesi
-  /// eşleşmesi. Süresi dolmuş/kapanmış ilanlar elenir.
+  /// Ustaya uygun açık ilanlar (Yakındaki İşler, #1): meslek(ler) + bölge.
+  /// [professionCodes] boşsa [professionCode] kullanılır (geriye uyum).
   Stream<List<Job>> watchNearbyJobs({
-    required String professionCode,
+    String? professionCode,
+    List<String>? professionCodes,
     required List<ServiceArea> serviceAreas,
   });
 
   /// Ustanın seçildiği (aktif/tamamlanan) işler — usta "İşlerim" / dashboard.
   Stream<List<Job>> watchAssignedJobs(String artisanUid);
 
-  /// Herkese açık son ilanlar (Keşfet "İş İlanları" paneli): tüm açık ve
-  /// süresi dolmamış ilanlar, en yeni en üstte, [limit] adetle sınırlı.
+  /// Açık + süresi dolmamış ilanlar (en yeni üstte, [limit]).
+  /// Keşfet "İş İlanları" paneli (usta modu) ve testler.
   Stream<List<Job>> watchOpenJobs({int limit = 30});
 
   Future<Job?> getJob(String jobId);
 
   /// Tek bir ilanı canlı izler (detay ekranı).
   Stream<Job?> watchJob(String jobId);
+
+  /// Sohbete bağlı iş ilanı (`jobs.chatId == chatId`). Yoksa null.
+  Stream<Job?> watchJobByChatId(String chatId);
 
   /// Müşteri bir teklifi seçer (#6): ilan `workerSelected` olur, seçilen teklif
   /// `accepted`, diğer teklifler `rejected`; [chatId] ilana yazılır (sohbet

@@ -54,15 +54,37 @@ class FirebaseArtisanRepository implements ArtisanRepository {
         _profilesCache != null) {
       return _profilesCache!;
     }
-    Query<Map<String, dynamic>> q = _db.collection('artisanProfiles');
+    final cap = AppConstants.artisanFetchCap;
+    List<({String id, Map<String, dynamic> data})> list;
     if (professionCode != null) {
-      q = q.where('profession', isEqualTo: professionCode);
+      // Çoklu + legacy: array-contains ve eski profession== birleştir.
+      final multi = _db
+          .collection('artisanProfiles')
+          .where('professions', arrayContains: professionCode)
+          .limit(cap)
+          .get();
+      final single = _db
+          .collection('artisanProfiles')
+          .where('profession', isEqualTo: professionCode)
+          .limit(cap)
+          .get();
+      final results = await Future.wait([multi, single]);
+      final map = <String, Map<String, dynamic>>{};
+      for (final snap in results) {
+        for (final d in snap.docs) {
+          map[d.id] = d.data();
+        }
+      }
+      list = map.entries
+          .map((e) => (id: e.key, data: e.value))
+          .toList(growable: false);
+    } else {
+      final snap =
+          await _db.collection('artisanProfiles').limit(cap).get();
+      list = snap.docs
+          .map((d) => (id: d.id, data: d.data()))
+          .toList(growable: false);
     }
-    // Okuma tavanı: istemci filtre/sıralama öncesi en fazla bu kadar profil.
-    final snap = await q.limit(AppConstants.artisanFetchCap).get();
-    final list = snap.docs
-        .map((d) => (id: d.id, data: d.data()))
-        .toList(growable: false);
     _profilesCache = list;
     _profilesCacheKey = key;
     _profilesCacheAt = DateTime.now();
@@ -80,14 +102,20 @@ class FirebaseArtisanRepository implements ArtisanRepository {
 
     final records = docs
         .map((d) => _record(d.id, d.data))
-        .where((r) => r.profile.profession.isNotEmpty)
+        .where((r) => r.profile.professionCodes.isNotEmpty)
+        .where((r) => !r.profile.moderationHidden)
         .where((r) {
+      if (filter.professionCode != null &&
+          !r.profile.professionCodes.contains(filter.professionCode)) {
+        return false;
+      }
       // Temel kural: müsait olmayan usta müşteri aramasında GÖSTERİLMEZ
       // (müsaitlik Premium gerektirir).
       if (!r.profile.isAvailableAt(now)) return false;
       if (!filter.matchesQuery(
         displayName: r.displayName,
-        professionNameTR: kProfessionNames[r.profile.profession] ?? '',
+        professionNameTR:
+            r.profile.professionLabelsTR(kProfessionNames),
       )) {
         return false;
       }
@@ -135,7 +163,8 @@ class FirebaseArtisanRepository implements ArtisanRepository {
     return ArtisanDetail(
       uid: uid,
       displayName: rec.displayName,
-      professionNameTR: kProfessionNames[rec.profile.profession] ?? '',
+      professionNameTR:
+          rec.profile.professionLabelsTR(kProfessionNames),
       profile: rec.profile,
       reviews: reviews,
       profilePhotoUrl: rec.profilePhotoUrl,
@@ -170,11 +199,12 @@ class _Rec {
         uid: uid,
         displayName: displayName,
         professionCode: profile.profession,
-        professionNameTR: kProfessionNames[profile.profession] ?? '',
+        professionNameTR: profile.professionLabelsTR(kProfessionNames),
         experienceYears: profile.experienceYears,
         averageRating: profile.averageRating,
         totalReviews: profile.totalReviews,
-        isVerified: profile.isVerified,
+        isVerified: profile.showVerifiedBadge,
+        isEmailVerified: profile.emailVerified,
         isPremium: profile.isPremium,
         isAvailable: profile.isAvailable,
         isNewArtisan: profile.isNewArtisan,

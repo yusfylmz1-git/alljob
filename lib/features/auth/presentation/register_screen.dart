@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/constants/app_constants.dart';
 import '../../../core/router/route_paths.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/snackbar_helper.dart';
@@ -57,7 +58,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     if (!_formKey.currentState!.validate()) return;
 
     final ok = await ref.read(authControllerProvider.notifier).register(
-          displayName: _name.text,
+          displayName: Validators.normalizeDisplayName(_name.text),
           email: _email.text,
           password: _password.text,
         );
@@ -123,9 +124,11 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                           controller: _name,
                           textInputAction: TextInputAction.next,
                           textCapitalization: TextCapitalization.words,
+                          maxLength: AppConstants.maxDisplayNameLength,
                           decoration: const InputDecoration(
                             labelText: 'Ad Soyad',
                             prefixIcon: Icon(Icons.person_outline),
+                            helperText: "Harf, rakam, boşluk ve . ' -",
                           ),
                           validator: Validators.displayName,
                         ),

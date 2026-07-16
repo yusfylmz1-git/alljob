@@ -13,6 +13,7 @@ class ArtisanSummary {
     required this.averageRating,
     required this.totalReviews,
     required this.isVerified,
+    this.isEmailVerified = false,
     required this.isPremium,
     required this.isAvailable,
     required this.isNewArtisan,
@@ -27,10 +28,21 @@ class ArtisanSummary {
   final double averageRating;
   final int totalReviews;
   final bool isVerified;
+  /// Auth e-posta doğrulama aynası (tooltip güçlendirme).
+  final bool isEmailVerified;
   final bool isPremium;
   final bool isAvailable; // canlı müsaitlik (PRD §3)
   final bool isNewArtisan; // ilk 15 gün "Yeni Usta" rozeti
   final String? profilePhotoUrl;
+
+  /// Mavi tik açıklaması (Keşfet kartı).
+  String get verifiedBadgeTooltip {
+    if (isVerified && isEmailVerified) {
+      return 'Telefon ve e-posta doğrulanmış usta';
+    }
+    if (isVerified) return 'Telefonu doğrulanmış usta';
+    return 'Doğrulanmış usta';
+  }
 }
 
 /// Profil sayfası için tam usta detayı.

@@ -9,6 +9,7 @@ import '../../../core/utils/snackbar_helper.dart';
 import '../../../core/widgets/app_image.dart';
 import '../../../core/widgets/app_menu_drawer.dart';
 import '../../../core/widgets/gradient_app_bar.dart';
+import '../../../core/widgets/pull_to_refresh.dart';
 import '../../../core/widgets/responsive_center.dart';
 import '../../../core/widgets/role_bottom_bar.dart';
 import '../../../core/widgets/skeleton.dart';
@@ -85,13 +86,28 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
     }
   }
 
+  /// Liste görünürken karşı taraf fotoğraflarını ısıt — thread açılınca
+  /// avatar anında cache'ten gelsin.
+  void _precacheThreadPhotos(List<ChatThread> threads, String? uid) {
+    if (uid == null || !mounted) return;
+    for (final t in threads) {
+      AppImage.precacheHttp(context, t.otherPhoto(uid));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final user = ref.watch(currentUserProvider);
     final threadsAsync = ref.watch(myThreadsProvider);
-    final allIds = [
-      for (final t in threadsAsync.valueOrNull ?? const <ChatThread>[]) t.id
-    ];
+    final threads = threadsAsync.valueOrNull ?? const <ChatThread>[];
+    final allIds = [for (final t in threads) t.id];
+
+    // Her liste güncellemesinde (ilk yük + yeni sohbet) önbellek ısıt.
+    if (user != null && threads.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _precacheThreadPhotos(threads, user.uid);
+      });
+    }
 
     return PopScope(
       // Geri tuşu seçim modunda ekrandan çıkmasın, seçimi kapatsın.
@@ -153,11 +169,22 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
       bottomNavigationBar: const MainBottomBar(current: MainTab.chats),
       body: threadsAsync.when(
         loading: () => const SkeletonList(),
-        error: (_, _) => const ErrorView(
-            message: 'Mesajlar yüklenemedi. Bağlantınızı kontrol edip '
-                'tekrar deneyin.'),
+        error: (_, _) => RefreshableEmpty(
+          onRefresh: () => awaitRefresh(() async {
+            ref.invalidate(myThreadsProvider);
+            await ref.read(myThreadsProvider.future);
+          }),
+          child: const ErrorView(
+              message: 'Mesajlar yüklenemedi. Bağlantınızı kontrol edip '
+                  'tekrar deneyin.'),
+        ),
         data: (rawThreads) {
           if (user == null) return const SizedBox.shrink();
+
+          Future<void> refresh() => awaitRefresh(() async {
+                ref.invalidate(myThreadsProvider);
+                await ref.read(myThreadsProvider.future);
+              });
 
           // Engellenen kullanıcıların sohbetleri listede gizlenir (IG/WhatsApp
           // modeli); engel kalkınca kendiliğinden geri gelir.
@@ -167,7 +194,12 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
               : rawThreads
                   .where((t) => !blockedUids.contains(t.otherUid(user.uid)))
                   .toList();
-          if (threads.isEmpty) return const _Empty();
+          if (threads.isEmpty) {
+            return RefreshableEmpty(
+              onRefresh: refresh,
+              child: const _Empty(),
+            );
+          }
 
           final repo = ref.watch(chatRepositoryProvider);
           final q = _query.trim().toLowerCase();
@@ -178,62 +210,90 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
                       (t) => t.otherName(user.uid).toLowerCase().contains(q))
                   .toList();
 
-          return ResponsiveCenter(
-            maxWidth: 760,
-            child: Column(
-              children: [
-                // Arama (Instagram DM üstündeki gibi).
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-                  child: TextField(
-                    onChanged: (v) => setState(() => _query = v),
-                    decoration: InputDecoration(
-                      hintText: 'Ara',
-                      prefixIcon: const Icon(Icons.search_rounded, size: 22),
-                      isDense: true,
-                      filled: true,
-                      fillColor:
-                          Theme.of(context).colorScheme.surfaceContainerHigh,
-                      contentPadding:
-                          const EdgeInsets.symmetric(vertical: 10),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(14),
-                        borderSide: BorderSide.none,
+          final palette = context.palette;
+          return ColoredBox(
+            color: palette.background,
+            child: ResponsiveCenter(
+              maxWidth: 760,
+              child: Column(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+                    child: TextField(
+                      onChanged: (v) => setState(() => _query = v),
+                      decoration: InputDecoration(
+                        hintText: 'Kişi veya sohbet ara',
+                        prefixIcon:
+                            const Icon(Icons.search_rounded, size: 22),
+                        isDense: true,
+                        filled: true,
+                        fillColor: palette.card,
+                        contentPadding:
+                            const EdgeInsets.symmetric(vertical: 12),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(16),
+                          borderSide: BorderSide(color: palette.border),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(16),
+                          borderSide: BorderSide(color: palette.border),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(16),
+                          borderSide: BorderSide(
+                              color: palette.primary, width: 1.4),
+                        ),
                       ),
                     ),
                   ),
-                ),
-                Expanded(
-                  child: visible.isEmpty
-                      ? Center(
-                          child: Text(
-                            'Eşleşen sohbet yok.',
-                            style: Theme.of(context)
-                                .textTheme
-                                .bodyMedium
-                                ?.copyWith(color: context.palette.inkMuted),
+                  Expanded(
+                    child: visible.isEmpty
+                        ? RefreshableEmpty(
+                            onRefresh: refresh,
+                            child: Center(
+                              child: Text(
+                                'Eşleşen sohbet yok.',
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .bodyMedium
+                                    ?.copyWith(color: palette.inkMuted),
+                              ),
+                            ),
+                          )
+                        : PullToRefresh(
+                            onRefresh: refresh,
+                            child: ListView.separated(
+                              physics: kPullRefreshPhysics,
+                              padding:
+                                  const EdgeInsets.fromLTRB(0, 4, 0, 16),
+                              itemCount: visible.length,
+                              separatorBuilder: (_, _) => Divider(
+                                height: 1,
+                                indent: 86,
+                                endIndent: 16,
+                                color:
+                                    palette.border.withValues(alpha: 0.85),
+                              ),
+                              itemBuilder: (context, i) => _ThreadTile(
+                                thread: visible[i],
+                                myUid: user.uid,
+                                unread: repo.unreadCount(
+                                    chatId: visible[i].id, uid: user.uid),
+                                selectionMode: _selectionMode,
+                                selected:
+                                    _selected.contains(visible[i].id),
+                                onToggle: () =>
+                                    _toggleSelected(visible[i].id),
+                                onEnterSelection: () => setState(() {
+                                  _selectionMode = true;
+                                  _selected.add(visible[i].id);
+                                }),
+                              ),
+                            ),
                           ),
-                        )
-                      : ListView.builder(
-                          padding: const EdgeInsets.symmetric(vertical: 4),
-                          itemCount: visible.length,
-                          itemBuilder: (context, i) => _ThreadTile(
-                            thread: visible[i],
-                            myUid: user.uid,
-                            unread: repo.unreadCount(
-                                chatId: visible[i].id, uid: user.uid),
-                            selectionMode: _selectionMode,
-                            selected: _selected.contains(visible[i].id),
-                            onToggle: () => _toggleSelected(visible[i].id),
-                            // Uzun basış da seçim modunu açar (WhatsApp).
-                            onEnterSelection: () => setState(() {
-                              _selectionMode = true;
-                              _selected.add(visible[i].id);
-                            }),
-                          ),
-                        ),
-                ),
-              ],
+                  ),
+                ],
+              ),
             ),
           );
         },
@@ -243,8 +303,7 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
   }
 }
 
-/// Instagram DM satırı: avatar · (ad / mesaj · zaman) · mavi nokta.
-/// Seçim modunda solda kutucuk belirir; dokunuş seçimi değiştirir.
+/// Profesyonel DM satırı: avatar · ad+saat · önizleme · okunmamış rozeti.
 class _ThreadTile extends StatelessWidget {
   const _ThreadTile({
     required this.thread,
@@ -264,106 +323,131 @@ class _ThreadTile extends StatelessWidget {
   final VoidCallback? onEnterSelection;
 
   static String _timeLabel(DateTime t) {
-    final diff = DateTime.now().difference(t);
+    final now = DateTime.now();
+    final diff = now.difference(t);
     if (diff.inMinutes < 1) return 'şimdi';
     if (diff.inMinutes < 60) return '${diff.inMinutes} dk';
-    if (diff.inHours < 24) return '${diff.inHours} sa';
-    if (diff.inDays < 7) return '${diff.inDays} g';
+    if (diff.inHours < 24 && now.day == t.day) {
+      return DateFormat('HH:mm').format(t);
+    }
+    if (diff.inDays < 7) return DateFormat('EEE', 'tr_TR').format(t);
     return DateFormat('d MMM', 'tr_TR').format(t);
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final palette = context.palette;
     final name = thread.otherName(myUid);
     final photo = thread.otherPhoto(myUid);
     final hasUnread = unread > 0;
-    final preview = thread.lastMessage ?? 'Sohbeti başlatın';
+    final preview = thread.lastMessage?.trim().isNotEmpty == true
+        ? thread.lastMessage!
+        : 'Sohbete başlayın';
 
-    return InkWell(
-      onTap: selectionMode
-          ? onToggle
-          : () => context.push(RoutePaths.chatThread(thread.id)),
-      onLongPress: selectionMode ? null : onEnterSelection,
-      child: Container(
-        color: selected
-            ? theme.colorScheme.primaryContainer.withValues(alpha: 0.45)
-            : null,
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
-        child: Row(
-          children: [
-            if (selectionMode) ...[
-              Checkbox(
-                value: selected,
-                onChanged: onToggle == null ? null : (_) => onToggle!(),
-              ),
-              const SizedBox(width: 4),
-            ],
-            CircleAvatar(
-              radius: 28,
-              backgroundColor: theme.colorScheme.primaryContainer,
-              child: ClipOval(
-                child: SizedBox(
-                  width: 56,
-                  height: 56,
-                  child: photo != null
-                      ? AppImage(handle: photo)
-                      : Center(
+    return Material(
+      color: selected
+          ? palette.primaryContainer.withValues(alpha: 0.35)
+          : palette.card,
+      child: InkWell(
+        onTap: selectionMode
+            ? onToggle
+            : () => context.push(RoutePaths.chatThread(thread.id)),
+        onLongPress: selectionMode ? null : onEnterSelection,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+          child: Row(
+            children: [
+              if (selectionMode) ...[
+                Checkbox(
+                  value: selected,
+                  onChanged: onToggle == null ? null : (_) => onToggle!(),
+                ),
+                const SizedBox(width: 4),
+              ],
+              AppAvatar(name: name, photo: photo, size: 54),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
                           child: Text(
-                            name.isEmpty
-                                ? '?'
-                                : name.substring(0, 1).toUpperCase(),
-                            style: const TextStyle(
-                                fontWeight: FontWeight.bold, fontSize: 20),
+                            name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.titleSmall?.copyWith(
+                              fontWeight: hasUnread
+                                  ? FontWeight.w800
+                                  : FontWeight.w700,
+                              letterSpacing: -0.2,
+                            ),
                           ),
                         ),
-                ),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontWeight:
-                          hasUnread ? FontWeight.w800 : FontWeight.w600,
-                      fontSize: 15,
+                        const SizedBox(width: 8),
+                        Text(
+                          _timeLabel(thread.updatedAt),
+                          style: theme.textTheme.labelSmall?.copyWith(
+                            color: hasUnread
+                                ? palette.primary
+                                : palette.inkMuted,
+                            fontWeight: hasUnread
+                                ? FontWeight.w800
+                                : FontWeight.w500,
+                          ),
+                        ),
+                      ],
                     ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    '$preview · ${_timeLabel(thread.updatedAt)}',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: hasUnread
-                          ? theme.colorScheme.onSurface
-                          : theme.colorScheme.onSurfaceVariant,
-                      fontWeight:
-                          hasUnread ? FontWeight.w700 : FontWeight.w400,
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            preview,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: hasUnread
+                                  ? palette.ink
+                                  : palette.inkMuted,
+                              fontWeight: hasUnread
+                                  ? FontWeight.w600
+                                  : FontWeight.w400,
+                              height: 1.25,
+                            ),
+                          ),
+                        ),
+                        if (hasUnread) ...[
+                          const SizedBox(width: 8),
+                          Container(
+                            constraints: const BoxConstraints(minWidth: 20),
+                            height: 20,
+                            padding:
+                                const EdgeInsets.symmetric(horizontal: 6),
+                            alignment: Alignment.center,
+                            decoration: BoxDecoration(
+                              color: palette.primary,
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Text(
+                              unread > 9 ? '9+' : '$unread',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
                     ),
-                  ),
-                ],
-              ),
-            ),
-            if (hasUnread) ...[
-              const SizedBox(width: 10),
-              // Instagram'daki mavi okunmamış noktası.
-              Container(
-                width: 10,
-                height: 10,
-                decoration: BoxDecoration(
-                  color: context.palette.info,
-                  shape: BoxShape.circle,
+                  ],
                 ),
               ),
             ],
-          ],
+          ),
         ),
       ),
     );
@@ -376,22 +460,45 @@ class _Empty extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final palette = context.palette;
     return Center(
       child: Padding(
-        padding: const EdgeInsets.all(32),
+        padding: const EdgeInsets.all(36),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.forum_outlined,
-                size: 56, color: theme.colorScheme.onSurfaceVariant),
-            const SizedBox(height: 16),
-            Text('Henüz mesajın yok', style: theme.textTheme.titleMedium),
+            Container(
+              width: 88,
+              height: 88,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    palette.primaryContainer,
+                    palette.primary.withValues(alpha: 0.18),
+                  ],
+                ),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(Icons.chat_bubble_outline_rounded,
+                  size: 40, color: palette.primary),
+            ),
+            const SizedBox(height: 20),
+            Text(
+              'Henüz mesajın yok',
+              style: theme.textTheme.titleMedium
+                  ?.copyWith(fontWeight: FontWeight.w800),
+            ),
             const SizedBox(height: 8),
             Text(
-              'Bir ustanın profilinden "Sohbet Başlat" diyerek yazışmaya başlayabilirsin.',
+              'Bir ustanın profilinden sohbet başlatarak yazışmaya '
+              'başlayabilirsin. İletişim bilgileri otomatik gizlenir.',
               textAlign: TextAlign.center,
-              style: theme.textTheme.bodyMedium
-                  ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: palette.inkMuted,
+                height: 1.45,
+              ),
             ),
           ],
         ),

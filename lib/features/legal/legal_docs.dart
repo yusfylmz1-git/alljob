@@ -10,8 +10,11 @@ library;
 /// KVKK başvuruları ve genel iletişim adresi (tüm metinlerde geçer).
 const kLegalContactEmail = 'aboneai.plus@gmail.com';
 
+/// Yasal metinler + hosting HTML marka adı (uygulama `AppConstants.appName` ile hizalı).
+const kAppBrandName = 'Ustasından';
+
 /// Metinlerin "Son güncelleme" etiketi — içerik değişince güncelle.
-const kLegalUpdated = '12 Temmuz 2026';
+const kLegalUpdated = '15 Temmuz 2026';
 
 /// Store girişlerine verilecek canlı URL'ler (Firebase Hosting).
 const kLegalBaseUrl = 'https://alljob1.web.app';
@@ -66,12 +69,12 @@ const legalTerms = LegalDoc(
   sections: [
     LegalSection(
       body:
-          'Bu Kullanım Koşulları ("Koşullar"), Usta Cepte mobil ve web uygulamasının ("Uygulama") kullanımını düzenler. Uygulamaya kayıt olarak veya Uygulamayı kullanarak bu Koşulları kabul etmiş sayılırsınız. Koşulları kabul etmiyorsanız lütfen Uygulamayı kullanmayınız.',
+          'Bu Kullanım Koşulları ("Koşullar"), Ustasından mobil ve web uygulamasının ("Uygulama") kullanımını düzenler. Uygulamaya kayıt olarak veya Uygulamayı kullanarak bu Koşulları kabul etmiş sayılırsınız. Koşulları kabul etmiyorsanız lütfen Uygulamayı kullanmayınız.',
     ),
     LegalSection(
       heading: '1. Hizmetin Tanımı',
       body:
-          'Usta Cepte; tamirat, tadilat ve benzeri hizmetlere ihtiyaç duyan kullanıcılar ("Müşteri") ile bu hizmetleri sunan kullanıcıları ("Usta") buluşturan bir ARACI platformdur.\n\nUsta Cepte, platform üzerinden ilan edilen veya anlaşılan işlerin TARAFI DEĞİLDİR. İşin yapılması, kalitesi, zamanlaması, bedeli ve ödemesi tamamen Müşteri ile Usta arasındadır. Uygulama üzerinden ödeme alınmaz ve ödemeye aracılık edilmez.',
+          'Ustasından; tamirat, tadilat ve benzeri hizmetlere ihtiyaç duyan kullanıcılar ("Müşteri") ile bu hizmetleri sunan kullanıcıları ("Usta") buluşturan bir ARACI platformdur.\n\nUstasından, platform üzerinden ilan edilen veya anlaşılan işlerin TARAFI DEĞİLDİR. İşin yapılması, kalitesi, zamanlaması, bedeli ve ödemesi tamamen Müşteri ile Usta arasındadır. Uygulama üzerinden ödeme alınmaz ve ödemeye aracılık edilmez.',
     ),
     LegalSection(
       heading: '2. Hesap ve Güvenlik',
@@ -101,12 +104,12 @@ const legalTerms = LegalDoc(
     LegalSection(
       heading: '7. Fikri Mülkiyet',
       body:
-          'Uygulamanın yazılımı, tasarımı, logosu ve "Usta Cepte" markası Uygulama geliştiricisine aittir; izinsiz kopyalanamaz ve kullanılamaz. Kullanıcı içeriklerinin mülkiyeti kullanıcıya aittir.',
+          'Uygulamanın yazılımı, tasarımı, logosu ve "Ustasından" markası Uygulama geliştiricisine aittir; izinsiz kopyalanamaz ve kullanılamaz. Kullanıcı içeriklerinin mülkiyeti kullanıcıya aittir.',
     ),
     LegalSection(
       heading: '8. Sorumluluğun Sınırlandırılması',
       body:
-          'Uygulama "olduğu gibi" sunulur; kesintisiz veya hatasız çalışacağı garanti edilmez. Usta Cepte; kullanıcılar arasındaki iş, ödeme ve iletişimden doğan uyuşmazlıkların tarafı veya garantörü değildir. Mevzuatın izin verdiği azami ölçüde, dolaylı zararlardan sorumluluk kabul edilmez.',
+          'Uygulama "olduğu gibi" sunulur; kesintisiz veya hatasız çalışacağı garanti edilmez. Ustasından; kullanıcılar arasındaki iş, ödeme ve iletişimden doğan uyuşmazlıkların tarafı veya garantörü değildir. Mevzuatın izin verdiği azami ölçüde, dolaylı zararlardan sorumluluk kabul edilmez.',
     ),
     LegalSection(
       heading: '9. Hesabın Silinmesi',
@@ -137,7 +140,7 @@ const legalPrivacy = LegalDoc(
   sections: [
     LegalSection(
       body:
-          'Bu Gizlilik Politikası, Usta Cepte uygulamasını kullandığınızda hangi kişisel verilerin toplandığını, nasıl kullanıldığını ve haklarınızı açıklar. Kişisel verilerin işlenmesine ilişkin ayrıntılı bilgilendirme için KVKK Aydınlatma Metnine de bakabilirsiniz.',
+          'Bu Gizlilik Politikası, Ustasından uygulamasını kullandığınızda hangi kişisel verilerin toplandığını, nasıl kullanıldığını ve haklarınızı açıklar. Kişisel verilerin işlenmesine ilişkin ayrıntılı bilgilendirme için KVKK Aydınlatma Metnine de bakabilirsiniz.',
     ),
     LegalSection(
       heading: '1. Topladığımız Veriler',
@@ -198,12 +201,12 @@ const legalKvkk = LegalDoc(
   sections: [
     LegalSection(
       body:
-          'Bu aydınlatma metni, 6698 sayılı Kişisel Verilerin Korunması Kanunu ("KVKK") uyarınca, Usta Cepte uygulaması kullanıcılarının kişisel verilerinin işlenmesine ilişkin olarak hazırlanmıştır.',
+          'Bu aydınlatma metni, 6698 sayılı Kişisel Verilerin Korunması Kanunu ("KVKK") uyarınca, Ustasından uygulaması kullanıcılarının kişisel verilerinin işlenmesine ilişkin olarak hazırlanmıştır.',
     ),
     LegalSection(
       heading: '1. Veri Sorumlusu',
       body:
-          'Kişisel verileriniz, veri sorumlusu sıfatıyla Usta Cepte uygulaması geliştiricisi tarafından işlenmektedir. İletişim: $kLegalContactEmail',
+          'Kişisel verileriniz, veri sorumlusu sıfatıyla Ustasından uygulaması geliştiricisi tarafından işlenmektedir. İletişim: $kLegalContactEmail',
     ),
     LegalSection(
       heading: '2. İşlenen Kişisel Veri Kategorileri',
@@ -256,7 +259,7 @@ const legalDeletion = LegalDoc(
   sections: [
     LegalSection(
       body:
-          'Usta Cepte hesabınızı ve verilerinizi dilediğiniz an kalıcı olarak silebilirsiniz.',
+          'Ustasından hesabınızı ve verilerinizi dilediğiniz an kalıcı olarak silebilirsiniz.',
     ),
     LegalSection(
       heading: 'Uygulama içinden silme (önerilen)',

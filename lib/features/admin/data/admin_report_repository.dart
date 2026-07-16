@@ -33,6 +33,13 @@ abstract interface class AdminReportRepository {
     required bool assign,
     required String adminUid,
   });
+
+  /// Bağlamlı sohbet transcript (reportId + chatId zorunlu).
+  Future<List<Map<String, dynamic>>> fetchChatTranscript({
+    required String reportId,
+    required String chatId,
+    int limit = 100,
+  });
 }
 
 /// Firestore `reports` koleksiyonuyla çalışan [AdminReportRepository].
@@ -111,6 +118,27 @@ class FirebaseAdminReportRepository implements AdminReportRepository {
       'reportId': id,
       'assign': assign,
     });
+  }
+
+  @override
+  Future<List<Map<String, dynamic>>> fetchChatTranscript({
+    required String reportId,
+    required String chatId,
+    int limit = 100,
+  }) async {
+    final res =
+        await _functions.httpsCallable('adminGetChatTranscript').call<Object?>({
+      'reportId': reportId,
+      'chatId': chatId,
+      'limit': limit,
+    });
+    final data = res.data;
+    if (data is Map && data['messages'] is List) {
+      return (data['messages'] as List)
+          .map((e) => Map<String, dynamic>.from(e as Map))
+          .toList();
+    }
+    return const [];
   }
 }
 
@@ -212,6 +240,14 @@ class MockAdminReportRepository implements AdminReportRepository {
     );
     if (!_changes.isClosed) _changes.add(null);
   }
+
+  @override
+  Future<List<Map<String, dynamic>>> fetchChatTranscript({
+    required String reportId,
+    required String chatId,
+    int limit = 100,
+  }) async =>
+      const [];
 
   void dispose() => _changes.close();
 }

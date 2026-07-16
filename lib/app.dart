@@ -21,7 +21,7 @@ class UstaCepteApp extends ConsumerWidget {
     final router = ref.watch(routerProvider);
 
     // Oturum durumu değiştikçe FCM token'ını kaydet: kullanıcı giriş yapınca
-    // bu cihazın token'ı `users/{uid}.fcmTokens` dizisine eklenir. (Çıkışta
+    // bu cihazın token'ı `users/{uid}/private/push.fcmTokens` dizisine eklenir.
     // çıkarma işlemi AuthController.signOut içinde, uid kaybolmadan yapılır.)
     ref.listen<AsyncValue<AppUser?>>(authStateProvider, (prev, next) {
       final uid = next.valueOrNull?.uid;

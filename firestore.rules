@@ -12,14 +12,35 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == uid;
     }
     // Yönetici mi? Kaynak: Auth custom claim `admin:true` (yalnız CF yazar).
+    // `.get` — claim yokken undefined hatası olmasın (bkz. isSuspended).
     function isAdmin() {
-      return isSignedIn() && request.auth.token.admin == true;
+      return isSignedIn()
+        && request.auth.token.get('admin', false) == true;
+    }
+    // Süper yönetici mi? (RBAC — davet PII, staff işlemleri).
+    function isSuperAdmin() {
+      return isAdmin()
+        && request.auth.token.get('role', '') == 'superadmin';
     }
     // Askıya alınmış kullanıcı mı? Kaynak: Auth custom claim `suspended:true`
     // (yalnız `adminSetUserSuspended` CF yazar). Askıya alınan hesap yeni
     // içerik (iş/teklif/mesaj/değerlendirme) OLUŞTURAMAZ — okuma serbest.
+    //
+    // ÖNEMLİ: `request.auth.token.suspended` doğrudan okunursa claim YOKKEN
+    // Rules "Property suspended is undefined" hatası verir → tüm create
+    // kuralları (ilan/teklif/mesaj/yorum) reddedilir. `.get(..., false)` kullan.
     function isSuspended() {
-      return isSignedIn() && request.auth.token.suspended == true;
+      return isSignedIn()
+        && request.auth.token.get('suspended', false) == true;
+    }
+
+    // E-posta doğrulanmış mı? Kaynak: Firebase Auth token `email_verified`
+    // (kayıt sonrası bağlantı veya Google ile genelde true). `.get` — alan
+    // yokken hata vermesin. İlan açma + ilan üzerinden usta iletişimi
+    // (teklif/ilgi) için zorunlu.
+    function isEmailVerified() {
+      return isSignedIn()
+        && request.auth.token.get('email_verified', false) == true;
     }
 
     // users — herkes okuyabilir (profil adı/foto herkese açık); yalnızca sahibi yazar.
@@ -34,30 +55,54 @@ service cloud.firestore {
       // doğrulanmış telefon taşırken) true yazılabilir — istemci keyfî olarak
       // kendini "doğrulanmış" yapamaz.
       function phoneClaimOkFor(field) {
+        // phone_number yokken `.token.phone_number` undefined hatası vermesin.
         return request.resource.data.get(field, false) != true
-          || request.auth.token.phone_number != null;
+          || request.auth.token.get('phone_number', null) != null;
       }
 
-      // Owner'ın kendine YAZAMAYACAĞI alanlar: hassas iletişim (phoneNumber) +
-      // moderasyon aynası (suspended/suspendedAt) — yalnız CF (Admin SDK) yazar;
-      // kullanıcı kendini "askıda değil" yapamaz.
+      // Owner yazamaz: phoneNumber, email, fcmTokens (H2) + moderasyon aynası
+      // (suspended/suspendedAt) — yalnız CF yazar; kullanıcı kendini açamaz.
+      // email/fcmTokens: create'te yasak; update'te yalnız SİLME (legacy temizlik).
+      function notSettingPublicPii() {
+        let changed = request.resource.data.diff(resource.data).affectedKeys();
+        return !changed.hasAny(['phoneNumber', 'suspended', 'suspendedAt'])
+          && (!changed.hasAny(['email'])
+              || !('email' in request.resource.data))
+          && (!changed.hasAny(['fcmTokens'])
+              || !('fcmTokens' in request.resource.data));
+      }
+
+      // displayName: istemci Validators.displayName ile hizalı uzunluk tavanı.
+      // Karakter sınıfı (yalnız harf…) Rules'ta Unicode ile kısıtlı; istemci
+      // + repo katmanı `***"""` gibi isimleri reddeder.
+      function displayNameOk() {
+        return request.resource.data.displayName is string
+          && request.resource.data.displayName.size() >= 3
+          && request.resource.data.displayName.size() <= 60;
+      }
+
       allow read: if true;
       // create'te resource null olduğundan doğrudan yazılan anahtarlara bakılır.
       allow create: if isSelf(uid)
         && !request.resource.data.keys()
-              .hasAny(['phoneNumber', 'suspended', 'suspendedAt'])
-        && phoneClaimOkFor('phoneVerified');
-      // update'te yalnızca DEĞİŞEN anahtarlara bakılır (diff): dokunulmayan eski
-      // bir alan güncellemeyi bloklamaz; ama korunan alanlar eklenemez/değişemez.
+              .hasAny(['phoneNumber', 'suspended', 'suspendedAt',
+                       'email', 'fcmTokens'])
+        && phoneClaimOkFor('phoneVerified')
+        && displayNameOk();
       allow update: if isSelf(uid)
-        && !request.resource.data.diff(resource.data)
-              .affectedKeys().hasAny(['phoneNumber', 'suspended', 'suspendedAt'])
-        && phoneClaimOkFor('phoneVerified');
+        && notSettingPublicPii()
+        && phoneClaimOkFor('phoneVerified')
+        && (!request.resource.data.diff(resource.data).affectedKeys()
+                .hasAny(['displayName'])
+            || displayNameOk());
       allow delete: if false;
 
       // Hassas/özel kullanıcı verisi — YALNIZCA sahibi okur/yazar.
+      // contact: telefon; push: fcmTokens[] + prefs (H2). Başka docId yok
+      // (rastgele private/* şişirmesi / PII sızıntı yüzeyi kapanır).
       match /private/{doc} {
-        allow read, write: if isSelf(uid);
+        allow read: if isSelf(uid);
+        allow write: if isSelf(uid) && doc in ['contact', 'push'];
       }
 
       // Engellenen kullanıcılar (UGC politikası) — YALNIZCA sahibi okur/yazar.
@@ -103,21 +148,49 @@ service cloud.firestore {
     match /artisanProfiles/{uid} {
       function verifiedClaimOk() {
         return request.resource.data.get('isVerified', false) != true
-          || request.auth.token.phone_number != null;
+          || request.auth.token.get('phone_number', null) != null;
+      }
+      // emailVerified aynası: true yalnız token email_verified iken.
+      function emailVerifiedMirrorOk() {
+        return request.resource.data.get('emailVerified', false) != true
+          || request.auth.token.get('email_verified', false) == true;
+      }
+      // Deneyim 0..60; hakkımda en fazla 500 karakter (istemci ile hizalı).
+      function profileContentOk() {
+        let years = request.resource.data.get('experienceYears', 0);
+        let about = request.resource.data.get('aboutText', '');
+        return years is int
+          && years >= 0
+          && years <= 60
+          && about is string
+          && about.size() <= 500;
       }
 
       allow read: if true;
+      // adminVerified / featured / moderationHidden yalnız CF (moderasyon).
+      // Premium + moderasyon + skor: yalnız CF. premiumProductId/premiumUpdatedAt
+      // de istemciden yazılamaz (yanlış abonelik id enjekte etmesin).
       allow create: if isSelf(uid)
         && !request.resource.data.keys()
               .hasAny(['averageRating','totalReviews','totalRatingSum',
-                       'completedJobs','isPremium','premiumExpiresAt'])
-        && verifiedClaimOk();
+                       'completedJobs','isPremium','premiumExpiresAt',
+                       'premiumProductId','premiumUpdatedAt',
+                       'adminVerified','featured','moderationHidden',
+                       'moderatedBy','moderatedAt'])
+        && verifiedClaimOk()
+        && emailVerifiedMirrorOk()
+        && profileContentOk();
       allow update: if isSelf(uid)
         && !request.resource.data.diff(resource.data)
               .affectedKeys().hasAny(['averageRating','totalReviews',
                        'totalRatingSum','completedJobs',
-                       'isPremium','premiumExpiresAt'])
-        && verifiedClaimOk();
+                       'isPremium','premiumExpiresAt',
+                       'premiumProductId','premiumUpdatedAt',
+                       'adminVerified','featured','moderationHidden',
+                       'moderatedBy','moderatedAt'])
+        && verifiedClaimOk()
+        && emailVerifiedMirrorOk()
+        && profileContentOk();
       allow delete: if false;
     }
 
@@ -129,21 +202,84 @@ service cloud.firestore {
     // sorgularda PERMISSION_DENIED üretebiliyordu). `participants` dizisi
     // eski dökümanlarla uyum ve veri modeli için durmaya devam eder.
     match /chats/{chatId} {
+      // members veya participants ile üyelik. Eksik alanlarda kural motoru
+      // hataya düşmesin diye `.keys().hasAny` + tip kontrolü.
       function isMember(data) {
         return isSignedIn()
-          && (data.members[request.auth.uid] == true
-              || request.auth.uid in data.participants);
+          && (
+            (data.keys().hasAny(['members'])
+              && data.members is map
+              && data.members.get(request.auth.uid, false) == true)
+            || (data.keys().hasAny(['participants'])
+              && data.participants is list
+              && request.auth.uid in data.participants)
+          );
       }
 
-      allow read: if isMember(resource.data);
-      allow create: if isMember(request.resource.data);
-      allow update: if isMember(resource.data);
+      // Update'te yalnız sohbet meta alanları (H1). Kimlik alanları
+      // (customerUid/artisanUid/participants/adlar) değişemez.
+      // members: yalnız legacy heal — tam olarak iki taraf, üçüncü yok.
+      function chatUpdateKeysOk() {
+        return request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['lastMessage', 'lastMessageSenderUid', 'updatedAt',
+                    'lastRead', 'clearedAt', 'members']);
+      }
+      function chatMembersHealOk() {
+        return !request.resource.data.diff(resource.data)
+              .affectedKeys().hasAny(['members'])
+          || (request.resource.data.members is map
+              && resource.data.customerUid is string
+              && resource.data.artisanUid is string
+              && request.resource.data.members[resource.data.customerUid] == true
+              && request.resource.data.members[resource.data.artisanUid] == true
+              && request.resource.data.members.keys()
+                  .hasOnly([resource.data.customerUid, resource.data.artisanUid]));
+      }
+
+      // get: döküman YOKSA (resource == null) oturum açmış kullanıcı var/yok
+      // kontrolü yapabilsin — aksi halde startChat'in get()'i permission-denied
+      // verir ve sohbet hiç oluşmaz. Var olan döküman yalnız üyeye.
+      // list: yalnız üye olduğu dökümanlar (members.<uid> sorgusu).
+      allow get: if isSignedIn()
+        && (resource == null || isMember(resource.data));
+      allow list: if isMember(resource.data);
+      // Create: deterministik ID + çağıran taraf + 2 kişilik members.
+      // ID formatı: chat_{customerUid}__{artisanUid} — rastgele ID / üçüncü
+      // kişiye spam sohbet açılamaz (S-CHAT-1).
+      allow create: if isSignedIn()
+        && !isSuspended()
+        && isEmailVerified()
+        && request.resource.data.customerUid is string
+        && request.resource.data.artisanUid is string
+        && request.resource.data.customerUid != request.resource.data.artisanUid
+        && (request.auth.uid == request.resource.data.customerUid
+            || request.auth.uid == request.resource.data.artisanUid)
+        && chatId == 'chat_' + request.resource.data.customerUid
+            + '__' + request.resource.data.artisanUid
+        && request.resource.data.members is map
+        && request.resource.data.members[request.resource.data.customerUid] == true
+        && request.resource.data.members[request.resource.data.artisanUid] == true
+        && request.resource.data.members.keys()
+            .hasOnly([request.resource.data.customerUid,
+                      request.resource.data.artisanUid])
+        && request.resource.data.participants is list
+        && request.resource.data.participants.size() == 2
+        && request.resource.data.participants.hasAll(
+            [request.resource.data.customerUid,
+             request.resource.data.artisanUid]);
+      // Update: üye + askıda değil (okundu/meta).
+      allow update: if isMember(resource.data)
+        && !isSuspended()
+        && chatUpdateKeysOk()
+        && chatMembersHealOk();
       allow delete: if false;
 
       match /messages/{msgId} {
+        // Sohbet dökümanı yoksa get().data kural motorunu hataya düşürür;
+        // önce exists — yoksa net false (permission-denied yerine okunabilir ret).
         function memberOfChat() {
-          return isMember(
-            get(/databases/$(database)/documents/chats/$(chatId)).data);
+          let path = /databases/$(database)/documents/chats/$(chatId);
+          return exists(path) && isMember(get(path).data);
         }
 
         // Karşı taraf, göndereni ENGELLEDİYSE mesaj oluşturulamaz (UGC
@@ -160,6 +296,18 @@ service cloud.firestore {
             && exists(/databases/$(database)/documents/users/$(other)/blocked/$(request.auth.uid));
         }
 
+        // Metin boyutu (spam / maliyet) — foto yalnız imageHandle ile.
+        function messagePayloadOk() {
+          let t = request.resource.data.get('text', null);
+          return (t == null || (t is string && t.size() <= 4000))
+            && (!('imageHandle' in request.resource.data)
+                || request.resource.data.imageHandle is string
+                || request.resource.data.imageHandle == null)
+            && request.resource.data.keys()
+                .hasOnly(['senderUid', 'text', 'imageHandle', 'createdAt',
+                          'deleted']);
+        }
+
         allow read: if memberOfChat();
         // Yalnızca gönderen kendi mesajını oluşturabilir; alıcı göndereni
         // engellediyse oluşturamaz.
@@ -167,7 +315,8 @@ service cloud.firestore {
           && !isSuspended()
           && request.resource.data.senderUid == request.auth.uid
           && memberOfChat()
-          && !recipientBlockedSender();
+          && !recipientBlockedSender()
+          && messagePayloadOk();
         // Yumuşak silme: YALNIZ gönderen, YALNIZ `deleted=true` + içerik
         // alanlarının kaldırılması şeklinde güncelleyebilir (mesaj içeriği
         // değiştirilemez, başkasının mesajı silinemez, silme geri alınamaz).
@@ -191,6 +340,27 @@ service cloud.firestore {
     //  - Kendini değerlendirmek yasak; puan 1..5 tam sayı.
     // delete kapalı → `onReviewWritten` CF toplamları delta ile güvenle tutar.
     match /reviews/{reviewId} {
+      // H6: sohbet en az 24s önce açılmış VEYA tamamlanmış iş (jobId) var.
+      function reviewChatDoc() {
+        return get(/databases/$(database)/documents/chats/$(reviewId)).data;
+      }
+      function reviewUnlockedByChatAge() {
+        let chat = reviewChatDoc();
+        let created = chat.get('createdAt', chat.get('updatedAt', request.time));
+        return request.time >= created + duration.value(24, 'h');
+      }
+      function reviewUnlockedByCompletedJob() {
+        return request.resource.data.jobId is string
+          && exists(/databases/$(database)/documents/jobs/$(request.resource.data.jobId))
+          && get(/databases/$(database)/documents/jobs/$(request.resource.data.jobId)).data.customerId
+              == request.auth.uid
+          && get(/databases/$(database)/documents/jobs/$(request.resource.data.jobId)).data.selectedArtisanId
+              == request.resource.data.artisanUID
+          && get(/databases/$(database)/documents/jobs/$(request.resource.data.jobId)).data.status
+              in ['completed', 'rated'];
+      }
+      // H5: herkes okur; gizlenenler istemcide elenir (alan bazlı filter yok).
+      // Admin gizleme bayrağını okuyabilir; istemci hiddenByAdmin==true olanı göstermez.
       allow read: if true;
       allow create: if isSignedIn()
         && !isSuspended()
@@ -202,7 +372,8 @@ service cloud.firestore {
         && exists(/databases/$(database)/documents/chats/$(reviewId))
         && request.resource.data.rating is int
         && request.resource.data.rating >= 1
-        && request.resource.data.rating <= 5;
+        && request.resource.data.rating <= 5
+        && (reviewUnlockedByChatAge() || reviewUnlockedByCompletedJob());
       // Güncelleme: YALNIZ değerlendirmenin sahibi; kimlik alanları
       // (customerUID/artisanUID/chatId) değiştirilemez, puan yine 1..5 int.
       allow update: if isSignedIn()
@@ -284,26 +455,79 @@ service cloud.firestore {
       }
 
       allow read: if true;
+      // M9: create allowlist — seçim/iptal/admin alanları seed edilemez.
+      function jobCreateKeysOk() {
+        return request.resource.data.keys().hasOnly([
+          'customerId', 'customerName', 'customerPhotoURL',
+          'title', 'description', 'category',
+          'province', 'district', 'neighborhood',
+          'photos', 'isUrgent', 'priceType', 'budget',
+          'status', 'offerCount',
+          'selectedOfferId', 'selectedArtisanId', 'chatId',
+          'customerConfirmedDone', 'artisanConfirmedDone', 'cancelReason',
+          'createdAt', 'expiresAt', 'expiresAtMs', 'moderationHidden'
+        ]);
+      }
+      // moderationHidden yalnız false veya yok (gizleme CF); true ile create yok.
+      // E-posta doğrulama zorunlu (müşteri ilan açma).
       allow create: if isSignedIn()
         && !isSuspended()
+        && isEmailVerified()
+        && jobCreateKeysOk()
         && request.resource.data.customerId == request.auth.uid
         && request.resource.data.status == 'open'
         && request.resource.data.offerCount == 0
         && request.resource.data.customerConfirmedDone == false
-        && request.resource.data.artisanConfirmedDone == false;
+        && request.resource.data.artisanConfirmedDone == false
+        && request.resource.data.title is string
+        && request.resource.data.title.size() > 0
+        && request.resource.data.title.size() <= 120
+        && request.resource.data.description is string
+        && request.resource.data.description.size() <= 2000
+        && (!('photos' in request.resource.data)
+            || (request.resource.data.photos is list
+                && request.resource.data.photos.size() <= 8))
+        && (!('selectedOfferId' in request.resource.data)
+            || request.resource.data.selectedOfferId == null)
+        && (!('selectedArtisanId' in request.resource.data)
+            || request.resource.data.selectedArtisanId == null)
+        && (!('chatId' in request.resource.data)
+            || request.resource.data.chatId == null)
+        && (!('moderationHidden' in request.resource.data)
+            || request.resource.data.moderationHidden == false)
+        && !request.resource.data.keys()
+              .hasAny(['moderatedBy', 'moderatedAt', 'adminModerationNote']);
       // Sahip: yalnızca yaşam döngüsü alanları (ilan içeriği yayından sonra
       // değişmez), KARŞI TARAFIN onayını değiştiremez (artisanConfirmedDone
       // listede yok; confirmDone tx'i alanı değiştirmeden yazar → diff'e girmez)
       // ve ilan 'open'a GERİ döndürülemez. Usta: yalnız durum + kendi onayı +
       // şikayet; durumu ancak inProgress/completed/disputed'a (veya şikayet
       // geri çekişinde saklanan önceki duruma) taşıyabilir.
+      // Usta seçimi yalnız open → workerSelected; atanan usta değişemez.
+      function ownerSelectTransitionOk() {
+        return request.resource.data.status != 'workerSelected'
+          || (resource.data.status == 'open'
+              && request.resource.data.selectedArtisanId is string
+              && request.resource.data.selectedOfferId is string);
+      }
+      function ownerNoReassignArtisan() {
+        return !request.resource.data.diff(resource.data)
+              .affectedKeys().hasAny(['selectedArtisanId', 'selectedOfferId', 'chatId'])
+          || resource.data.get('selectedArtisanId', null) == null
+          || request.resource.data.get('selectedArtisanId', null)
+              == resource.data.get('selectedArtisanId', null);
+      }
+
       allow update: if completedHasBothConfirms()
+        && !isSuspended()
         && ((isJobOwner()
               && changedOnly(['status', 'selectedOfferId', 'selectedArtisanId',
                     'chatId', 'customerConfirmedDone', 'cancelReason',
                     'disputedBy', 'disputeReason', 'disputeNote',
                     'disputedAt', 'statusBeforeDispute'])
               && request.resource.data.status != 'open'
+              && ownerSelectTransitionOk()
+              && ownerNoReassignArtisan()
               && disputeOk('customer'))
             // Sahip, AÇIK ilanın içeriğini düzenleyebilir (yalnız bu üç alan;
             // yaşam döngüsü/sayaç alanlarına dokunamaz). 1 saatlik pencere
@@ -338,9 +562,39 @@ service cloud.firestore {
     match /offers/{offerId} {
       // resource == null: var olmayan bir dökümanın get()'i (teklif verirken
       // "önce oku" adımı) — kuralın null.data'ya düşüp reddetmesini önler.
-      // Teklifin bağlı olduğu ilan (create'te 1 ek okuma — kabul edilebilir).
+      // Teklifin bağlı olduğu ilan + usta profili (create'te get okumaları).
       function jobOf(jobId) {
         return get(/databases/$(database)/documents/jobs/$(jobId)).data;
+      }
+      function myArtisanProfile() {
+        return get(/databases/$(database)/documents/artisanProfiles/$(request.auth.uid)).data;
+      }
+      // H3: usta ilanla meslek + bölge eşleşmeli (istemci matchesArtisan paritesi).
+      function artisanMatchesOpenJob(job) {
+        let p = myArtisanProfile();
+        let areaKey = job.province + '|' + job.district;
+        // Bölge: serviceAreaKeys (tercih). Boş/yoksa legacy serviceAreas
+        // (map listesi) — eski profiller keys heal olmadan reddedilmesin.
+        let keys = p.get('serviceAreaKeys', []);
+        let areaOk = keys is list && keys.size() > 0 && keys.hasAny([areaKey]);
+        // Meslek: Hızlı Destek → yalnız other/quick_support mesleği;
+        // klasik → professions[] veya profession == category.
+        let cat = job.category;
+        let proflist = p.get('professions', []);
+        let single = p.get('profession', '');
+        let isQsProvider = single == 'other' || single == 'quick_support'
+          || (proflist is list && proflist.hasAny(['other', 'quick_support']));
+        let profOk = cat == 'quick_support'
+          ? isQsProvider
+          : ((proflist is list && proflist.hasAny([cat])) || single == cat);
+        // areaOk false + keys boş: create sırasında istemci keys yazmalı;
+        // keys dolu ama eşleşmiyorsa false. keys yok/boşken legacy alan yoksa
+        // false (güvenli ret). keys.size()==0 → istemci heal kaçırdıysa
+        // yine de profOk ile tek başına yetmez; area şart.
+        // NOT: rules map-list iterate edemez; legacy için keys zorunlu hale
+        // getirildi ama boş keys + profession-only ASLA yetmez.
+        // Pratik: saveMyProfile her zaman serviceAreaKeys yazar; heal await.
+        return areaOk && profOk;
       }
 
       allow read: if isSignedIn()
@@ -351,18 +605,36 @@ service cloud.firestore {
       // teklif; rastgele ID ile sayaç şişirilemez). `customerId` ilanın GERÇEK
       // sahibi olmalı (yanlış customerId, müşterinin teklifi hiç görememesine
       // yol açardı) ve ilan hâlâ teklif topluyor olmalı.
+      // H4: süre dolmamış (expiresAtMs yoksa legacy — yalnız status).
+      function jobStillOpen(job) {
+        return job.status == 'open'
+          && (!('expiresAtMs' in job)
+              || request.time.toMillis() < job.expiresAtMs);
+      }
+      // E-posta doğrulama + H3 meslek/bölge + H4 süre.
       allow create: if isSignedIn()
         && !isSuspended()
+        && isEmailVerified()
         && request.resource.data.artisanId == request.auth.uid
         && offerId == request.resource.data.jobId + '__' + request.auth.uid
         && request.resource.data.customerId
             == jobOf(request.resource.data.jobId).customerId
-        && jobOf(request.resource.data.jobId).status == 'open';
-      allow update: if (isSignedIn()
-            && resource.data.artisanId == request.auth.uid)
-        || (isSignedIn()
-            && resource.data.customerId == request.auth.uid
-            && changedOnly(['status', 'updatedAt']));
+        && jobStillOpen(jobOf(request.resource.data.jobId))
+        && artisanMatchesOpenJob(jobOf(request.resource.data.jobId));
+      // M6: usta yalnız not/fiyat/geri çekme; accepted/rejected yazamaz.
+      // Müşteri yalnız status (seçim) + updatedAt.
+      allow update: if isSignedIn()
+        && !isSuspended()
+        && ((resource.data.artisanId == request.auth.uid
+              && changedOnly(['note', 'price', 'priceType', 'status', 'updatedAt'])
+              && request.resource.data.status in ['pending', 'withdrawn']
+              && request.resource.data.jobId == resource.data.jobId
+              && request.resource.data.artisanId == resource.data.artisanId
+              && request.resource.data.customerId == resource.data.customerId)
+            || (resource.data.customerId == request.auth.uid
+                && changedOnly(['status', 'updatedAt'])
+                && request.resource.data.status in
+                    ['pending', 'accepted', 'rejected']));
       allow delete: if false;
     }
 
@@ -377,18 +649,29 @@ service cloud.firestore {
           && request.resource.data.targetType in ['message', 'job', 'user']
           && request.resource.data.targetId is string
           && request.resource.data.reason is string
+          && request.resource.data.status == 'open'
           && reportId == request.resource.data.targetType + '_'
               + request.resource.data.targetId + '__' + request.auth.uid;
       }
 
-      allow create: if isSignedIn() && reportOk();
-      // Güncelleme YALNIZCA şikayetçinin kendi kaydını tekrar şikayetle
-      // güncellemesi (istemci `set`) için. YÖNETİCİ kararı istemciden YAZILMAZ:
-      // `adminResolveReport` CF (Admin SDK) durum + denetim kaydını atomik
-      // yazar — böylece her yönetici eylemi izlenebilir ve istemci sahteleyemez.
+      allow create: if isSignedIn() && !isSuspended() && reportOk()
+        // Yönetici alanları istemciden seed edilemez.
+        && !request.resource.data.keys().hasAny(
+            ['resolvedBy', 'resolvedAt', 'resolutionNote',
+             'assignedTo', 'assignedAt']);
+      // Tekrar şikayet: yalnız HÂLÂ open kayıtlarda (çözülmüş kuyruk
+      // üzerine set ile status=open yazılamaz — S-REPORT-1).
       allow update: if isSignedIn()
+        && !isSuspended()
         && resource.data.reporterUid == request.auth.uid
-        && reportOk();
+        && resource.data.get('status', 'open') == 'open'
+        && reportOk()
+        && request.resource.data.targetType == resource.data.targetType
+        && request.resource.data.targetId == resource.data.targetId
+        && request.resource.data.reporterUid == resource.data.reporterUid
+        && !request.resource.data.keys().hasAny(
+            ['resolvedBy', 'resolvedAt', 'resolutionNote',
+             'assignedTo', 'assignedAt']);
       // Okuma yalnız yöneticiye (admin kuyruğu); silme kapalı.
       allow read: if isAdmin();
       allow delete: if false;
@@ -410,6 +693,130 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // adminInvites — moderatör davetleri (e-posta PII). Yalnız CF yazar;
+    // yalnız superadmin okur (K19).
+    match /adminInvites/{inviteId} {
+      allow read: if isSuperAdmin();
+      allow write: if false;
+    }
+
+    // adminStats — KPI sayaçları (global + daily). Yalnız CF yazar; admin okur.
+    match /adminStats/{docId} {
+      allow read: if isAdmin();
+      allow write: if false;
+      match /{sub=**} {
+        allow read: if isAdmin();
+        allow write: if false;
+      }
+    }
+
+    // adminConfig — runtime bayrakları (premium beta, bakım…). CF yazar.
+    // Okuma herkese açık (hassas veri yok; tüketici M7 remote bayrak okur).
+    match /adminConfig/{docId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    // adminRateLimits — CF rate-limit sayaçları (transcript vb.). İstemci yok.
+    match /adminRateLimits/{uid} {
+      allow read, write: if false;
+    }
+
+    // membershipPurchases — Play abonelik kanıtı (token). Yalnız CF (Admin SDK).
+    match /membershipPurchases/{uid} {
+      allow read, write: if false;
+    }
+
+    // supportTickets — kullanıcı destek talepleri.
+    // Create/update: CF (createSupportTicket / adminUpdateSupportTicket).
+    // Okuma: admin veya kendi talebi. İstemci yazamaz (sahte durum yok).
+    match /supportTickets/{ticketId} {
+      allow read: if isAdmin()
+        || (isSignedIn() && resource.data.uid == request.auth.uid);
+      allow create, update, delete: if false;
+    }
+
+    // scheduledCampaigns — zamanlanmış bildirim kampanyaları (yalnız CF yazar).
+    match /scheduledCampaigns/{id} {
+      allow read: if isAdmin();
+      allow create, update, delete: if false;
+    }
+
+    // staffWorkers — "iş arıyorum" kartları. ID: worker_{uid}.
+    // isDaily: gündelik işe açıklık. İl/ilçe zorunlu (serbest metin spam azaltma).
+    match /staffWorkers/{docId} {
+      allow read: if true;
+      allow create, update: if isSignedIn()
+        && !isSuspended()
+        && isEmailVerified()
+        && request.resource.data.uid == request.auth.uid
+        && docId == 'worker_' + request.auth.uid
+        && request.resource.data.title is string
+        && request.resource.data.title.size() >= 3
+        && request.resource.data.title.size() <= 80
+        && request.resource.data.about is string
+        && request.resource.data.about.size() >= 10
+        && request.resource.data.about.size() <= 500
+        && request.resource.data.professionLabel is string
+        && request.resource.data.professionLabel.size() >= 1
+        && request.resource.data.professionLabel.size() <= 60
+        && request.resource.data.province is string
+        && request.resource.data.province.size() >= 2
+        && request.resource.data.province.size() <= 40
+        && request.resource.data.district is string
+        && request.resource.data.district.size() >= 2
+        && request.resource.data.district.size() <= 40
+        && request.resource.data.openToWork is bool
+        && request.resource.data.isDaily is bool
+        && request.resource.data.rateType in
+            ['daily', 'monthly', 'negotiable']
+        && (!('rate' in request.resource.data)
+            || request.resource.data.rate == null
+            || (request.resource.data.rate is number
+                && request.resource.data.rate >= 1
+                && request.resource.data.rate <= 1000000));
+      allow delete: if isSignedIn()
+        && resource.data.uid == request.auth.uid;
+    }
+
+    // staffNeeds — işveren "eleman ilanı".
+    match /staffNeeds/{needId} {
+      allow read: if true;
+      allow create: if isSignedIn()
+        && !isSuspended()
+        && isEmailVerified()
+        && request.resource.data.employerUid == request.auth.uid
+        && request.resource.data.status == 'open'
+        && request.resource.data.title is string
+        && request.resource.data.title.size() >= 3
+        && request.resource.data.title.size() <= 80
+        && request.resource.data.detail is string
+        && request.resource.data.detail.size() >= 10
+        && request.resource.data.detail.size() <= 600
+        && request.resource.data.province is string
+        && request.resource.data.province.size() >= 2
+        && request.resource.data.province.size() <= 40
+        && request.resource.data.district is string
+        && request.resource.data.district.size() >= 2
+        && request.resource.data.district.size() <= 40
+        && request.resource.data.neededCount is int
+        && request.resource.data.neededCount >= 1
+        && request.resource.data.neededCount <= 50
+        && request.resource.data.isDaily is bool
+        && (!('dailyRate' in request.resource.data)
+            || request.resource.data.dailyRate == null
+            || (request.resource.data.dailyRate is number
+                && request.resource.data.dailyRate >= 1
+                && request.resource.data.dailyRate <= 1000000));
+      allow update: if isSignedIn()
+        && !isSuspended()
+        && resource.data.employerUid == request.auth.uid
+        && request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['status'])
+        && request.resource.data.status in ['open', 'closed'];
+      allow delete: if false;
+    }
+
     // favorites — müşterinin takip ettiği ("Takip Et") ustalar (#14). Döküman
     // ID'si = customerUid__artisanUid. Müşteri kendi listesini, USTA da kendi
     // takipçilerini okuyabilir (bildirim ekranı "Sizi Takip Edenler" — ürün
@@ -417,13 +824,20 @@ service cloud.firestore {
     // create/delete (update yok).
     match /favorites/{favId} {
       // resource == null: takip eklerken "önce oku" adımı (var olmayan döküman).
+      // M5: docId = customerUid__artisanUid (spam random id yok).
       allow read: if isSignedIn()
         && (resource == null
             || resource.data.customerUid == request.auth.uid
             || resource.data.artisanUid == request.auth.uid);
       allow create: if isSignedIn()
-        && request.resource.data.customerUid == request.auth.uid;
+        && !isSuspended()
+        && request.resource.data.customerUid == request.auth.uid
+        && request.resource.data.artisanUid is string
+        && request.resource.data.artisanUid != request.auth.uid
+        && favId == request.resource.data.customerUid + '__'
+            + request.resource.data.artisanUid;
       allow delete: if isSignedIn()
+        && !isSuspended()
         && resource.data.customerUid == request.auth.uid;
       allow update: if false;
     }

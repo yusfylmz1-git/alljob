@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/analytics/app_analytics.dart';
 import '../../../core/config/backend_config.dart';
 import '../../../data/models/app_user.dart';
 import '../../../data/models/user_role.dart';
@@ -18,6 +19,10 @@ final authRepositoryProvider = Provider<AuthRepository>((ref) {
 });
 
 /// Mevcut oturum durumu (null = oturum yok). Router bunu dinler.
+///
+/// NOT: Buraya [Stream.timeout] + `null` ekleme — olay aralığı 15 sn’yi
+/// aşınca (profil değişmezken normal) oturumu yanlışlıkla kapatırdı.
+/// Splash kilidi repo tarafında zaman aşımı + Auth yedek profil ile çözülür.
 final authStateProvider = StreamProvider<AppUser?>((ref) {
   return ref.watch(authRepositoryProvider).authStateChanges();
 });
@@ -49,6 +54,9 @@ class AuthController extends AsyncNotifier<void> {
         password: password,
       );
     });
+    if (!state.hasError) {
+      await AppAnalytics.signUp(method: 'email');
+    }
     return !state.hasError;
   }
 
@@ -57,6 +65,9 @@ class AuthController extends AsyncNotifier<void> {
     state = await AsyncValue.guard(() async {
       await _repo.login(email: email, password: password);
     });
+    if (!state.hasError) {
+      await AppAnalytics.login(method: 'email');
+    }
     return !state.hasError;
   }
 
@@ -66,6 +77,9 @@ class AuthController extends AsyncNotifier<void> {
     state = await AsyncValue.guard(() async {
       await _repo.signInWithGoogle();
     });
+    if (!state.hasError) {
+      await AppAnalytics.login(method: 'google');
+    }
     return !state.hasError;
   }
 
@@ -73,6 +87,9 @@ class AuthController extends AsyncNotifier<void> {
   Future<bool> becomeArtisan() async {
     state = const AsyncLoading();
     state = await AsyncValue.guard(() => _repo.becomeArtisan());
+    if (!state.hasError) {
+      await AppAnalytics.becomeArtisan();
+    }
     return !state.hasError;
   }
 

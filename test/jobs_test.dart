@@ -157,6 +157,75 @@ void main() {
       expect(visible.length, 1);
       expect(visible.first.artisanId, 'art_2');
     });
+
+    test('SMOKE: geri çek → tekrar iletişime geç (re-activate)', () async {
+      // Canlı Firebase'te full set permission-denied üretiyordu; mock da
+      // withdrawn→pending ile yeniden aktifleşmeli.
+      final db = MockDatabase();
+      final jobs = MockJobRepository(db);
+      final offers = MockOfferRepository(db);
+      final jobId = await jobs.createJob(_sampleJob());
+
+      await offers.submitOffer(_sampleOffer(jobId: jobId, artisanId: 'art_1'));
+      expect(await offers.myOfferFor(jobId: jobId, artisanUid: 'art_1'),
+          isNotNull);
+
+      await offers.withdrawOffer(jobId: jobId, artisanUid: 'art_1');
+      expect(await offers.myOfferFor(jobId: jobId, artisanUid: 'art_1'),
+          isNull);
+
+      await offers.submitOffer(_sampleOffer(jobId: jobId, artisanId: 'art_1'));
+      final again =
+          await offers.myOfferFor(jobId: jobId, artisanUid: 'art_1');
+      expect(again, isNotNull);
+      expect(again!.status, OfferStatus.pending);
+      expect((await jobs.getJob(jobId))!.offerCount, 1);
+    });
+  });
+
+  group('SMOKE altın akış (müşteri + usta)', () {
+    test('ilan → 2 ilgi → usta seç → başlat → iki taraf tamamla', () async {
+      final db = MockDatabase();
+      final jobs = MockJobRepository(db);
+      final offers = MockOfferRepository(db);
+
+      final jobId = await jobs.createJob(_sampleJob());
+      await offers.submitOffer(_sampleOffer(jobId: jobId, artisanId: 'art_1'));
+      await offers.submitOffer(_sampleOffer(jobId: jobId, artisanId: 'art_2'));
+
+      await jobs.selectOffer(
+        jobId: jobId,
+        offerId: Offer.idFor(jobId, 'art_1'),
+        artisanId: 'art_1',
+        customerId: 'cust_1',
+        chatId: 'chat_cust_1__art_1',
+      );
+      var job = await jobs.getJob(jobId);
+      expect(job!.status, JobStatus.workerSelected);
+      expect(job.selectedArtisanId, 'art_1');
+      expect(job.chatId, 'chat_cust_1__art_1');
+
+      final afterSelect = await offers
+          .watchOffersForJob(jobId: jobId, customerId: 'cust_1')
+          .first;
+      expect(
+        afterSelect.where((o) => o.status == OfferStatus.accepted).length,
+        1,
+      );
+
+      await jobs.markStarted(jobId);
+      job = await jobs.getJob(jobId);
+      expect(job!.status, JobStatus.inProgress);
+
+      await jobs.confirmDone(jobId: jobId, byCustomer: true);
+      job = await jobs.getJob(jobId);
+      expect(job!.status, JobStatus.inProgress); // tek taraf yetmez
+      await jobs.confirmDone(jobId: jobId, byCustomer: false);
+      job = await jobs.getJob(jobId);
+      expect(job!.status, JobStatus.completed);
+      expect(job.customerConfirmedDone, isTrue);
+      expect(job.artisanConfirmedDone, isTrue);
+    });
   });
 
   group('Usta feed eşleştirme (#1)', () {
@@ -393,20 +462,21 @@ void main() {
           province: 'Bursa', district: 'Osmangazi', neighborhood: 'Dikkaldırım'),
     ];
 
-    test('hızlı destek ilanı ilçedeki HER meslekten ustayla eşleşir', () {
+    test('hızlı destek yalnız Hızlı Destek mesleği + aynı ilçe ile eşleşir',
+        () {
       final job = _sampleJob(category: kQuickSupportCategory);
-      // Meslek fark etmez: boyacı da, "Diğer" de eşleşir.
+      // Boyacı Hızlı Destek ilanını almaz.
       expect(
           job.matchesArtisan(professionCode: 'painter', serviceAreas: areas),
-          isTrue);
+          isFalse);
       expect(
           job.matchesArtisan(
               professionCode: kOtherProfession, serviceAreas: areas),
           isTrue);
-      // Ama ilçe eşleşmesi ŞART.
+      // İlçe eşleşmesi şart.
       expect(
         job.matchesArtisan(
-          professionCode: 'painter',
+          professionCode: kOtherProfession,
           serviceAreas: const [
             ServiceArea(province: 'Bursa', district: 'Nilüfer'),
           ],
@@ -415,7 +485,8 @@ void main() {
       );
     });
 
-    test('"Diğer" ustası YALNIZCA hızlı destek ilanlarını görür', () async {
+    test('Hızlı Destek ustası YALNIZCA hızlı destek ilanlarını görür',
+        () async {
       final db = MockDatabase();
       final jobs = MockJobRepository(db);
       final quickId =
@@ -430,24 +501,35 @@ void main() {
       expect(feed.every((j) => j.category == kQuickSupportCategory), isTrue);
     });
 
-    test('normal usta feed\'inde kendi mesleği + hızlı destek birlikte görünür',
+    test('klasik usta yalnız kendi mesleğini görür (hızlı destek yok)',
         () async {
+      final db = MockDatabase();
+      final jobs = MockJobRepository(db);
+      await jobs.createJob(_sampleJob(category: kQuickSupportCategory));
+      final paintId = await jobs.createJob(_sampleJob(category: 'painter'));
+      await jobs.createJob(_sampleJob(category: 'plumber'));
+
+      final feed = await jobs
+          .watchNearbyJobs(professionCode: 'painter', serviceAreas: areas)
+          .first;
+      expect(feed.map((j) => j.jobId), contains(paintId));
+      expect(feed.every((j) => j.category == 'painter'), isTrue);
+    });
+
+    test('meslek + Hızlı Destek birlikteyse her iki ilan da gelir', () async {
       final db = MockDatabase();
       final jobs = MockJobRepository(db);
       final quickId =
           await jobs.createJob(_sampleJob(category: kQuickSupportCategory));
       final paintId = await jobs.createJob(_sampleJob(category: 'painter'));
-      await jobs.createJob(_sampleJob(category: 'plumber')); // başka meslek
 
       final feed = await jobs
-          .watchNearbyJobs(professionCode: 'painter', serviceAreas: areas)
+          .watchNearbyJobs(
+            professionCodes: [kOtherProfession, 'painter'],
+            serviceAreas: areas,
+          )
           .first;
       expect(feed.map((j) => j.jobId), containsAll([quickId, paintId]));
-      expect(
-          feed.every((j) =>
-              j.category == 'painter' ||
-              j.category == kQuickSupportCategory),
-          isTrue);
     });
   });
 
@@ -475,7 +557,7 @@ void main() {
     });
   });
 
-  group('Keşfet ilan paneli (watchOpenJobs)', () {
+  group('Keşfet ilan paneli / watchOpenJobs', () {
     test('yalnızca açık + süresi dolmamış ilanlar, en yeni en üstte', () async {
       final db = MockDatabase();
       final jobs = MockJobRepository(db);

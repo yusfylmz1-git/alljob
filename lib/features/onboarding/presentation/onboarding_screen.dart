@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/constants/app_constants.dart';
 import '../../../core/router/route_paths.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_palette.dart';
@@ -32,16 +33,16 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     _PageData(
       icon: Icons.campaign_rounded,
       accentIcon: Icons.bolt_rounded,
-      title: 'İlanını ver, arkana yaslan',
-      body: 'Ne yaptıracağını yaz, yeter. Bölgendeki doğru ustalar anında '
-          'haberdar olur, seninle uygulama içinden iletişime geçer.',
+      title: 'İlanını ver, ustalar gelsin',
+      body: 'Ne yaptıracağını yazman yeterli. Bölgendeki ustalar haberdar olur; '
+          'iletişim uygulama içinde, güvenli ve net.',
     ),
     _PageData(
       icon: Icons.storefront_rounded,
       accentIcon: Icons.star_rounded,
-      title: 'Usta mısın? Kazanmaya başla',
-      body: 'Ücretsiz profilini aç, bölgendeki işleri anında gör. '
-          'İyi işçilik + iyi yorumlar = daha çok müşteri.',
+      title: 'Usta mısın? Vitrinini aç',
+      body: 'Profilini tamamla, müsait ol, yakındaki işleri gör. '
+          'Beta’da Pro özellikler ücretsiz — iyi yorum = daha çok iş.',
     ),
   ];
 
@@ -88,9 +89,9 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                       gradient: AppColors.brandGradient,
                       borderRadius: BorderRadius.circular(10),
                     ),
-                    child: const Text(
-                      'Usta Cepte',
-                      style: TextStyle(
+                    child: Text(
+                      AppConstants.appName,
+                      style: const TextStyle(
                           color: Colors.white,
                           fontWeight: FontWeight.w800,
                           fontSize: 13),
@@ -134,10 +135,29 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
             ),
             Padding(
               padding: const EdgeInsets.fromLTRB(24, 20, 24, 20),
-              child: AppButton(
-                label: last ? 'Hemen Başla' : 'Devam',
-                icon: last ? Icons.rocket_launch_rounded : null,
-                onPressed: _next,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  AppButton(
+                    label: last ? 'Usta keşfet' : 'Devam',
+                    icon: last ? Icons.search_rounded : null,
+                    onPressed: _next,
+                  ),
+                  if (last) ...[
+                    const SizedBox(height: 8),
+                    TextButton(
+                      onPressed: () async {
+                        await markOnboardingSeen();
+                        if (!mounted) return;
+                        ref.read(onboardingSeenProvider.notifier).state = true;
+                        // Keşfet + ilan yolu: müşteri değeri.
+                        if (!context.mounted) return;
+                        context.go(RoutePaths.newJob);
+                      },
+                      child: const Text('İş ilanı vererek başla'),
+                    ),
+                  ],
+                ],
               ),
             ),
           ],
