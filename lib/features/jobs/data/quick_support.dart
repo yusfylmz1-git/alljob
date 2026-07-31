@@ -2,10 +2,10 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../data/models/job.dart';
 
-/// Hızlı Destek (ayak işleri) — müşteri şablonları + usta tanıtım bayrağı.
+/// Hemen Lazım — müşteri ilan şablonları + usta tanıtım bayrağı.
 ///
-/// İlan kategorisi: [kQuickSupportCategory].
-/// Usta mesleği: [kOtherProfession] (gösterim: "Hızlı Destek").
+/// İlan kategorisi: [kQuickSupportCategory] (gösterim adı: [kQuickSupportName]).
+/// Usta tarafında profildeki ayrı anahtarla açılır ([kOtherProfession]).
 
 const _kArtisanIntroSeen = 'quick_support_artisan_intro_v1';
 
@@ -52,7 +52,7 @@ const kQuickSupportExamples = <QuickSupportExample>[
   ),
   QuickSupportExample(
     label: 'Kısa ev yardımı',
-    title: 'Kısa süreli ev içi ayak işi',
+    title: 'Kısa süreli ev içi yardım',
     description:
         'Sök-tak, taşı, yerleştir gibi 15–60 dk sürebilecek küçük yardımlar. '
         'Uzmanlık gerektiren işler için ilgili mesleği seçin.',

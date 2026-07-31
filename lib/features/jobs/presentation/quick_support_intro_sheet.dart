@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_palette.dart';
+import '../../../data/models/job.dart' show kQuickSupportName;
 import '../data/quick_support.dart';
 
-/// Usta ilk kez "Hızlı Destek" mesleğini seçince bir kez gösterilir.
+/// Usta "Hemen Lazım" anahtarını ilk kez açınca bir kez gösterilir.
 Future<void> showQuickSupportArtisanIntro(BuildContext context) async {
   final seen = await readQuickSupportArtisanIntroSeen();
   if (seen || !context.mounted) return;
@@ -44,7 +45,7 @@ class _QuickSupportArtisanIntro extends StatelessWidget {
               const SizedBox(width: 12),
               Expanded(
                 child: Text(
-                  'Hızlı Destek nedir?',
+                  '$kQuickSupportName nedir?',
                   style: theme.textTheme.titleLarge
                       ?.copyWith(fontWeight: FontWeight.w800),
                 ),
@@ -53,8 +54,8 @@ class _QuickSupportArtisanIntro extends StatelessWidget {
           ),
           const SizedBox(height: 14),
           Text(
-            'Ayak işi ve kısa süreli yardıma ihtiyacı olan komşuların '
-            'ilanlarını görürsünüz. Örnekler:',
+            'Kısa süreli yardıma ihtiyacı olan komşuların ilanlarını '
+            'görürsünüz. Örnekler:',
             style: theme.textTheme.bodyMedium
                 ?.copyWith(color: palette.inkMuted, height: 1.4),
           ),
@@ -87,9 +88,10 @@ class _QuickSupportArtisanIntro extends StatelessWidget {
               borderRadius: BorderRadius.circular(12),
             ),
             child: Text(
-              'Yalnız Hızlı Destek seçiliyse klasik meslek ilanları '
-              '(boya, elektrik vb.) size gelmez. Hem meslek hem Hızlı Destek '
-              'seçerseniz ikisini de alırsınız.',
+              'Bu ilanlar İLİNİZİN tamamından gelir; ilçenizdekiler listede '
+              'önce görünür. Meslek seçiminizden bağımsızdır: mesleğiniz '
+              'varsa onun ilanlarını da almaya devam edersiniz. '
+              'İstediğiniz zaman profilinizden kapatabilirsiniz.',
               style: theme.textTheme.bodySmall?.copyWith(
                 fontWeight: FontWeight.w600,
                 height: 1.35,

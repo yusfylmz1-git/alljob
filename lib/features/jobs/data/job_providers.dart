@@ -30,6 +30,18 @@ final openJobsProvider = StreamProvider<List<Job>>(
   (ref) => ref.watch(jobRepositoryProvider).watchOpenJobs(),
 );
 
+/// Ana sayfadaki "Hemen Lazım" şeridi: açık Hemen Lazım ilanları, en yeni
+/// üstte. [openJobsProvider] üzerinden süzülür — ayrı sorgu/indeks açmaz ve
+/// ana sayfa yenilemesi (openJobs invalidate) bu bölümü de tazeler.
+///
+/// NOT: Buradaki liste açık ilanların son [AppConstants.openJobsFetchCap]
+/// tanesinden süzülür; Hemen Lazım ilanı yoğun bir günde eskiler görünmeyebilir
+/// — "Tümünü Gör" kendi listesine götürür.
+final quickSupportJobsProvider = Provider<List<Job>>((ref) {
+  final jobs = ref.watch(openJobsProvider).valueOrNull ?? const <Job>[];
+  return jobs.where((j) => j.isQuickSupport).toList(growable: false);
+});
+
 /// Müşterinin kendi ilanları (İlanlarım).
 final myJobsProvider = StreamProvider.family<List<Job>, String>(
   (ref, customerUid) =>

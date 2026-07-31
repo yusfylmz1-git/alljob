@@ -19,7 +19,12 @@ import '../../../data/local/local_data_service.dart';
 import '../../../data/models/availability.dart';
 import '../../../data/models/geo_models.dart';
 import '../../../data/models/artisan_profile.dart';
-import '../../../data/models/job.dart' show kOtherProfession;
+import '../../../data/models/job.dart'
+    show
+        isQuickSupportProviderCodes,
+        kOtherProfession,
+        kQuickSupportCategory,
+        kQuickSupportName;
 import '../../../data/models/social_links.dart';
 import '../../auth/application/auth_controller.dart';
 import '../../auth/presentation/verification_tile.dart';
@@ -286,8 +291,12 @@ class _EditFormState extends ConsumerState<_EditForm> {
       context.showError(aboutError);
       return;
     }
+    // Hemen Lazım de geçerli bir hizmettir: yalnız onu açan usta da kaydeder.
     if (draft.profile.professionCodes.isEmpty) {
-      context.showError('En az bir meslek seçin.');
+      context.showError(
+        'En az bir meslek seçin veya "$kQuickSupportName işleri al" '
+        'anahtarını açın.',
+      );
       return;
     }
     if (draft.profile.serviceAreas.isEmpty) {
@@ -413,6 +422,20 @@ class _EditFormState extends ConsumerState<_EditForm> {
           ),
           const SizedBox(height: 16),
 
+          // --- Hemen Lazım anahtarı (meslekten AYRI hizmet tercihi) ---
+          _QuickSupportSwitch(
+            enabled: isQuickSupportProviderCodes(profile.professionCodes),
+            hasProfession: profile.professionCodes
+                .where((c) => c != kOtherProfession && c != kQuickSupportCategory)
+                .isNotEmpty,
+            onChanged: (on) {
+              _controller.setQuickSupportEnabled(on);
+              // İlk kez açılınca bir kerelik tanıtım.
+              if (on) showQuickSupportArtisanIntro(context);
+            },
+          ),
+          const SizedBox(height: 16),
+
           // --- Meslek(ler) ---
           _focusWrap(
             id: 'profession',
@@ -442,46 +465,8 @@ class _EditFormState extends ConsumerState<_EditForm> {
                       return;
                     }
                     _controller.toggleProfession(code);
-                    // İlk kez Hızlı Destek mesleği seçilince bir kerelik tanıtım.
-                    if (adding && code == kOtherProfession) {
-                      showQuickSupportArtisanIntro(context);
-                    }
                   },
                 ),
-                if (profile.professionCodes.contains(kOtherProfession)) ...[
-                  const SizedBox(height: 8),
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: context.palette.warningSurface,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(
-                          Icons.bolt,
-                          color: context.palette.warning,
-                          size: 20,
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Text(
-                            profile.professionCodes
-                                    .where((c) => c != kOtherProfession)
-                                    .isEmpty
-                                ? 'Yalnız Hızlı Destek seçili: size market, taşıma '
-                                      'gibi ayak işi ilanları gelir; boya/elektrik '
-                                      'gibi klasik meslek ilanları gelmez.'
-                                : 'Hızlı Destek + meslek: hem ayak işi hem seçtiğiniz '
-                                      'meslek ilanlarını alırsınız.',
-                            style: Theme.of(context).textTheme.bodySmall
-                                ?.copyWith(fontWeight: FontWeight.w600),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
               ],
             ),
           ),
@@ -994,6 +979,81 @@ class _Label extends StatelessWidget {
 
 /// Çoklu meslek seçimi: seçili özet + arama + kaydırılabilir liste.
 /// (~130 meslek; eski Wrap chip ızgarası dağınıktı ve arama yoktu.)
+/// "Hemen Lazım" hizmet anahtarı — meslek seçiminin HEMEN ÜSTÜNDE, ayrı bir
+/// karar olarak sunulur. Meslek listesinin içinde bir satır olduğunda ustalar
+/// bunu bir meslek sanıyor ve fark etmeden atlıyordu.
+///
+/// Açıkken usta, ilindeki Hemen Lazım ilanlarını da alır (mesleğine ek olarak).
+class _QuickSupportSwitch extends StatelessWidget {
+  const _QuickSupportSwitch({
+    required this.enabled,
+    required this.hasProfession,
+    required this.onChanged,
+  });
+
+  final bool enabled;
+
+  /// Hemen Lazım DIŞINDA en az bir meslek seçili mi? (yalnız açıklama metni
+  /// için — anahtarın kendisini kısıtlamaz.)
+  final bool hasProfession;
+
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final palette = context.palette;
+    return Container(
+      decoration: BoxDecoration(
+        color: enabled ? palette.warningSurface : palette.card,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: enabled ? palette.warning.withValues(alpha: 0.5) : palette.border,
+        ),
+      ),
+      padding: const EdgeInsets.fromLTRB(14, 6, 8, 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.bolt_rounded, color: palette.warning, size: 22),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  '$kQuickSupportName işleri al',
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+              Switch(
+                value: enabled,
+                onChanged: onChanged,
+              ),
+            ],
+          ),
+          Text(
+            enabled
+                ? (hasProfession
+                    ? 'Açık: mesleğinize ek olarak ilinizdeki market, taşıma, '
+                        'kısa gidiş gibi kısa işler de size gelir.'
+                    : 'Açık: ilinizdeki market, taşıma, kısa gidiş gibi kısa '
+                        'işler size gelir. Meslek seçmediğiniz için klasik '
+                        'meslek ilanları (boya, elektrik vb.) GELMEZ.')
+                : 'Kapalı: market, taşıma, kısa gidiş gibi uzmanlık '
+                    'gerektirmeyen kısa işler size gelmez.',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: palette.inkMuted,
+              height: 1.35,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _ProfessionMultiSelect extends ConsumerStatefulWidget {
   const _ProfessionMultiSelect({
     required this.selected,
@@ -1024,13 +1084,21 @@ class _ProfessionMultiSelectState
     final professionsAsync = ref.watch(professionsProvider);
     final palette = context.palette;
     final theme = Theme.of(context);
-    final selected = widget.selected;
 
     return professionsAsync.when(
       loading: () => const LinearProgressIndicator(),
       error: (_, _) => const Text('Meslek listesi yüklenemedi'),
-      data: (professions) {
+      data: (allProfessions) {
+        // Hemen Lazım bir MESLEK DEĞİL, ayrı hizmet anahtarı → listede yok
+        // (bkz. _QuickSupportSwitch). Sayaç/chip'ler de onu saymaz.
+        final professions = allProfessions
+            .where((p) =>
+                p.code != kOtherProfession && p.code != kQuickSupportCategory)
+            .toList(growable: false);
         final byCode = {for (final p in professions) p.code: p};
+        final selected = widget.selected
+            .where((c) => c != kOtherProfession && c != kQuickSupportCategory)
+            .toList(growable: false);
         final q = _query.text;
         // Liste sırası sabit kalır (seçilince en üste zıplamaz); seçili
         // olanlar üstteki chip'lerde + satırda ✓ ile görünür.

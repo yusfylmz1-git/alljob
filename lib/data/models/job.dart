@@ -1,16 +1,27 @@
 import 'geo_models.dart';
 
-/// "Hızlı Destek" ilan kategorisi — ayak işleri (market, taşıma, kısa yardım).
-/// Yalnız [kOtherProfession] ("Hızlı Destek") mesleğini seçen ustalara düşer.
+/// "Hemen Lazım" ilan kategorisi — market, taşıma, kısa gidiş gibi uzmanlık
+/// gerektirmeyen kısa işler. Yalnız Hemen Lazım hizmeti AÇIK olan ustalara
+/// düşer (bkz. [isQuickSupportProviderCodes]).
+///
+/// Depolama kodu (`quick_support`) geriye uyum için DEĞİŞMEZ — yalnız
+/// kullanıcıya görünen ad "Hemen Lazım"dır ([kQuickSupportName]).
 /// CF paritesi: functions/index.js QUICK_SUPPORT_CATEGORY.
 const kQuickSupportCategory = 'quick_support';
 
-/// Usta profilindeki "Hızlı Destek" mesleği (JSON code: `other`, geriye uyum).
-/// Yalnız bunu seçen usta klasik meslek ilanlarını almaz; Hızlı Destek ilanlarını alır.
-/// Klasik meslek + Hızlı Destek birlikte seçilebilir.
+/// Kullanıcıya görünen ad. Metinlerde bu sabit kullanılır ki ileride tek
+/// noktadan değiştirilebilsin.
+const kQuickSupportName = 'Hemen Lazım';
+
+/// Usta profilinde Hemen Lazım hizmetini işaretleyen meslek kodu
+/// (JSON code: `other`, geriye uyum). Meslek listesinden AYRILMIŞTIR:
+/// profilde ayrı bir anahtar (switch) ile açılıp kapatılır.
+///
+/// Bu kod `professions` dizisinde tutulmaya devam eder — böylece mevcut
+/// eşleşme (istemci + CF + rules) ve eski profiller olduğu gibi çalışır.
 const kOtherProfession = 'other';
 
-/// Bu meslek kodları Hızlı Destek (ayak işi) ilanlarını alabilir.
+/// Bu meslek kodları Hemen Lazım ilanlarını alabilir.
 bool isQuickSupportProviderCodes(Iterable<String> codes) {
   for (final c in codes) {
     if (c == kOtherProfession || c == kQuickSupportCategory) return true;
@@ -468,9 +479,16 @@ class Job {
   /// örtüşmeli (il+ilçe; mahalle verilmişse ve usta o mahalleyi de seçmişse
   /// daha spesifik eşleşir, ama ilçe düzeyi eşleşmesi yeterlidir).
   ///
-  /// Hızlı Destek:
-  ///  - İlan [kQuickSupportCategory] → yalnız Hızlı Destek mesleği + aynı ilçe.
-  ///  - Yalnız Hızlı Destek seçen usta klasik meslek ilanlarını almaz.
+  /// Hemen Lazım ([kQuickSupportCategory]):
+  ///  - Yalnız Hemen Lazım hizmeti açık olan ustalara düşer.
+  ///  - Bölge eşleşmesi İL düzeyindedir (ilçe şartı YOK): kısa işlerde arz
+  ///    dar olduğundan ilçeye kısmak ilanı çoğu ilçede alıcısız bırakıyordu.
+  ///    Aynı ilçedeki ustalar UI'da "Yakınında" rozetiyle öne alınır
+  ///    (bkz. [isNearbyForAreas]) — eleme değil, sıralama tercihi.
+  ///  - Yalnız Hemen Lazım açık olup mesleği olmayan usta klasik meslek
+  ///    ilanlarını almaz.
+  ///
+  /// Klasik ilanlarda bölge eşleşmesi il + ilçe düzeyindedir (değişmedi).
   ///
   /// [professionCodes] çoklu meslek; [professionCode] tekil (geriye uyum).
   bool matchesArtisan({
@@ -485,16 +503,58 @@ class Job {
         .map((c) => c.trim())
         .where((c) => c.isNotEmpty)
         .toList();
+    if (category == kQuickSupportCategory) {
+      // İL düzeyi: ustanın hizmet bölgelerinden herhangi biri ilanın ilinde.
+      final provinceMatch = serviceAreas.any((a) => a.province == province);
+      return provinceMatch && isQuickSupportProviderCodes(codes);
+    }
     final areaMatch = serviceAreas.any(
       (a) => a.province == province && a.district == district,
     );
-    if (category == kQuickSupportCategory) {
-      return areaMatch && isQuickSupportProviderCodes(codes);
-    }
     final matchable = codes
         .where((c) => c != kOtherProfession && c != kQuickSupportCategory)
         .toList(growable: false);
     if (matchable.isEmpty) return false;
     return matchable.contains(category) && areaMatch;
   }
+
+  /// Bu ilan Hemen Lazım ilanı mı?
+  bool get isQuickSupport => category == kQuickSupportCategory;
+
+  /// Usta ilanın İLÇESİNDE de hizmet veriyor mu? Hemen Lazım ilanları il
+  /// geneline gittiğinden, aynı ilçedekiler listede öne alınır ve "Yakınında"
+  /// rozeti gösterilir. ELEME DEĞİLDİR — yalnız sıralama/gösterim sinyali.
+  bool isNearbyForAreas(List<ServiceArea> serviceAreas) => serviceAreas.any(
+        (a) => a.province == province && a.district == district,
+      );
+}
+
+/// Usta feed'i sıralaması: Hemen Lazım ilanları en üstte (kısa işler çabuk
+/// bayatlar), her grupta ustanın kendi ilçesindekiler önce, sonra en yeni.
+///
+/// Listeyi YERİNDE sıralar ve aynı listeyi döndürür.
+List<Job> sortJobsForArtisanFeed(
+  List<Job> jobs,
+  List<ServiceArea> serviceAreas,
+) {
+  // Sıralama anahtarları önden hesaplanır: comparator içinde her
+  // karşılaştırmada serviceAreas taranırsa O(n log n × alan) olurdu.
+  //
+  // Anahtar olarak jobId DEĞİL nesne kimliği kullanılır: kaydedilmemiş
+  // ilanlarda (ve testlerde) jobId boş olabilir ve aynı anahtara düşen
+  // ilanlar birbirinin yakınlık değerini ezerdi.
+  final nearby = Map<Job, bool>.identity();
+  for (final j in jobs) {
+    nearby[j] = j.isNearbyForAreas(serviceAreas);
+  }
+  jobs.sort((a, b) {
+    if (a.isQuickSupport != b.isQuickSupport) {
+      return a.isQuickSupport ? -1 : 1;
+    }
+    final an = nearby[a] ?? false;
+    final bn = nearby[b] ?? false;
+    if (an != bn) return an ? -1 : 1;
+    return b.createdAt.compareTo(a.createdAt);
+  });
+  return jobs;
 }

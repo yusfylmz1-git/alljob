@@ -64,7 +64,18 @@ class RoutePaths {
   // İş ilanları (çift taraflı pazaryeri)
   static const String jobsBase = '/jobs';
   static const String newJob = '/jobs/new';
+
+  /// İlan formu "Hemen Lazım" kategorisi seçili açılır (ana sayfa kısayolu).
+  static const String newQuickSupportJob = '/jobs/new?kind=quick';
+
   static const String myJobs = '/jobs/mine';
+
+  /// "Hemen Lazım" ilanları listesi (ana sayfadaki şeritten "Tümünü Gör").
+  /// Misafir dâhil herkese açıktır — vitrin niteliğindedir.
+  /// DİKKAT: `/jobs/:jobId` deseninden ÖNCE tanımlanmalı, yoksa "quick"
+  /// bir ilan kimliği sanılır.
+  static const String quickSupportJobs = '/jobs/quick';
+
   static String jobDetail(String jobId) => '/jobs/$jobId';
 
   // Favoriler (oturum açmış müşteri)

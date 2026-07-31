@@ -59,9 +59,8 @@ class MockJobRepository implements JobRepository {
         professionCodes: professionCodes,
         serviceAreas: serviceAreas,
       );
-    }).toList()
-      ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
-    return list;
+    }).toList();
+    return sortJobsForArtisanFeed(list, serviceAreas);
   }
 
   @override

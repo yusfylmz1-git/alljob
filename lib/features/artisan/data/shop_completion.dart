@@ -78,7 +78,7 @@ class ShopCompletion {
           id: 'profession',
           label: 'Meslek',
           ok: p != null && p.professionCodes.isNotEmpty,
-          hint: 'En az bir meslek / Hızlı Destek seçin.',
+          hint: 'En az bir meslek seçin veya Hemen Lazım anahtarını açın.',
           requiredForJobs: true,
         ),
         ShopCompletionStep(

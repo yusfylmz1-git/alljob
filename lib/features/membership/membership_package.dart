@@ -51,7 +51,7 @@ enum MembershipPackage {
             'Ücretsiz paketteki her şey',
             'Usta Pro özellikleri açık',
             'Müsaitlik ve yakındaki işler',
-            'Vitrin ve Hızlı Destek',
+            'Vitrin ve Hemen Lazım',
             'Beta süresince ücret yok',
           ],
         MembershipPackage.pro => const [

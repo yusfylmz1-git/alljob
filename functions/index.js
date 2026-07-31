@@ -46,8 +46,9 @@ const CONSUMER_CALL_OPTS = {region: REGION, enforceAppCheck: true};
 // Mock paritesi: mock_job_repository.confirmDone aynı sayıyı kullanır.
 const AUTO_COMPLETE_DAYS = 3;
 
-// "Hızlı Destek" ilan kategorisi (ayak işleri): yalnız meslek "other"
-// (Hızlı Destek) seçen ustalara gider. İstemci: job.dart.
+// "Hemen Lazım" ilan kategorisi: market/taşıma/kısa gidiş gibi kısa işler.
+// Yalnız Hemen Lazım hizmeti açık ("other") ustalara, İL düzeyinde gider.
+// İstemci paritesi: job.dart (Job.matchesArtisan).
 const QUICK_SUPPORT_CATEGORY = "quick_support";
 
 // İş sonu değerlendirmesindeki OLUMLU etiketler. Yalnız bunlar usta
@@ -685,7 +686,7 @@ exports.onJobCreated = onDocumentCreated(
       const isQuickSupport = category === QUICK_SUPPORT_CATEGORY;
 
       // Alıcı profilleri:
-      //  - Hızlı Destek: meslek "other" (Hızlı Destek) veya legacy quick_support.
+      //  - Hemen Lazım: "other" kodu veya legacy quick_support.
       //  - Klasik: professions array-contains + legacy profession== (birleşik).
       let profileDocs = [];
       if (isQuickSupport) {
@@ -726,19 +727,19 @@ exports.onJobCreated = onDocumentCreated(
       }
       if (profileDocs.length === 0) return;
 
-      // Bölgede hizmet verenler (ilan sahibi hariç). Hızlı Destek: il+İLÇE.
-      const jobDistrict = job.district || "";
+      // Bölgede hizmet verenler (ilan sahibi hariç).
+      // NOT: Hemen Lazım da artık İL düzeyinde eşleşir (eskiden il+ilçeydi) —
+      // kısa işlerde usta sayısı az olduğundan ilçeye kısılan ilanların çoğu
+      // alıcısız kalıyordu. İstemci paritesi: Job.matchesArtisan (job.dart).
       const recipientUids = [];
       profileDocs.forEach((d) => {
         if (d.id === job.customerId) return; // kendi ilanına bildirim gitmesin
         const areas = Array.isArray(d.data().serviceAreas) ?
           d.data().serviceAreas :
           [];
-        const match = isQuickSupport ?
-          areas.some((a) => a && a.province === province &&
-            a.district === jobDistrict) :
-          areas.some((a) => a && a.province === province);
-        if (match) recipientUids.push(d.id);
+        if (areas.some((a) => a && a.province === province)) {
+          recipientUids.push(d.id);
+        }
       });
       if (recipientUids.length === 0) {
         logger.info(`Job ${jobId}: no matching artisans in ${province}`);
@@ -747,10 +748,11 @@ exports.onJobCreated = onDocumentCreated(
 
       // Not: il adına ek ("'de/'da") ünlü uyumu gerektirdiğinden ekli kalıp
       // kullanılmaz ("İstanbul'de" gibi hatalar oluşuyordu).
-      const place = isQuickSupport && jobDistrict ? jobDistrict : province;
-      const kind = isQuickSupport ? "Hızlı Destek ilanı" : "iş ilanı";
+      // Hemen Lazım il geneline gittiğinden başlıkta İL yazar; ilçe zaten
+      // gövdede görünür (aksi halde uzak bir ilçe "bölgenizde" sanılırdı).
+      const kind = isQuickSupport ? "Hemen Lazım ilanı" : "iş ilanı";
       const title =
-        `${isQuickSupport ? "⚡ " : ""}${place} bölgesinde yeni ${kind}`;
+        `${isQuickSupport ? "⚡ " : ""}${province} bölgesinde yeni ${kind}`;
       const district = job.district ? ` · ${job.district}` : "";
       const body = `${job.title || "Yeni ilan"}${district}`;
 

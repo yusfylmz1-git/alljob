@@ -4,6 +4,8 @@ import '../../../core/utils/validators.dart';
 import '../../../data/models/artisan_profile.dart';
 import '../../../data/models/availability.dart';
 import '../../../data/models/geo_models.dart';
+import '../../../data/models/job.dart'
+    show isQuickSupportProviderCodes, kOtherProfession, kQuickSupportCategory;
 import '../../../data/models/social_links.dart';
 import '../../auth/application/auth_controller.dart';
 import '../data/my_profile_repository.dart';
@@ -107,6 +109,40 @@ class MyProfileController extends AsyncNotifier<MyProfileDraft> {
       cur.add(code);
     }
     setProfessions(cur);
+  }
+
+  /// Hemen Lazım hizmeti açık mı? (Meslek listesinden ayrı anahtar.)
+  ///
+  /// Depolamada [kOtherProfession] kodu `professions` dizisinde tutulur —
+  /// eşleşme (istemci/CF/rules) ve eski profiller aynen çalışsın diye şema
+  /// DEĞİŞTİRİLMEZ; yalnız kullanıcıya ayrı bir anahtar olarak sunulur.
+  bool get quickSupportEnabled {
+    final codes = state.valueOrNull?.profile.professionCodes ?? const [];
+    return isQuickSupportProviderCodes(codes);
+  }
+
+  /// Hemen Lazım anahtarını açar/kapatır.
+  ///
+  /// Kapatırken legacy `quick_support` kodu da temizlenir (bazı eski
+  /// profillerde meslek olarak o yazılmış); yalnız [kOtherProfession]
+  /// silinseydi anahtar kapalı görünüp ilanlar gelmeye devam ederdi.
+  ///
+  /// [maxProfessions] sınırı Hemen Lazım'ı ENGELLEMEZ: bu bir meslek değil,
+  /// ayrı bir hizmet tercihidir; 5 meslek seçmiş usta da açabilmelidir.
+  void setQuickSupportEnabled(bool enabled) {
+    final cur = state.valueOrNull?.profile.professionCodes.toList() ?? [];
+    final cleaned = cur
+        .where((c) => c != kOtherProfession && c != kQuickSupportCategory)
+        .toList();
+    if (enabled) cleaned.add(kOtherProfession);
+    // setProfessions max 5 ile keser → Hemen Lazım'ın elenmemesi için
+    // doğrudan yazılır (meslek sayısı zaten UI'da sınırlı).
+    _update((d) => d.copyWith(
+          profile: d.profile.copyWith(
+            professions: cleaned,
+            profession: cleaned.isEmpty ? '' : cleaned.first,
+          ),
+        ));
   }
 
   void setExperience(int years) => _update((d) => d.copyWith(

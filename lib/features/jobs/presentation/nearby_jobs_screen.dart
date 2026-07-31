@@ -12,6 +12,7 @@ import '../../../core/widgets/responsive_center.dart';
 import '../../../core/widgets/role_bottom_bar.dart';
 import '../../../core/widgets/skeleton.dart';
 import '../../../core/widgets/status_views.dart';
+import '../../../data/models/geo_models.dart' show ServiceArea;
 import '../../artisan/application/my_profile_controller.dart';
 import '../../artisan/data/shop_completion.dart';
 import '../../artisan/presentation/widgets/shop_completion_banner.dart';
@@ -81,6 +82,14 @@ class _NearbyJobsBody extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final jobsAsync = ref.watch(nearbyJobsProvider);
+    // Hemen Lazım ilanları il geneline gelir → kendi ilçesindekiler
+    // "Yakınında" rozetiyle ayrışsın (sıralamada da öndeler).
+    final myAreas = ref
+            .watch(myProfileControllerProvider)
+            .valueOrNull
+            ?.profile
+            .serviceAreas ??
+        const <ServiceArea>[];
 
     return jobsAsync.when(
       loading: () => const SkeletonList(),
@@ -126,7 +135,13 @@ class _NearbyJobsBody extends ConsumerWidget {
                 return Padding(
                   padding:
                       EdgeInsets.only(bottom: idx < jobs.length - 1 ? 12 : 0),
-                  child: NearbyJobCard(job: jobs[idx]),
+                  child: NearbyJobCard(
+                    job: jobs[idx],
+                    // Rozet yalnız il geneline gelen Hemen Lazım ilanlarında
+                    // anlamlı; klasik ilanlar zaten hep kendi ilçesinden.
+                    isNearby: jobs[idx].isQuickSupport &&
+                        jobs[idx].isNearbyForAreas(myAreas),
+                  ),
                 );
               },
             ),

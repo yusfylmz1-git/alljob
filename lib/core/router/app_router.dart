@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../data/models/app_user.dart';
+import '../../data/models/job.dart' show kQuickSupportCategory;
 import '../../features/notifications/presentation/notification_prefs_screen.dart';
 import '../../features/notifications/presentation/notifications_screen.dart';
 import '../../features/artisan/presentation/artisan_profile_edit_screen.dart';
@@ -26,6 +27,7 @@ import '../../features/jobs/presentation/job_detail_screen.dart';
 import '../../features/jobs/presentation/my_jobs_screen.dart';
 import '../../features/jobs/presentation/my_offers_screen.dart';
 import '../../features/jobs/presentation/nearby_jobs_screen.dart';
+import '../../features/jobs/presentation/quick_support_jobs_screen.dart';
 import '../../features/favorites/presentation/favorites_screen.dart';
 import '../../features/membership/membership_package.dart';
 import '../../features/membership/presentation/package_select_screen.dart';
@@ -130,7 +132,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       final needsLogin = loc.startsWith(RoutePaths.panel) ||
           loc.startsWith(RoutePaths.chats) ||
           loc.startsWith(RoutePaths.reviewBase) ||
-          loc.startsWith(RoutePaths.jobsBase) ||
+          // Hemen Lazım vitrini misafire açık (yalnız liste; ilan detayı ve
+          // teklif vermek yine oturum ister).
+          (loc.startsWith(RoutePaths.jobsBase) &&
+              loc != RoutePaths.quickSupportJobs) ||
           loc.startsWith(RoutePaths.favorites) ||
           loc.startsWith(RoutePaths.notifications) ||
           loc.startsWith(RoutePaths.tracking) ||
@@ -317,11 +322,22 @@ final routerProvider = Provider<GoRouter>((ref) {
       // ÖNCE tanımlanmalıdır (aksi halde :jobId onları da yakalar).
       GoRoute(
         path: RoutePaths.newJob,
-        builder: (_, _) => const CreateJobScreen(),
+        // ?kind=quick → form Hemen Lazım kategorisi seçili açılır.
+        builder: (_, state) => CreateJobScreen(
+          initialCategory: state.uri.queryParameters['kind'] == 'quick'
+              ? kQuickSupportCategory
+              : null,
+        ),
       ),
       GoRoute(
         path: RoutePaths.myJobs,
         builder: (_, _) => const MyJobsScreen(),
+      ),
+      // DİKKAT: '/jobs/:jobId' deseninden ÖNCE gelmeli (yoksa "quick" bir
+      // ilan kimliği olarak yakalanır).
+      GoRoute(
+        path: RoutePaths.quickSupportJobs,
+        builder: (_, _) => const QuickSupportJobsScreen(),
       ),
       GoRoute(
         path: '/jobs/:jobId',

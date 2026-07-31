@@ -68,7 +68,7 @@ class FirebaseJobRepository implements JobRepository {
         .map((s) {
       try {
         final now = DateTime.now();
-        return s.docs
+        final matched = s.docs
             .map((d) {
               try {
                 return Job.fromMap(d.id, d.data());
@@ -83,7 +83,9 @@ class FirebaseJobRepository implements JobRepository {
                   professionCodes: codes,
                   serviceAreas: serviceAreas,
                 ))
-            .toList(growable: false);
+            .toList();
+        // Hemen Lazım üstte, kendi ilçesindekiler önce (bkz. job.dart).
+        return sortJobsForArtisanFeed(matched, serviceAreas);
       } catch (_) {
         return const <Job>[];
       }

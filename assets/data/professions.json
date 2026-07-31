@@ -130,5 +130,5 @@
   { "code": "power_line", "nameTR": "Elektrik Tesisatı (Bina)", "icon": "bolt" },
   { "code": "generator_install", "nameTR": "Jeneratör Montaj", "icon": "power" },
   { "code": "ups", "nameTR": "UPS / Kesintisiz Güç", "icon": "battery_saver" },
-  { "code": "other", "nameTR": "Hızlı Destek (ayak işleri)", "icon": "bolt" }
+  { "code": "other", "nameTR": "Hemen Lazım", "icon": "bolt" }
 ]

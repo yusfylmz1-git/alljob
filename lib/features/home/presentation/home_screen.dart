@@ -16,6 +16,7 @@ import 'widgets/home_discover.dart';
 import 'widgets/home_featured.dart';
 import 'widgets/home_guest_banner.dart';
 import 'widgets/home_quick_access.dart';
+import 'widgets/home_quick_support.dart';
 import 'widgets/home_stats.dart';
 import 'widgets/home_tools.dart';
 
@@ -89,10 +90,13 @@ class HomeScreen extends ConsumerWidget {
   List<Widget> _sections({required bool isGuest, required bool isArtisan}) {
     const gap = SizedBox(height: 24);
 
-    // Usta: iş/ürün vitrini + araçlar önce.
+    // Usta: iş/ürün vitrini + araçlar önce. Hemen Lazım ilanları usta için
+    // doğrudan iş demektir → en üstte.
     if (isArtisan) {
       return const [
         HomeQuickAccess(),
+        gap,
+        HomeQuickSupport(), // ⚡ Hemen Lazım
         gap,
         HomeFeatured(), // Son İş İlanları / ürünler
         gap,
@@ -104,10 +108,13 @@ class HomeScreen extends ConsumerWidget {
       ];
     }
 
-    // Misafir & Müşteri: keşif/vitrin ağırlıklı.
+    // Misafir & Müşteri: keşif/vitrin ağırlıklı. Hemen Lazım öne alınır —
+    // hizmetin ne olduğu ancak canlı ilanlar görülünce anlaşılıyor.
     return [
       if (isGuest) const HomeGuestBanner(),
       const HomeQuickAccess(),
+      gap,
+      const HomeQuickSupport(), // ⚡ Hemen Lazım
       gap,
       const HomeDiscover(), // 🔥 Bugün Ustasından'da
       gap,

@@ -337,6 +337,14 @@ class ArtisanProfile {
           .map((e) => e.key)
           .where((k) => k != '|')
           .toList(),
+      // Hemen Lazım İL düzeyinde eşleştiğinden rules'un il listesine ihtiyacı
+      // var: kurallar string ayıramadığı için "İl|İlçe" anahtarından il
+      // çıkarılamaz. serviceAreas ile senkron, tekilleştirilmiş.
+      'serviceProvinces': serviceAreas
+          .map((e) => e.province)
+          .where((p) => p.isNotEmpty)
+          .toSet()
+          .toList(),
       'certificates': certificates,
       'workPhotos': workPhotos,
       'isVerified': isVerified,

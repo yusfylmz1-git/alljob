@@ -464,16 +464,15 @@ void main() {
     });
   });
 
-  group('Hızlı Destek (ayak işleri)', () {
+  group('Hemen Lazım', () {
     const areas = [
       ServiceArea(
           province: 'Bursa', district: 'Osmangazi', neighborhood: 'Dikkaldırım'),
     ];
 
-    test('hızlı destek yalnız Hızlı Destek mesleği + aynı ilçe ile eşleşir',
-        () {
+    test('yalnız Hemen Lazım hizmeti açık ustalarla eşleşir', () {
       final job = _sampleJob(category: kQuickSupportCategory);
-      // Boyacı Hızlı Destek ilanını almaz.
+      // Boyacı Hemen Lazım ilanını almaz.
       expect(
           job.matchesArtisan(professionCode: 'painter', serviceAreas: areas),
           isFalse);
@@ -481,7 +480,11 @@ void main() {
           job.matchesArtisan(
               professionCode: kOtherProfession, serviceAreas: areas),
           isTrue);
-      // İlçe eşleşmesi şart.
+    });
+
+    test('İL geneline gider: farklı ilçedeki usta da alır', () {
+      final job = _sampleJob(category: kQuickSupportCategory);
+      // İlan Bursa/Osmangazi; usta Bursa/Nilüfer → İL eşleştiği için GELİR.
       expect(
         job.matchesArtisan(
           professionCode: kOtherProfession,
@@ -489,11 +492,65 @@ void main() {
             ServiceArea(province: 'Bursa', district: 'Nilüfer'),
           ],
         ),
+        isTrue,
+      );
+      // Başka il → gelmez (il sınırı korunur).
+      expect(
+        job.matchesArtisan(
+          professionCode: kOtherProfession,
+          serviceAreas: const [
+            ServiceArea(province: 'Ankara', district: 'Çankaya'),
+          ],
+        ),
         isFalse,
       );
     });
 
-    test('Hızlı Destek ustası YALNIZCA hızlı destek ilanlarını görür',
+    test('klasik ilan İLÇE şartını korur (Hemen Lazım değişikliği sızmaz)', () {
+      final job = _sampleJob(category: 'painter');
+      expect(
+        job.matchesArtisan(
+          professionCode: 'painter',
+          serviceAreas: const [
+            ServiceArea(province: 'Bursa', district: 'Nilüfer'),
+          ],
+        ),
+        isFalse,
+      );
+      expect(
+        job.matchesArtisan(professionCode: 'painter', serviceAreas: areas),
+        isTrue,
+      );
+    });
+
+    test('isNearbyForAreas — aynı ilçe "Yakınında" sayılır', () {
+      final job = _sampleJob(category: kQuickSupportCategory);
+      expect(job.isNearbyForAreas(areas), isTrue);
+      expect(
+        job.isNearbyForAreas(const [
+          ServiceArea(province: 'Bursa', district: 'Nilüfer'),
+        ]),
+        isFalse,
+      );
+    });
+
+    test('feed sıralaması: Hemen Lazım üstte, kendi ilçesi önce', () {
+      // Uzak ilçedeki Hemen Lazım ilanı listede ÖNCE duruyor; sıralama onu
+      // yakın olanın ARKASINA almalı (yakınlık, giriş sırasından güçlü).
+      final list = <Job>[
+        _sampleJob(category: 'painter'),
+        _sampleJob(category: kQuickSupportCategory)
+            .copyWith(district: 'Nilüfer'),
+        _sampleJob(category: kQuickSupportCategory),
+      ];
+      final sorted = sortJobsForArtisanFeed(list, areas);
+      expect(sorted.first.category, kQuickSupportCategory);
+      expect(sorted.first.district, 'Osmangazi'); // yakın olan önce
+      expect(sorted[1].district, 'Nilüfer'); // uzak hemen-lazım ikinci
+      expect(sorted.last.category, 'painter'); // klasik ilan en sonda
+    });
+
+    test('Hemen Lazım ustası YALNIZCA hemen lazım ilanlarını görür',
         () async {
       final db = MockDatabase();
       final jobs = MockJobRepository(db);

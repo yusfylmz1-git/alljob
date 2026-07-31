@@ -91,10 +91,16 @@ class NearbyJobCard extends StatelessWidget {
     super.key,
     required this.job,
     this.ctaText = 'İletişime Geç',
+    this.isNearby = false,
   });
 
   final Job job;
   final String ctaText;
+
+  /// İlan ustanın KENDİ ilçesinde mi? Hemen Lazım ilanları il geneline
+  /// gittiğinden, aynı ilçedekiler "Yakınında" rozetiyle ayrışır. Yalnız
+  /// usta feed'inde anlamlıdır (bkz. Job.isNearbyForAreas).
+  final bool isNearby;
 
   @override
   Widget build(BuildContext context) {
@@ -121,11 +127,36 @@ class NearbyJobCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(job.title,
-                    style: theme.textTheme.titleSmall
-                        ?.copyWith(fontWeight: FontWeight.w800),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis),
+                Row(
+                  children: [
+                    Flexible(
+                      child: Text(job.title,
+                          style: theme.textTheme.titleSmall
+                              ?.copyWith(fontWeight: FontWeight.w800),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis),
+                    ),
+                    if (isNearby) ...[
+                      const SizedBox(width: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: palette.success.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          'Yakınında',
+                          style: theme.textTheme.labelSmall?.copyWith(
+                            color: palette.success,
+                            fontWeight: FontWeight.w800,
+                            fontSize: 10,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
                 const SizedBox(height: 3),
                 Text(job.description,
                     maxLines: 1,

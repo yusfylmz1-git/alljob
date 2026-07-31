@@ -26,7 +26,11 @@ import '../data/quick_support.dart';
 
 /// Müşterinin yeni iş ilanı oluşturduğu ekran (İş İlanı Ver).
 class CreateJobScreen extends ConsumerStatefulWidget {
-  const CreateJobScreen({super.key});
+  const CreateJobScreen({super.key, this.initialCategory});
+
+  /// Form açılırken seçili gelecek kategori (örn. ana sayfadaki "Hemen Lazım"
+  /// kısayolu). Kullanıcı yine değiştirebilir — kilitlenmez.
+  final String? initialCategory;
 
   @override
   ConsumerState<CreateJobScreen> createState() => _CreateJobScreenState();
@@ -38,6 +42,12 @@ class _CreateJobScreenState extends ConsumerState<CreateJobScreen> {
   final _descController = TextEditingController();
 
   String? _category;
+
+  @override
+  void initState() {
+    super.initState();
+    _category = widget.initialCategory;
+  }
   Province? _province;
   District? _district;
   final List<String> _photos = [];
@@ -277,9 +287,10 @@ class _CreateJobScreenState extends ConsumerState<CreateJobScreen> {
                             const SizedBox(width: 10),
                             Expanded(
                               child: Text(
-                                'Hızlı Destek: market, taşıma, kısa gidiş gibi '
-                                'ayak işleri. İlan yalnızca Hızlı Destek '
-                                'hizmeti veren kişilere gider (ilçeniz).',
+                                '$kQuickSupportName: market, taşıma, kısa gidiş '
+                                'gibi uzmanlık gerektirmeyen kısa işler. İlanınız '
+                                'İLİNİZDEKİ tüm $kQuickSupportName ustalarına '
+                                'gider; ilçenizdekiler önce görür.',
                                 style: Theme.of(context).textTheme.bodySmall
                                     ?.copyWith(fontWeight: FontWeight.w600),
                               ),
@@ -549,9 +560,9 @@ class _CategoryDropdown extends ConsumerWidget {
       loading: () => const LinearProgressIndicator(),
       error: (_, _) => const Text('Meslek listesi yüklenemedi'),
       data: (professions) {
-        // Hızlı Destek (ayak işi) en üstte; usta mesleği "other" ilan kategorisi değil.
+        // Hemen Lazım en üstte; usta mesleği "other" ilan kategorisi değil.
         final labels = <String, String>{
-          kQuickSupportCategory: '⚡ Hızlı Destek (ayak işleri)',
+          kQuickSupportCategory: '⚡ $kQuickSupportName',
           for (final p in professions)
             if (p.code != kOtherProfession) p.code: p.nameTR,
         };

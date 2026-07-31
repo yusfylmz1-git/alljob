@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/router/route_paths.dart';
 import '../../../../core/theme/app_palette.dart';
 import '../../../../core/widgets/tap_scale.dart';
+import '../../../../data/models/job.dart' show kQuickSupportName;
 import '../../../auth/application/auth_controller.dart';
 
 /// Ana Sayfa üst aksiyon bloğu: büyük "Usta Bul" davet kartı + altında iki
@@ -56,13 +57,24 @@ class HomeQuickAccess extends ConsumerWidget {
           color: const Color(0xFF2563EB),
           onTap: () => context.push(RoutePaths.newJob),
         ),
-      _QuickItem(
-        icon: Icons.inventory_2_rounded,
-        label: 'Ürünleri Keşfet',
-        hint: 'Ürünleri incele,\nilham al',
-        color: const Color(0xFF7C3AED),
-        onTap: () => context.go(RoutePaths.exploreTab('products')),
-      ),
+      // Müşteri: Hemen Lazım'ı ikinci aksiyon olarak öne çıkarır (ilan formu
+      // kategori seçili açılır). Usta: ürün keşfi.
+      if (isArtisan)
+        _QuickItem(
+          icon: Icons.inventory_2_rounded,
+          label: 'Ürünleri Keşfet',
+          hint: 'Ürünleri incele,\nilham al',
+          color: const Color(0xFF7C3AED),
+          onTap: () => context.go(RoutePaths.exploreTab('products')),
+        )
+      else
+        _QuickItem(
+          icon: Icons.bolt_rounded,
+          label: kQuickSupportName,
+          hint: 'Market, taşıma,\nkısa işler',
+          color: const Color(0xFFF59E0B),
+          onTap: () => context.push(RoutePaths.newQuickSupportJob),
+        ),
     ];
 
     return Column(

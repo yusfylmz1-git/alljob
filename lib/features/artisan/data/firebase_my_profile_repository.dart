@@ -60,9 +60,24 @@ class FirebaseMyProfileRepository implements MyProfileRepository {
     final needProf = profile.professionCodes.isNotEmpty &&
         (raw['professions'] is! List ||
             (raw['professions'] as List).isEmpty);
-    if (!keysMissingOrStale && !needProf) return;
+    // Hemen Lazım il düzeyi eşleşmesi için (rules string ayıramaz).
+    final expectedProvinces = profile.serviceAreas
+        .map((e) => e.province)
+        .where((p) => p.isNotEmpty)
+        .toSet()
+        .toList();
+    final rawProvinces = (raw['serviceProvinces'] as List?)
+            ?.map((e) => e.toString())
+            .toList() ??
+        const <String>[];
+    final provincesMissingOrStale = expectedProvinces.isNotEmpty &&
+        (rawProvinces.isEmpty ||
+            expectedProvinces.length != rawProvinces.length ||
+            !expectedProvinces.every(rawProvinces.contains));
+    if (!keysMissingOrStale && !needProf && !provincesMissingOrStale) return;
     final patch = <String, dynamic>{};
     if (keysMissingOrStale) patch['serviceAreaKeys'] = expectedKeys;
+    if (provincesMissingOrStale) patch['serviceProvinces'] = expectedProvinces;
     if (needProf) patch['professions'] = profile.professionCodes;
     try {
       await _profileDoc(uid).set(patch, SetOptions(merge: true));

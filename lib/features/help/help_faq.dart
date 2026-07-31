@@ -112,20 +112,32 @@ const kFaqItems = <FaqItem>[
   ),
   FaqItem(
     category: 'Usta',
-    question: 'Hızlı Destek nedir?',
+    question: 'Hemen Lazım nedir?',
     answer:
-        'Ayak işi ilanlarıdır: market, taşıma, kısa gidiş gibi. Meslek olarak '
-        '"Hızlı Destek" seçerseniz bu ilanlar size gelir. Yalnız bunu seçerseniz '
-        'boya/elektrik gibi klasik meslek ilanları gelmez; ikisini birlikte '
-        'seçebilirsiniz.',
+        'Market, taşıma, kısa gidiş gibi uzmanlık gerektirmeyen kısa iş '
+        'ilanlarıdır. Profilinizi düzenleyip meslek seçiminin üstündeki '
+        '"Hemen Lazım işleri al" anahtarını açarsanız bu ilanlar size gelir. '
+        'Meslek seçiminizden bağımsızdır: mesleğiniz varsa onun ilanlarını da '
+        'almaya devam edersiniz. İstediğiniz zaman kapatabilirsiniz.',
+  ),
+  FaqItem(
+    category: 'Usta',
+    question: 'Hemen Lazım ilanları hangi bölgeden gelir?',
+    answer:
+        'Klasik meslek ilanlarından farklı olarak Hemen Lazım ilanları '
+        'İLİN TAMAMINDAN gelir (yalnız kendi ilçenizden değil). Kısa işlerde '
+        'usta sayısı az olduğundan ilan ilçeye kısılınca çoğu ilanın alıcısı '
+        'olmuyordu. Kendi ilçenizdeki ilanlar listede "Yakınında" rozetiyle '
+        'en üstte gösterilir; uzak bir ilanı almak zorunda değilsiniz.',
   ),
   FaqItem(
     category: 'Müşteri',
-    question: 'Hızlı Destek ile ne ilan verebilirim?',
+    question: 'Hemen Lazım ile ne ilan verebilirim?',
     answer:
-        'İlan ver → kategori "Hızlı Destek". Market alışverişi, koli/odun '
+        'İlan ver → kategori "Hemen Lazım". Market alışverişi, koli/odun '
         'taşıma, eczane gidişi gibi kısa yardımlar için. Örnek şablonlardan '
-        'birine dokunarak başlık ve açıklamayı doldurabilirsiniz.',
+        'birine dokunarak başlık ve açıklamayı doldurabilirsiniz. İlanınız '
+        'ilinizdeki tüm Hemen Lazım ustalarına gider.',
   ),
   FaqItem(
     category: 'Usta',

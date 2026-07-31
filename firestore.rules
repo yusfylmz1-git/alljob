@@ -165,7 +165,22 @@ service cloud.firestore {
           && years <= 60
           && about is string
           && about.size() <= 500
-          && socialLinksOk();
+          && socialLinksOk()
+          && serviceProvincesOk();
+      }
+
+      // Hemen Lazım il eşleşmesinin dayandığı alan. serviceAreas'tan türetilir
+      // (her il en az bir hizmet bölgesinden gelir) → boyutu onu AŞAMAZ.
+      // Böylece usta tek bölge seçip 81 il yazarak tüm ülkenin Hemen Lazım
+      // ilanlarına teklif veremez. Alan yoksa geçerli (eski profiller).
+      function serviceProvincesOk() {
+        let d = request.resource.data;
+        let provs = d.get('serviceProvinces', []);
+        let areas = d.get('serviceAreas', []);
+        return !('serviceProvinces' in d)
+          || (provs is list
+              && areas is list
+              && provs.size() <= areas.size());
       }
 
       // Sosyal bağlantılar: yalnız bilinen anahtarlar, her biri string|null ve
@@ -643,18 +658,25 @@ service cloud.firestore {
       function artisanMatchesOpenJob(job) {
         let p = myArtisanProfile();
         let areaKey = job.province + '|' + job.district;
+        let cat = job.category;
+        let isQs = cat == 'quick_support';
         // Bölge: serviceAreaKeys (tercih). Boş/yoksa legacy serviceAreas
         // (map listesi) — eski profiller keys heal olmadan reddedilmesin.
         let keys = p.get('serviceAreaKeys', []);
-        let areaOk = keys is list && keys.size() > 0 && keys.hasAny([areaKey]);
-        // Meslek: Hızlı Destek → yalnız other/quick_support mesleği;
+        // Hemen Lazım İL düzeyinde eşleşir (istemci paritesi:
+        // Job.matchesArtisan). Kurallar string ayıramadığından il listesi
+        // ayrı bir alanda tutulur; saveMyProfile + _healMatchFields yazar.
+        let provs = p.get('serviceProvinces', []);
+        let areaOk = isQs
+          ? (provs is list && provs.size() > 0 && provs.hasAny([job.province]))
+          : (keys is list && keys.size() > 0 && keys.hasAny([areaKey]));
+        // Meslek: Hemen Lazım → yalnız other/quick_support kodu;
         // klasik → professions[] veya profession == category.
-        let cat = job.category;
         let proflist = p.get('professions', []);
         let single = p.get('profession', '');
         let isQsProvider = single == 'other' || single == 'quick_support'
           || (proflist is list && proflist.hasAny(['other', 'quick_support']));
-        let profOk = cat == 'quick_support'
+        let profOk = isQs
           ? isQsProvider
           : ((proflist is list && proflist.hasAny([cat])) || single == cat);
         // areaOk false + keys boş: create sırasında istemci keys yazmalı;

@@ -11,7 +11,7 @@ import '../models/product.dart';
 import '../models/review.dart';
 
 /// Meslek/kategori kodu → Türkçe ad. professions.json ile senkron tut.
-/// `quick_support` ilan kategorisi; usta mesleği `other` = Hızlı Destek.
+/// `quick_support` ilan kategorisi; usta tarafında `other` kodu = Hemen Lazım.
 const kProfessionNames = <String, String>{
   'painter': 'Boyacı',
   'plumber': 'Tesisatçı / Su Tesisatı',
@@ -144,8 +144,8 @@ const kProfessionNames = <String, String>{
   'power_line': 'Elektrik Tesisatı (Bina)',
   'generator_install': 'Jeneratör Montaj',
   'ups': 'UPS / Kesintisiz Güç',
-  'other': 'Hızlı Destek (ayak işleri)',
-  'quick_support': 'Hızlı Destek',
+  'other': 'Hemen Lazım',
+  'quick_support': 'Hemen Lazım',
 };
 
 /// Bir ustanın bellek içi kaydı (users + artisanProfiles + reviews birleşimi).
@@ -397,9 +397,13 @@ class MockDatabase {
       uid: uid,
       profession: professionCode,
       experienceYears: experience,
-      aboutText:
-          '$experience yıldır ${kProfessionNames[professionCode]} olarak '
-          'çalışıyorum. Temiz, hızlı ve garantili iş yaparım.',
+      // Hemen Lazım bir meslek değil ("... Hemen Lazım olarak çalışıyorum"
+      // anlamsız olurdu) → ona ayrı bir tanıtım metni.
+      aboutText: professionCode == kOtherProfession
+          ? 'Market, taşıma, kısa gidiş gibi işlerde yardımcı oluyorum. '
+              'Hızlı dönüş yaparım.'
+          : '$experience yıldır ${kProfessionNames[professionCode]} olarak '
+              'çalışıyorum. Temiz, hızlı ve garantili iş yaparım.',
       serviceAreas: areas,
       certificates: const [],
       workPhotos: const [],
