@@ -30,8 +30,9 @@ class ForceUpdateScreen extends ConsumerWidget {
               const SizedBox(height: 16),
               Text(
                 'Güncelleme gerekli',
-                style: theme.textTheme.headlineSmall
-                    ?.copyWith(fontWeight: FontWeight.w800),
+                style: theme.textTheme.headlineSmall?.copyWith(
+                  fontWeight: FontWeight.w800,
+                ),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 8),
@@ -39,24 +40,27 @@ class ForceUpdateScreen extends ConsumerWidget {
                 '${AppConstants.appName}’in bu sürümü artık desteklenmiyor. '
                 'Devam etmek için lütfen mağazadan güncelleyin.',
                 textAlign: TextAlign.center,
-                style: theme.textTheme.bodyMedium
-                    ?.copyWith(color: palette.inkMuted),
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: palette.inkMuted,
+                ),
               ),
               const SizedBox(height: 16),
               Text(
                 'Yüklü: $kClientVersion'
                 '${min != null && min.isNotEmpty ? '  ·  Gerekli: $min+' : ''}',
                 textAlign: TextAlign.center,
-                style: theme.textTheme.bodySmall
-                    ?.copyWith(color: palette.inkMuted),
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: palette.inkMuted,
+                ),
               ),
               const SizedBox(height: 28),
               Text(
                 'Play Store → “$playStorePackageId” aratın veya '
                 'uygulama sayfasından Güncelle’ye basın.',
                 textAlign: TextAlign.center,
-                style: theme.textTheme.bodySmall
-                    ?.copyWith(color: palette.inkMuted),
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: palette.inkMuted,
+                ),
               ),
             ],
           ),

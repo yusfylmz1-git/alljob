@@ -8,6 +8,7 @@ import '../../../core/router/route_paths.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_palette.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../core/utils/phone_format.dart';
 import '../../../core/utils/snackbar_helper.dart';
 import '../../../core/widgets/app_button.dart';
 import '../../../core/widgets/app_image.dart';
@@ -304,16 +305,6 @@ class _PublicPhoneChip extends StatelessWidget {
   const _PublicPhoneChip({required this.phoneE164});
   final String phoneE164;
 
-  static String formatTr(String e164) {
-    final d = e164.replaceAll(RegExp(r'\D'), '');
-    if (d.length == 12 && d.startsWith('90')) {
-      final n = d.substring(2);
-      return '0${n.substring(0, 3)} ${n.substring(3, 6)} '
-          '${n.substring(6, 8)} ${n.substring(8)}';
-    }
-    return e164;
-  }
-
   Future<void> _call(BuildContext context) async {
     final uri = Uri(scheme: 'tel', path: phoneE164);
     try {
@@ -328,7 +319,7 @@ class _PublicPhoneChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final label = formatTr(phoneE164);
+    final label = formatTrPhone(phoneE164);
     return Material(
       color: Colors.white.withValues(alpha: 0.14),
       borderRadius: BorderRadius.circular(24),

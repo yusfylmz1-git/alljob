@@ -47,11 +47,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   Future<void> _google() async {
     if (!_consent) {
       context.showInfo(
-          'Devam etmek için kullanım koşulları ve KVKK metnini onaylayın.');
+        'Devam etmek için kullanım koşulları ve KVKK metnini onaylayın.',
+      );
       return;
     }
-    final ok =
-        await ref.read(authControllerProvider.notifier).signInWithGoogle();
+    final ok = await ref
+        .read(authControllerProvider.notifier)
+        .signInWithGoogle();
     if (!mounted) return;
     if (ok) {
       _goAfterLogin();
@@ -128,7 +130,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         color: theme.colorScheme.surface,
                         borderRadius: BorderRadius.circular(20),
                         border: Border.all(
-                            color: theme.colorScheme.outlineVariant),
+                          color: theme.colorScheme.outlineVariant,
+                        ),
                         boxShadow: AppTheme.softShadow,
                       ),
                       child: Column(
@@ -136,8 +139,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         children: [
                           Text(
                             'Tek hesap, çift rol',
-                            style: theme.textTheme.titleMedium
-                                ?.copyWith(fontWeight: FontWeight.w800),
+                            style: theme.textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.w800,
+                            ),
                             textAlign: TextAlign.center,
                           ),
                           const SizedBox(height: 8),
@@ -153,12 +157,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           const SizedBox(height: 20),
                           FilledButton.icon(
                             style: FilledButton.styleFrom(
-                              padding:
-                                  const EdgeInsets.symmetric(vertical: 16),
+                              padding: const EdgeInsets.symmetric(vertical: 16),
                               backgroundColor: Colors.white,
                               foregroundColor: Colors.black87,
                               side: BorderSide(
-                                  color: theme.colorScheme.outlineVariant),
+                                color: theme.colorScheme.outlineVariant,
+                              ),
                             ),
                             icon: const _GoogleLogo(),
                             label: Text(
@@ -166,7 +170,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                   ? 'Giriş yapılıyor…'
                                   : 'Google ile devam et',
                               style: const TextStyle(
-                                  fontWeight: FontWeight.w700, fontSize: 15),
+                                fontWeight: FontWeight.w700,
+                                fontSize: 15,
+                              ),
                             ),
                             onPressed: isLoading ? null : _google,
                           ),
@@ -182,18 +188,19 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                   onChanged: isLoading
                                       ? null
                                       : (v) => setState(
-                                          () => _consent = v ?? false),
+                                          () => _consent = v ?? false,
+                                        ),
                                 ),
                               ),
                               const SizedBox(width: 6),
                               Expanded(
                                 child: Text.rich(
                                   TextSpan(
-                                    style: theme.textTheme.bodySmall
-                                        ?.copyWith(height: 1.35),
+                                    style: theme.textTheme.bodySmall?.copyWith(
+                                      height: 1.35,
+                                    ),
                                     children: [
-                                      const TextSpan(
-                                          text: 'Devam ederek '),
+                                      const TextSpan(text: 'Devam ederek '),
                                       TextSpan(
                                         text: 'Kullanım Koşulları',
                                         style: TextStyle(
@@ -221,7 +228,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                         recognizer: _kvkkTap,
                                       ),
                                       const TextSpan(
-                                          text: ' metinlerini kabul ediyorum.'),
+                                        text: ' metinlerini kabul ediyorum.',
+                                      ),
                                     ],
                                   ),
                                 ),

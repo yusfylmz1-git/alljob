@@ -17,8 +17,8 @@ import 'auth_repository.dart';
 /// Aktifleştirmek için: `flutterfire configure` + `useFirebaseBackend = true`.
 class FirebaseAuthRepository implements AuthRepository {
   FirebaseAuthRepository({fb.FirebaseAuth? auth, FirebaseFirestore? firestore})
-      : _auth = auth ?? fb.FirebaseAuth.instance,
-        _db = firestore ?? FirebaseFirestore.instance;
+    : _auth = auth ?? fb.FirebaseAuth.instance,
+      _db = firestore ?? FirebaseFirestore.instance;
 
   final fb.FirebaseAuth _auth;
   final FirebaseFirestore _db;
@@ -81,7 +81,9 @@ class FirebaseAuthRepository implements AuthRepository {
             _cached = cached.copyWith(isAdmin: isAdmin, adminRole: role);
             ctrl.add(_cached);
           }
-        } catch (_) {/* ignore */}
+        } catch (_) {
+          /* ignore */
+        }
         return;
       }
       await _userDocSub?.cancel();
@@ -96,51 +98,56 @@ class FirebaseAuthRepository implements AuthRepository {
         _cached = fallback;
         if (!ctrl.isClosed) ctrl.add(fallback);
       }
-      _userDocSub = _userDoc(fbUser.uid).snapshots().listen((snap) async {
-        try {
-          final wasSuspended = _cached?.suspended ?? false;
-          final (isAdmin, role) = await _readAdminClaims(fbUser);
-          AppUser user;
-          if (snap.exists && snap.data() != null) {
-            unawaited(_stripPublicPii(fbUser.uid, snap.data()!));
-            user = AppUser.fromMap(fbUser.uid, snap.data()!).copyWith(
-                  email: fbUser.email ?? '',
-                  emailVerified: fbUser.emailVerified,
-                  isAdmin: isAdmin,
-                  adminRole: role,
-                );
-          } else {
-            user = await _loadOrCreate(fbUser);
-          }
-          // Optimistic mod: sunucu henüz eski moda dönüyorsa UI'yi ezme.
-          final pendingMode = _pendingActiveMode;
-          if (pendingMode != null) {
-            if (user.activeMode == pendingMode) {
-              _pendingActiveMode = null;
+      _userDocSub = _userDoc(fbUser.uid).snapshots().listen(
+        (snap) async {
+          try {
+            final wasSuspended = _cached?.suspended ?? false;
+            final (isAdmin, role) = await _readAdminClaims(fbUser);
+            AppUser user;
+            if (snap.exists && snap.data() != null) {
+              unawaited(_stripPublicPii(fbUser.uid, snap.data()!));
+              user = AppUser.fromMap(fbUser.uid, snap.data()!).copyWith(
+                email: fbUser.email ?? '',
+                emailVerified: fbUser.emailVerified,
+                isAdmin: isAdmin,
+                adminRole: role,
+              );
             } else {
-              user = user.copyWith(activeMode: pendingMode);
+              user = await _loadOrCreate(fbUser);
+            }
+            // Optimistic mod: sunucu henüz eski moda dönüyorsa UI'yi ezme.
+            final pendingMode = _pendingActiveMode;
+            if (pendingMode != null) {
+              if (user.activeMode == pendingMode) {
+                _pendingActiveMode = null;
+              } else {
+                user = user.copyWith(activeMode: pendingMode);
+              }
+            }
+            // Askıya alınırsa claim jetonunu tazele (rules isSuspended).
+            if (user.suspended && !wasSuspended) {
+              try {
+                await fbUser.getIdToken(true).timeout(_networkTimeout);
+              } catch (_) {
+                /* ignore */
+              }
+            }
+            _cached = user;
+            if (!ctrl.isClosed) ctrl.add(user);
+          } catch (_) {
+            // Canlı güncelleme başarısız → mevcut önbelleği koru (splash değil).
+            if (_cached == null && !ctrl.isClosed) {
+              ctrl.add(_minimalFromAuth(fbUser));
             }
           }
-          // Askıya alınırsa claim jetonunu tazele (rules isSuspended).
-          if (user.suspended && !wasSuspended) {
-            try {
-              await fbUser.getIdToken(true).timeout(_networkTimeout);
-            } catch (_) {/* ignore */}
-          }
-          _cached = user;
-          if (!ctrl.isClosed) ctrl.add(user);
-        } catch (_) {
-          // Canlı güncelleme başarısız → mevcut önbelleği koru (splash değil).
+        },
+        onError: (Object e, StackTrace st) {
+          // permission-denied / ağ: oturumu düşürme; en azından Auth profili.
           if (_cached == null && !ctrl.isClosed) {
             ctrl.add(_minimalFromAuth(fbUser));
           }
-        }
-      }, onError: (Object e, StackTrace st) {
-        // permission-denied / ağ: oturumu düşürme; en azından Auth profili.
-        if (_cached == null && !ctrl.isClosed) {
-          ctrl.add(_minimalFromAuth(fbUser));
-        }
-      });
+        },
+      );
     }
 
     ctrl = StreamController<AppUser?>(
@@ -154,22 +161,25 @@ class FirebaseAuthRepository implements AuthRepository {
           unawaited(attachUserDoc(current, force: true));
         }
 
-        authSub = _auth.userChanges().listen((fbUser) async {
-          if (fbUser == null) {
-            await _userDocSub?.cancel();
-            _userDocSub = null;
-            _attachedUid = null;
-            _pendingActiveMode = null;
-            _cached = null;
+        authSub = _auth.userChanges().listen(
+          (fbUser) async {
+            if (fbUser == null) {
+              await _userDocSub?.cancel();
+              _userDocSub = null;
+              _attachedUid = null;
+              _pendingActiveMode = null;
+              _cached = null;
+              if (!ctrl.isClosed) ctrl.add(null);
+              return;
+            }
+            await attachUserDoc(fbUser);
+          },
+          onError: (Object e, StackTrace st) {
+            // Geçici Auth hatasında oturumu DÜŞÜRME — önbellek / mevcut kullanıcı.
+            if (_cached != null || _auth.currentUser != null) return;
             if (!ctrl.isClosed) ctrl.add(null);
-            return;
-          }
-          await attachUserDoc(fbUser);
-        }, onError: (Object e, StackTrace st) {
-          // Geçici Auth hatasında oturumu DÜŞÜRME — önbellek / mevcut kullanıcı.
-          if (_cached != null || _auth.currentUser != null) return;
-          if (!ctrl.isClosed) ctrl.add(null);
-        });
+          },
+        );
         manualSub = _manualUpdates.stream.listen(ctrl.add);
       },
       onCancel: () async {
@@ -215,10 +225,11 @@ class FirebaseAuthRepository implements AuthRepository {
         // Legacy public email/fcmTokens varsa silmeye çalış (rules silmeye izin).
         unawaited(_stripPublicPii(fbUser.uid, snap.data()!));
         return AppUser.fromMap(fbUser.uid, snap.data()!).copyWith(
-            email: fbUser.email ?? '',
-            emailVerified: fbUser.emailVerified,
-            isAdmin: isAdmin,
-            adminRole: role);
+          email: fbUser.email ?? '',
+          emailVerified: fbUser.emailVerified,
+          isAdmin: isAdmin,
+          adminRole: role,
+        );
       }
       final fresh = AppUser(
         uid: fbUser.uid,
@@ -230,9 +241,7 @@ class FirebaseAuthRepository implements AuthRepository {
         isAdmin: isAdmin,
         adminRole: role,
       );
-      await _userDoc(fbUser.uid)
-          .set(fresh.toMap())
-          .timeout(_networkTimeout);
+      await _userDoc(fbUser.uid).set(fresh.toMap()).timeout(_networkTimeout);
       return fresh;
     } on TimeoutException {
       return _minimalFromAuth(fbUser);
@@ -261,8 +270,7 @@ class FirebaseAuthRepository implements AuthRepository {
   /// Yoksa/hatada/zaman aşımında (false, null).
   Future<(bool, String?)> _readAdminClaims(fb.User fbUser) async {
     try {
-      final result =
-          await fbUser.getIdTokenResult().timeout(_networkTimeout);
+      final result = await fbUser.getIdTokenResult().timeout(_networkTimeout);
       final claims = result.claims;
       final isAdmin = claims?['admin'] == true;
       final role = claims?['role'] as String?;
@@ -288,14 +296,18 @@ class FirebaseAuthRepository implements AuthRepository {
     }
     try {
       final cred = await _auth.createUserWithEmailAndPassword(
-          email: email.trim(), password: password);
+        email: email.trim(),
+        password: password,
+      );
       final fbUser = cred.user!;
       await fbUser.updateDisplayName(name);
       // Doğrulama bağlantısı otomatik gönderilir; başarısızlığı kayıt
       // akışını BOZMAZ (profilden yeniden gönderilebilir).
       try {
         await fbUser.sendEmailVerification();
-      } catch (_) {/* profildeki "yeniden gönder" telafi eder */}
+      } catch (_) {
+        /* profildeki "yeniden gönder" telafi eder */
+      }
       final user = AppUser(
         uid: fbUser.uid,
         displayName: name,
@@ -318,7 +330,9 @@ class FirebaseAuthRepository implements AuthRepository {
   }) async {
     try {
       final cred = await _auth.signInWithEmailAndPassword(
-          email: email.trim(), password: password);
+        email: email.trim(),
+        password: password,
+      );
       final user = await _loadOrCreate(cred.user!);
       _cached = user;
       return user;
@@ -388,14 +402,14 @@ class FirebaseAuthRepository implements AuthRepository {
       'role': UserRole.artisan.apiValue,
     }, SetOptions(merge: true));
     // E-posta zaten doğruluysa Keşfet tooltip aynasını yaz.
-    if (user.emailVerified ||
-        (_auth.currentUser?.emailVerified ?? false)) {
+    if (user.emailVerified || (_auth.currentUser?.emailVerified ?? false)) {
       try {
-        await _db.collection('artisanProfiles').doc(user.uid).set(
-          {'emailVerified': true},
-          SetOptions(merge: true),
-        );
-      } catch (_) {/* ilk profil sonra açılabilir */}
+        await _db.collection('artisanProfiles').doc(user.uid).set({
+          'emailVerified': true,
+        }, SetOptions(merge: true));
+      } catch (_) {
+        /* ilk profil sonra açılabilir */
+      }
     }
     _cached = updated;
     _manualUpdates.add(updated);
@@ -458,7 +472,8 @@ class FirebaseAuthRepository implements AuthRepository {
       // Firebase art arda gönderimi hız sınırına takar.
       if (e.code == 'too-many-requests') {
         throw const AuthException(
-            'Çok sık denediniz. Bir süre sonra tekrar deneyin.');
+          'Çok sık denediniz. Bir süre sonra tekrar deneyin.',
+        );
       }
       throw _map(e);
     }
@@ -483,11 +498,12 @@ class FirebaseAuthRepository implements AuthRepository {
     // Keşfet tooltip: e-posta doğrulamasını usta profiline yansıt.
     if (verified && cached?.hasArtisanProfile == true) {
       try {
-        await _db.collection('artisanProfiles').doc(fbUser.uid).set(
-          {'emailVerified': true},
-          SetOptions(merge: true),
-        );
-      } catch (_) {/* profil yoksa zararsız */}
+        await _db.collection('artisanProfiles').doc(fbUser.uid).set({
+          'emailVerified': true,
+        }, SetOptions(merge: true));
+      } catch (_) {
+        /* profil yoksa zararsız */
+      }
     }
     return verified;
   }
@@ -503,8 +519,9 @@ class FirebaseAuthRepository implements AuthRepository {
     await fbUser.getIdToken(true);
 
     // Herkese açık işaret.
-    await _userDoc(user.uid)
-        .set({'phoneVerified': true}, SetOptions(merge: true));
+    await _userDoc(
+      user.uid,
+    ).set({'phoneVerified': true}, SetOptions(merge: true));
     // Hassas numara yalnızca sahibin okuyabildiği özel alt-koleksiyonda.
     await _userDoc(user.uid).collection('private').doc('contact').set({
       'phoneNumber': phoneE164,
@@ -540,11 +557,13 @@ class FirebaseAuthRepository implements AuthRepository {
       // Usta vitrininde ad/foto denormalize (liste ekstra okuma yapmasın).
       if (_cached?.hasArtisanProfile == true) {
         try {
-          await _db.collection('artisanProfiles').doc(fbUser.uid).set(
-                data,
-                SetOptions(merge: true),
-              );
-        } catch (_) {/* profil yoksa zararsız */}
+          await _db
+              .collection('artisanProfiles')
+              .doc(fbUser.uid)
+              .set(data, SetOptions(merge: true));
+        } catch (_) {
+          /* profil yoksa zararsız */
+        }
       }
       final cached = _cached;
       if (cached != null) {
@@ -571,15 +590,18 @@ class FirebaseAuthRepository implements AuthRepository {
       // Sunucu tarafı temizlik: Firestore + Storage + Auth kaydı
       // (functions/index.js `deleteAccount`; bölge CF'lerle aynı).
       await FirebaseFunctions.instanceFor(region: 'europe-west1')
-          .httpsCallable('deleteAccount',
-              options: HttpsCallableOptions(
-                  timeout: const Duration(minutes: 3)))
+          .httpsCallable(
+            'deleteAccount',
+            options: HttpsCallableOptions(timeout: const Duration(minutes: 3)),
+          )
           .call<Map<String, dynamic>>();
     } on FirebaseFunctionsException catch (e) {
       // Ham hata konsola: App Check reddi sahada "sebepsiz silinmiyor" gibi
       // görünüyordu; kod/mesaj/detay olmadan teşhis edilemiyor.
-      debugPrint('deleteAccount CF hatası: ${e.code} / ${e.message} / '
-          '${e.details}');
+      debugPrint(
+        'deleteAccount CF hatası: ${e.code} / ${e.message} / '
+        '${e.details}',
+      );
       throw AuthException(_deleteErrorMessage(e));
     }
     // Auth kaydı sunucuda silindi; yerel oturum verisini temizle.
@@ -606,7 +628,7 @@ class FirebaseAuthRepository implements AuthRepository {
         return e.message?.trim().isNotEmpty == true
             ? e.message!
             : 'Hesap şu anda silinemiyor. Devam eden işleriniz varsa önce '
-                'onları tamamlayın.';
+                  'onları tamamlayın.';
       default:
         return 'Hesap silinemedi (${e.code}). Bağlantınızı kontrol edip '
             'tekrar deneyin.';
@@ -618,17 +640,18 @@ class FirebaseAuthRepository implements AuthRepository {
     final fbUser = _auth.currentUser;
     if (fbUser == null) throw AuthException.notSignedIn;
     try {
-      await FirebaseFunctions.instanceFor(region: 'europe-west1')
-          .httpsCallable('claimAdminAccess')
-          .call<Map<String, dynamic>>();
+      await FirebaseFunctions.instanceFor(
+        region: 'europe-west1',
+      ).httpsCallable('claimAdminAccess').call<Map<String, dynamic>>();
     } on FirebaseFunctionsException catch (e) {
       // İzin listesinde değilse sunucu 'permission-denied' döndürür.
       if (e.code == 'permission-denied') {
         throw const AuthException('Bu hesap yönetici yetkisine sahip değil.');
       }
       throw AuthException(
-          'Yönetici erişimi etkinleştirilemedi (${e.code}). Bağlantınızı '
-          'kontrol edip tekrar deneyin.');
+        'Yönetici erişimi etkinleştirilemedi (${e.code}). Bağlantınızı '
+        'kontrol edip tekrar deneyin.',
+      );
     }
     // Claim yazıldı → token'ı zorla tazele ve akışa yansıt.
     await fbUser.getIdToken(true);
@@ -665,7 +688,8 @@ class FirebaseAuthRepository implements AuthRepository {
       default:
         // Bilinmeyen kodu mesajda göster — teşhisi kolaylaştırır.
         return AuthException(
-            'Giriş başarısız (${e.code}). Lütfen tekrar deneyin.');
+          'Giriş başarısız (${e.code}). Lütfen tekrar deneyin.',
+        );
     }
   }
 }

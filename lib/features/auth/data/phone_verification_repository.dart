@@ -22,7 +22,16 @@ abstract interface class PhoneVerificationRepository {
 
   /// Kullanıcının girdiği [smsCode]'u doğrular ve telefonu hesaba bağlar.
   /// Başarılıysa bağlanan numarayı (E.164) döner.
-  Future<String> confirmCode(PhoneVerificationSession session, String smsCode);
+  ///
+  /// [replaceExisting] true iken hesapta ZATEN bağlı bir telefon vardır ve
+  /// yenisiyle DEĞİŞTİRİLİR (`updatePhoneNumber`). Varsayılan bağlama
+  /// (`linkWithCredential`) bu durumda `provider-already-linked` verir ve
+  /// numara sessizce eski kalırdı.
+  Future<String> confirmCode(
+    PhoneVerificationSession session,
+    String smsCode, {
+    bool replaceExisting = false,
+  });
 }
 
 /// [sendCode] ile [confirmCode] arasında taşınan, platforma özel oturum.
@@ -51,33 +60,47 @@ class PhoneVerificationException implements Exception {
   @override
   String toString() => message;
 
-  static const invalidNumber =
-      PhoneVerificationException('Geçerli bir telefon numarası girin.');
-  static const invalidCode =
-      PhoneVerificationException('Doğrulama kodu hatalı. Tekrar deneyin.');
+  static const invalidNumber = PhoneVerificationException(
+    'Geçerli bir telefon numarası girin.',
+  );
+  static const invalidCode = PhoneVerificationException(
+    'Doğrulama kodu hatalı. Tekrar deneyin.',
+  );
   static const alreadyInUse = PhoneVerificationException(
-      'Bu telefon numarası başka bir hesaba bağlı.');
+    'Bu telefon numarası başka bir hesaba bağlı.',
+  );
   static const tooManyRequests = PhoneVerificationException(
-      'Çok fazla deneme yapıldı. Lütfen bir süre sonra tekrar deneyin.');
+    'Çok fazla deneme yapıldı. Lütfen bir süre sonra tekrar deneyin.',
+  );
   static const providerDisabled = PhoneVerificationException(
-      'Telefonla doğrulama henüz etkin değil. Firebase Console → Authentication '
-      '→ Sign-in method → Phone sağlayıcısını etkinleştirin.');
+    'Telefonla doğrulama henüz etkin değil. Firebase Console → Authentication '
+    '→ Sign-in method → Phone sağlayıcısını etkinleştirin.',
+  );
   static const regionBlocked = PhoneVerificationException(
-      'SMS gönderimi Türkiye (+90) için henüz açık değil. Firebase Console → '
-      'Authentication → Settings → SMS region policy bölümünden Türkiye\'ye '
-      'izin verin.');
-  static const notSignedIn =
-      PhoneVerificationException('Önce giriş yapmalısınız.');
-  static const unknown =
-      PhoneVerificationException('Doğrulama başarısız. Lütfen tekrar deneyin.');
+    'SMS gönderimi Türkiye (+90) için henüz açık değil. Firebase Console → '
+    'Authentication → Settings → SMS region policy bölümünden Türkiye\'ye '
+    'izin verin.',
+  );
+  static const notSignedIn = PhoneVerificationException(
+    'Önce giriş yapmalısınız.',
+  );
+
+  /// Numara değiştirme gibi hassas işlemler yakın zamanlı oturum ister.
+  static const needsRecentLogin = PhoneVerificationException(
+    'Güvenlik için numara değişikliğinden önce yeniden giriş yapmalısınız. '
+    'Çıkış yapıp tekrar giriş yaptıktan sonra deneyin.',
+  );
+  static const unknown = PhoneVerificationException(
+    'Doğrulama başarısız. Lütfen tekrar deneyin.',
+  );
 }
 
 /// Aktif telefon doğrulama sağlayıcısı ([useFirebaseBackend] ile mock/firebase).
 final phoneVerificationRepositoryProvider =
     Provider<PhoneVerificationRepository>((ref) {
-  if (useFirebaseBackend) return FirebasePhoneVerificationRepository();
-  return MockPhoneVerificationRepository();
-});
+      if (useFirebaseBackend) return FirebasePhoneVerificationRepository();
+      return MockPhoneVerificationRepository();
+    });
 
 /// Bellek içi taklit: gerçek SMS göndermez. Test kodu `123456`.
 class MockPhoneVerificationRepository implements PhoneVerificationRepository {
@@ -90,16 +113,22 @@ class MockPhoneVerificationRepository implements PhoneVerificationRepository {
       throw PhoneVerificationException.invalidNumber;
     }
     return PhoneVerificationSession(
-        phoneE164: phoneE164, verificationId: 'mock');
+      phoneE164: phoneE164,
+      verificationId: 'mock',
+    );
   }
 
   @override
   Future<String> confirmCode(
-      PhoneVerificationSession session, String smsCode) async {
+    PhoneVerificationSession session,
+    String smsCode, {
+    bool replaceExisting = false,
+  }) async {
     await Future.delayed(const Duration(milliseconds: 500));
     if (smsCode.trim() != mockCode) {
       throw PhoneVerificationException.invalidCode;
     }
+    // Mock'ta bağlama ile değiştirme aynı sonucu verir: doğrulanan numara.
     return session.phoneE164;
   }
 }

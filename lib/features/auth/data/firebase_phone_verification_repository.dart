@@ -15,7 +15,7 @@ import 'phone_verification_repository.dart';
 class FirebasePhoneVerificationRepository
     implements PhoneVerificationRepository {
   FirebasePhoneVerificationRepository({fb.FirebaseAuth? auth})
-      : _auth = auth ?? fb.FirebaseAuth.instance;
+    : _auth = auth ?? fb.FirebaseAuth.instance;
 
   final fb.FirebaseAuth _auth;
 
@@ -48,10 +48,12 @@ class FirebasePhoneVerificationRepository
         },
         codeSent: (verificationId, _) {
           if (!completer.isCompleted) {
-            completer.complete(PhoneVerificationSession(
-              phoneE164: phoneE164,
-              verificationId: verificationId,
-            ));
+            completer.complete(
+              PhoneVerificationSession(
+                phoneE164: phoneE164,
+                verificationId: verificationId,
+              ),
+            );
           }
         },
         codeAutoRetrievalTimeout: (_) {},
@@ -64,7 +66,10 @@ class FirebasePhoneVerificationRepository
 
   @override
   Future<String> confirmCode(
-      PhoneVerificationSession session, String smsCode) async {
+    PhoneVerificationSession session,
+    String smsCode, {
+    bool replaceExisting = false,
+  }) async {
     final user = _auth.currentUser;
     if (user == null) throw PhoneVerificationException.notSignedIn;
 
@@ -78,14 +83,23 @@ class FirebasePhoneVerificationRepository
           verificationId: session.verificationId!,
           smsCode: smsCode.trim(),
         );
-        await user.linkWithCredential(credential);
+        if (replaceExisting) {
+          // DEĞİŞTİRME: hesapta zaten telefon var. link* burada
+          // `provider-already-linked` verir ve numara ESKİ kalırdı;
+          // updatePhoneNumber numarayı gerçekten değiştirir.
+          await user.updatePhoneNumber(credential);
+        } else {
+          await user.linkWithCredential(credential);
+        }
       }
       // Jetonu tazele → phone_number claim'i güncel (kural doğrulaması için).
       await user.getIdToken(true);
       return session.phoneE164;
     } on fb.FirebaseAuthException catch (e) {
-      // Telefon zaten bu hesaba bağlıysa doğrulanmış say (idempotent).
-      if (e.code == 'provider-already-linked') {
+      // İlk bağlamada telefon zaten bu hesaba bağlıysa doğrulanmış say
+      // (idempotent). Değiştirmede bu dal çalışmamalı: sessizce eski numarayı
+      // döndürmek "değişti" yanılgısı yaratırdı.
+      if (e.code == 'provider-already-linked' && !replaceExisting) {
         await user.getIdToken(true);
         return session.phoneE164;
       }
@@ -95,8 +109,10 @@ class FirebasePhoneVerificationRepository
 
   PhoneVerificationException _map(fb.FirebaseAuthException e) {
     // TANI: gerçek Firebase hata kodunu terminale bas (catch bloğu yutmasın).
-    debugPrint('[TANI][telefon] FirebaseAuthException: '
-        'code=${e.code} message=${e.message}');
+    debugPrint(
+      '[TANI][telefon] FirebaseAuthException: '
+      'code=${e.code} message=${e.message}',
+    );
     switch (e.code) {
       case 'invalid-phone-number':
         return PhoneVerificationException.invalidNumber;
@@ -106,6 +122,10 @@ class FirebasePhoneVerificationRepository
       case 'credential-already-in-use':
       case 'account-exists-with-different-credential':
         return PhoneVerificationException.alreadyInUse;
+      case 'requires-recent-login':
+        // updatePhoneNumber (numara değiştirme) hassas işlemdir; oturum
+        // eskiyse Firebase yeniden kimlik doğrulama ister.
+        return PhoneVerificationException.needsRecentLogin;
       case 'too-many-requests':
         return PhoneVerificationException.tooManyRequests;
       case 'operation-not-allowed':
@@ -117,7 +137,8 @@ class FirebasePhoneVerificationRepository
         return PhoneVerificationException.providerDisabled;
       default:
         return PhoneVerificationException(
-            'Doğrulama başarısız (${e.code}). Lütfen tekrar deneyin.');
+          'Doğrulama başarısız (${e.code}). Lütfen tekrar deneyin.',
+        );
     }
   }
 }

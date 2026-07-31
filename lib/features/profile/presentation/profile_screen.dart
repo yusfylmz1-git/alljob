@@ -8,6 +8,7 @@ import '../../../core/router/route_paths.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_palette.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../core/utils/phone_format.dart';
 import '../../../core/utils/snackbar_helper.dart';
 import '../../../core/widgets/app_image.dart';
 import '../../../core/widgets/app_menu_drawer.dart';
@@ -56,8 +57,9 @@ class _Body extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final artisanMode = user.isArtisan;
     // Usta profili verisi yalnızca usta modunda gerekir (gereksiz okuma yok).
-    final draft =
-        artisanMode ? ref.watch(myProfileControllerProvider).valueOrNull : null;
+    final draft = artisanMode
+        ? ref.watch(myProfileControllerProvider).valueOrNull
+        : null;
 
     return ListView(
       padding: EdgeInsets.zero,
@@ -78,8 +80,8 @@ class _Body extends ConsumerWidget {
                       : 'Müşteri hesabı — ilanlar ve takip',
                   textAlign: TextAlign.center,
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      ),
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
                 ),
                 const SizedBox(height: 18),
               ],
@@ -88,58 +90,62 @@ class _Body extends ConsumerWidget {
               else
                 _CustomerHome(user: user),
               const _SectionLabel('ARAÇLAR'),
-              _Group(children: [
-                _MenuRow(
-                  icon: Icons.handyman_outlined,
-                  iconColor: context.palette.primary,
-                  iconSurface: context.palette.primaryContainer,
-                  title: 'Usta Çantası',
-                  subtitle: 'Ölçüm, maliyet ve teklif araçları',
-                  onTap: () => context.push(RoutePaths.toolkit),
-                ),
-                _MenuRow(
-                  icon: Icons.checklist_rounded,
-                  iconColor: context.palette.primary,
-                  iconSurface: context.palette.primaryContainer,
-                  title: 'Ajanda',
-                  subtitle: 'Kişisel randevu ve hatırlatma (ilan işi değil)',
-                  onTap: () => context.push(RoutePaths.tracking),
-                ),
-                if (artisanMode)
+              _Group(
+                children: [
                   _MenuRow(
-                    icon: Icons.storefront_outlined,
+                    icon: Icons.handyman_outlined,
                     iconColor: context.palette.primary,
                     iconSurface: context.palette.primaryContainer,
-                    title: 'Ürünlerim',
-                    subtitle: 'Keşfet vitrin ürünlerinizi yönetin',
-                    onTap: () => context.push(RoutePaths.myProducts),
+                    title: 'Usta Çantası',
+                    subtitle: 'Ölçüm, maliyet ve teklif araçları',
+                    onTap: () => context.push(RoutePaths.toolkit),
                   ),
-              ]),
+                  _MenuRow(
+                    icon: Icons.checklist_rounded,
+                    iconColor: context.palette.primary,
+                    iconSurface: context.palette.primaryContainer,
+                    title: 'Ajanda',
+                    subtitle: 'Kişisel randevu ve hatırlatma (ilan işi değil)',
+                    onTap: () => context.push(RoutePaths.tracking),
+                  ),
+                  if (artisanMode)
+                    _MenuRow(
+                      icon: Icons.storefront_outlined,
+                      iconColor: context.palette.primary,
+                      iconSurface: context.palette.primaryContainer,
+                      title: 'Ürünlerim',
+                      subtitle: 'Keşfet vitrin ürünlerinizi yönetin',
+                      onTap: () => context.push(RoutePaths.myProducts),
+                    ),
+                ],
+              ),
               const _SectionLabel('HESABIM'),
               _AccountGroup(user: user),
-              _Group(children: [
-                _MenuRow(
-                  icon: Icons.logout_rounded,
-                  iconColor: context.palette.danger,
-                  iconSurface: context.palette.danger.withValues(alpha: 0.10),
-                  title: 'Çıkış Yap',
-                  titleColor: context.palette.danger,
-                  onTap: () async {
-                    final router = GoRouter.of(context);
-                    await ref.read(authControllerProvider.notifier).signOut();
-                    router.go(RoutePaths.home);
-                  },
-                ),
-                _MenuRow(
-                  icon: Icons.delete_forever_outlined,
-                  iconColor: context.palette.danger,
-                  iconSurface: context.palette.danger.withValues(alpha: 0.10),
-                  title: 'Hesabı Sil',
-                  titleColor: context.palette.danger,
-                  subtitle: 'Kalıcı — geri alınamaz',
-                  onTap: () => _deleteAccountFlow(context, ref),
-                ),
-              ]),
+              _Group(
+                children: [
+                  _MenuRow(
+                    icon: Icons.logout_rounded,
+                    iconColor: context.palette.danger,
+                    iconSurface: context.palette.danger.withValues(alpha: 0.10),
+                    title: 'Çıkış Yap',
+                    titleColor: context.palette.danger,
+                    onTap: () async {
+                      final router = GoRouter.of(context);
+                      await ref.read(authControllerProvider.notifier).signOut();
+                      router.go(RoutePaths.home);
+                    },
+                  ),
+                  _MenuRow(
+                    icon: Icons.delete_forever_outlined,
+                    iconColor: context.palette.danger,
+                    iconSurface: context.palette.danger.withValues(alpha: 0.10),
+                    title: 'Hesabı Sil',
+                    titleColor: context.palette.danger,
+                    subtitle: 'Kalıcı — geri alınamaz',
+                    onTap: () => _deleteAccountFlow(context, ref),
+                  ),
+                ],
+              ),
             ],
           ),
         ),
@@ -215,7 +221,9 @@ class _Hero extends StatelessWidget {
                     onTap: () => context.push(RoutePaths.profileEdit),
                     child: Padding(
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 4),
+                        horizontal: 12,
+                        vertical: 4,
+                      ),
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
@@ -264,7 +272,9 @@ class _Hero extends StatelessWidget {
                           // Resmin altı: kalem + "Düzenle"
                           Container(
                             padding: const EdgeInsets.symmetric(
-                                horizontal: 10, vertical: 4),
+                              horizontal: 10,
+                              vertical: 4,
+                            ),
                             decoration: BoxDecoration(
                               color: Colors.white.withValues(alpha: 0.14),
                               borderRadius: BorderRadius.circular(20),
@@ -275,8 +285,11 @@ class _Hero extends StatelessWidget {
                             child: const Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                Icon(Icons.edit_outlined,
-                                    size: 14, color: Colors.white),
+                                Icon(
+                                  Icons.edit_outlined,
+                                  size: 14,
+                                  color: Colors.white,
+                                ),
                                 SizedBox(width: 4),
                                 Text(
                                   'Düzenle',
@@ -313,8 +326,11 @@ class _Hero extends StatelessWidget {
                   ),
                   if (user.phoneVerified) ...[
                     const SizedBox(width: 6),
-                    const Icon(Icons.verified,
-                        size: 20, color: Color(0xFF60A5FA)),
+                    const Icon(
+                      Icons.verified,
+                      size: 20,
+                      color: Color(0xFF60A5FA),
+                    ),
                   ],
                 ],
               ),
@@ -346,9 +362,13 @@ class _ModeSwitcher extends ConsumerWidget {
   final AppUser user;
 
   Future<void> _switch(
-      BuildContext context, WidgetRef ref, UserRole mode) async {
-    final ok =
-        await ref.read(authControllerProvider.notifier).setActiveMode(mode);
+    BuildContext context,
+    WidgetRef ref,
+    UserRole mode,
+  ) async {
+    final ok = await ref
+        .read(authControllerProvider.notifier)
+        .setActiveMode(mode);
     if (!context.mounted) return;
     if (!ok) {
       context.showError('Mod değiştirilemedi, tekrar deneyin.');
@@ -378,8 +398,7 @@ class _ModeSwitcher extends ConsumerWidget {
       showSelectedIcon: false,
       style: SegmentedButton.styleFrom(
         selectedBackgroundColor: context.palette.primary,
-        selectedForegroundColor:
-            Theme.of(context).colorScheme.onPrimary,
+        selectedForegroundColor: Theme.of(context).colorScheme.onPrimary,
         minimumSize: const Size(0, 46),
       ),
       onSelectionChanged: (selection) {
@@ -414,35 +433,31 @@ class _ArtisanHome extends ConsumerWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         const _SectionLabel('DÜKKÂNIM'),
-        _Group(children: [
-          _AvailabilityRow(draft: draft),
-        ]),
-        _ShopVitrineCard(
-          user: user,
-          draft: draft,
-          shopSubtitle: shopSubtitle,
-        ),
+        _Group(children: [_AvailabilityRow(draft: draft)]),
+        _ShopVitrineCard(user: user, draft: draft, shopSubtitle: shopSubtitle),
         const SizedBox(height: 4),
         _FollowersSection(artisanUid: user.uid),
         const _SectionLabel('İŞLER'),
-        _Group(children: [
-          _MenuRow(
-            icon: Icons.work_outline,
-            iconColor: context.palette.info,
-            iconSurface: context.palette.infoSurface,
-            title: 'Yakındaki işler',
-            subtitle: 'Meslek ve bölgene uygun',
-            onTap: () => context.push(RoutePaths.panelJobs),
-          ),
-          _MenuRow(
-            icon: Icons.work_history_outlined,
-            iconColor: context.palette.primary,
-            iconSurface: context.palette.primaryContainer,
-            title: 'İlgilendiğim işler',
-            subtitle: 'Başvuru ve yürüyenler',
-            onTap: () => context.push(RoutePaths.panelOffers),
-          ),
-        ]),
+        _Group(
+          children: [
+            _MenuRow(
+              icon: Icons.work_outline,
+              iconColor: context.palette.info,
+              iconSurface: context.palette.infoSurface,
+              title: 'Yakındaki işler',
+              subtitle: 'Meslek ve bölgene uygun',
+              onTap: () => context.push(RoutePaths.panelJobs),
+            ),
+            _MenuRow(
+              icon: Icons.work_history_outlined,
+              iconColor: context.palette.primary,
+              iconSurface: context.palette.primaryContainer,
+              title: 'İlgilendiğim işler',
+              subtitle: 'Başvuru ve yürüyenler',
+              onTap: () => context.push(RoutePaths.panelOffers),
+            ),
+          ],
+        ),
       ],
     );
   }
@@ -525,10 +540,12 @@ class _FollowerRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final palette = context.palette;
-    final name =
-        follower.customerName.isEmpty ? 'Kullanıcı' : follower.customerName;
-    final initial =
-        name.trim().isEmpty ? '?' : name.trim().substring(0, 1).toUpperCase();
+    final name = follower.customerName.isEmpty
+        ? 'Kullanıcı'
+        : follower.customerName;
+    final initial = name.trim().isEmpty
+        ? '?'
+        : name.trim().substring(0, 1).toUpperCase();
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -569,19 +586,24 @@ class _FollowerRow extends StatelessWidget {
                   name,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.titleSmall
-                      ?.copyWith(fontWeight: FontWeight.w700),
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
                 Text(
                   'sizi takip ediyor',
-                  style: theme.textTheme.bodySmall
-                      ?.copyWith(color: palette.inkMuted),
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: palette.inkMuted,
+                  ),
                 ),
               ],
             ),
           ),
-          Icon(Icons.favorite_rounded,
-              size: 18, color: palette.danger.withValues(alpha: 0.85)),
+          Icon(
+            Icons.favorite_rounded,
+            size: 18,
+            color: palette.danger.withValues(alpha: 0.85),
+          ),
         ],
       ),
     );
@@ -632,8 +654,11 @@ class _ShopVitrineCard extends StatelessWidget {
             children: [
               Row(
                 children: [
-                  Icon(Icons.storefront_rounded,
-                      color: palette.primary, size: 22),
+                  Icon(
+                    Icons.storefront_rounded,
+                    color: palette.primary,
+                    size: 22,
+                  ),
                   const SizedBox(width: 10),
                   Expanded(
                     child: Column(
@@ -641,13 +666,15 @@ class _ShopVitrineCard extends StatelessWidget {
                       children: [
                         Text(
                           'Vitrinim',
-                          style: theme.textTheme.titleSmall
-                              ?.copyWith(fontWeight: FontWeight.w800),
+                          style: theme.textTheme.titleSmall?.copyWith(
+                            fontWeight: FontWeight.w800,
+                          ),
                         ),
                         Text(
                           shopSubtitle,
-                          style: theme.textTheme.bodySmall
-                              ?.copyWith(color: palette.inkMuted),
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: palette.inkMuted,
+                          ),
                         ),
                       ],
                     ),
@@ -706,9 +733,11 @@ class _AvailabilityRow extends ConsumerWidget {
           .setAvailable(value);
       if (!context.mounted) return;
       if (ok) {
-        context.showInfo(value
-            ? 'Artık müsait görünüyorsunuz.'
-            : 'Müsait değilsiniz. Aramada görünmezsiniz.');
+        context.showInfo(
+          value
+              ? 'Artık müsait görünüyorsunuz.'
+              : 'Müsait değilsiniz. Aramada görünmezsiniz.',
+        );
       } else {
         context.showError('İşlem başarısız, tekrar deneyin.');
       }
@@ -750,16 +779,19 @@ class _CustomerHome extends ConsumerWidget {
       builder: (ctx) => AlertDialog(
         title: const Text('Hizmet Vermeye Başla'),
         content: const Text(
-            'Hesabınıza bir usta dükkânı eklenecek. Meslek ve hizmet '
-            'bölgenizi belirledikten sonra müşteriler sizi bulabilir. '
-            'İstediğiniz zaman Müşteri hesabına dönebilirsiniz.'),
+          'Hesabınıza bir usta dükkânı eklenecek. Meslek ve hizmet '
+          'bölgenizi belirledikten sonra müşteriler sizi bulabilir. '
+          'İstediğiniz zaman Müşteri hesabına dönebilirsiniz.',
+        ),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Vazgeç')),
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Vazgeç'),
+          ),
           FilledButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Başla')),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Başla'),
+          ),
         ],
       ),
     );
@@ -769,13 +801,14 @@ class _CustomerHome extends ConsumerWidget {
     if (!context.mounted) return;
     if (ok) {
       context.showSuccess(
-          'Usta dükkânınız açıldı. Şimdi meslek ve bölgenizi belirleyin.');
+        'Usta dükkânınız açıldı. Şimdi meslek ve bölgenizi belirleyin.',
+      );
       context.go(RoutePaths.panelEdit);
     } else {
       final error = ref.read(authControllerProvider).error;
-      context.showError(error is AuthException
-          ? error.message
-          : AuthException.unknown.message);
+      context.showError(
+        error is AuthException ? error.message : AuthException.unknown.message,
+      );
     }
   }
 
@@ -787,36 +820,40 @@ class _CustomerHome extends ConsumerWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         const _SectionLabel('TALEPLERİM'),
-        _Group(children: [
-          _MenuRow(
-            icon: Icons.campaign_outlined,
-            iconColor: context.palette.primary,
-            iconSurface: context.palette.primaryContainer,
-            title: 'İlanlarım',
-            subtitle: 'Verdiğiniz hizmet ilanları',
-            onTap: () => context.push(RoutePaths.myJobs),
-          ),
-          _MenuRow(
-            icon: Icons.favorite_border,
-            iconColor: context.palette.danger,
-            iconSurface: context.palette.danger.withValues(alpha: 0.10),
-            title: 'Takip ettiklerim',
-            subtitle: 'Favori ustalar',
-            onTap: () => context.push(RoutePaths.favorites),
-          ),
-        ]),
+        _Group(
+          children: [
+            _MenuRow(
+              icon: Icons.campaign_outlined,
+              iconColor: context.palette.primary,
+              iconSurface: context.palette.primaryContainer,
+              title: 'İlanlarım',
+              subtitle: 'Verdiğiniz hizmet ilanları',
+              onTap: () => context.push(RoutePaths.myJobs),
+            ),
+            _MenuRow(
+              icon: Icons.favorite_border,
+              iconColor: context.palette.danger,
+              iconSurface: context.palette.danger.withValues(alpha: 0.10),
+              title: 'Takip ettiklerim',
+              subtitle: 'Favori ustalar',
+              onTap: () => context.push(RoutePaths.favorites),
+            ),
+          ],
+        ),
         if (!user.hasArtisanProfile) ...[
           const _SectionLabel('HİZMET VER'),
-          _Group(children: [
-            _MenuRow(
-              icon: Icons.handyman_outlined,
-              iconColor: context.palette.onSecondaryContainer,
-              iconSurface: context.palette.secondaryContainer,
-              title: 'Usta dükkânı aç',
-              subtitle: 'Meslek ve bölge ekle, iş al',
-              onTap: () => _becomeArtisan(context, ref),
-            ),
-          ]),
+          _Group(
+            children: [
+              _MenuRow(
+                icon: Icons.handyman_outlined,
+                iconColor: context.palette.onSecondaryContainer,
+                iconSurface: context.palette.secondaryContainer,
+                title: 'Usta dükkânı aç',
+                subtitle: 'Meslek ve bölge ekle, iş al',
+                onTap: () => _becomeArtisan(context, ref),
+              ),
+            ],
+          ),
         ],
       ],
     );
@@ -837,18 +874,21 @@ Future<void> _deleteAccountFlow(BuildContext context, WidgetRef ref) async {
     builder: (ctx) => AlertDialog(
       title: const Text('Hesabınız silinsin mi?'),
       content: const Text(
-          'Bu işlem geri alınamaz. Profiliniz, ilanlarınız, fotoğraflarınız, '
-          'bildirimleriniz ve hesabınız kalıcı olarak silinir; sohbetlerde '
-          'adınız "Silinmiş Kullanıcı" olarak görünür.\n\n'
-          'Devam etmek istiyor musunuz?'),
+        'Bu işlem geri alınamaz. Profiliniz, ilanlarınız, fotoğraflarınız, '
+        'bildirimleriniz ve hesabınız kalıcı olarak silinir; sohbetlerde '
+        'adınız "Silinmiş Kullanıcı" olarak görünür.\n\n'
+        'Devam etmek istiyor musunuz?',
+      ),
       actions: [
         TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Vazgeç')),
+          onPressed: () => Navigator.pop(ctx, false),
+          child: const Text('Vazgeç'),
+        ),
         FilledButton(
           style: FilledButton.styleFrom(
-              backgroundColor: ctx.palette.danger,
-              foregroundColor: Colors.white),
+            backgroundColor: ctx.palette.danger,
+            foregroundColor: Colors.white,
+          ),
           onPressed: () => Navigator.pop(ctx, true),
           child: const Text('Kalıcı Olarak Sil'),
         ),
@@ -858,23 +898,29 @@ Future<void> _deleteAccountFlow(BuildContext context, WidgetRef ref) async {
   if (confirmed != true || !context.mounted) return;
 
   // Engelleyici ilerleme diyaloğu — silme sırasında geri tuşu/dokunma yutulur.
-  unawaited(showDialog(
-    context: context,
-    barrierDismissible: false,
-    useRootNavigator: true,
-    builder: (_) => const PopScope(
-      canPop: false,
-      child: AlertDialog(
-        content: Row(children: [
-          SizedBox(
-              width: 24, height: 24,
-              child: CircularProgressIndicator(strokeWidth: 2.5)),
-          SizedBox(width: 16),
-          Expanded(child: Text('Hesabınız siliniyor…')),
-        ]),
+  unawaited(
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      useRootNavigator: true,
+      builder: (_) => const PopScope(
+        canPop: false,
+        child: AlertDialog(
+          content: Row(
+            children: [
+              SizedBox(
+                width: 24,
+                height: 24,
+                child: CircularProgressIndicator(strokeWidth: 2.5),
+              ),
+              SizedBox(width: 16),
+              Expanded(child: Text('Hesabınız siliniyor…')),
+            ],
+          ),
+        ),
       ),
     ),
-  ));
+  );
 
   final ok = await ref.read(authControllerProvider.notifier).deleteAccount();
 
@@ -884,9 +930,11 @@ Future<void> _deleteAccountFlow(BuildContext context, WidgetRef ref) async {
     if (nav.mounted) nav.context.showInfo('Hesabınız silindi.');
   } else if (nav.mounted) {
     final err = ref.read(authControllerProvider).error;
-    nav.context.showError(err is AuthException
-        ? err.message
-        : 'Hesap silinemedi. Bağlantınızı kontrol edip tekrar deneyin.');
+    nav.context.showError(
+      err is AuthException
+          ? err.message
+          : 'Hesap silinemedi. Bağlantınızı kontrol edip tekrar deneyin.',
+    );
   }
 }
 
@@ -901,9 +949,32 @@ class _AccountGroup extends ConsumerWidget {
   Future<void> _verifyPhone(BuildContext context, WidgetRef ref) async {
     final ok = await PhoneVerificationSheet.show(context);
     if (ok == true && context.mounted) {
-      context.showSuccess(user.hasArtisanProfile
-          ? 'Telefonun doğrulandı — mavi tik aktif! 🎉'
-          : 'Telefonun doğrulandı. Hesabın artık doğrulanmış. 🎉');
+      context.showSuccess(
+        user.hasArtisanProfile
+            ? 'Telefonun doğrulandı — mavi tik aktif! 🎉'
+            : 'Telefonun doğrulandı. Hesabın artık doğrulanmış. 🎉',
+      );
+    }
+  }
+
+  /// Doğrulanmış numarayı YENİSİYLE değiştirir (hat/operatör değişimi).
+  /// Vitrinde numara gösteriliyorsa yenisi otomatik yerine geçer — sheet
+  /// bunu kendisi yapar; burada yalnız sonucu bildiririz.
+  Future<void> _changePhone(BuildContext context, WidgetRef ref) async {
+    final wasPublic =
+        ref
+            .read(myProfileControllerProvider)
+            .valueOrNull
+            ?.profile
+            .showPhoneOnProfile ??
+        false;
+    final ok = await PhoneVerificationSheet.show(context, isChange: true);
+    if (ok == true && context.mounted) {
+      context.showSuccess(
+        wasPublic
+            ? 'Numaran güncellendi; profilindeki numara da yenilendi.'
+            : 'Numaran güncellendi.',
+      );
     }
   }
 
@@ -911,7 +982,10 @@ class _AccountGroup extends ConsumerWidget {
   /// kontrol et. Doğrulama, e-postadaki bağlantıya tıklanınca Firebase Auth
   /// tarafında gerçekleşir; buradaki "kontrol et" durumu sunucudan tazeler.
   Future<void> _verifyEmail(
-      BuildContext context, WidgetRef ref, AppUser user) async {
+    BuildContext context,
+    WidgetRef ref,
+    AppUser user,
+  ) async {
     final action = await showModalBottomSheet<String>(
       context: context,
       showDragHandle: true,
@@ -922,18 +996,20 @@ class _AccountGroup extends ConsumerWidget {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('E-postanı Doğrula',
-                  style: Theme.of(ctx)
-                      .textTheme
-                      .titleMedium
-                      ?.copyWith(fontWeight: FontWeight.w800)),
+              Text(
+                'E-postanı Doğrula',
+                style: Theme.of(
+                  ctx,
+                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
+              ),
               const SizedBox(height: 6),
               Text(
                 '${user.email} adresine gönderilen bağlantıya tıklayarak '
                 'e-postanızı doğrulayın. E-posta gelmediyse spam/gereksiz '
                 'klasörünü kontrol edin veya yeniden gönderin.',
                 style: Theme.of(ctx).textTheme.bodySmall?.copyWith(
-                    color: Theme.of(ctx).colorScheme.onSurfaceVariant),
+                  color: Theme.of(ctx).colorScheme.onSurfaceVariant,
+                ),
               ),
               const SizedBox(height: 16),
               SizedBox(
@@ -966,12 +1042,15 @@ class _AccountGroup extends ConsumerWidget {
       if (!context.mounted) return;
       if (ok) {
         context.showSuccess(
-            'Doğrulama bağlantısı ${user.email} adresine gönderildi.');
+          'Doğrulama bağlantısı ${user.email} adresine gönderildi.',
+        );
       } else {
         final err = ref.read(authControllerProvider).error;
-        context.showError(err is AuthException
-            ? err.message
-            : 'Gönderilemedi. Bağlantınızı kontrol edip tekrar deneyin.');
+        context.showError(
+          err is AuthException
+              ? err.message
+              : 'Gönderilemedi. Bağlantınızı kontrol edip tekrar deneyin.',
+        );
       }
       return;
     }
@@ -981,126 +1060,147 @@ class _AccountGroup extends ConsumerWidget {
     if (verified == true) {
       context.showSuccess('E-postanız doğrulandı! 🎉');
     } else if (verified == false) {
-      context.showInfo('Henüz doğrulanmamış görünüyor. E-postanızdaki '
-          'bağlantıya tıkladıktan sonra tekrar deneyin.');
+      context.showInfo(
+        'Henüz doğrulanmamış görünüyor. E-postanızdaki '
+        'bağlantıya tıkladıktan sonra tekrar deneyin.',
+      );
     } else {
       context.showError(
-          'Kontrol edilemedi. Bağlantınızı kontrol edip tekrar deneyin.');
+        'Kontrol edilemedi. Bağlantınızı kontrol edip tekrar deneyin.',
+      );
     }
   }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
-    final plan = ref.watch(selectedMembershipPackageProvider) ??
-        MembershipPackage.free;
+    final plan =
+        ref.watch(selectedMembershipPackageProvider) ?? MembershipPackage.free;
     final proOpen = ref.watch(artisanProAccessProvider);
-    final paidPremium = user.isArtisan &&
-        (ref.watch(myProfileControllerProvider).valueOrNull?.profile
+    final paidPremium =
+        user.isArtisan &&
+        (ref
+                .watch(myProfileControllerProvider)
+                .valueOrNull
+                ?.profile
                 .hasActivePremium ??
             false);
 
-    return _Group(children: [
-      _MenuRow(
-        icon: Icons.person_outline_rounded,
-        iconColor: context.palette.primary,
-        iconSurface: context.palette.primaryContainer,
-        title: 'Profili düzenle',
-        subtitle: 'Ad ve fotoğraf',
-        onTap: () => context.push(RoutePaths.profileEdit),
-      ),
-      // Tek üyelik girişi: plan + Pro erişim / faturalama (Premium ekranı).
-      _MenuRow(
-        icon: paidPremium || plan == MembershipPackage.pro
-            ? Icons.workspace_premium
-            : Icons.workspace_premium_outlined,
-        iconColor: context.palette.premium,
-        iconSurface: context.palette.premiumSurface,
-        title: 'Üyelik: ${plan.titleTR}',
-        subtitle: proOpen
-            ? (plan == MembershipPackage.free
-                ? 'Pro özellikler açık'
-                : plan.summaryTR)
-            : 'Pro özellikler kilitli · plan yükselt',
-        onTap: () => context.push(RoutePaths.panelPremium),
-      ),
-      if (user.phoneVerified)
+    return _Group(
+      children: [
         _MenuRow(
-          icon: Icons.verified,
-          iconColor: context.palette.verified,
-          iconSurface: context.palette.info.withValues(alpha: 0.10),
-          title: 'Telefon doğrulandı',
-          subtitle: user.hasArtisanProfile ? 'Mavi tik aktif' : null,
-          trailing: Icon(Icons.check_circle,
-              color: context.palette.success, size: 22),
+          icon: Icons.person_outline_rounded,
+          iconColor: context.palette.primary,
+          iconSurface: context.palette.primaryContainer,
+          title: 'Profili düzenle',
+          subtitle: 'Ad ve fotoğraf',
+          onTap: () => context.push(RoutePaths.profileEdit),
         ),
-      // Usta + doğrulanmış telefon: numarayı vitrinde göster/gizle. Açıkken
-      // profilde telefon + "Ara" düğmesi görünür (müşteri direkt arayabilir).
-      if (user.isArtisan && user.phoneVerified)
-        _PhoneVisibilityRow(phoneNumber: user.phoneNumber),
-      if (!user.phoneVerified)
+        // Tek üyelik girişi: plan + Pro erişim / faturalama (Premium ekranı).
         _MenuRow(
-          icon: Icons.verified_outlined,
-          iconColor: context.palette.verified,
-          iconSurface: context.palette.info.withValues(alpha: 0.10),
-          title: user.hasArtisanProfile ? 'Mavi tik al' : 'Telefonu doğrula',
-          subtitle: 'Hesabı güvene al',
-          onTap: () => _verifyPhone(context, ref),
+          icon: paidPremium || plan == MembershipPackage.pro
+              ? Icons.workspace_premium
+              : Icons.workspace_premium_outlined,
+          iconColor: context.palette.premium,
+          iconSurface: context.palette.premiumSurface,
+          title: 'Üyelik: ${plan.titleTR}',
+          subtitle: proOpen
+              ? (plan == MembershipPackage.free
+                    ? 'Pro özellikler açık'
+                    : plan.summaryTR)
+              : 'Pro özellikler kilitli · plan yükselt',
+          onTap: () => context.push(RoutePaths.panelPremium),
         ),
-      Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
+        if (user.phoneVerified)
           _MenuRow(
-            icon: user.emailVerified
-                ? Icons.mark_email_read_outlined
-                : Icons.mail_outline,
-            iconColor: user.emailVerified
-                ? context.palette.success
-                : context.palette.warning,
-            iconSurface: user.emailVerified
-                ? context.palette.success.withValues(alpha: 0.10)
-                : context.palette.warning.withValues(alpha: 0.10),
-            title: 'E-posta',
-            subtitle: user.email.isEmpty ? 'Kayıtlı e-posta yok' : user.email,
-            trailing: user.emailVerified
-                ? Icon(Icons.check_circle,
-                    color: context.palette.success, size: 22)
-                : Text(
-                    'Doğrulanmadı',
-                    style: theme.textTheme.labelSmall?.copyWith(
-                      color: context.palette.warning,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-          ),
-          if (!user.emailVerified)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
-              child: FilledButton.tonalIcon(
-                onPressed: () => _verifyEmail(context, ref, user),
-                icon: const Icon(Icons.mark_email_unread_outlined, size: 18),
-                label: const Text('E-postayı doğrula'),
-              ),
+            icon: Icons.verified,
+            iconColor: context.palette.verified,
+            iconSurface: context.palette.info.withValues(alpha: 0.10),
+            title: 'Telefon doğrulandı',
+            // Numarayı göster: hangi hattın kayıtlı olduğu görünmüyordu.
+            subtitle: [
+              if (user.phoneNumber != null && user.phoneNumber!.isNotEmpty)
+                formatTrPhone(user.phoneNumber!),
+              if (user.hasArtisanProfile) 'Mavi tik aktif',
+            ].join(' · '),
+            // Hat/operatör değişiminde numara güncellenebilmeli; aksi hâlde
+            // vitrinde artık kullanılmayan numara kalırdı.
+            trailing: TextButton(
+              onPressed: () => _changePhone(context, ref),
+              child: const Text('Değiştir'),
             ),
-        ],
-      ),
-      _MenuRow(
-        icon: Icons.tune_rounded,
-        iconColor: theme.colorScheme.onSurfaceVariant,
-        iconSurface: theme.colorScheme.surfaceContainer,
-        title: 'Tercihler',
-        subtitle: 'Bildirimler ve engellenenler',
-        onTap: () => _openPreferences(context),
-      ),
-      _MenuRow(
-        icon: Icons.help_outline_rounded,
-        iconColor: theme.colorScheme.onSurfaceVariant,
-        iconSurface: theme.colorScheme.surfaceContainer,
-        title: 'Yardım ve yasal',
-        subtitle: 'SSS, gizlilik, KVKK',
-        onTap: () => _openHelpLegal(context),
-      ),
-    ]);
+          ),
+        // Usta + doğrulanmış telefon: numarayı vitrinde göster/gizle. Açıkken
+        // profilde telefon + "Ara" düğmesi görünür (müşteri direkt arayabilir).
+        if (user.isArtisan && user.phoneVerified)
+          _PhoneVisibilityRow(phoneNumber: user.phoneNumber),
+        if (!user.phoneVerified)
+          _MenuRow(
+            icon: Icons.verified_outlined,
+            iconColor: context.palette.verified,
+            iconSurface: context.palette.info.withValues(alpha: 0.10),
+            title: user.hasArtisanProfile ? 'Mavi tik al' : 'Telefonu doğrula',
+            subtitle: 'Hesabı güvene al',
+            onTap: () => _verifyPhone(context, ref),
+          ),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _MenuRow(
+              icon: user.emailVerified
+                  ? Icons.mark_email_read_outlined
+                  : Icons.mail_outline,
+              iconColor: user.emailVerified
+                  ? context.palette.success
+                  : context.palette.warning,
+              iconSurface: user.emailVerified
+                  ? context.palette.success.withValues(alpha: 0.10)
+                  : context.palette.warning.withValues(alpha: 0.10),
+              title: 'E-posta',
+              subtitle: user.email.isEmpty ? 'Kayıtlı e-posta yok' : user.email,
+              trailing: user.emailVerified
+                  ? Icon(
+                      Icons.check_circle,
+                      color: context.palette.success,
+                      size: 22,
+                    )
+                  : Text(
+                      'Doğrulanmadı',
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: context.palette.warning,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+            ),
+            if (!user.emailVerified)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
+                child: FilledButton.tonalIcon(
+                  onPressed: () => _verifyEmail(context, ref, user),
+                  icon: const Icon(Icons.mark_email_unread_outlined, size: 18),
+                  label: const Text('E-postayı doğrula'),
+                ),
+              ),
+          ],
+        ),
+        _MenuRow(
+          icon: Icons.tune_rounded,
+          iconColor: theme.colorScheme.onSurfaceVariant,
+          iconSurface: theme.colorScheme.surfaceContainer,
+          title: 'Tercihler',
+          subtitle: 'Bildirimler ve engellenenler',
+          onTap: () => _openPreferences(context),
+        ),
+        _MenuRow(
+          icon: Icons.help_outline_rounded,
+          iconColor: theme.colorScheme.onSurfaceVariant,
+          iconSurface: theme.colorScheme.surfaceContainer,
+          title: 'Yardım ve yasal',
+          subtitle: 'SSS, gizlilik, KVKK',
+          onTap: () => _openHelpLegal(context),
+        ),
+      ],
+    );
   }
 
   void _openPreferences(BuildContext context) {
@@ -1193,9 +1293,11 @@ class _PhoneVisibilityRow extends ConsumerWidget {
           .setPhoneVisibility(show: value, publicPhone: phoneNumber);
       if (!context.mounted) return;
       if (ok) {
-        context.showInfo(value
-            ? 'Numaran profilinde görünüyor. Müşteriler seni arayabilir.'
-            : 'Numaran artık profilinde gizli.');
+        context.showInfo(
+          value
+              ? 'Numaran profilinde görünüyor. Müşteriler seni arayabilir.'
+              : 'Numaran artık profilinde gizli.',
+        );
       } else {
         context.showError('İşlem başarısız, tekrar deneyin.');
       }
@@ -1337,7 +1439,8 @@ class _MenuRow extends StatelessWidget {
                       subtitle!,
                       overflow: TextOverflow.ellipsis,
                       style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant),
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
                     ),
                   ],
                 ],
@@ -1347,13 +1450,13 @@ class _MenuRow extends StatelessWidget {
             if (trailing != null)
               trailing!
             else if (onTap != null)
-              Icon(Icons.chevron_right,
-                  color: theme.colorScheme.onSurfaceVariant),
+              Icon(
+                Icons.chevron_right,
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
           ],
         ),
       ),
     );
   }
 }
-
-

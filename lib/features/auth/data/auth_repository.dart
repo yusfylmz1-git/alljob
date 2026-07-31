@@ -21,10 +21,7 @@ abstract interface class AuthRepository {
     required String password,
   });
 
-  Future<AppUser> login({
-    required String email,
-    required String password,
-  });
+  Future<AppUser> login({required String email, required String password});
 
   /// Google hesabıyla giriş (#3). Kullanıcı ilk kez giriyorsa `users/{uid}`
   /// dökümanı düz kullanıcı (müşteri modu) olarak oluşturulur.
@@ -56,7 +53,10 @@ abstract interface class AuthRepository {
   Future<AppUser> setPhoneVerified(String phoneE164);
 
   /// Oturum açmış kullanıcının görünen ad / profil fotoğrafını günceller.
-  Future<void> updateUserProfile({String? displayName, String? profilePhotoUrl});
+  Future<void> updateUserProfile({
+    String? displayName,
+    String? profilePhotoUrl,
+  });
 
   Future<void> signOut();
 
@@ -83,23 +83,30 @@ class AuthException implements Exception {
   String toString() => message;
 
   // Yaygın senaryolar için hazır mesajlar (Firebase hata kodlarıyla eşleşir).
-  static const emailInUse =
-      AuthException('Bu e-posta adresi ile zaten bir hesap var.');
-  static const userNotFound =
-      AuthException('Bu e-posta ile kayıtlı bir hesap bulunamadı.');
+  static const emailInUse = AuthException(
+    'Bu e-posta adresi ile zaten bir hesap var.',
+  );
+  static const userNotFound = AuthException(
+    'Bu e-posta ile kayıtlı bir hesap bulunamadı.',
+  );
   static const wrongPassword = AuthException('E-posta veya şifre hatalı.');
-  static const weakPassword =
-      AuthException('Şifre çok zayıf, en az 6 karakter kullanın.');
+  static const weakPassword = AuthException(
+    'Şifre çok zayıf, en az 6 karakter kullanın.',
+  );
   static const cancelled = AuthException('Giriş iptal edildi.');
   static const providerDisabled = AuthException(
-      'Google ile giriş henüz etkin değil. Firebase Console → Authentication '
-      '→ Sign-in method bölümünden Google sağlayıcısını etkinleştirin.');
+    'Google ile giriş henüz etkin değil. Firebase Console → Authentication '
+    '→ Sign-in method bölümünden Google sağlayıcısını etkinleştirin.',
+  );
   static const unauthorizedDomain = AuthException(
-      'Bu alan adı Firebase\'de yetkili değil. Authentication → Settings → '
-      'Authorized domains listesine ekleyin.');
+    'Bu alan adı Firebase\'de yetkili değil. Authentication → Settings → '
+    'Authorized domains listesine ekleyin.',
+  );
   static const notSignedIn = AuthException('Önce giriş yapmalısınız.');
   static const noArtisanProfile = AuthException(
-      'Usta moduna geçmek için önce "Hizmet Vermeye Başla" adımını tamamlayın.');
-  static const unknown =
-      AuthException('Bir hata oluştu, lütfen tekrar deneyin.');
+    'Usta moduna geçmek için önce "Hizmet Vermeye Başla" adımını tamamlayın.',
+  );
+  static const unknown = AuthException(
+    'Bir hata oluştu, lütfen tekrar deneyin.',
+  );
 }

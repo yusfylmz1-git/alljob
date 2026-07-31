@@ -20,9 +20,11 @@ class VerificationTile extends ConsumerWidget {
   Future<void> _verify(BuildContext context, WidgetRef ref) async {
     final ok = await PhoneVerificationSheet.show(context);
     if (ok == true && context.mounted) {
-      context.showSuccess(artisanContext
-          ? 'Telefonun doğrulandı — mavi tik aktif! 🎉'
-          : 'Telefonun doğrulandı. Hesabın artık doğrulanmış. 🎉');
+      context.showSuccess(
+        artisanContext
+            ? 'Telefonun doğrulandı — mavi tik aktif! 🎉'
+            : 'Telefonun doğrulandı. Hesabın artık doğrulanmış. 🎉',
+      );
     }
   }
 
@@ -52,15 +54,17 @@ class VerificationTile extends ConsumerWidget {
                 children: [
                   Text(
                     artisanContext ? 'Doğrulanmış Usta' : 'Doğrulanmış Hesap',
-                    style: theme.textTheme.titleSmall
-                        ?.copyWith(fontWeight: FontWeight.w700),
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                   Text(
                     artisanContext
                         ? 'Profilinde mavi tik görünüyor.'
                         : 'Telefon numaran doğrulandı.',
-                    style: theme.textTheme.bodySmall
-                        ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
                   ),
                 ],
               ),
@@ -88,8 +92,9 @@ class VerificationTile extends ConsumerWidget {
               Expanded(
                 child: Text(
                   artisanContext ? 'Mavi Tik Al' : 'Telefonunu Doğrula',
-                  style: theme.textTheme.titleMedium
-                      ?.copyWith(fontWeight: FontWeight.w800),
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
                 ),
               ),
             ],
@@ -98,11 +103,12 @@ class VerificationTile extends ConsumerWidget {
           Text(
             artisanContext
                 ? 'Telefonunu doğrula, profilinde mavi tik kazan. Doğrulanmış '
-                    'ustalar müşterilerde daha güvenilir görünür.'
+                      'ustalar müşterilerde daha güvenilir görünür.'
                 : 'Telefon numaranı doğrulayarak hesabını güvene al ve '
-                    'doğrulanmış rozeti kazan.',
-            style: theme.textTheme.bodyMedium
-                ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                      'doğrulanmış rozeti kazan.',
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
           ),
           const SizedBox(height: 12),
           SizedBox(

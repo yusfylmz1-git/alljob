@@ -33,15 +33,17 @@ Future<bool> ensureEmailVerified(
             children: [
               Row(
                 children: [
-                  Icon(Icons.mark_email_unread_outlined,
-                      color: palette.warning),
+                  Icon(
+                    Icons.mark_email_unread_outlined,
+                    color: palette.warning,
+                  ),
                   const SizedBox(width: 10),
                   Expanded(
                     child: Text(
                       'E-posta doğrulaması gerekli',
                       style: Theme.of(ctx).textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.w800,
-                          ),
+                        fontWeight: FontWeight.w800,
+                      ),
                     ),
                   ),
                 ],
@@ -52,8 +54,8 @@ Future<bool> ensureEmailVerified(
                 '${user.email} adresine gelen bağlantıya tıklayın; ardından '
                 'aşağıdan kontrol edin.',
                 style: Theme.of(ctx).textTheme.bodySmall?.copyWith(
-                      color: Theme.of(ctx).colorScheme.onSurfaceVariant,
-                    ),
+                  color: Theme.of(ctx).colorScheme.onSurfaceVariant,
+                ),
               ),
               const SizedBox(height: 16),
               SizedBox(
@@ -88,12 +90,15 @@ Future<bool> ensureEmailVerified(
     if (!context.mounted) return false;
     if (ok) {
       context.showSuccess(
-          'Doğrulama bağlantısı ${user.email} adresine gönderildi.');
+        'Doğrulama bağlantısı ${user.email} adresine gönderildi.',
+      );
     } else {
       final err = ref.read(authControllerProvider).error;
-      context.showError(err is AuthException
-          ? err.message
-          : 'Gönderilemedi. Bir süre sonra tekrar deneyin.');
+      context.showError(
+        err is AuthException
+            ? err.message
+            : 'Gönderilemedi. Bir süre sonra tekrar deneyin.',
+      );
     }
     return false;
   }
@@ -106,8 +111,9 @@ Future<bool> ensureEmailVerified(
   }
   if (verified == false) {
     context.showInfo(
-        'Henüz doğrulanmamış. E-postadaki bağlantıya tıkladıktan sonra '
-        'tekrar “Kontrol Et” deyin.');
+      'Henüz doğrulanmamış. E-postadaki bağlantıya tıkladıktan sonra '
+      'tekrar “Kontrol Et” deyin.',
+    );
   } else {
     context.showError('Kontrol edilemedi. Bağlantınızı kontrol edin.');
   }
@@ -120,5 +126,9 @@ Future<void> showEmailVerificationSheet(
   WidgetRef ref,
   AppUser user,
 ) async {
-  await ensureEmailVerified(context, ref, actionLabel: 'hesabınızı güvene almak');
+  await ensureEmailVerified(
+    context,
+    ref,
+    actionLabel: 'hesabınızı güvene almak',
+  );
 }

@@ -22,16 +22,20 @@ class MaintenanceScreen extends ConsumerWidget {
             children: [
               Icon(Icons.construction, size: 64, color: palette.warning),
               const SizedBox(height: 16),
-              Text('Bakım çalışması',
-                  style: theme.textTheme.headlineSmall
-                      ?.copyWith(fontWeight: FontWeight.w800)),
+              Text(
+                'Bakım çalışması',
+                style: theme.textTheme.headlineSmall?.copyWith(
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
               const SizedBox(height: 8),
               Text(
                 '${AppConstants.appName} şu an kısa bir bakımda. '
                 'Lütfen biraz sonra tekrar deneyin.',
                 textAlign: TextAlign.center,
-                style: theme.textTheme.bodyMedium
-                    ?.copyWith(color: palette.inkMuted),
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: palette.inkMuted,
+                ),
               ),
               const SizedBox(height: 24),
               TextButton(

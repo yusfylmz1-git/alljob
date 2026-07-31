@@ -29,8 +29,9 @@ class SuspendedScreen extends ConsumerWidget {
                 Text(
                   'Hesabınız askıya alındı',
                   textAlign: TextAlign.center,
-                  style: theme.textTheme.headlineSmall
-                      ?.copyWith(fontWeight: FontWeight.w800),
+                  style: theme.textTheme.headlineSmall?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
                 ),
                 const SizedBox(height: 12),
                 Text(
@@ -38,15 +39,17 @@ class SuspendedScreen extends ConsumerWidget {
                   'olarak kısıtlandı. Bu süre boyunca yeni ilan, teklif, mesaj '
                   've değerlendirme oluşturamazsınız.',
                   textAlign: TextAlign.center,
-                  style: theme.textTheme.bodyMedium
-                      ?.copyWith(color: palette.inkMuted),
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: palette.inkMuted,
+                  ),
                 ),
                 const SizedBox(height: 8),
                 Text(
                   'İtirazınız için destek ekibiyle iletişime geçin.',
                   textAlign: TextAlign.center,
-                  style: theme.textTheme.bodySmall
-                      ?.copyWith(color: palette.inkFaint),
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: palette.inkFaint,
+                  ),
                 ),
                 const SizedBox(height: 28),
                 OutlinedButton.icon(

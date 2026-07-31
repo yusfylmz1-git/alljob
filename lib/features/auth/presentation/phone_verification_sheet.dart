@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/theme/app_palette.dart';
+import '../../../core/utils/phone_format.dart';
 import '../../../core/widgets/app_button.dart';
 import '../../artisan/application/my_profile_controller.dart';
 import '../../artisan/data/my_profile_repository.dart';
@@ -15,17 +16,25 @@ import '../data/phone_verification_repository.dart';
 /// reCAPTCHA / Play Integrity gibi arka plan adımları kullanıcıya gösterilmez:
 /// numara girilince yükleme ekranı, ardından doğrudan kod alanı açılır.
 class PhoneVerificationSheet extends ConsumerStatefulWidget {
-  const PhoneVerificationSheet._();
+  const PhoneVerificationSheet._({this.isChange = false});
+
+  /// Numara DEĞİŞTİRME akışı mı? (ilk doğrulama değil)
+  /// Değiştirmede vitrin rızası yeniden sorulmaz: usta numarasını zaten
+  /// gösteriyorsa yeni numara otomatik yerine geçer, göstermiyorsa kapalı
+  /// kalır. Mavi tik her iki durumda korunur (yeni numara da SMS ile
+  /// doğrulanmıştır).
+  final bool isChange;
 
   /// Alttan açılır doğrulama sayfasını gösterir. Doğrulama tamamlandıysa `true`.
-  static Future<bool?> show(BuildContext context) {
+  /// [isChange] true iken metinler "numara değiştirme" diline geçer.
+  static Future<bool?> show(BuildContext context, {bool isChange = false}) {
     return showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
       showDragHandle: true,
-      builder: (_) => const Padding(
-        padding: EdgeInsets.only(left: 20, right: 20, top: 4),
-        child: PhoneVerificationSheet._(),
+      builder: (_) => Padding(
+        padding: const EdgeInsets.only(left: 20, right: 20, top: 4),
+        child: PhoneVerificationSheet._(isChange: isChange),
       ),
     );
   }
@@ -80,8 +89,9 @@ class _PhoneVerificationSheetState
       _codeCtrl.clear();
     });
     try {
-      final session =
-          await ref.read(phoneVerificationRepositoryProvider).sendCode(e164);
+      final session = await ref
+          .read(phoneVerificationRepositoryProvider)
+          .sendCode(e164);
       if (!mounted) return;
       setState(() {
         _session = session;
@@ -117,10 +127,16 @@ class _PhoneVerificationSheetState
     });
     try {
       final repo = ref.read(phoneVerificationRepositoryProvider);
-      final phone = await repo.confirmCode(session, _codeCtrl.text);
+      final phone = await repo.confirmCode(
+        session,
+        _codeCtrl.text,
+        replaceExisting: widget.isChange,
+      );
 
       // Uygulama verisini yaz: herkese açık phoneVerified + (usta ise) mavi tik.
-      final user = await ref.read(authRepositoryProvider).setPhoneVerified(phone);
+      final user = await ref
+          .read(authRepositoryProvider)
+          .setPhoneVerified(phone);
       if (user.hasArtisanProfile) {
         await ref.read(myProfileRepositoryProvider).markVerified(user.uid);
         ref.invalidate(myProfileControllerProvider);
@@ -128,16 +144,42 @@ class _PhoneVerificationSheetState
 
       if (!mounted) return;
 
-      // Usta: şık diyalog — telefon vitrinde görünsün mü?
       if (user.hasArtisanProfile) {
-        final show = await _askShowPhoneOnProfile(context, phone);
-        if (show != null) {
-          await ref.read(myProfileRepositoryProvider).setPhoneVisibility(
-                uid: user.uid,
-                showOnProfile: show,
-                publicPhone: show ? phone : null,
-              );
-          ref.invalidate(myProfileControllerProvider);
+        if (widget.isChange) {
+          // NUMARA DEĞİŞİMİ: rıza yeniden sorulmaz. Vitrin AÇIKSA yeni numara
+          // eskisinin yerine geçer — aksi hâlde profilde artık kullanılmayan
+          // eski numara kalır ve müşteri yanlış kişiyi arar. Kapalıysa kapalı
+          // kalır (usta göstermek isterse profilden açar).
+          final showing =
+              ref
+                  .read(myProfileControllerProvider)
+                  .valueOrNull
+                  ?.profile
+                  .showPhoneOnProfile ??
+              false;
+          if (showing) {
+            await ref
+                .read(myProfileRepositoryProvider)
+                .setPhoneVisibility(
+                  uid: user.uid,
+                  showOnProfile: true,
+                  publicPhone: phone,
+                );
+            ref.invalidate(myProfileControllerProvider);
+          }
+        } else {
+          // İLK doğrulama: şık diyalog — telefon vitrinde görünsün mü?
+          final show = await _askShowPhoneOnProfile(context, phone);
+          if (show != null) {
+            await ref
+                .read(myProfileRepositoryProvider)
+                .setPhoneVisibility(
+                  uid: user.uid,
+                  showOnProfile: show,
+                  publicPhone: show ? phone : null,
+                );
+            ref.invalidate(myProfileControllerProvider);
+          }
         }
       }
 
@@ -163,7 +205,7 @@ class _PhoneVerificationSheetState
     BuildContext context,
     String phoneE164,
   ) {
-    final display = _formatTrPhone(phoneE164);
+    final display = formatTrPhone(phoneE164);
     return showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
@@ -191,15 +233,18 @@ class _PhoneVerificationSheetState
                       color: palette.primaryContainer,
                       borderRadius: BorderRadius.circular(12),
                     ),
-                    child: Icon(Icons.phone_in_talk_outlined,
-                        color: palette.primary),
+                    child: Icon(
+                      Icons.phone_in_talk_outlined,
+                      color: palette.primary,
+                    ),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Text(
                       'Telefon numaran görünsün mü?',
-                      style: theme.textTheme.titleMedium
-                          ?.copyWith(fontWeight: FontWeight.w800),
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w800,
+                      ),
                     ),
                   ),
                 ],
@@ -215,8 +260,10 @@ class _PhoneVerificationSheetState
               ),
               const SizedBox(height: 16),
               Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 14,
+                ),
                 decoration: BoxDecoration(
                   color: palette.card,
                   borderRadius: BorderRadius.circular(16),
@@ -270,17 +317,6 @@ class _PhoneVerificationSheetState
     );
   }
 
-  static String _formatTrPhone(String e164) {
-    final d = e164.replaceAll(RegExp(r'\D'), '');
-    // 90 + 10 hane
-    if (d.length == 12 && d.startsWith('90')) {
-      final n = d.substring(2);
-      return '0${n.substring(0, 3)} ${n.substring(3, 6)} '
-          '${n.substring(6, 8)} ${n.substring(8)}';
-    }
-    return e164;
-  }
-
   @override
   Widget build(BuildContext context) {
     final bottomInset = MediaQuery.of(context).viewInsets.bottom;
@@ -296,7 +332,7 @@ class _PhoneVerificationSheetState
               const Icon(Icons.verified_user_outlined, size: 24),
               const SizedBox(width: 10),
               Text(
-                'Telefonunu Doğrula',
+                widget.isChange ? 'Numaranı Değiştir' : 'Telefonunu Doğrula',
                 style: Theme.of(context).textTheme.titleLarge,
               ),
             ],
@@ -304,12 +340,17 @@ class _PhoneVerificationSheetState
           const SizedBox(height: 6),
           Text(
             _step == _Step.phone
-                ? 'Numaranı doğrulayan hesaplar mavi tik (doğrulanmış) rozeti alır.'
+                ? (widget.isChange
+                      ? 'Yeni numaranı gir; SMS ile doğrulayınca eskisinin '
+                            'yerine geçer. Doğrulanmış rozetin korunur.'
+                      : 'Numaranı doğrulayan hesaplar mavi tik (doğrulanmış) '
+                            'rozeti alır.')
                 : waitingSession
-                    ? 'SMS hazırlanıyor… Birkaç saniye sürebilir.'
-                    : '$_sentTo numarasına gönderilen 6 haneli kodu gir.',
+                ? 'SMS hazırlanıyor… Birkaç saniye sürebilir.'
+                : '$_sentTo numarasına gönderilen 6 haneli kodu gir.',
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: Theme.of(context).colorScheme.onSurfaceVariant),
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
           ),
           const SizedBox(height: 20),
           if (_step == _Step.phone)
@@ -386,11 +427,11 @@ class _PhoneVerificationSheetState
               onPressed: _loading
                   ? null
                   : () => setState(() {
-                        _step = _Step.phone;
-                        _error = null;
-                        _session = null;
-                        _codeCtrl.clear();
-                      }),
+                      _step = _Step.phone;
+                      _error = null;
+                      _session = null;
+                      _codeCtrl.clear();
+                    }),
               child: const Text('Numarayı değiştir'),
             ),
           ],

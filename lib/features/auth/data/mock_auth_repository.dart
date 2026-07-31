@@ -19,8 +19,12 @@ class MockAuthRepository implements AuthRepository {
   final Map<String, _Account> _accounts = {}; // key: email (lowercase)
   AppUser? _current;
 
-  void _seed(String email, String password, String name,
-      {bool artisan = false}) {
+  void _seed(
+    String email,
+    String password,
+    String name, {
+    bool artisan = false,
+  }) {
     final uid = 'mock_${_accounts.length + 1}';
     _accounts[email.toLowerCase()] = _Account(
       password: password,
