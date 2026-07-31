@@ -4,13 +4,14 @@ import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
-import 'package:flutter/foundation.dart' show kDebugMode, kIsWeb;
+import 'package:flutter/foundation.dart' show kDebugMode, kIsWeb, kReleaseMode;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/date_symbol_data_local.dart';
 
 import 'app.dart';
 import 'core/config/backend_config.dart';
+import 'core/widgets/app_error_fallback.dart';
 import 'core/theme/accent_state.dart';
 import 'core/theme/theme_mode_state.dart';
 import 'features/membership/membership_package.dart';
@@ -29,6 +30,13 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
+  // Release'te widget derleme hatası: Flutter'ın boz gri kutusu yerine sakin
+  // markalı yedek (hata yine Crashlytics'e gider). Debug'da kırmızı ekran
+  // kalır — geliştirici teşhisi için.
+  if (kReleaseMode) {
+    ErrorWidget.builder = (details) => const AppErrorFallback();
+  }
+
   // Türkçe tarih biçimlendirme verisini yükle (yorum tarihleri için).
   await initializeDateFormatting('tr_TR', null);
 
@@ -38,25 +46,62 @@ Future<void> main() async {
     await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,
     );
-    // App Check: isteklerin GERÇEK uygulamadan geldiğini kanıtlar (bot/script
-    // trafiğine karşı). Debug: Debug sağlayıcı (logcat jetonu Console'a eklenmeli).
-    // Release: Play Integrity / App Attest. Web yalnız reCAPTCHA anahtarı doluysa.
-    // NOT: Firestore + Storage App Check ENFORCED (2026-07-14). Auth enforce YOK
-    // (web reCAPTCHA boşken girişi kırmamak için). Jetonsuz mobil debug →
-    // permission-denied → debug token ekle (docs/OPS_BILLING_APPCHECK.md).
-    if (!kIsWeb) {
-      await FirebaseAppCheck.instance.activate(
-        androidProvider: kDebugMode
-            ? AndroidProvider.debug
-            : AndroidProvider.playIntegrity,
-        appleProvider: kDebugMode
-            ? AppleProvider.debug
-            : AppleProvider.appAttestWithDeviceCheckFallback,
-      );
+    // App Check: isteklerin GERÇEK uygulamadan geldiğini kanıtlar.
+    // Debug: Debug sağlayıcı — logcat'teki token Console'a eklenmeli
+    // (paket adı değişince ESKİ token geçmez: com.ustasindan.app).
+    // "Too many attempts": token reddi/throttle — 30–60 dk bekle + debug
+    // token kaydet; sürekli hot restart throttle'ı kötüleştirir.
+    // SKIP_APP_CHECK=true (yalnız debug): activate atlanır (acil geliştirme).
+    // Ayrıntı: docs/OPS_BILLING_APPCHECK.md
+    const skipAppCheck = bool.fromEnvironment('SKIP_APP_CHECK');
+    if (skipAppCheck && kDebugMode) {
+      debugPrint('App Check: SKIP_APP_CHECK=true — activate atlandı (debug).');
+    } else if (!kIsWeb) {
+      try {
+        await FirebaseAppCheck.instance.activate(
+          androidProvider: kDebugMode
+              ? AndroidProvider.debug
+              : AndroidProvider.playIntegrity,
+          appleProvider: kDebugMode
+              ? AppleProvider.debug
+              : AppleProvider.appAttestWithDeviceCheckFallback,
+        );
+        if (kDebugMode) {
+          // Token'ı bir kez ısıt; hata loglanır ama uygulama ÇÖKMEZ.
+          // "Too many attempts" → otomatik yenilemeyi kes (log/spam + throttle).
+          try {
+            await FirebaseAppCheck.instance.getToken(true);
+          } on FirebaseException catch (e) {
+            final msg = e.message ?? e.code;
+            debugPrint('App Check getToken: $msg');
+            if (msg.toLowerCase().contains('too many attempts') ||
+                e.code == 'too-many-requests') {
+              await FirebaseAppCheck.instance.setTokenAutoRefreshEnabled(false);
+              debugPrint(
+                'App Check: throttle — auto-refresh KAPALI. '
+                '1) 30–60 dk bekle  2) logcat: DebugAppCheckProvider token '
+                '3) Console → App Check → Manage debug tokens → ekle '
+                '4) uygulamayı tamamen kapatıp aç. '
+                'Acil: flutter run --dart-define=SKIP_APP_CHECK=true',
+              );
+            }
+          } catch (e) {
+            debugPrint('App Check getToken (diğer): $e');
+          }
+        }
+      } catch (e) {
+        // Activate başarısız olsa da uygulama açılsın (monitor modunda
+        // Firestore çalışır; enforce'ta veri istekleri permission-denied olur).
+        debugPrint('App Check activate atlandı/hata: $e');
+      }
     } else if (kAppCheckWebRecaptchaKey.isNotEmpty) {
-      await FirebaseAppCheck.instance.activate(
-        webProvider: ReCaptchaV3Provider(kAppCheckWebRecaptchaKey),
-      );
+      try {
+        await FirebaseAppCheck.instance.activate(
+          webProvider: ReCaptchaV3Provider(kAppCheckWebRecaptchaKey),
+        );
+      } catch (e) {
+        debugPrint('App Check web activate hata: $e');
+      }
     }
 
     // Arka plan mesaj işleyicisi runApp'ten ÖNCE kaydedilmelidir.

@@ -1,11 +1,12 @@
 import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show kIsWeb, kReleaseMode;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/date_symbol_data_local.dart';
 
 import 'core/config/backend_config.dart';
+import 'core/widgets/app_error_fallback.dart';
 import 'features/admin/presentation/admin_app.dart';
 import 'firebase_options.dart';
 
@@ -17,6 +18,13 @@ import 'firebase_options.dart';
 /// noktası ayrıdır. Push/Crashlytics gibi tüketici-özgü kurulumlar YOK.
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Release'te widget derleme hatasında boz gri kutu yerine sakin yedek
+  // (tüketici main.dart ile aynı politika).
+  if (kReleaseMode) {
+    ErrorWidget.builder = (details) => const AppErrorFallback();
+  }
+
   await initializeDateFormatting('tr_TR', null);
 
   if (useFirebaseBackend) {

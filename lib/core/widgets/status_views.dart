@@ -49,8 +49,34 @@ class LoadingView extends StatelessWidget {
   }
 }
 
+/// [ErrorView]'daki "Sorunu bildir" düğmesini etkinleştiren kapsam.
+///
+/// Tüketici uygulaması bunu kökte sağlar (app.dart → Yardım ekranındaki
+/// destek formunu hatanın özeti önceden yazılmış olarak açar). Kapsamı
+/// SAĞLAMAYAN ağaçlarda (admin paneli, testler) düğme hiç görünmez —
+/// böylece rota/bağımlılık varsayımı yapılmaz.
+class ErrorReportScope extends InheritedWidget {
+  const ErrorReportScope({
+    super.key,
+    required this.onReport,
+    required super.child,
+  });
+
+  /// [context]: düğmeye basılan ekranın context'i (yönlendirme için);
+  /// [summary]: hatanın kullanıcı dilindeki özeti ("başlık — mesaj").
+  final void Function(BuildContext context, String summary) onReport;
+
+  static ErrorReportScope? maybeOf(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<ErrorReportScope>();
+
+  @override
+  bool updateShouldNotify(ErrorReportScope oldWidget) =>
+      onReport != oldWidget.onReport;
+}
+
 /// Ortalanmış, dostça hata görünümü: yumuşak zeminli ikon + başlık + açıklama.
-/// Ham exception metni ASLA gösterilmez. [onRetry] varsa "Tekrar dene" çıkar.
+/// Ham exception metni ASLA gösterilmez. [onRetry] varsa "Tekrar dene" çıkar;
+/// [ErrorReportScope] sağlanmışsa altta "Sorunu bildir" bağlantısı görünür.
 class ErrorView extends StatelessWidget {
   const ErrorView({
     super.key,
@@ -107,6 +133,19 @@ class ErrorView extends StatelessWidget {
                 onPressed: onRetry,
                 icon: const Icon(Icons.refresh, size: 18),
                 label: Text(retryLabel),
+              ),
+            ],
+            if (ErrorReportScope.maybeOf(context) != null) ...[
+              SizedBox(height: onRetry != null ? 4 : 14),
+              TextButton.icon(
+                onPressed: () => ErrorReportScope.maybeOf(context)!
+                    .onReport(context, '$title — $message'),
+                icon: const Icon(Icons.outlined_flag_rounded, size: 18),
+                label: const Text('Sorunu bildir'),
+                style: TextButton.styleFrom(
+                  foregroundColor: context.palette.inkMuted,
+                  textStyle: const TextStyle(fontWeight: FontWeight.w600),
+                ),
               ),
             ],
           ],
