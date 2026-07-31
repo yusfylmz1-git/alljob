@@ -551,6 +551,111 @@ void main() {
     });
   });
 
+  group('Manuel premium (admin override)', () {
+    ArtisanProfile seed({bool premium = false, DateTime? until}) =>
+        ArtisanProfile(
+          uid: 'a1',
+          profession: 'plumber',
+          experienceYears: 1,
+          aboutText: '',
+          serviceAreas: const [],
+          certificates: const [],
+          workPhotos: const [],
+          isVerified: false,
+          averageRating: 0,
+          totalReviews: 0,
+          totalRatingSum: 0,
+          isPremium: premium,
+          premiumExpiresAt: until,
+          alwaysAvailable: true,
+          manualPause: false,
+          weeklySchedule: WeeklySchedule.empty(),
+          createdAt: DateTime.utc(2026, 1, 1),
+        );
+
+    test('premium yokken tanımlar ve gerekçeyi kaydeder', () async {
+      final repo = MockAdminArtisanRepository([seed()]);
+      final until = await repo.setPremiumOverride('a1',
+          reason: 'Ödeme alındı, doğrulama düştü', days: 30);
+
+      expect(until, isNotNull);
+      final after = (await repo.fetchPage()).single;
+      expect(after.isPremium, isTrue);
+      expect(repo.overrides.single.reason, 'Ödeme alındı, doğrulama düştü');
+      expect(repo.overrides.single.days, 30);
+    });
+
+    test('AKTİF üyelikte uzatma kalan süreye EKLENİR (kısaltmaz)', () async {
+      // 100 gün sonrası bitiyor; 30 gün eklenince ~130 gün olmalı.
+      final future = DateTime.now().add(const Duration(days: 100));
+      final repo = MockAdminArtisanRepository([
+        seed(premium: true, until: future),
+      ]);
+
+      final until = await repo.setPremiumOverride('a1',
+          reason: 'Telafi uzatması', days: 30);
+
+      final remaining = until!.difference(DateTime.now()).inDays;
+      expect(remaining, greaterThan(125),
+          reason: 'mevcut üyelik kısalmamalı, üzerine eklenmeli');
+    });
+
+    test('süresi DOLMUŞ üyelikte bugünden başlar', () async {
+      final past = DateTime.now().subtract(const Duration(days: 10));
+      final repo = MockAdminArtisanRepository([
+        seed(premium: false, until: past),
+      ]);
+
+      final until = await repo.setPremiumOverride('a1',
+          reason: 'Yeniden tanımlama', days: 30);
+
+      final remaining = until!.difference(DateTime.now()).inDays;
+      expect(remaining, inInclusiveRange(28, 30),
+          reason: 'geçmiş tarihin üzerine eklenmemeli');
+    });
+
+    test('iptal premium bayrağını kapatır', () async {
+      final repo = MockAdminArtisanRepository([
+        seed(premium: true, until: DateTime.now().add(const Duration(days: 40))),
+      ]);
+      final until =
+          await repo.setPremiumOverride('a1', reason: 'İade edildi', revoke: true);
+
+      expect(until, isNull);
+      expect((await repo.fetchPage()).single.isPremium, isFalse);
+      expect(repo.overrides.single.revoke, isTrue);
+    });
+
+    test('gerekçe zorunlu — kısa gerekçe reddedilir', () async {
+      final repo = MockAdminArtisanRepository([seed()]);
+      expect(
+        () => repo.setPremiumOverride('a1', reason: 'ok', days: 30),
+        throwsArgumentError,
+      );
+      expect(repo.overrides, isEmpty);
+    });
+
+    test('gün sayısı aralık dışında reddedilir', () async {
+      final repo = MockAdminArtisanRepository([seed()]);
+      expect(
+        () => repo.setPremiumOverride('a1',
+            reason: 'Geçerli gerekçe', days: 5000),
+        throwsArgumentError,
+      );
+    });
+
+    test('finance.manage varsayılan moderatörde YOK', () {
+      final mod = AdminCapabilities.fromRoster(
+        isSuperAdmin: false,
+        capabilities: null,
+        enforceMode: true,
+      );
+      expect(mod.allows('finance.manage'), isFalse,
+          reason: 'para etkili yetki açıkça verilmeli');
+      expect(AdminCapabilities.superAdmin().allows('finance.manage'), isTrue);
+    });
+  });
+
   group('AdminCapabilities (Wave 2)', () {
     test('superadmin her şeyi geçer', () {
       final c = AdminCapabilities.superAdmin();

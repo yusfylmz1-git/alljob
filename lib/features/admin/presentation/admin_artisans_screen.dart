@@ -9,6 +9,7 @@ import '../../../core/widgets/status_views.dart';
 import '../../../data/local/mock_database.dart' show kProfessionNames;
 import '../../../data/models/artisan_profile.dart';
 import '../data/admin_providers.dart';
+import 'admin_premium_sheet.dart';
 import 'admin_users_screen.dart';
 import 'paged_footer.dart';
 
@@ -206,6 +207,68 @@ class _ArtisanFilters extends StatelessWidget {
   }
 }
 
+/// Kartta premium durumu: aktif mi, ne zaman bitiyor, manuel mi verilmiş.
+/// Beta döneminde tüm ustalar premium özellikleri kullanır; burada GERÇEK
+/// abonelik alanı gösterilir (beta bayrağı ayrı bir katman).
+class _PremiumLine extends StatelessWidget {
+  const _PremiumLine({required this.profile});
+  final ArtisanProfile profile;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    final theme = Theme.of(context);
+    final until = profile.premiumExpiresAt;
+    final active = profile.isPremium &&
+        until != null &&
+        until.isAfter(DateTime.now());
+
+    final String label;
+    final Color color;
+    if (active) {
+      label = 'Premium · ${_fmtDate(until)} tarihine kadar';
+      color = palette.success;
+    } else if (until != null) {
+      label = 'Premium bitti · ${_fmtDate(until)}';
+      color = palette.inkMuted;
+    } else {
+      label = 'Premium yok';
+      color = palette.inkFaint;
+    }
+
+    return Row(
+      children: [
+        Icon(
+          active
+              ? Icons.workspace_premium
+              : Icons.workspace_premium_outlined,
+          size: 15,
+          color: color,
+        ),
+        const SizedBox(width: 6),
+        Expanded(
+          child: Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: theme.textTheme.labelSmall?.copyWith(color: color),
+          ),
+        ),
+        if (profile.premiumProductId == 'manual_admin_grant')
+          Tooltip(
+            message: 'Yönetici tarafından manuel tanımlandı',
+            child: Icon(Icons.admin_panel_settings_outlined,
+                size: 15, color: palette.warning),
+          ),
+      ],
+    );
+  }
+
+  static String _fmtDate(DateTime d) =>
+      '${d.day.toString().padLeft(2, '0')}.'
+      '${d.month.toString().padLeft(2, '0')}.${d.year}';
+}
+
 class _ArtisanCard extends ConsumerWidget {
   const _ArtisanCard({required this.profile});
   final ArtisanProfile profile;
@@ -280,6 +343,8 @@ class _ArtisanCard extends ConsumerWidget {
               style: theme.textTheme.bodySmall
                   ?.copyWith(color: palette.inkMuted),
             ),
+            const SizedBox(height: 6),
+            _PremiumLine(profile: profile),
             const SizedBox(height: 8),
             Wrap(
               spacing: 6,
@@ -289,6 +354,16 @@ class _ArtisanCard extends ConsumerWidget {
                       showAdminUserActions(context, ref, profile.uid),
                   child: const Text('Kullanıcı'),
                 ),
+                if (ref.watch(adminCapabilitiesProvider).allows('finance.manage'))
+                  OutlinedButton.icon(
+                    icon: const Icon(Icons.workspace_premium_outlined, size: 16),
+                    label: const Text('Premium'),
+                    onPressed: () => showPremiumOverrideSheet(
+                      context,
+                      ref,
+                      profile: profile,
+                    ),
+                  ),
                 OutlinedButton(
                   onPressed: () => _flag(context, ref,
                       adminVerified: !profile.adminVerified),

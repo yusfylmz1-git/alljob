@@ -18,6 +18,20 @@ abstract interface class AdminArtisanRepository {
     bool? featured,
     bool? moderationHidden,
   });
+
+  /// Manuel Premium tanımlar/uzatır ([days]) veya iptal eder ([revoke]).
+  ///
+  /// Play satın alma kaydını BOZMAZ; manuel müdahale ayrı tutulur. [reason]
+  /// zorunludur (para etkili işlem — denetim kaydına yazılır). Uzatmada
+  /// mevcut bitiş ileri tarihliyse süre onun üzerine eklenir.
+  ///
+  /// Dönen değer: yeni bitiş tarihi (iptalde null).
+  Future<DateTime?> setPremiumOverride(
+    String uid, {
+    required String reason,
+    int? days,
+    bool revoke = false,
+  });
 }
 
 class FirebaseAdminArtisanRepository implements AdminArtisanRepository {
@@ -71,6 +85,23 @@ class FirebaseAdminArtisanRepository implements AdminArtisanRepository {
         .httpsCallable('adminSetArtisanFlags')
         .call<Object?>(payload);
   }
+
+  @override
+  Future<DateTime?> setPremiumOverride(
+    String uid, {
+    required String reason,
+    int? days,
+    bool revoke = false,
+  }) async {
+    final res = await _functions.httpsCallable('adminGrantPremium').call<Object?>({
+      'uid': uid,
+      'reason': reason,
+      if (revoke) 'revoke': true else 'days': days,
+    });
+    final data = (res.data as Map?)?.cast<String, dynamic>();
+    final iso = data?['expiresAt'] as String?;
+    return iso == null ? null : DateTime.tryParse(iso);
+  }
 }
 
 class MockAdminArtisanRepository implements AdminArtisanRepository {
@@ -119,5 +150,47 @@ class MockAdminArtisanRepository implements AdminArtisanRepository {
     bool? moderationHidden,
   }) async {
     // Mock: no-op (UI tests use real flags via CF in prod).
+  }
+
+  /// Manuel premium müdahale kaydı (sunucudaki `premiumOverrides` karşılığı) —
+  /// testler gerekçenin yazıldığını doğrulayabilsin.
+  final List<({String uid, int? days, String reason, bool revoke})> overrides =
+      [];
+
+  @override
+  Future<DateTime?> setPremiumOverride(
+    String uid, {
+    required String reason,
+    int? days,
+    bool revoke = false,
+  }) async {
+    // Sunucu doğrulamalarının aynısı (mock ile CF davranışı ayrışmasın).
+    if (reason.trim().length < 5) {
+      throw ArgumentError('Gerekçe zorunlu (en az 5 karakter).');
+    }
+    final current = _items[uid];
+    if (current == null) throw StateError('Usta profili yok.');
+
+    overrides.add((uid: uid, days: days, reason: reason, revoke: revoke));
+
+    if (revoke) {
+      _items[uid] = current.copyWith(
+        isPremium: false,
+        premiumExpiresAt: DateTime.now(),
+      );
+      return null;
+    }
+    final d = days ?? 0;
+    if (d < 1 || d > 3650) {
+      throw ArgumentError('days 1..3650 aralığında olmalı.');
+    }
+    // UZATMA: aktif üyelik varsa üzerine ekle — aksi hâlde süre KISALIRDI.
+    final now = DateTime.now();
+    final currentEnd = current.premiumExpiresAt;
+    final base =
+        (currentEnd != null && currentEnd.isAfter(now)) ? currentEnd : now;
+    final expiry = base.add(Duration(days: d));
+    _items[uid] = current.copyWith(isPremium: true, premiumExpiresAt: expiry);
+    return expiry;
   }
 }

@@ -790,6 +790,13 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // premiumOverrides — yöneticinin MANUEL premium tanımlama/iptal izi
+    // (gerekçe + aktör + süre). Yalnız CF (adminGrantPremium) yazar; istemci
+    // hiçbir koşulda okuyamaz/yazamaz — para etkili müdahale kaydıdır.
+    match /premiumOverrides/{entryId} {
+      allow read, write: if false;
+    }
+
     // supportTickets — kullanıcı destek talepleri.
     // Create/update: CF (createSupportTicket / adminUpdateSupportTicket).
     // Okuma: admin veya kendi talebi. İstemci yazamaz (sahte durum yok).

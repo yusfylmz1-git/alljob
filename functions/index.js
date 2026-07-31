@@ -97,6 +97,9 @@ const ALL_CAPABILITIES = new Set([
   "staff.manage",
   "config.manage",
   "export.run",
+  // Manuel premium tanimlama/iptal — para etkili. Varsayilan moderatorde
+  // BILEREK yok; superadmin veya acikca yetkilendirilmis admin kullanir.
+  "finance.manage",
 ]);
 
 // "log-only" | "enforce" — Wave 2: enforce (missing field → DEFAULT set).
@@ -2459,6 +2462,116 @@ exports.adminSetArtisanFlags = onCall(
         after: patch,
       });
       return {ok: true, ...patch};
+    },
+);
+
+/**
+ * Manuel Premium tanimlama / uzatma / iptal (admin override).
+ *
+ * Neden ayri: verifyMembershipPurchase Play makbuzuna dayanir. Destek
+ * senaryolarinda (odeme alindi ama dogrulama dustu, telafi, kampanya) adminin
+ * makbuzsuz premium verebilmesi gerekir.
+ *
+ * Play kaydini BOZMAZ: membershipPurchases dokumanina dokunulmaz, manuel
+ * kayit ayri koleksiyonda (premiumOverrides) tutulur. Boylece kullanicinin
+ * gercek aboneligi varsa yenileme akisi bozulmaz.
+ *
+ * Gerekce ZORUNLUDUR ve audit log'a yazilir (para etkili islem).
+ */
+exports.adminGrantPremium = onCall(
+    {region: REGION},
+    async (request) => {
+      const auth = request.auth;
+      await assertCap(auth, "finance.manage");
+      const {uid, days, reason, revoke} = request.data || {};
+      if (typeof uid !== "string" || !uid.trim()) {
+        throw new HttpsError("invalid-argument", "uid gerekli.");
+      }
+      const note = String(reason || "").trim();
+      if (note.length < 5) {
+        throw new HttpsError(
+            "invalid-argument",
+            "Gerekce zorunlu (en az 5 karakter).",
+        );
+      }
+      if (note.length > 500) {
+        throw new HttpsError("invalid-argument", "Gerekce cok uzun.");
+      }
+      const targetUid = uid.trim();
+      const ref = db.collection("artisanProfiles").doc(targetUid);
+      const snap = await ref.get();
+      if (!snap.exists) {
+        throw new HttpsError("not-found", "Usta profili yok.");
+      }
+      const before = snap.data() || {};
+      const beforeState = {
+        isPremium: before.isPremium === true,
+        premiumExpiresAt: before.premiumExpiresAt ?
+          before.premiumExpiresAt.toDate().toISOString() : null,
+        premiumProductId: before.premiumProductId || null,
+      };
+
+      let patch;
+      let expiresAtIso = null;
+      if (revoke === true) {
+        // Iptal: bayragi kapat, bitis tarihini simdiye cek (gecmise donuk
+        // kayit kalsin; alan silinirse "hic premium olmamis" gibi gorunur).
+        patch = {
+          isPremium: false,
+          premiumExpiresAt: admin.firestore.Timestamp.fromDate(new Date()),
+          premiumUpdatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        };
+      } else {
+        const d = Number(days);
+        if (!Number.isFinite(d) || d < 1 || d > 3650) {
+          throw new HttpsError(
+              "invalid-argument",
+              "days 1..3650 araliginda olmali.",
+          );
+        }
+        // UZATMA: mevcut bitis ileri tarihliyse onun uzerine ekle, degilse
+        // bugunden basla. Aksi halde aktif uyeligin suresi KISALIRDI.
+        const now = Date.now();
+        const currentEnd = before.premiumExpiresAt ?
+          before.premiumExpiresAt.toDate().getTime() : 0;
+        const base = currentEnd > now ? currentEnd : now;
+        const expiry = new Date(base + d * 24 * 60 * 60 * 1000);
+        expiresAtIso = expiry.toISOString();
+        patch = {
+          isPremium: true,
+          premiumExpiresAt: admin.firestore.Timestamp.fromDate(expiry),
+          premiumProductId: "manual_admin_grant",
+          premiumUpdatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        };
+      }
+
+      await ref.set(patch, {merge: true});
+
+      // Manuel mudahale izi (Play kaydindan AYRI).
+      await db.collection("premiumOverrides").add({
+        uid: targetUid,
+        actorUid: auth.uid,
+        revoke: revoke === true,
+        days: revoke === true ? null : Number(days),
+        reason: note,
+        expiresAt: expiresAtIso,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+
+      await writeAuditLog({
+        actorUid: auth.uid,
+        action: revoke === true ? "revoke_premium" : "grant_premium",
+        targetType: "artisan",
+        targetId: targetUid,
+        reason: note,
+        before: beforeState,
+        after: {
+          isPremium: revoke !== true,
+          premiumExpiresAt: expiresAtIso,
+          days: revoke === true ? null : Number(days),
+        },
+      });
+      return {ok: true, isPremium: revoke !== true, expiresAt: expiresAtIso};
     },
 );
 

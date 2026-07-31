@@ -54,6 +54,8 @@ class AdminCapabilities {
     'staff.manage',
     'config.manage',
     'export.run',
+    // Para etkili: varsayılan moderatörde YOK (CF ALL_CAPABILITIES ile paritede).
+    'finance.manage',
   ];
 
   static String labelTR(String code) => switch (code) {
@@ -75,6 +77,7 @@ class AdminCapabilities {
         'staff.manage' => 'Kadro / davet',
         'config.manage' => 'Ayarlar',
         'export.run' => 'Dışa aktarım',
+        'finance.manage' => 'Premium / finans müdahalesi',
         _ => code,
       };
 

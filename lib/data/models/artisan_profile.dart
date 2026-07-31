@@ -27,6 +27,7 @@ class ArtisanProfile {
     required this.weeklySchedule,
     required this.createdAt,
     this.premiumExpiresAt,
+    this.premiumProductId,
     this.adminVerified = false,
     this.featured = false,
     this.moderationHidden = false,
@@ -129,6 +130,11 @@ class ArtisanProfile {
   // Monetizasyon — gelir modeli yalnızca Premium üyeliğe dayanır (PRD §6).
   final bool isPremium;
   final DateTime? premiumExpiresAt;
+
+  /// Aboneliğin kaynağı: Play ürün kimliği ya da yönetici manuel tanımlaması
+  /// (`manual_admin_grant`). SALT OKUNUR — yalnız Cloud Functions yazar,
+  /// bu yüzden [toMap]'e dâhil EDİLMEZ (rules istemci yazımını reddeder).
+  final String? premiumProductId;
 
   // Canlı müsaitlik / çalışma takvimi (PRD §3).
   final bool alwaysAvailable;
@@ -238,6 +244,7 @@ class ArtisanProfile {
       completedJobs: completedJobs,
       isPremium: isPremium ?? this.isPremium,
       premiumExpiresAt: premiumExpiresAt ?? this.premiumExpiresAt,
+      premiumProductId: premiumProductId,
       alwaysAvailable: alwaysAvailable ?? this.alwaysAvailable,
       manualPause: manualPause ?? this.manualPause,
       weeklySchedule: weeklySchedule ?? this.weeklySchedule,
@@ -279,6 +286,7 @@ class ArtisanProfile {
       completedJobs: completedJobs ?? this.completedJobs,
       isPremium: isPremium,
       premiumExpiresAt: premiumExpiresAt,
+      premiumProductId: premiumProductId,
       alwaysAvailable: alwaysAvailable,
       manualPause: manualPause,
       weeklySchedule: weeklySchedule,
@@ -366,6 +374,7 @@ class ArtisanProfile {
       premiumExpiresAt: map['premiumExpiresAt'] != null
           ? DateTime.tryParse(map['premiumExpiresAt'].toString())
           : null,
+      premiumProductId: map['premiumProductId'] as String?,
       alwaysAvailable: (map['alwaysAvailable'] as bool?) ?? false,
       manualPause: (map['manualPause'] as bool?) ?? false,
       weeklySchedule: WeeklySchedule.fromMap(map['weeklySchedule'] as Map?),
