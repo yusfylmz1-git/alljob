@@ -21,14 +21,26 @@ const {
 } = require("firebase-functions/v2/firestore");
 const {onCall, HttpsError} = require("firebase-functions/v2/https");
 const {onSchedule} = require("firebase-functions/v2/scheduler");
+const {setGlobalOptions} = require("firebase-functions/v2");
 const {logger} = require("firebase-functions");
 const admin = require("firebase-admin");
 
 admin.initializeApp();
 const db = admin.firestore();
 
+// Maliyet emniyeti: istismar/sonsuz döngü durumunda fonksiyonlar sınırsız
+// ölçeklenmesin (Gen2 varsayılan tavanı 100 örnek). Bu ölçekte 10 örnek
+// fazlasıyla yeter; yük artarsa istekler kuyrukta bekler, fatura patlamaz.
+setGlobalOptions({maxInstances: 10});
+
 // Fonksiyonları Firestore veritabanına yakın bölgede çalıştır (gecikme/maliyet).
 const REGION = "europe-west1";
+
+// App Check zorlaması YALNIZ tüketici (mobil) çağrılarında: mobil istemci
+// jetonu otomatik gönderir (main.dart activate). admin* callable'ları web
+// panelinden çağrılır ve web'de App Check reCAPTCHA anahtarı henüz yok —
+// onlara eklenirse panel kilitlenir (yetki zaten admin claim + assertCap'te).
+const CONSUMER_CALL_OPTS = {region: REGION, enforceAppCheck: true};
 
 // Tek taraf "işi tamamladım" dedikten sonra karşı tarafın yanıt süresi (gün).
 // Mock paritesi: mock_job_repository.confirmDone aynı sayıyı kullanır.
@@ -37,6 +49,21 @@ const AUTO_COMPLETE_DAYS = 3;
 // "Hızlı Destek" ilan kategorisi (ayak işleri): yalnız meslek "other"
 // (Hızlı Destek) seçen ustalara gider. İstemci: job.dart.
 const QUICK_SUPPORT_CATEGORY = "quick_support";
+
+// İş sonu değerlendirmesindeki OLUMLU etiketler. Yalnız bunlar usta
+// profilinde tagCounts/topTags olarak birikir (kart rozetleri). Olumsuz
+// etiketler sayaca girmez. İstemci paritesi: lib/data/models/review.dart
+// → ReviewTags.positive (bu liste onunla birebir senkron tutulmalıdır).
+const POSITIVE_REVIEW_TAGS = new Set([
+  "Temiz işçilik",
+  "Zamanında geldi",
+  "Profesyonel",
+  "Güler yüzlü",
+  "Hızlı çözüm",
+  "Kaliteli işçilik",
+  "Güvenilir",
+  "Uygun fiyat",
+]);
 
 // Yönetici ön-yükleme (bootstrap) izin listesi. Yalnız bu (doğrulanmış)
 // e-postalar `claimAdminAccess` ile kendilerine `admin:true` claim'i yazdırabilir.
@@ -58,10 +85,13 @@ const DEFAULT_MODERATOR_CAPABILITIES = Object.freeze([
   "artisans.moderate",
   "reviews.moderate",
   "stats.read",
+  "products.read",
+  "products.moderate",
 ]);
 
 const ALL_CAPABILITIES = new Set([
   ...DEFAULT_MODERATOR_CAPABILITIES,
+  "products.purge",
   "chats.read",
   "audit.read",
   "staff.manage",
@@ -335,13 +365,22 @@ async function sendPushToUid(uid, title, body, data) {
     }
   }
 
+  // Android: monokrom status bar ikonu + marka rengi (large/image yok — sade).
   let resp;
   try {
     resp = await admin.messaging().sendEachForMulticast({
       tokens,
       notification: {title, body},
       data: fcmData,
-      android: {priority: "high", notification: {sound: "default"}},
+      android: {
+        priority: "high",
+        notification: {
+          sound: "default",
+          icon: "ic_stat_notification",
+          color: "#E8611A",
+          channelId: "high_importance_channel",
+        },
+      },
       apns: {payload: {aps: {sound: "default", badge: 1}}},
     });
   } catch (e) {
@@ -394,6 +433,50 @@ async function saveNotification(uid, docId, notif) {
 }
 
 /**
+ * Alıcının `users/{uid}/private/chatMeta` sayacını artırır (thread başına 0/1).
+ * Mesaj create anında chat dökümanı çoğu zaman henüz güncellenmemiştir →
+ * önceki lastMessageSenderUid / lastRead ile "zaten okunmamış mı?" bakılır;
+ * zaten 1 ise tekrar +1 yapılmaz (çift sayım yok).
+ */
+async function bumpChatUnreadMeta(recipientUid, chat) {
+  if (!recipientUid) return;
+  const lastSender = chat.lastMessageSenderUid;
+  let alreadyUnread = false;
+  if (lastSender && lastSender !== recipientUid) {
+    const lr = chat.lastRead && chat.lastRead[recipientUid];
+    if (!lr) {
+      alreadyUnread = true;
+    } else {
+      const lrMs = typeof lr.toMillis === "function" ? lr.toMillis() :
+        (lr instanceof Date ? lr.getTime() : Date.parse(lr) || 0);
+      const up = chat.updatedAt;
+      const upMs = up && typeof up.toMillis === "function" ? up.toMillis() :
+        (up instanceof Date ? up.getTime() : (up ? Date.parse(up) || 0 : 0));
+      if (upMs > lrMs) alreadyUnread = true;
+    }
+  }
+  if (alreadyUnread) return;
+
+  const asArtisan = recipientUid === chat.artisanUid;
+  const patch = {
+    unreadTotal: admin.firestore.FieldValue.increment(1),
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+  };
+  if (asArtisan) {
+    patch.unreadArtisan = admin.firestore.FieldValue.increment(1);
+  } else {
+    patch.unreadCustomer = admin.firestore.FieldValue.increment(1);
+  }
+  try {
+    await db.collection("users").doc(recipientUid)
+        .collection("private").doc("chatMeta")
+        .set(patch, {merge: true});
+  } catch (e) {
+    logger.warn(`chatMeta bump failed for ${recipientUid}: ${e}`);
+  }
+}
+
+/**
  * Bir değerlendirme yazıldığında (oluşturma VEYA güncelleme) ustanın puan
  * toplamlarını DELTA ile günceller. Müşteri başına usta başına tek döküman
  * (ID = chatId) olduğundan: create → sayaç+1, toplam+puan; update → sayaç
@@ -418,7 +501,23 @@ exports.onReviewWritten = onDocumentWritten(
       const newRating = after ? (Number(after.rating) || 0) : 0;
       const countDelta = (after ? 1 : 0) - (before ? 1 : 0);
       const sumDelta = newRating - oldRating;
-      if (countDelta === 0 && sumDelta === 0) return;
+
+      // Etiket deltası: eski etiketleri düş, yenileri say. Yalnız etiket
+      // değişse bile (rating sabit) topTags güncellenmeli — bu yüzden erken
+      // çıkış hem sayı/toplam hem etiket değişimini birlikte kontrol eder.
+      const beforeTags = (before && Array.isArray(before.tags)) ?
+        before.tags : [];
+      const afterTags = (after && Array.isArray(after.tags)) ?
+        after.tags : [];
+      const tagDelta = {};
+      for (const t of beforeTags) {
+        if (POSITIVE_REVIEW_TAGS.has(t)) tagDelta[t] = (tagDelta[t] || 0) - 1;
+      }
+      for (const t of afterTags) {
+        if (POSITIVE_REVIEW_TAGS.has(t)) tagDelta[t] = (tagDelta[t] || 0) + 1;
+      }
+      const tagsChanged = Object.keys(tagDelta).length > 0;
+      if (countDelta === 0 && sumDelta === 0 && !tagsChanged) return;
 
       const ref = db.collection("artisanProfiles").doc(artisanUid);
       try {
@@ -430,16 +529,32 @@ exports.onReviewWritten = onDocumentWritten(
             Math.max(0, (Number(cur.totalReviews) || 0) + countDelta);
           const totalRatingSum =
             Math.max(0, (Number(cur.totalRatingSum) || 0) + sumDelta);
+
+          // Etiket sayaçlarını uygula (0'a düşenleri temizle) ve en sık 3
+          // olumlu etiketi topTags olarak türet (karttaki rozetler için).
+          const tagCounts = {...(cur.tagCounts || {})};
+          for (const [t, d] of Object.entries(tagDelta)) {
+            const next = (Number(tagCounts[t]) || 0) + d;
+            if (next > 0) tagCounts[t] = next;
+            else delete tagCounts[t];
+          }
+          const topTags = Object.entries(tagCounts)
+              .sort((a, b) => b[1] - a[1])
+              .slice(0, 3)
+              .map((e) => e[0]);
+
           tx.update(ref, {
             totalReviews,
             totalRatingSum,
             averageRating:
               totalReviews > 0 ? totalRatingSum / totalReviews : 0,
+            tagCounts,
+            topTags,
           });
         });
         logger.info(
             `Rating updated for artisan ${artisanUid} ` +
-            `(count ${countDelta}, sum ${sumDelta})`);
+            `(count ${countDelta}, sum ${sumDelta}, tags ${tagsChanged})`);
       } catch (e) {
         logger.error(`Rating update failed for ${artisanUid}: ${e}`);
       }
@@ -524,6 +639,9 @@ exports.onMessageCreated = onDocumentCreated(
         body,
         chatId,
       });
+
+      // Alt bar rozeti: tek döküman sayacı (tüm chat listesini dinlemeden).
+      await bumpChatUnreadMeta(recipientUid, chat);
 
       // Push tercih: chat kapalıysa FCM yok (merkez kaydı yukarıda yazıldı).
       await sendPushToUid(
@@ -626,11 +744,9 @@ exports.onJobCreated = onDocumentCreated(
 
       // Not: il adına ek ("'de/'da") ünlü uyumu gerektirdiğinden ekli kalıp
       // kullanılmaz ("İstanbul'de" gibi hatalar oluşuyordu).
-      const urgent = job.isUrgent === true;
       const place = isQuickSupport && jobDistrict ? jobDistrict : province;
       const kind = isQuickSupport ? "Hızlı Destek ilanı" : "iş ilanı";
-      const title = urgent ?
-        `🚨 ${place} bölgesinde acil ${kind}` :
+      const title =
         `${isQuickSupport ? "⚡ " : ""}${place} bölgesinde yeni ${kind}`;
       const district = job.district ? ` · ${job.district}` : "";
       const body = `${job.title || "Yeni ilan"}${district}`;
@@ -1039,7 +1155,9 @@ const DELETED_USER_NAME = "Silinmiş Kullanıcı";
 
 // Storage'da kullanıcıya ait klasör kökleri (storage.rules allowlist'i ile
 // birebir): {klasör}/{uid}/... yolundaki her şey silinir.
-const STORAGE_FOLDERS = ["profile", "work", "job", "certificate", "chat"];
+const STORAGE_FOLDERS = [
+  "profile", "work", "job", "certificate", "chat", "product",
+];
 
 /**
  * Kullanıcının hesabını ve kişisel verilerini KALICI olarak siler.
@@ -1062,7 +1180,7 @@ const STORAGE_FOLDERS = ["profile", "work", "job", "certificate", "chat"];
  *    adım yarıda kalırsa kullanıcı tekrar deneyebilir.
  */
 exports.deleteAccount = onCall(
-    {region: REGION, timeoutSeconds: 300},
+    {...CONSUMER_CALL_OPTS, timeoutSeconds: 300},
     async (request) => {
       const uid = request.auth && request.auth.uid;
       if (!uid) {
@@ -1119,16 +1237,25 @@ exports.deleteAccount = onCall(
         }
       }
 
-      // 3) Verdiği teklifler + iki yönlü takip kayıtları → sil.
+      // 3) Verdiği teklifler + iki yönlü takip kayıtları + eleman modülü → sil.
+      //    Eleman: "iş arıyorum" kartı (worker_{uid}) + tüm eleman ilanları —
+      //    herkese açık kart/ilan, hesap silindikten sonra YAYINDA KALAMAZ
+      //    (KVKK; ayrıca işveren ölü hesaba yazmaya çalışmasın).
       const writer = db.bulkWriter();
-      const [myOffers, favsOut, favsIn] = await Promise.all([
-        db.collection("offers").where("artisanId", "==", uid).get(),
-        db.collection("favorites").where("customerUid", "==", uid).get(),
-        db.collection("favorites").where("artisanUid", "==", uid).get(),
-      ]);
+      const [myOffers, favsOut, favsIn, myStaffNeeds, myProducts] =
+        await Promise.all([
+          db.collection("offers").where("artisanId", "==", uid).get(),
+          db.collection("favorites").where("customerUid", "==", uid).get(),
+          db.collection("favorites").where("artisanUid", "==", uid).get(),
+          db.collection("staffNeeds").where("employerUid", "==", uid).get(),
+          db.collection("products").where("ownerUid", "==", uid).get(),
+        ]);
       myOffers.forEach((d) => writer.delete(d.ref));
       favsOut.forEach((d) => writer.delete(d.ref));
       favsIn.forEach((d) => writer.delete(d.ref));
+      myStaffNeeds.forEach((d) => writer.delete(d.ref));
+      myProducts.forEach((d) => writer.delete(d.ref));
+      writer.delete(db.collection("staffWorkers").doc(`worker_${uid}`));
 
       // 4) Değerlendirmeler: yazdıkları anonim kalır, hakkındakiler silinir
       //    (onReviewWritten profil yoksa toplam güncellemesini zaten atlar).
@@ -1226,6 +1353,30 @@ exports.onArtisanProfileWritten = onDocumentWritten(
     },
 );
 
+// products create/update/delete → productsTotal (yalnız "active" ürünler
+// sayılır; draft/paused/silinen hariç). Ana Sayfa "büyüyor" sayacı için.
+exports.onProductWritten = onDocumentWritten(
+    {document: "products/{productId}", region: REGION},
+    async (event) => {
+      const beforeActive =
+        event.data && event.data.before && event.data.before.exists &&
+        event.data.before.data().status === "active";
+      const afterActive =
+        event.data && event.data.after && event.data.after.exists &&
+        event.data.after.data().status === "active";
+      try {
+        if (!beforeActive && afterActive) {
+          await applyStatsDelta({productsTotal: 1});
+          await bumpDaily("productsActivated", 1);
+        } else if (beforeActive && !afterActive) {
+          await applyStatsDelta({productsTotal: -1});
+        }
+      } catch (e) {
+        logger.warn(`adminStats product: ${e}`);
+      }
+    },
+);
+
 // openReports tek kaynak: reports onWrite (resolve CF sayaç yazmaz).
 exports.onReportWritten = onDocumentWritten(
     {document: "reports/{reportId}", region: REGION},
@@ -1242,6 +1393,33 @@ exports.onReportWritten = onDocumentWritten(
       } catch (e) {
         logger.warn(`adminStats report: ${e}`);
       }
+    },
+);
+
+// Eleman ilanı tavanı: kullanıcı başına en fazla bu kadar AÇIK ilan.
+// Kural sayım yapamaz; istemci dostça engeller (staff_need_edit_screen),
+// burası kötü niyetli/eski istemciye karşı sunucu güvencesi: tavan aşan
+// ilan oluşur oluşmaz SİLİNİR (spam listede kalmaz).
+const MAX_OPEN_STAFF_NEEDS = 5;
+
+exports.onStaffNeedCreated = onDocumentCreated(
+    {document: "staffNeeds/{needId}", region: REGION},
+    async (event) => {
+      const need = event.data && event.data.data();
+      if (!need || need.status !== "open") return;
+      const uid = need.employerUid;
+      if (!uid) return;
+      const agg = await db.collection("staffNeeds")
+          .where("employerUid", "==", uid)
+          .where("status", "==", "open")
+          .count()
+          .get();
+      const openCount = agg.data().count;
+      if (openCount <= MAX_OPEN_STAFF_NEEDS) return;
+      await event.data.ref.delete();
+      logger.warn(
+          `staffNeeds tavanı: ${uid} açık=${openCount} → ` +
+          `${event.params.needId} silindi`);
     },
 );
 
@@ -1266,6 +1444,7 @@ exports.adminRebuildStats = onCall(
         usersTotal: 0,
         usersSuspended: 0,
         artisansTotal: 0,
+        productsTotal: 0,
         jobsOpen: 0,
         jobsInProgress: 0,
         jobsCompleted: 0,
@@ -1302,6 +1481,21 @@ exports.adminRebuildStats = onCall(
         if (snap.empty) break;
         counts.artisansTotal += snap.size;
         lastArt = snap.docs[snap.docs.length - 1];
+        if (snap.size < 400) break;
+      }
+
+      // products (yalnız "active" olanlar sayılır — onProductWritten paritesi)
+      let lastProd = null;
+      for (;;) {
+        let q = db.collection("products")
+            .orderBy(admin.firestore.FieldPath.documentId()).limit(400);
+        if (lastProd) q = q.startAfter(lastProd);
+        const snap = await q.get();
+        if (snap.empty) break;
+        for (const d of snap.docs) {
+          if (d.data().status === "active") counts.productsTotal++;
+        }
+        lastProd = snap.docs[snap.docs.length - 1];
         if (snap.size < 400) break;
       }
 
@@ -2014,6 +2208,47 @@ exports.adminSetUserSuspended = onCall(
         }
       }
 
+      // Askıya alınan kullanıcının HERKESE AÇIK eleman içeriği yayından düşer:
+      // "iş arıyorum" kartı kapatılır + açık eleman ilanları kapatılır (askı
+      // yeni içeriği zaten engelliyordu; mevcut yayın da kalmasın). Askı
+      // kalkınca otomatik geri AÇILMAZ — kullanıcı kendisi yeniden açar.
+      if (suspended) {
+        try {
+          await db.collection("staffWorkers").doc(`worker_${uid}`).update({
+            openToWork: false,
+            updatedAt: new Date().toISOString(),
+          });
+        } catch (e) {
+          // Kart yoksa atla (zararsız).
+        }
+        try {
+          const openNeeds = await db.collection("staffNeeds")
+              .where("employerUid", "==", uid)
+              .where("status", "==", "open")
+              .get();
+          if (!openNeeds.empty) {
+            const batch = db.batch();
+            openNeeds.forEach((d) => batch.update(d.ref, {status: "closed"}));
+            await batch.commit();
+            logger.info(
+                `suspend ${uid}: ${openNeeds.size} eleman ilanı kapatıldı`);
+          }
+        } catch (e) {
+          logger.warn(`suspend staffing cleanup skipped for ${uid}: ${e}`);
+        }
+        try {
+          await cascadeProductsHideBits(uid, "hiddenByUserSuspend", true);
+        } catch (e) {
+          logger.warn(`suspend product cascade skipped for ${uid}: ${e}`);
+        }
+      } else {
+        try {
+          await cascadeProductsHideBits(uid, "hiddenByUserSuspend", false);
+        } catch (e) {
+          logger.warn(`unsuspend product cascade skipped for ${uid}: ${e}`);
+        }
+      }
+
       await writeAuditLog({
         actorUid: auth.uid,
         action: suspended ? "suspend_user" : "unsuspend_user",
@@ -2126,6 +2361,51 @@ exports.adminModerateJob = onCall(
     },
 );
 
+// Eleman modülü moderasyonu: "iş arıyorum" kartı / eleman ilanı gizle-göster.
+// Kurallar bu alanları istemciye kapatır (yalnız Admin SDK yazar); istemci
+// listeleri moderationHidden=true kayıtları göstermez.
+exports.adminModerateStaffing = onCall(
+    {region: REGION},
+    async (request) => {
+      const auth = request.auth;
+      await assertCap(auth, "jobs.moderate");
+      const {targetType, targetId, decision, note} = request.data || {};
+      const collections = {
+        staffWorker: "staffWorkers",
+        staffNeed: "staffNeeds",
+      };
+      const allowed = ["hide", "unhide"];
+      if (!collections[targetType] || typeof targetId !== "string" ||
+          !targetId.trim() || !allowed.includes(decision)) {
+        throw new HttpsError("invalid-argument", "Geçersiz istek.");
+      }
+      const ref = db.collection(collections[targetType]).doc(targetId.trim());
+      const snap = await ref.get();
+      if (!snap.exists) {
+        throw new HttpsError("not-found", "Kayıt bulunamadı.");
+      }
+      const before = snap.data() || {};
+      const patch = {
+        moderationHidden: decision === "hide",
+        moderatedBy: auth.uid,
+        moderatedAt: new Date().toISOString(),
+      };
+      if (typeof note === "string" && note.trim()) {
+        patch.adminModerationNote = note.trim().slice(0, 300);
+      }
+      await ref.set(patch, {merge: true});
+      await writeAuditLog({
+        actorUid: auth.uid,
+        action: "moderate_staffing",
+        targetType,
+        targetId: targetId.trim(),
+        before: {moderationHidden: before.moderationHidden === true},
+        after: {decision, ...patch},
+      });
+      return {ok: true, decision};
+    },
+);
+
 // Usta bayrakları: adminVerified / featured / moderationHidden.
 exports.adminSetArtisanFlags = onCall(
     {region: REGION},
@@ -2157,6 +2437,15 @@ exports.adminSetArtisanFlags = onCall(
       }
       const before = snap.data() || {};
       await ref.set(patch, {merge: true});
+      // Usta profil gizle/göster → ürünler hiddenByArtisanHide cascade (K9).
+      if (typeof moderationHidden === "boolean") {
+        try {
+          await cascadeProductsHideBits(
+              uid.trim(), "hiddenByArtisanHide", moderationHidden);
+        } catch (e) {
+          logger.warn(`artisan hide product cascade: ${e}`);
+        }
+      }
       await writeAuditLog({
         actorUid: auth.uid,
         action: "set_artisan_flags",
@@ -2441,14 +2730,38 @@ async function uidsByProvince(province) {
 }
 
 const BROADCAST_AUDIENCES = [
-  "all", "artisans", "customers", "profession", "province",
+  "all", "artisans", "customers", "profession", "province", "user",
 ];
 
 /**
  * Kitle → uid listesi (max 300).
+ * audience=user: targetUid veya targetEmail (Auth) ile tek alıcı.
  * @return {Promise<string[]>}
  */
-async function resolveBroadcastUids(aud, profession, province) {
+async function resolveBroadcastUids(
+    aud, profession, province, targetUid, targetEmail) {
+  if (aud === "user") {
+    const uidRaw = (targetUid && String(targetUid).trim()) || "";
+    const emailRaw = (targetEmail && String(targetEmail).trim()) || "";
+    if (uidRaw) {
+      const snap = await db.collection("users").doc(uidRaw).get();
+      if (!snap.exists) {
+        throw new HttpsError("not-found", "UID ile kullanıcı bulunamadı.");
+      }
+      return [uidRaw];
+    }
+    if (emailRaw) {
+      try {
+        const user = await admin.auth().getUserByEmail(emailRaw.toLowerCase());
+        return [user.uid];
+      } catch (e) {
+        throw new HttpsError(
+            "not-found", "Bu e-posta ile kayıtlı kullanıcı yok.");
+      }
+    }
+    throw new HttpsError(
+        "invalid-argument", "Tek kişi için targetUid veya targetEmail gerekli.");
+  }
   if (aud === "profession") {
     return uidsByProfession(profession);
   }
@@ -2481,6 +2794,8 @@ async function executeBroadcastFanout({
   audience,
   profession,
   province,
+  targetUid,
+  targetEmail,
   sendPush,
   actorUid,
   source,
@@ -2489,7 +2804,8 @@ async function executeBroadcastFanout({
   const b = String(body || "").trim().slice(0, 500);
   const aud = audience || "all";
   const doPush = sendPush === true;
-  const uids = await resolveBroadcastUids(aud, profession, province);
+  const uids = await resolveBroadcastUids(
+      aud, profession, province, targetUid, targetEmail);
   const broadcastId = `bc_${Date.now()}_${String(actorUid || "sys").slice(0, 6)}`;
   let inApp = 0;
   let pushOk = 0;
@@ -2503,6 +2819,7 @@ async function executeBroadcastFanout({
       audience: aud,
       profession: profession || null,
       province: province || null,
+      targetUid: aud === "user" ? uid : null,
     });
     inApp++;
     if (doPush) {
@@ -2548,12 +2865,22 @@ function parseBroadcastPayload(data) {
   if (audience === "province" && !province) {
     throw new HttpsError("invalid-argument", "province gerekli.");
   }
+  const targetUid = (typeof patch.targetUid === "string") ?
+    patch.targetUid.trim() : "";
+  const targetEmail = (typeof patch.targetEmail === "string") ?
+    patch.targetEmail.trim() : "";
+  if (audience === "user" && !targetUid && !targetEmail) {
+    throw new HttpsError(
+        "invalid-argument", "Tek kişi için targetUid veya targetEmail gerekli.");
+  }
   return {
     title,
     body,
     audience,
     profession: profession || null,
     province: province || null,
+    targetUid: targetUid || null,
+    targetEmail: targetEmail || null,
     sendPush: patch.sendPush === true,
   };
 }
@@ -2777,6 +3104,8 @@ exports.processScheduledCampaigns = onSchedule(
             audience: c.audience || "all",
             profession: c.profession,
             province: c.province,
+            targetUid: c.targetUid,
+            targetEmail: c.targetEmail,
             sendPush: c.sendPush === true,
             actorUid: c.createdBy || "scheduler",
             source: "scheduled_campaign",
@@ -2816,7 +3145,7 @@ exports.processScheduledCampaigns = onSchedule(
  * Kullanıcı destek talebi oluşturur.
  */
 exports.createSupportTicket = onCall(
-    {region: REGION},
+    CONSUMER_CALL_OPTS,
     async (request) => {
       const auth = request.auth;
       if (!auth) {
@@ -2834,6 +3163,36 @@ exports.createSupportTicket = onCall(
       }
       const cat = (typeof category === "string" && category.trim()) ?
         category.trim().slice(0, 40) : "general";
+
+      // Hız sınırı (spam/maliyet): kullanıcı başına 2 dk'da 1, günde 10 talep.
+      // Sayaç `adminRateLimits/support_{uid}` — istemci okuyamaz/yazamaz
+      // (rules). Transaction: eşzamanlı çift istekte sayaç tutarlı kalır.
+      const rlRef = db.collection("adminRateLimits")
+          .doc(`support_${auth.uid}`);
+      const day = istanbulDayKey();
+      await db.runTransaction(async (tx) => {
+        const snap = await tx.get(rlRef);
+        const d = snap.exists ? (snap.data() || {}) : {};
+        const lastMs = Number(d.lastAtMs || 0);
+        const dayCount = d.dayKey === day ? Number(d.dayCount || 0) : 0;
+        if (lastMs && Date.now() - lastMs < 2 * 60 * 1000) {
+          throw new HttpsError(
+              "resource-exhausted",
+              "Çok sık talep gönderdiniz. Birkaç dakika sonra tekrar deneyin.");
+        }
+        if (dayCount >= 10) {
+          throw new HttpsError(
+              "resource-exhausted",
+              "Günlük destek talebi sınırına ulaştınız. " +
+              "Yarın tekrar deneyebilirsiniz.");
+        }
+        tx.set(rlRef, {
+          lastAtMs: Date.now(),
+          dayKey: day,
+          dayCount: dayCount + 1,
+        }, {merge: true});
+      });
+
       const email = (auth.token.email && String(auth.token.email)) || null;
       const ref = await db.collection("supportTickets").add({
         uid: auth.uid,
@@ -3257,7 +3616,7 @@ async function grantArtisanPremium(uid, {
  * Başarı: artisanProfiles.isPremium + premiumExpiresAt (yalnız sunucu).
  */
 exports.verifyMembershipPurchase = onCall(
-    {region: REGION},
+    CONSUMER_CALL_OPTS,
     async (request) => {
       const auth = request.auth;
       if (!auth) {
@@ -3338,5 +3697,475 @@ exports.verifyMembershipPurchase = onCall(
           : null,
         state: verified.state,
       };
+    },
+);
+
+// ---------------------------------------------------------------------------
+// Ke�fet �r�nler (PRD-006) � publish / content requeue / moderate / cascade
+// ---------------------------------------------------------------------------
+
+function recomputeModerationHidden(d) {
+  return d.hiddenByModeration === true ||
+    d.hiddenByUserSuspend === true ||
+    d.hiddenByArtisanHide === true;
+}
+
+function foldTrSearchJs(s) {
+  return String(s || "")
+      .replace(/�/g, "i").replace(/I/g, "i").replace(/�/g, "i")
+      .replace(/�/g, "s").replace(/�/g, "s")
+      .replace(/�/g, "g").replace(/�/g, "g")
+      .replace(/�/g, "u").replace(/�/g, "u")
+      .replace(/�/g, "o").replace(/�/g, "o")
+      .replace(/�/g, "c").replace(/�/g, "c")
+      .toLowerCase();
+}
+
+const PRODUCT_CONTACT_RE =
+  /(@[A-Za-z0-9._]{3,})|(\+?\d[\d\s\-()]{8,}\d)|([A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,})|(whatsapp|telegram|instagram|http:\/\/|https:\/\/|www\.)/i;
+
+/**
+ * Usta �r�n�n� yay�nlar (draft/pending � active|pending_review).
+ * Hide bit'lerini TEM�ZLEMEZ (K33 recompute).
+ */
+exports.publishProduct = onCall(
+    CONSUMER_CALL_OPTS,
+    async (request) => {
+      const auth = request.auth;
+      if (!auth) {
+        throw new HttpsError("unauthenticated", "Oturum gerekli.");
+      }
+      if (auth.token.suspended === true) {
+        throw new HttpsError("permission-denied", "Hesap ask�da.");
+      }
+      const productId = (request.data && request.data.productId) || "";
+      if (typeof productId !== "string" || !productId.trim()) {
+        throw new HttpsError("invalid-argument", "productId gerekli.");
+      }
+      const ref = db.collection("products").doc(productId.trim());
+      const snap = await ref.get();
+      if (!snap.exists) {
+        throw new HttpsError("not-found", "�r�n bulunamad�.");
+      }
+      const d = snap.data() || {};
+      if (d.ownerUid !== auth.uid) {
+        throw new HttpsError("permission-denied", "Bu �r�n size ait de�il.");
+      }
+      if (d.status !== "draft" && d.status !== "pending_review") {
+        throw new HttpsError(
+            "failed-precondition",
+            "Yaln�z taslak veya incelemedeki �r�n yay�nlanabilir.",
+        );
+      }
+      const title = String(d.title || "").trim();
+      const description = String(d.description || "").trim();
+      const photos = Array.isArray(d.photos) ? d.photos : [];
+      const categoryCode = String(d.categoryCode || "").trim();
+      const province = String(d.province || "").trim();
+      if (title.length < 3 || title.length > 80 ||
+          description.length < 10 || description.length > 2000 ||
+          !categoryCode || photos.length < 1 || photos.length > 8 ||
+          !province) {
+        throw new HttpsError(
+            "failed-precondition",
+            "Yay�n i�in zorunlu alanlar eksik veya ge�ersiz.",
+        );
+      }
+      if (d.priceType !== "negotiable") {
+        const amt = Number(d.priceAmount);
+        if (!(amt > 0)) {
+          throw new HttpsError(
+              "failed-precondition",
+              "Sabit/ba�lang�� fiyat� gerekli.",
+          );
+        }
+      }
+
+      // Rate limit: 10 / Istanbul day + 30s burst
+      const rlRef = db.collection("adminRateLimits")
+          .doc(`product_publish_${auth.uid}`);
+      const day = istanbulDayKey();
+      await db.runTransaction(async (tx) => {
+        const rlSnap = await tx.get(rlRef);
+        const r = rlSnap.exists ? (rlSnap.data() || {}) : {};
+        const lastMs = Number(r.lastAtMs || 0);
+        const dayCount = r.dayKey === day ? Number(r.dayCount || 0) : 0;
+        if (lastMs && Date.now() - lastMs < 30 * 1000) {
+          throw new HttpsError(
+              "resource-exhausted",
+              "�ok s�k yay�n denemesi. Biraz sonra tekrar deneyin.",
+          );
+        }
+        if (dayCount >= 10) {
+          throw new HttpsError(
+              "resource-exhausted",
+              "G�nl�k �r�n yay�n limitine ula�t�n�z (10). Yar�n tekrar deneyin.",
+          );
+        }
+        tx.set(rlRef, {
+          lastAtMs: Date.now(),
+          dayKey: day,
+          dayCount: dayCount + 1,
+        }, {merge: true});
+      });
+
+      // Active cap
+      const activeQ = await db.collection("products")
+          .where("ownerUid", "==", auth.uid)
+          .where("status", "in", ["active", "paused", "out_of_stock"])
+          .limit(51)
+          .get();
+      if (activeQ.size >= 50 && d.status === "draft") {
+        throw new HttpsError(
+            "failed-precondition",
+            "En fazla 50 aktif/duraklat�lm�� �r�n tutabilirsiniz.",
+        );
+      }
+
+      // Force review config
+      let forceReview = false;
+      try {
+        const cfg = await db.collection("adminConfig").doc("runtime").get();
+        forceReview = cfg.exists &&
+          cfg.data() && cfg.data().productsForceReview === true;
+      } catch (_) { /* ignore */ }
+
+      const contactHit = PRODUCT_CONTACT_RE.test(title + " " + description);
+      let nextStatus = "active";
+      let moderationNote = null;
+      if (forceReview || contactHit) {
+        nextStatus = "pending_review";
+        if (contactHit) moderationNote = "auto_contact_pattern";
+      }
+
+      const bits = {
+        hiddenByModeration: d.hiddenByModeration === true,
+        hiddenByUserSuspend: d.hiddenByUserSuspend === true,
+        hiddenByArtisanHide: d.hiddenByArtisanHide === true,
+      };
+      const now = new Date().toISOString();
+      const patch = {
+        status: nextStatus,
+        moderationHidden: recomputeModerationHidden(bits),
+        updatedAt: now,
+        titleFold: foldTrSearchJs(title),
+      };
+      if (!d.publishedAt) patch.publishedAt = now;
+      if (moderationNote) patch.moderationNote = moderationNote;
+
+      await ref.set(patch, {merge: true});
+      return {
+        ok: true,
+        status: nextStatus,
+        moderationHidden: patch.moderationHidden,
+      };
+    },
+);
+
+/**
+ * Yay�ndaki �r�n i�eri�ini g�nceller � her zaman pending_review (K4/K33).
+ */
+exports.updateProductContent = onCall(
+    CONSUMER_CALL_OPTS,
+    async (request) => {
+      const auth = request.auth;
+      if (!auth) {
+        throw new HttpsError("unauthenticated", "Oturum gerekli.");
+      }
+      if (auth.token.suspended === true) {
+        throw new HttpsError("permission-denied", "Hesap ask�da.");
+      }
+      const data = request.data || {};
+      const productId = data.productId;
+      if (typeof productId !== "string" || !productId.trim()) {
+        throw new HttpsError("invalid-argument", "productId gerekli.");
+      }
+      const title = String(data.title || "").trim();
+      const description = String(data.description || "").trim();
+      const categoryCode = String(data.categoryCode || "").trim();
+      const photos = Array.isArray(data.photos) ? data.photos : [];
+      if (title.length < 3 || title.length > 80 ||
+          description.length < 10 || description.length > 2000 ||
+          !categoryCode || photos.length < 1 || photos.length > 8) {
+        throw new HttpsError("invalid-argument", "��erik alanlar� ge�ersiz.");
+      }
+      const ref = db.collection("products").doc(productId.trim());
+      const snap = await ref.get();
+      if (!snap.exists) {
+        throw new HttpsError("not-found", "�r�n bulunamad�.");
+      }
+      const d = snap.data() || {};
+      if (d.ownerUid !== auth.uid) {
+        throw new HttpsError("permission-denied", "Bu �r�n size ait de�il.");
+      }
+      if (d.status === "draft" || d.status === "removed") {
+        throw new HttpsError(
+            "failed-precondition",
+            "Taslak i�eri�i do�rudan kaydedin; kald�r�lm�� �r�n d�zenlenemez.",
+        );
+      }
+      const bits = {
+        hiddenByModeration: d.hiddenByModeration === true,
+        hiddenByUserSuspend: d.hiddenByUserSuspend === true,
+        hiddenByArtisanHide: d.hiddenByArtisanHide === true,
+      };
+      const now = new Date().toISOString();
+      await ref.set({
+        title,
+        titleFold: foldTrSearchJs(title),
+        description,
+        categoryCode,
+        photos,
+        status: "pending_review",
+        moderationHidden: recomputeModerationHidden(bits),
+        updatedAt: now,
+      }, {merge: true});
+      return {ok: true, status: "pending_review"};
+    },
+);
+
+/**
+ * Admin �r�n moderasyonu.
+ */
+exports.adminModerateProduct = onCall(
+    {region: REGION},
+    async (request) => {
+      const auth = request.auth;
+      const data = request.data || {};
+      const decision = data.decision;
+      const productId = data.productId;
+      const note = typeof data.note === "string" ? data.note.trim() : "";
+
+      if (typeof productId !== "string" || !productId.trim()) {
+        throw new HttpsError("invalid-argument", "productId gerekli.");
+      }
+      const allowed = [
+        "hide", "unhide", "approve", "reject", "force_remove", "hard_purge",
+      ];
+      if (!allowed.includes(decision)) {
+        throw new HttpsError("invalid-argument", "Ge�ersiz karar.");
+      }
+      if (decision === "hard_purge") {
+        if (auth && auth.token.role === "superadmin") {
+          // ok
+        } else {
+          await assertCap(auth, "products.purge");
+        }
+      } else {
+        await assertCap(auth, "products.moderate");
+      }
+
+      const ref = db.collection("products").doc(productId.trim());
+      const snap = await ref.get();
+      if (!snap.exists) {
+        throw new HttpsError("not-found", "�r�n bulunamad�.");
+      }
+      const d = snap.data() || {};
+      const now = new Date().toISOString();
+      const bits = {
+        hiddenByModeration: d.hiddenByModeration === true,
+        hiddenByUserSuspend: d.hiddenByUserSuspend === true,
+        hiddenByArtisanHide: d.hiddenByArtisanHide === true,
+      };
+
+      if (decision === "hard_purge") {
+        try {
+          const bucket = admin.storage().bucket();
+          await bucket.deleteFiles({
+            prefix: `product/${d.ownerUid}/${productId.trim()}`,
+          });
+        } catch (e) {
+          logger.warn(`product hard_purge storage: ${e}`);
+        }
+        await ref.delete();
+        await writeAuditLog({
+          actorUid: auth.uid,
+          action: "moderate_product",
+          targetType: "product",
+          targetId: productId.trim(),
+          before: {status: d.status, moderationHidden: d.moderationHidden},
+          after: {decision: "hard_purge"},
+        });
+        return {ok: true, decision};
+      }
+
+      const patch = {
+        moderatedBy: auth.uid,
+        moderatedAt: now,
+        updatedAt: now,
+      };
+      if (note) patch.adminModerationNote = note.slice(0, 300);
+
+      if (decision === "hide") {
+        bits.hiddenByModeration = true;
+        patch.hiddenByModeration = true;
+      } else if (decision === "unhide") {
+        bits.hiddenByModeration = false;
+        patch.hiddenByModeration = false;
+      } else if (decision === "approve") {
+        if (d.status === "pending_review") patch.status = "active";
+        if (!d.publishedAt) patch.publishedAt = now;
+        patch.moderationNote = admin.firestore.FieldValue.delete();
+      } else if (decision === "reject") {
+        patch.status = "draft";
+        if (note) patch.moderationNote = note.slice(0, 300);
+      } else if (decision === "force_remove") {
+        bits.hiddenByModeration = true;
+        patch.hiddenByModeration = true;
+        patch.status = "removed";
+        patch.removedBy = "admin";
+        patch.removedAt = now;
+        if (note) patch.removedReason = note.slice(0, 300);
+      }
+      patch.moderationHidden = recomputeModerationHidden(bits);
+
+      await ref.set(patch, {merge: true});
+
+      // Notify owner on reject / force_remove
+      if ((decision === "reject" || decision === "force_remove") &&
+          d.ownerUid) {
+        const t = decision === "reject" ?
+          "�r�n yay�n� reddedildi" : "�r�n kald�r�ld�";
+        const b = decision === "reject" ?
+          `"${d.title || "�r�n"}" tasla�a al�nd�. D�zenleyip yeniden yay�nlay�n.` :
+          `"${d.title || "�r�n"}" y�netim taraf�ndan kald�r�ld�.`;
+        try {
+          await saveNotification(d.ownerUid, `product_${productId.trim()}`, {
+            type: "product",
+            title: t,
+            body: b,
+            productId: productId.trim(),
+          });
+          await sendPushToUid(d.ownerUid, t, b, {
+            type: "product",
+            productId: productId.trim(),
+          });
+        } catch (e) {
+          logger.warn(`product moderate notify: ${e}`);
+        }
+      }
+
+      await writeAuditLog({
+        actorUid: auth.uid,
+        action: "moderate_product",
+        targetType: "product",
+        targetId: productId.trim(),
+        before: {
+          status: d.status,
+          moderationHidden: d.moderationHidden === true,
+        },
+        after: {decision, ...patch},
+      });
+      return {ok: true, decision, moderationHidden: patch.moderationHidden};
+    },
+);
+
+/**
+ * Ask�ya alma / usta gizleme cascade � �r�n hide bits.
+ */
+async function cascadeProductsHideBits(ownerUid, bitField, value) {
+  const qs = await db.collection("products")
+      .where("ownerUid", "==", ownerUid)
+      .limit(100)
+      .get();
+  if (qs.empty) return;
+  const batch = db.batch();
+  const now = new Date().toISOString();
+  qs.docs.forEach((doc) => {
+    const d = doc.data() || {};
+    const bits = {
+      hiddenByModeration: d.hiddenByModeration === true,
+      hiddenByUserSuspend: d.hiddenByUserSuspend === true,
+      hiddenByArtisanHide: d.hiddenByArtisanHide === true,
+    };
+    bits[bitField] = value === true;
+    const patch = {
+      [bitField]: value === true,
+      moderationHidden: recomputeModerationHidden(bits),
+      updatedAt: now,
+    };
+    batch.set(doc.ref, patch, {merge: true});
+  });
+  await batch.commit();
+}
+
+// Report auto-hide for products (threshold 3 unique reporters).
+exports.onProductReportWritten = onDocumentWritten(
+    {document: "reports/{reportId}", region: REGION},
+    async (event) => {
+      const before =
+        event.data && event.data.before && event.data.before.exists;
+      const after =
+        event.data && event.data.after && event.data.after.exists;
+      if (before || !after) return; // only create
+      const r = event.data.after.data() || {};
+      if (r.targetType !== "product") return;
+      const productId = r.targetId;
+      if (!productId) return;
+      const ref = db.collection("products").doc(productId);
+      try {
+        await db.runTransaction(async (tx) => {
+          const snap = await tx.get(ref);
+          if (!snap.exists) return;
+          const d = snap.data() || {};
+          const count = Number(d.reportCount || 0) + 1;
+          const bits = {
+            hiddenByModeration: d.hiddenByModeration === true,
+            hiddenByUserSuspend: d.hiddenByUserSuspend === true,
+            hiddenByArtisanHide: d.hiddenByArtisanHide === true,
+          };
+          const patch = {
+            reportCount: count,
+            updatedAt: new Date().toISOString(),
+          };
+          if (count >= 3) {
+            bits.hiddenByModeration = true;
+            patch.hiddenByModeration = true;
+            patch.moderationHidden = true;
+            patch.moderatedBy = "system";
+            patch.moderatedAt = new Date().toISOString();
+            patch.adminModerationNote = "auto_hide_report_threshold";
+          } else {
+            patch.moderationHidden = recomputeModerationHidden(bits);
+          }
+          tx.set(ref, patch, {merge: true});
+        });
+      } catch (e) {
+        logger.warn(`onProductReportWritten: ${e}`);
+      }
+    },
+);
+
+// Soft-delete purge (30 days)
+exports.purgeRemovedProducts = onSchedule(
+    {
+      schedule: "every 24 hours",
+      region: REGION,
+      timeZone: "Europe/Istanbul",
+    },
+    async () => {
+      const cutoff = new Date(
+          Date.now() - 30 * 24 * 60 * 60 * 1000,
+      ).toISOString();
+      const qs = await db.collection("products")
+          .where("status", "==", "removed")
+          .where("removedAt", "<=", cutoff)
+          .limit(50)
+          .get();
+      for (const doc of qs.docs) {
+        const d = doc.data() || {};
+        try {
+          if (d.ownerUid) {
+            const bucket = admin.storage().bucket();
+            await bucket.deleteFiles({
+              prefix: `product/${d.ownerUid}/${doc.id}`,
+            });
+          }
+        } catch (e) {
+          logger.warn(`purge product storage ${doc.id}: ${e}`);
+        }
+        await doc.ref.delete();
+        logger.info(`purged product ${doc.id}`);
+      }
     },
 );
