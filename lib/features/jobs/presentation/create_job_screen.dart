@@ -57,7 +57,9 @@ class _CreateJobScreenState extends ConsumerState<CreateJobScreen> {
   Future<void> _pickPhoto() async {
     if (_uploadingPhoto) return; // aynı anda tek yükleme
     if (_photos.length >= AppConstants.maxJobPhotos) {
-      context.showInfo('En fazla ${AppConstants.maxJobPhotos} fotoğraf ekleyebilirsiniz.');
+      context.showInfo(
+        'En fazla ${AppConstants.maxJobPhotos} fotoğraf ekleyebilirsiniz.',
+      );
       return;
     }
     final XFile? file;
@@ -89,7 +91,8 @@ class _CreateJobScreenState extends ConsumerState<CreateJobScreen> {
     } catch (_) {
       if (mounted) {
         context.showError(
-            'Görsel yüklenemedi. Bağlantınızı kontrol edip tekrar deneyin.');
+          'Görsel yüklenemedi. Bağlantınızı kontrol edip tekrar deneyin.',
+        );
       }
     } finally {
       if (mounted) setState(() => _uploadingPhoto = false);
@@ -153,7 +156,8 @@ class _CreateJobScreenState extends ConsumerState<CreateJobScreen> {
       await AppAnalytics.createJob(category: job.category);
       if (!mounted) return;
       context.showSuccess(
-          'İlanınız yayında 🎉 Bölgenizdeki ustalar haberdar ediliyor.');
+        'İlanınız yayında 🎉 Bölgenizdeki ustalar haberdar ediliyor.',
+      );
       context.go(RoutePaths.myJobs);
     } catch (e) {
       if (!mounted) return;
@@ -162,9 +166,10 @@ class _CreateJobScreenState extends ConsumerState<CreateJobScreen> {
       if (msg.contains('permission-denied') ||
           msg.contains('PERMISSION_DENIED')) {
         context.showError(
-            'İlan yayınlanamadı. Olası nedenler: e-posta doğrulanmamış, '
-            'hesap askıda veya güvenlik (App Check) jetonu eksik. '
-            'Profil → E-posta doğrula; debug build ise App Check token ekleyin.');
+          'İlan yayınlanamadı. Olası nedenler: e-posta doğrulanmamış, '
+          'hesap askıda veya güvenlik (App Check) jetonu eksik. '
+          'Profil → E-posta doğrula; debug build ise App Check token ekleyin.',
+        );
       } else {
         context.showError('İlan yayınlanamadı, tekrar deneyin.');
       }
@@ -173,250 +178,278 @@ class _CreateJobScreenState extends ConsumerState<CreateJobScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: const GradientAppBar(
-        title: 'İş İlanı Ver',
-        subtitle: 'Bölgenizdeki ustalara anında duyurulur',
-        icon: Icons.campaign_outlined,
-      ),
-      // Yayınla butonu altta sabit: uzun formda kaydırmadan hep erişilir.
-      bottomNavigationBar: Container(
-        decoration: BoxDecoration(
-          color: context.palette.card,
-          border: Border(top: BorderSide(color: context.palette.hairline)),
+    // Fotoğraf yüklenirken veya ilan gönderilirken geri tuşu ekranı
+    // kapatmasın: yükleme yarıda kalır, kullanıcı ilanı kaybettiğini sanır.
+    final busy = _uploadingPhoto || _submitting;
+    return PopScope(
+      canPop: !busy,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop || !mounted) return;
+        context.showInfo(
+          _uploadingPhoto
+              ? 'Fotoğraf yükleniyor, lütfen bekleyin.'
+              : 'İlan yayınlanıyor, lütfen bekleyin.',
+        );
+      },
+      child: Scaffold(
+        appBar: const GradientAppBar(
+          title: 'İş İlanı Ver',
+          subtitle: 'Bölgenizdeki ustalara anında duyurulur',
+          icon: Icons.campaign_outlined,
         ),
-        padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
-        child: SafeArea(
-          top: false,
-          // DİKKAT: burada ResponsiveCenter/Align KULLANILAMAZ — Align,
-          // bottomNavigationBar içinde dikeyde TÜM ekranı kaplar ve gövdeye
-          // 0 yükseklik kalır (form hiç görünmez). heightFactor:1 ile bar
-          // çocuğu kadar yüksek kalır, buton genişliği yine 720 ile sınırlı.
-          child: Center(
-            heightFactor: 1,
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 720),
-              child: AppButton(
-                label: 'İlanı Yayınla',
-                icon: Icons.campaign_outlined,
-                isLoading: _submitting,
-                onPressed: _submit,
+        // Yayınla butonu altta sabit: uzun formda kaydırmadan hep erişilir.
+        bottomNavigationBar: Container(
+          decoration: BoxDecoration(
+            color: context.palette.card,
+            border: Border(top: BorderSide(color: context.palette.hairline)),
+          ),
+          padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+          child: SafeArea(
+            top: false,
+            // DİKKAT: burada ResponsiveCenter/Align KULLANILAMAZ — Align,
+            // bottomNavigationBar içinde dikeyde TÜM ekranı kaplar ve gövdeye
+            // 0 yükseklik kalır (form hiç görünmez). heightFactor:1 ile bar
+            // çocuğu kadar yüksek kalır, buton genişliği yine 720 ile sınırlı.
+            child: Center(
+              heightFactor: 1,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 720),
+                child: AppButton(
+                  label: 'İlanı Yayınla',
+                  icon: Icons.campaign_outlined,
+                  isLoading: _submitting,
+                  onPressed: _submit,
+                ),
               ),
             ),
           ),
         ),
-      ),
-      body: ResponsiveCenter(
-        maxWidth: 720,
-        child: Form(
-          key: _formKey,
-          child: ListView(
-            padding: const EdgeInsets.all(16),
-            children: [
-              _SectionCard(
-                step: 1,
-                title: 'İşi Tanımlayın',
-                subtitle: 'Ne yaptırmak istiyorsunuz?',
-                children: [
-                  _Label('İlan Başlığı'),
-                  TextFormField(
-                    controller: _titleController,
-                    maxLength: AppConstants.maxJobTitleLength,
-                    textCapitalization: TextCapitalization.sentences,
-                    decoration: const InputDecoration(
-                      hintText: 'Örn. Banyo bataryası değişimi',
-                    ),
-                    validator: (v) => Validators.freeText(
-                      v,
-                      min: 5,
-                      max: AppConstants.maxJobTitleLength,
-                      field: 'Başlık',
-                      required: true,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  _Label('Kategori (Meslek)'),
-                  _CategoryDropdown(
-                    value: _category,
-                    onChanged: (c) => setState(() => _category = c),
-                  ),
-                  if (_category == kQuickSupportCategory) ...[
-                    const SizedBox(height: 10),
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: context.palette.warningSurface,
-                        borderRadius: BorderRadius.circular(12),
+        body: ResponsiveCenter(
+          maxWidth: 720,
+          child: Form(
+            key: _formKey,
+            child: ListView(
+              padding: const EdgeInsets.all(16),
+              children: [
+                _SectionCard(
+                  step: 1,
+                  title: 'İşi Tanımlayın',
+                  subtitle: 'Ne yaptırmak istiyorsunuz?',
+                  children: [
+                    _Label('İlan Başlığı'),
+                    TextFormField(
+                      controller: _titleController,
+                      maxLength: AppConstants.maxJobTitleLength,
+                      textCapitalization: TextCapitalization.sentences,
+                      decoration: const InputDecoration(
+                        hintText: 'Örn. Banyo bataryası değişimi',
                       ),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Icon(Icons.bolt,
-                              color: context.palette.warning, size: 20),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Text(
-                              'Hızlı Destek: market, taşıma, kısa gidiş gibi '
-                              'ayak işleri. İlan yalnızca Hızlı Destek '
-                              'hizmeti veren kişilere gider (ilçeniz).',
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .bodySmall
-                                  ?.copyWith(fontWeight: FontWeight.w600),
+                      validator: (v) => Validators.freeText(
+                        v,
+                        min: 5,
+                        max: AppConstants.maxJobTitleLength,
+                        field: 'Başlık',
+                        required: true,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    _Label('Kategori (Meslek)'),
+                    _CategoryDropdown(
+                      value: _category,
+                      onChanged: (c) => setState(() => _category = c),
+                    ),
+                    if (_category == kQuickSupportCategory) ...[
+                      const SizedBox(height: 10),
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: context.palette.warningSurface,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Icon(
+                              Icons.bolt,
+                              color: context.palette.warning,
+                              size: 20,
                             ),
-                          ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                'Hızlı Destek: market, taşıma, kısa gidiş gibi '
+                                'ayak işleri. İlan yalnızca Hızlı Destek '
+                                'hizmeti veren kişilere gider (ilçeniz).',
+                                style: Theme.of(context).textTheme.bodySmall
+                                    ?.copyWith(fontWeight: FontWeight.w600),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        'Hızlı örnek seç (başlık + açıklama dolar)',
+                        style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          for (final ex in kQuickSupportExamples)
+                            ActionChip(
+                              avatar: Icon(
+                                Icons.bolt,
+                                size: 16,
+                                color: context.palette.warning,
+                              ),
+                              label: Text(ex.label),
+                              onPressed: () {
+                                setState(() {
+                                  _titleController.text = ex.title;
+                                  _descController.text = ex.description;
+                                });
+                              },
+                            ),
                         ],
                       ),
-                    ),
-                    const SizedBox(height: 12),
-                    Text(
-                      'Hızlı örnek seç (başlık + açıklama dolar)',
-                      style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                            fontWeight: FontWeight.w700,
-                          ),
-                    ),
-                    const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: [
-                        for (final ex in kQuickSupportExamples)
-                          ActionChip(
-                            avatar: Icon(Icons.bolt,
-                                size: 16, color: context.palette.warning),
-                            label: Text(ex.label),
-                            onPressed: () {
-                              setState(() {
-                                _titleController.text = ex.title;
-                                _descController.text = ex.description;
-                              });
-                            },
-                          ),
-                      ],
+                    ],
+                  ],
+                ),
+                const SizedBox(height: 14),
+
+                _SectionCard(
+                  step: 2,
+                  title: 'Konum',
+                  subtitle: 'İlan yalnızca bu bölgedeki ustalara gösterilir',
+                  children: [
+                    _LocationPicker(
+                      province: _province,
+                      district: _district,
+                      onProvince: (p) => setState(() {
+                        _province = p;
+                        _district = null;
+                      }),
+                      onDistrict: (d) => setState(() => _district = d),
                     ),
                   ],
-                ],
-              ),
-              const SizedBox(height: 14),
+                ),
+                const SizedBox(height: 14),
 
-              _SectionCard(
-                step: 2,
-                title: 'Konum',
-                subtitle: 'İlan yalnızca bu bölgedeki ustalara gösterilir',
-                children: [
-                  _LocationPicker(
-                    province: _province,
-                    district: _district,
-                    onProvince: (p) => setState(() {
-                      _province = p;
-                      _district = null;
-                    }),
-                    onDistrict: (d) => setState(() => _district = d),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 14),
-
-              _SectionCard(
-                step: 3,
-                title: 'Detaylar',
-                subtitle: 'İyi anlatılan iş, doğru ustayı bulur',
-                children: [
-                  _Label('Açıklama (isteğe bağlı)'),
-                  TextFormField(
-                    controller: _descController,
-                    maxLines: 4,
-                    maxLength: AppConstants.maxJobDescriptionLength,
-                    textCapitalization: TextCapitalization.sentences,
-                    decoration: const InputDecoration(
-                      hintText: 'İsterseniz işi biraz daha anlatın.',
-                      alignLabelWithHint: true,
+                _SectionCard(
+                  step: 3,
+                  title: 'Detaylar',
+                  subtitle: 'İyi anlatılan iş, doğru ustayı bulur',
+                  children: [
+                    _Label('Açıklama (isteğe bağlı)'),
+                    TextFormField(
+                      controller: _descController,
+                      maxLines: 4,
+                      maxLength: AppConstants.maxJobDescriptionLength,
+                      textCapitalization: TextCapitalization.sentences,
+                      decoration: const InputDecoration(
+                        hintText: 'İsterseniz işi biraz daha anlatın.',
+                        alignLabelWithHint: true,
+                      ),
+                      validator: (v) => Validators.freeText(
+                        v,
+                        min: 0,
+                        max: AppConstants.maxJobDescriptionLength,
+                        field: 'Açıklama',
+                        required: false,
+                      ),
                     ),
-                    validator: (v) => Validators.freeText(
-                      v,
-                      min: 0,
-                      max: AppConstants.maxJobDescriptionLength,
-                      field: 'Açıklama',
-                      required: false,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Row(
-                    children: [
-                      Expanded(child: _Label('Fotoğraflar (isteğe bağlı)')),
-                      Text(
-                        '${_photos.length}/${AppConstants.maxJobPhotos}',
-                        style: Theme.of(context)
-                            .textTheme
-                            .bodySmall
-                            ?.copyWith(
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        Expanded(child: _Label('Fotoğraflar (isteğe bağlı)')),
+                        Text(
+                          '${_photos.length}/${AppConstants.maxJobPhotos}',
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(
                                 color: context.palette.inkMuted,
-                                fontWeight: FontWeight.w700),
+                                fontWeight: FontWeight.w700,
+                              ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    _JobPhotos(
+                      handles: _photos,
+                      uploading: _uploadingPhoto,
+                      onAdd: _pickPhoto,
+                      onRemove: (h) => setState(() => _photos.remove(h)),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+
+                _SectionCard(
+                  step: 4,
+                  title: 'Yayın Ayarları',
+                  children: [
+                    _Label('İlan Süresi'),
+                    SizedBox(
+                      width: double.infinity,
+                      child: SegmentedButton<JobDuration>(
+                        segments: const [
+                          ButtonSegment(
+                            value: JobDuration.day1,
+                            label: Text('24 saat'),
+                          ),
+                          ButtonSegment(
+                            value: JobDuration.day3,
+                            label: Text('3 gün'),
+                          ),
+                          ButtonSegment(
+                            value: JobDuration.day7,
+                            label: Text('7 gün'),
+                          ),
+                        ],
+                        selected: {_duration},
+                        showSelectedIcon: false,
+                        onSelectionChanged: (s) =>
+                            setState(() => _duration = s.first),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+
+                Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: context.palette.infoSurface,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.info_outline,
+                        color: context.palette.info,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          'İlgilenen ustalar sizinle doğrudan iletişime geçecek; '
+                          'fiyatı ve ayrıntıları sohbette konuşabilirsiniz.',
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(
+                                color: context.palette.info,
+                                fontWeight: FontWeight.w600,
+                              ),
+                        ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 4),
-                  _JobPhotos(
-                    handles: _photos,
-                    uploading: _uploadingPhoto,
-                    onAdd: _pickPhoto,
-                    onRemove: (h) => setState(() => _photos.remove(h)),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 14),
-
-              _SectionCard(
-                step: 4,
-                title: 'Yayın Ayarları',
-                children: [
-                  _Label('İlan Süresi'),
-                  SizedBox(
-                    width: double.infinity,
-                    child: SegmentedButton<JobDuration>(
-                      segments: const [
-                        ButtonSegment(
-                            value: JobDuration.day1, label: Text('24 saat')),
-                        ButtonSegment(
-                            value: JobDuration.day3, label: Text('3 gün')),
-                        ButtonSegment(
-                            value: JobDuration.day7, label: Text('7 gün')),
-                      ],
-                      selected: {_duration},
-                      showSelectedIcon: false,
-                      onSelectionChanged: (s) =>
-                          setState(() => _duration = s.first),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-
-              Container(
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: context.palette.infoSurface,
-                  borderRadius: BorderRadius.circular(12),
                 ),
-                child: Row(
-                  children: [
-                    Icon(Icons.info_outline,
-                        color: context.palette.info, size: 20),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        'İlgilenen ustalar sizinle doğrudan iletişime geçecek; '
-                        'fiyatı ve ayrıntıları sohbette konuşabilirsiniz.',
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: context.palette.info,
-                            fontWeight: FontWeight.w600),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 8),
-            ],
+                const SizedBox(height: 8),
+              ],
+            ),
           ),
         ),
       ),
@@ -478,13 +511,19 @@ class _SectionCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(title,
-                        style: theme.textTheme.titleMedium
-                            ?.copyWith(fontWeight: FontWeight.w800)),
+                    Text(
+                      title,
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
                     if (subtitle != null)
-                      Text(subtitle!,
-                          style: theme.textTheme.bodySmall
-                              ?.copyWith(color: palette.inkMuted)),
+                      Text(
+                        subtitle!,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: palette.inkMuted,
+                        ),
+                      ),
                   ],
                 ),
               ),
@@ -582,7 +621,9 @@ class _LocationPicker extends ConsumerWidget {
             onSelected: (_) {},
           )
         else
-          ref.watch(districtsProvider(province!.id)).when(
+          ref
+              .watch(districtsProvider(province!.id))
+              .when(
                 loading: () => const LinearProgressIndicator(),
                 error: (_, _) => const Text('İlçe verisi yüklenemedi'),
                 data: (districts) => SearchableSelectField<District>(
@@ -644,8 +685,10 @@ class _JobPhotos extends StatelessWidget {
                   : Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(Icons.add_a_photo_outlined,
-                            color: context.palette.primary),
+                        Icon(
+                          Icons.add_a_photo_outlined,
+                          color: context.palette.primary,
+                        ),
                         const SizedBox(height: 4),
                         Text(
                           'Ekle',
@@ -665,7 +708,11 @@ class _JobPhotos extends StatelessWidget {
               children: [
                 ClipRRect(
                   borderRadius: BorderRadius.circular(12),
-                  child: SizedBox(width: 92, height: 92, child: AppImage(handle: h)),
+                  child: SizedBox(
+                    width: 92,
+                    height: 92,
+                    child: AppImage(handle: h),
+                  ),
                 ),
                 Positioned(
                   right: 2,
@@ -696,8 +743,12 @@ class _Label extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 6),
-      child: Text(text,
-          style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700)),
+      child: Text(
+        text,
+        style: Theme.of(
+          context,
+        ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+      ),
     );
   }
 }

@@ -21,16 +21,19 @@ Future<void> showReportSheet(
   final reporterUid = ref.read(currentUserProvider)?.uid;
   if (reporterUid == null) return;
 
-  final result = await showModalBottomSheet<({ReportReason reason, String note})>(
-    context: context,
-    showDragHandle: true,
-    isScrollControlled: true,
-    builder: (ctx) => _ReportSheet(target: target),
-  );
+  final result =
+      await showModalBottomSheet<({ReportReason reason, String note})>(
+        context: context,
+        showDragHandle: true,
+        isScrollControlled: true,
+        builder: (ctx) => _ReportSheet(target: target),
+      );
   if (result == null || !context.mounted) return;
 
   try {
-    await ref.read(reportRepositoryProvider).submitReport(
+    await ref
+        .read(reportRepositoryProvider)
+        .submitReport(
           reporterUid: reporterUid,
           reportedUid: reportedUid,
           target: target,
@@ -41,12 +44,14 @@ Future<void> showReportSheet(
         );
     if (context.mounted) {
       context.showSuccess(
-          'Şikayetiniz alındı. İncelenip gerekli işlem yapılacak.');
+        'Şikayetiniz alındı. İncelenip gerekli işlem yapılacak.',
+      );
     }
   } catch (_) {
     if (context.mounted) {
       context.showError(
-          'Şikayet gönderilemedi. Bağlantınızı kontrol edip tekrar deneyin.');
+        'Şikayet gönderilemedi. Bağlantınızı kontrol edip tekrar deneyin.',
+      );
     }
   }
 }
@@ -63,6 +68,19 @@ class _ReportSheetState extends State<_ReportSheet> {
   ReportReason? _reason;
   final _noteController = TextEditingController();
 
+  /// Gönderim başladı — sheet kapanana kadar geçen sürede ikinci dokunuş
+  /// ikinci bir şikayet kaydı oluşturmasın.
+  bool _submitting = false;
+
+  void _submit() {
+    if (_submitting || _reason == null) return;
+    setState(() => _submitting = true);
+    Navigator.pop(context, (
+      reason: _reason!,
+      note: _noteController.text.trim(),
+    ));
+  }
+
   @override
   void dispose() {
     _noteController.dispose();
@@ -70,20 +88,19 @@ class _ReportSheetState extends State<_ReportSheet> {
   }
 
   String get _title => switch (widget.target) {
-        ReportTarget.message => 'Mesajı Şikayet Et',
-        ReportTarget.job => 'İlanı Şikayet Et',
-        ReportTarget.user => 'Kullanıcıyı Şikayet Et',
-        ReportTarget.staffWorker => 'Eleman Profilini Şikayet Et',
-        ReportTarget.staffNeed => 'Eleman İlanını Şikayet Et',
-        ReportTarget.product => 'Ürünü Şikayet Et',
-      };
+    ReportTarget.message => 'Mesajı Şikayet Et',
+    ReportTarget.job => 'İlanı Şikayet Et',
+    ReportTarget.user => 'Kullanıcıyı Şikayet Et',
+    ReportTarget.staffWorker => 'Eleman Profilini Şikayet Et',
+    ReportTarget.staffNeed => 'Eleman İlanını Şikayet Et',
+    ReportTarget.product => 'Ürünü Şikayet Et',
+  };
 
   @override
   Widget build(BuildContext context) {
     return Padding(
       // Klavye açılınca not alanı görünür kalsın.
-      padding: EdgeInsets.only(
-          bottom: MediaQuery.viewInsetsOf(context).bottom),
+      padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
       child: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
@@ -91,17 +108,19 @@ class _ReportSheetState extends State<_ReportSheet> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(_title,
-                  style: Theme.of(context)
-                      .textTheme
-                      .titleMedium
-                      ?.copyWith(fontWeight: FontWeight.w800)),
+              Text(
+                _title,
+                style: Theme.of(
+                  context,
+                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
+              ),
               const SizedBox(height: 4),
               Text(
                 'Şikayetiniz ekibimizce incelenir; gerekirse içerik kaldırılır '
                 've kullanıcıya yaptırım uygulanır.',
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant),
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
               ),
               const SizedBox(height: 8),
               RadioGroup<ReportReason>(
@@ -112,8 +131,10 @@ class _ReportSheetState extends State<_ReportSheet> {
                     for (final r in ReportReason.values)
                       RadioListTile<ReportReason>(
                         value: r,
-                        title: Text(r.labelTR,
-                            style: const TextStyle(fontSize: 14)),
+                        title: Text(
+                          r.labelTR,
+                          style: const TextStyle(fontSize: 14),
+                        ),
                         dense: true,
                         contentPadding: EdgeInsets.zero,
                       ),
@@ -134,12 +155,15 @@ class _ReportSheetState extends State<_ReportSheet> {
               SizedBox(
                 width: double.infinity,
                 child: FilledButton.icon(
-                  icon: const Icon(Icons.flag_outlined),
+                  icon: _submitting
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2.2),
+                        )
+                      : const Icon(Icons.flag_outlined),
                   label: const Text('Şikayet Et'),
-                  onPressed: _reason == null
-                      ? null
-                      : () => Navigator.pop(context,
-                          (reason: _reason!, note: _noteController.text)),
+                  onPressed: _reason == null || _submitting ? null : _submit,
                 ),
               ),
             ],

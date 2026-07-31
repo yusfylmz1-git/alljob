@@ -46,10 +46,13 @@ class WorkerListingDetailScreen extends ConsumerWidget {
     try {
       // Sohbet kimliği: işveren = customer tarafı, eleman = artisan tarafı
       // (mevcut deterministik chat şeması).
-      final chatId = await ref.read(chatRepositoryProvider).startChat(
+      final chatId = await ref
+          .read(chatRepositoryProvider)
+          .startChat(
             customerUid: user.uid,
-            customerName:
-                user.displayName.isEmpty ? 'İşveren' : user.displayName,
+            customerName: user.displayName.isEmpty
+                ? 'İşveren'
+                : user.displayName,
             customerPhotoUrl: user.profilePhotoUrl,
             artisanUid: w.uid,
             artisanName: w.displayName,
@@ -60,15 +63,17 @@ class WorkerListingDetailScreen extends ConsumerWidget {
     } catch (_) {
       if (context.mounted) {
         context.showError(
-            'Sohbet açılamadı. E-posta doğrulamanızı kontrol edin.');
+          'Sohbet açılamadı. E-posta doğrulamanızı kontrol edin.',
+        );
       }
     }
   }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final future =
-        ref.watch(staffingRepositoryProvider).getWorkerListing(listingId);
+    final future = ref
+        .watch(staffingRepositoryProvider)
+        .getWorkerListing(listingId);
     final palette = context.palette;
     final theme = Theme.of(context);
     final me = ref.watch(currentUserProvider);
@@ -99,30 +104,47 @@ class WorkerListingDetailScreen extends ConsumerWidget {
               children: [
                 Row(
                   children: [
-                    AppAvatar(
-                        name: w.displayName, photo: w.photoUrl, size: 64),
+                    AppAvatar(name: w.displayName, photo: w.photoUrl, size: 64),
                     const SizedBox(width: 14),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(w.displayName,
-                              style: theme.textTheme.titleMedium
-                                  ?.copyWith(fontWeight: FontWeight.w800)),
-                          Text(w.professionLabel,
-                              style: TextStyle(color: palette.inkMuted)),
-                          Text(w.placeLabel,
-                              style: TextStyle(
-                                  fontSize: 13, color: palette.inkMuted)),
+                          Text(
+                            w.displayName,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                          Text(
+                            w.professionLabel,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(color: palette.inkMuted),
+                          ),
+                          Text(
+                            w.placeLabel,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: palette.inkMuted,
+                            ),
+                          ),
                         ],
                       ),
                     ),
                   ],
                 ),
                 const SizedBox(height: 16),
-                Text(w.title,
-                    style: theme.textTheme.titleLarge
-                        ?.copyWith(fontWeight: FontWeight.w800)),
+                Text(
+                  w.title,
+                  style: theme.textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
                 const SizedBox(height: 8),
                 Wrap(
                   spacing: 8,

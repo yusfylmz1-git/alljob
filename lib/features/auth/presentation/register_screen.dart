@@ -54,19 +54,27 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   }
 
   Future<void> _submit() async {
+    // Çift dokunuş iki kayıt denemesi başlatmasın (ilk istek sürerken
+    // ikincisi "e-posta zaten kullanımda" hatasıyla dönerdi).
+    if (ref.read(authControllerProvider).isLoading) return;
     // Form geçerli değilse hata mesajları otomatik gösterilir.
     if (!_formKey.currentState!.validate()) return;
 
-    final ok = await ref.read(authControllerProvider.notifier).register(
+    final ok = await ref
+        .read(authControllerProvider.notifier)
+        .register(
           displayName: Validators.normalizeDisplayName(_name.text),
-          email: _email.text,
+          // Kopyala/yapıştırda sona eklenen boşluk girişi bozar.
+          email: _email.text.trim(),
           password: _password.text,
         );
 
     if (!mounted) return;
     if (ok) {
-      context.showSuccess('Hesabınız oluşturuldu, hoş geldiniz! Doğrulama '
-          'bağlantısı e-posta adresinize gönderildi.');
+      context.showSuccess(
+        'Hesabınız oluşturuldu, hoş geldiniz! Doğrulama '
+        'bağlantısı e-posta adresinize gönderildi.',
+      );
       context.go(RoutePaths.home);
     } else {
       final error = ref.read(authControllerProvider).error;
@@ -96,25 +104,30 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Text('Hesap oluşturun',
-                      textAlign: TextAlign.center,
-                      style: theme.textTheme.headlineSmall),
+                  Text(
+                    'Hesap oluşturun',
+                    textAlign: TextAlign.center,
+                    style: theme.textTheme.headlineSmall,
+                  ),
                   const SizedBox(height: 6),
                   Text(
-                      'Bilgilerinizi girerek hemen başlayın. Usta olarak '
-                      'hizmet vermek isterseniz kayıttan sonra profilinizden '
-                      '"Hizmet Vermeye Başla" diyebilirsiniz.',
-                      textAlign: TextAlign.center,
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant)),
+                    'Bilgilerinizi girerek hemen başlayın. Usta olarak '
+                    'hizmet vermek isterseniz kayıttan sonra profilinizden '
+                    '"Hizmet Vermeye Başla" diyebilirsiniz.',
+                    textAlign: TextAlign.center,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
                   const SizedBox(height: 24),
                   Container(
                     padding: const EdgeInsets.all(18),
                     decoration: BoxDecoration(
                       color: theme.colorScheme.surface,
                       borderRadius: BorderRadius.circular(20),
-                      border:
-                          Border.all(color: theme.colorScheme.outlineVariant),
+                      border: Border.all(
+                        color: theme.colorScheme.outlineVariant,
+                      ),
                       boxShadow: AppTheme.softShadow,
                     ),
                     child: Column(
@@ -153,9 +166,11 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                             labelText: 'Şifre',
                             prefixIcon: const Icon(Icons.lock_outline),
                             suffixIcon: IconButton(
-                              icon: Icon(_obscure
-                                  ? Icons.visibility_off_outlined
-                                  : Icons.visibility_outlined),
+                              icon: Icon(
+                                _obscure
+                                    ? Icons.visibility_off_outlined
+                                    : Icons.visibility_outlined,
+                              ),
                               onPressed: () =>
                                   setState(() => _obscure = !_obscure),
                             ),
@@ -172,11 +187,14 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                             labelText: 'Şifre Tekrarı',
                             prefixIcon: const Icon(Icons.lock_outline),
                             suffixIcon: IconButton(
-                              icon: Icon(_obscureConfirm
-                                  ? Icons.visibility_off_outlined
-                                  : Icons.visibility_outlined),
+                              icon: Icon(
+                                _obscureConfirm
+                                    ? Icons.visibility_off_outlined
+                                    : Icons.visibility_outlined,
+                              ),
                               onPressed: () => setState(
-                                  () => _obscureConfirm = !_obscureConfirm),
+                                () => _obscureConfirm = !_obscureConfirm,
+                              ),
                             ),
                           ),
                           validator: (v) =>
@@ -200,8 +218,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                                     child: Checkbox(
                                       value: _consent,
                                       onChanged: (v) {
-                                        setState(
-                                            () => _consent = v ?? false);
+                                        setState(() => _consent = v ?? false);
                                         field.didChange(v);
                                       },
                                     ),
@@ -217,36 +234,40 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                                             text: 'Kullanım Koşulları',
                                             recognizer: _termsTap,
                                             style: TextStyle(
-                                                color:
-                                                    theme.colorScheme.primary,
-                                                fontWeight: FontWeight.w700),
+                                              color: theme.colorScheme.primary,
+                                              fontWeight: FontWeight.w700,
+                                            ),
                                           ),
                                           const TextSpan(text: '\'nı ve '),
                                           TextSpan(
                                             text: 'Gizlilik Politikası',
                                             recognizer: _privacyTap,
                                             style: TextStyle(
-                                                color:
-                                                    theme.colorScheme.primary,
-                                                fontWeight: FontWeight.w700),
+                                              color: theme.colorScheme.primary,
+                                              fontWeight: FontWeight.w700,
+                                            ),
                                           ),
                                           const TextSpan(
-                                              text: '\'nı okudum, kabul '
-                                                  'ediyorum; kişisel '
-                                                  'verilerimin '),
+                                            text:
+                                                '\'nı okudum, kabul '
+                                                'ediyorum; kişisel '
+                                                'verilerimin ',
+                                          ),
                                           TextSpan(
                                             text: 'KVKK Aydınlatma Metni',
                                             recognizer: _kvkkTap,
                                             style: TextStyle(
-                                                color:
-                                                    theme.colorScheme.primary,
-                                                fontWeight: FontWeight.w700),
+                                              color: theme.colorScheme.primary,
+                                              fontWeight: FontWeight.w700,
+                                            ),
                                           ),
                                           const TextSpan(
-                                              text: ' kapsamında '
-                                                  'işlenmesine ve yurt dışı '
-                                                  'sunucularda saklanmasına '
-                                                  'açık rıza veriyorum.'),
+                                            text:
+                                                ' kapsamında '
+                                                'işlenmesine ve yurt dışı '
+                                                'sunucularda saklanmasına '
+                                                'açık rıza veriyorum.',
+                                          ),
                                         ],
                                       ),
                                     ),
@@ -255,12 +276,15 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                               ),
                               if (field.hasError)
                                 Padding(
-                                  padding:
-                                      const EdgeInsets.only(top: 6, left: 34),
+                                  padding: const EdgeInsets.only(
+                                    top: 6,
+                                    left: 34,
+                                  ),
                                   child: Text(
                                     field.errorText!,
                                     style: theme.textTheme.bodySmall?.copyWith(
-                                        color: theme.colorScheme.error),
+                                      color: theme.colorScheme.error,
+                                    ),
                                   ),
                                 ),
                             ],
@@ -282,9 +306,12 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                     alignment: WrapAlignment.center,
                     crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
-                      Text('Zaten hesabınız var mı?',
-                          style: theme.textTheme.bodyMedium?.copyWith(
-                              color: theme.colorScheme.onSurfaceVariant)),
+                      Text(
+                        'Zaten hesabınız var mı?',
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
                       TextButton(
                         onPressed: isLoading
                             ? null

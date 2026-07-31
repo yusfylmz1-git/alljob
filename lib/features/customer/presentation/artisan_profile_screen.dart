@@ -43,8 +43,10 @@ class ArtisanProfileScreen extends ConsumerWidget {
       body: detailAsync.when(
         loading: () => const LoadingView(),
         error: (_, _) => const ErrorView(
-            message: 'Profil yüklenemedi. Bağlantınızı kontrol edip '
-                'tekrar deneyin.'),
+          message:
+              'Profil yüklenemedi. Bağlantınızı kontrol edip '
+              'tekrar deneyin.',
+        ),
         data: (detail) {
           if (detail == null) {
             return const Center(child: Text('Usta bulunamadı.'));
@@ -106,12 +108,17 @@ class _ProfileBody extends ConsumerWidget {
                         children: [
                           for (final code in profile.professionCodes)
                             Chip(
-                              avatar: Icon(Icons.handyman_outlined,
-                                  size: 16, color: palette.primary),
+                              avatar: Icon(
+                                Icons.handyman_outlined,
+                                size: 16,
+                                color: palette.primary,
+                              ),
                               label: Text(
                                 kProfessionNames[code] ?? code,
                                 style: const TextStyle(
-                                    fontWeight: FontWeight.w600, fontSize: 13),
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 13,
+                                ),
                               ),
                               backgroundColor: palette.primaryContainer
                                   .withValues(alpha: 0.55),
@@ -146,10 +153,11 @@ class _ProfileBody extends ConsumerWidget {
                           ? Text(
                               isOwner
                                   ? 'Henüz iş fotoğrafı yok. Müşteriler yaptığınız '
-                                      'işleri görmek ister — galerinizi doldurun.'
+                                        'işleri görmek ister — galerinizi doldurun.'
                                   : 'Bu usta henüz iş fotoğrafı eklememiş.',
-                              style: theme.textTheme.bodyMedium
-                                  ?.copyWith(color: palette.inkMuted),
+                              style: theme.textTheme.bodyMedium?.copyWith(
+                                color: palette.inkMuted,
+                              ),
                             )
                           : _WorkPhotoGrid(handles: profile.workPhotos),
                     ),
@@ -170,18 +178,23 @@ class _ProfileBody extends ConsumerWidget {
                               isOwner
                                   ? 'Bölge eklenmemiş. Aramada görünmek için il/ilçe seçin.'
                                   : 'Bölge bilgisi yok.',
-                              style: theme.textTheme.bodyMedium
-                                  ?.copyWith(color: palette.inkMuted),
+                              style: theme.textTheme.bodyMedium?.copyWith(
+                                color: palette.inkMuted,
+                              ),
                             )
                           : Wrap(
                               spacing: 8,
                               runSpacing: 8,
                               children: profile.serviceAreas
-                                  .map((a) => Chip(
-                                        avatar: const Icon(Icons.location_on,
-                                            size: 16),
-                                        label: Text(a.labelTR),
-                                      ))
+                                  .map(
+                                    (a) => Chip(
+                                      avatar: const Icon(
+                                        Icons.location_on,
+                                        size: 16,
+                                      ),
+                                      label: Text(a.labelTR),
+                                    ),
+                                  )
                                   .toList(),
                             ),
                     ),
@@ -207,7 +220,9 @@ class _ProfileBody extends ConsumerWidget {
                                 const SizedBox(width: 8),
                             itemBuilder: (context, i) => GestureDetector(
                               onTap: () => _showCertificate(
-                                  context, profile.certificates[i]),
+                                context,
+                                profile.certificates[i],
+                              ),
                               child: ClipRRect(
                                 borderRadius: BorderRadius.circular(12),
                                 child: SizedBox(
@@ -235,8 +250,9 @@ class _ProfileBody extends ConsumerWidget {
                         ),
                         child: Text(
                           'Belge eklemek güveni artırır (isteğe bağlı).',
-                          style: theme.textTheme.bodyMedium
-                              ?.copyWith(color: palette.inkMuted),
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color: palette.inkMuted,
+                          ),
                         ),
                       ),
                       const SizedBox(height: 14),
@@ -329,10 +345,10 @@ class _PublicPhoneChip extends StatelessWidget {
               Text(
                 label,
                 style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 0.2,
-                    ),
+                  color: Colors.white,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.2,
+                ),
               ),
             ],
           ),
@@ -371,27 +387,27 @@ class _SocialLinksRow extends StatelessWidget {
         (
           icon: Icons.camera_alt_outlined,
           label: 'Instagram',
-          url: links.instagramUrl!
+          url: links.instagramUrl!,
         ),
       if (links.youtubeUrl != null)
         (
           icon: Icons.play_circle_outline,
           label: 'YouTube',
-          url: links.youtubeUrl!
+          url: links.youtubeUrl!,
         ),
       if (links.tiktokUrl != null)
-        (icon: Icons.music_note_outlined, label: 'TikTok', url: links.tiktokUrl!),
-      if (links.whatsappUrl != null)
         (
-          icon: Icons.chat_outlined,
-          label: 'WhatsApp',
-          url: links.whatsappUrl!
+          icon: Icons.music_note_outlined,
+          label: 'TikTok',
+          url: links.tiktokUrl!,
         ),
+      if (links.whatsappUrl != null)
+        (icon: Icons.chat_outlined, label: 'WhatsApp', url: links.whatsappUrl!),
       if (links.websiteUrl != null)
         (
           icon: Icons.language_outlined,
           label: 'Web sitesi',
-          url: links.websiteUrl!
+          url: links.websiteUrl!,
         ),
     ];
 
@@ -463,24 +479,31 @@ class _ScheduleBlock extends StatelessWidget {
     final palette = context.palette;
     final p = profile;
     if (p.manualPause) {
-      return Text('Şu an geçici olarak müsait değil.',
-          style: theme.textTheme.bodyMedium?.copyWith(color: palette.warning));
+      return Text(
+        'Şu an geçici olarak müsait değil.',
+        style: theme.textTheme.bodyMedium?.copyWith(color: palette.warning),
+      );
     }
     if (p.alwaysAvailable) {
       return Row(
         children: [
           Icon(Icons.all_inclusive, size: 18, color: palette.success),
           const SizedBox(width: 8),
-          Text('Her zaman müsait',
-              style: theme.textTheme.bodyMedium
-                  ?.copyWith(fontWeight: FontWeight.w600)),
+          Text(
+            'Her zaman müsait',
+            style: theme.textTheme.bodyMedium?.copyWith(
+              fontWeight: FontWeight.w600,
+            ),
+          ),
         ],
       );
     }
     final days = p.weeklySchedule.days;
     if (days.every((d) => !d.enabled)) {
-      return Text('Çalışma saatleri belirtilmemiş.',
-          style: theme.textTheme.bodyMedium?.copyWith(color: palette.inkMuted));
+      return Text(
+        'Çalışma saatleri belirtilmemiş.',
+        style: theme.textTheme.bodyMedium?.copyWith(color: palette.inkMuted),
+      );
     }
     return Column(
       children: [
@@ -494,8 +517,9 @@ class _ScheduleBlock extends StatelessWidget {
                     width: 36,
                     child: Text(
                       _days[(d.weekday - 1).clamp(0, 6)],
-                      style: theme.textTheme.labelLarge
-                          ?.copyWith(fontWeight: FontWeight.w800),
+                      style: theme.textTheme.labelLarge?.copyWith(
+                        fontWeight: FontWeight.w800,
+                      ),
                     ),
                   ),
                   Text(
@@ -520,8 +544,7 @@ void _showCertificate(BuildContext context, String handle) {
         mainAxisSize: MainAxisSize.min,
         children: [
           ClipRRect(
-            borderRadius:
-                const BorderRadius.vertical(top: Radius.circular(12)),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
             child: InteractiveViewer(
               child: AppImage(handle: handle, fit: BoxFit.contain),
             ),
@@ -599,8 +622,7 @@ class _HeroHeader extends StatelessWidget {
                           colors: [Color(0xFF34D399), Color(0xFF059669)],
                         )
                       : null,
-                  color:
-                      available ? null : Colors.white.withValues(alpha: 0.3),
+                  color: available ? null : Colors.white.withValues(alpha: 0.3),
                 ),
                 child: GestureDetector(
                   // Fotoğrafa dokun → hızlı aksiyon menüsü (Ara / Sohbet).
@@ -624,12 +646,14 @@ class _HeroHeader extends StatelessWidget {
                             shape: BoxShape.circle,
                           ),
                           alignment: Alignment.center,
-                          child: Text(initials,
-                              style: const TextStyle(
-                                fontSize: 34,
-                                fontWeight: FontWeight.w700,
-                                color: Colors.white,
-                              )),
+                          child: Text(
+                            initials,
+                            style: const TextStyle(
+                              fontSize: 34,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.white,
+                            ),
+                          ),
                         );
                         final url = detail.profilePhotoUrl?.trim();
                         if (url == null || url.isEmpty) return letter;
@@ -657,19 +681,24 @@ class _HeroHeader extends StatelessWidget {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Flexible(
-                    child: Text(detail.displayName,
-                        overflow: TextOverflow.ellipsis,
-                        style: theme.textTheme.headlineSmall?.copyWith(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w800,
-                        )),
+                    child: Text(
+                      detail.displayName,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.headlineSmall?.copyWith(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
                   ),
                   if (profile.showVerifiedBadge) ...[
                     const SizedBox(width: 6),
                     Tooltip(
                       message: profile.verifiedBadgeTooltip,
-                      child: const Icon(Icons.verified,
-                          color: Color(0xFF60A5FA), size: 22),
+                      child: const Icon(
+                        Icons.verified,
+                        color: Color(0xFF60A5FA),
+                        size: 22,
+                      ),
                     ),
                   ],
                 ],
@@ -689,8 +718,10 @@ class _HeroHeader extends StatelessWidget {
               const SizedBox(height: 12),
               // Müsaitlik durumu (PRD §3).
               Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 7,
+                ),
                 decoration: BoxDecoration(
                   color: Colors.white.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(30),
@@ -727,9 +758,9 @@ class _HeroHeader extends StatelessWidget {
                   spacing: 8,
                   runSpacing: 8,
                   alignment: WrapAlignment.center,
-                  children: _topPositiveTags(detail.reviews)
-                      .map((t) => _HeroTag(label: t))
-                      .toList(),
+                  children: _topPositiveTags(
+                    detail.reviews,
+                  ).map((t) => _HeroTag(label: t)).toList(),
                 ),
               ],
               const SizedBox(height: 18),
@@ -759,10 +790,7 @@ class _HeroHeader extends StatelessWidget {
                         iconColor: context.palette.star,
                       ),
                       _statDivider(theme),
-                      _Stat(
-                        value: '${profile.completedJobs}',
-                        label: 'İş',
-                      ),
+                      _Stat(value: '${profile.completedJobs}', label: 'İş'),
                       _statDivider(theme),
                       _Stat(
                         value: profile.experienceYears > 0
@@ -791,11 +819,8 @@ class _HeroHeader extends StatelessWidget {
     );
   }
 
-  Widget _statDivider(ThemeData theme) => Container(
-        width: 1,
-        height: 34,
-        color: theme.colorScheme.outlineVariant,
-      );
+  Widget _statDivider(ThemeData theme) =>
+      Container(width: 1, height: 34, color: theme.colorScheme.outlineVariant);
 
   /// Değerlendirmelerdeki en sık geçen olumlu etiketleri döndürür.
   static List<String> _topPositiveTags(List<Review> reviews, {int max = 4}) {
@@ -830,9 +855,9 @@ class _HeroTag extends StatelessWidget {
       child: Text(
         label,
         style: Theme.of(context).textTheme.labelMedium?.copyWith(
-              color: Colors.white,
-              fontWeight: FontWeight.w600,
-            ),
+          color: Colors.white,
+          fontWeight: FontWeight.w600,
+        ),
       ),
     );
   }
@@ -864,15 +889,21 @@ class _Stat extends StatelessWidget {
                 Icon(icon, size: 18, color: iconColor),
                 const SizedBox(width: 3),
               ],
-              Text(value,
-                  style: theme.textTheme.titleMedium
-                      ?.copyWith(fontWeight: FontWeight.w800)),
+              Text(
+                value,
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 2),
-          Text(label,
-              style: theme.textTheme.labelSmall
-                  ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+          Text(
+            label,
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
         ],
       ),
     );
@@ -953,8 +984,11 @@ class _ShopThumb extends StatelessWidget {
                     : Container(
                         color: palette.surfaceMuted,
                         alignment: Alignment.center,
-                        child: Icon(Icons.storefront_rounded,
-                            color: palette.primary, size: 24),
+                        child: Icon(
+                          Icons.storefront_rounded,
+                          color: palette.primary,
+                          size: 24,
+                        ),
                       ),
               ),
               Padding(
@@ -966,8 +1000,9 @@ class _ShopThumb extends StatelessWidget {
                       product.title,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.labelSmall
-                          ?.copyWith(fontWeight: FontWeight.w600),
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                     Text(
                       product.priceLabel,
@@ -1023,14 +1058,20 @@ class _Section extends StatelessWidget {
                   color: context.palette.primaryContainer,
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: Icon(icon,
-                    size: 18, color: context.palette.onPrimaryContainer),
+                child: Icon(
+                  icon,
+                  size: 18,
+                  color: context.palette.onPrimaryContainer,
+                ),
               ),
               const SizedBox(width: 10),
               Expanded(
-                child: Text(title,
-                    style: theme.textTheme.titleMedium
-                        ?.copyWith(fontWeight: FontWeight.w700)),
+                child: Text(
+                  title,
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
               ),
               ?trailing,
             ],
@@ -1054,9 +1095,12 @@ class _ReviewsSection extends StatelessWidget {
       icon: Icons.star_outline_rounded,
       title: 'Değerlendirmeler (${reviews.length})',
       child: reviews.isEmpty
-          ? Text('Henüz değerlendirme yok.',
-              style: theme.textTheme.bodyMedium
-                  ?.copyWith(color: theme.colorScheme.onSurfaceVariant))
+          ? Text(
+              'Henüz değerlendirme yok.',
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            )
           : Column(
               children: reviews.map((r) => _ReviewTile(review: r)).toList(),
             ),
@@ -1080,17 +1124,28 @@ class _ReviewTile extends StatelessWidget {
         children: [
           Row(
             children: [
-              Text(review.maskedName,
-                  style: theme.textTheme.titleSmall
-                      ?.copyWith(fontWeight: FontWeight.w600)),
-              const Spacer(),
+              // Uzun ad yıldızları ekrandan itmesin.
+              Expanded(
+                child: Text(
+                  review.maskedName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
               RatingStars(rating: review.rating.toDouble(), size: 14),
             ],
           ),
           const SizedBox(height: 2),
-          Text(dateStr,
-              style: theme.textTheme.bodySmall
-                  ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+          Text(
+            dateStr,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
           if (review.tags.isNotEmpty) ...[
             const SizedBox(height: 6),
             Wrap(
@@ -1114,8 +1169,7 @@ class _ReviewTagChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isNegative = ReviewTags.isNegative(tag);
-    final color =
-        isNegative ? context.palette.danger : context.palette.success;
+    final color = isNegative ? context.palette.danger : context.palette.success;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
@@ -1124,10 +1178,10 @@ class _ReviewTagChip extends StatelessWidget {
       ),
       child: Text(
         tag,
-        style: Theme.of(context)
-            .textTheme
-            .labelMedium
-            ?.copyWith(color: color, fontWeight: FontWeight.w600),
+        style: Theme.of(context).textTheme.labelMedium?.copyWith(
+          color: color,
+          fontWeight: FontWeight.w600,
+        ),
       ),
     );
   }
@@ -1155,10 +1209,9 @@ void _showProfileQuickActions(BuildContext context, ArtisanDetail detail) {
                     detail.displayName,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: Theme.of(sheetCtx)
-                        .textTheme
-                        .titleMedium
-                        ?.copyWith(fontWeight: FontWeight.w800),
+                    style: Theme.of(sheetCtx).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w800,
+                    ),
                   ),
                 ),
               ],
@@ -1166,8 +1219,10 @@ void _showProfileQuickActions(BuildContext context, ArtisanDetail detail) {
           ),
           if (profile.hasPublicPhone)
             ListTile(
-              leading: Icon(Icons.phone_rounded,
-                  color: sheetCtx.palette.success),
+              leading: Icon(
+                Icons.phone_rounded,
+                color: sheetCtx.palette.success,
+              ),
               title: const Text('Ara'),
               subtitle: Text(profile.publicPhone!),
               onTap: () async {
@@ -1187,8 +1242,10 @@ void _showProfileQuickActions(BuildContext context, ArtisanDetail detail) {
             ),
           Consumer(
             builder: (ctx, ref, _) => ListTile(
-              leading: Icon(Icons.chat_bubble_outline,
-                  color: ctx.palette.primary),
+              leading: Icon(
+                Icons.chat_bubble_outline,
+                color: ctx.palette.primary,
+              ),
               title: const Text('Sohbet başlat'),
               onTap: () {
                 Navigator.pop(ctx);
@@ -1228,7 +1285,9 @@ Future<void> startChatWithArtisan(
     return;
   }
   try {
-    final chatId = await ref.read(chatRepositoryProvider).startChat(
+    final chatId = await ref
+        .read(chatRepositoryProvider)
+        .startChat(
           customerUid: user.uid,
           customerName: user.displayName,
           customerPhotoUrl: user.profilePhotoUrl,
@@ -1241,7 +1300,8 @@ Future<void> startChatWithArtisan(
   } catch (_) {
     if (context.mounted) {
       context.showError(
-          'Sohbet açılamadı. E-posta doğrulamanızı kontrol edin.');
+        'Sohbet açılamadı. E-posta doğrulamanızı kontrol edin.',
+      );
     }
   }
 }
