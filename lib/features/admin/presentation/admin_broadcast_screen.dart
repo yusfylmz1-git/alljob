@@ -126,21 +126,25 @@ class _AdminBroadcastScreenState extends ConsumerState<AdminBroadcastScreen> {
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text(_scheduleMode ? 'Kampanya planlansın mı?' : 'Şimdi gönderilsin mi?'),
+        title: Text(
+          _scheduleMode ? 'Kampanya planlansın mı?' : 'Şimdi gönderilsin mi?',
+        ),
         content: Text(
           _scheduleMode
               ? 'Zaman: ${DateFormat('dd.MM.yyyy HH:mm').format(when!)}\n'
-                  'Hedef: ${_audienceLabel()}\nPush: ${_sendPush ? "evet" : "hayır"}'
+                    'Hedef: ${_audienceLabel()}\nPush: ${_sendPush ? "evet" : "hayır"}'
               : 'Hedef: ${_audienceLabel()}\nPush: ${_sendPush ? "evet" : "hayır"}\n\n'
-                  'Anında gönderim 5 dk rate limit\'e tabidir.',
+                    'Anında gönderim 5 dk rate limit\'e tabidir.',
         ),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Vazgeç')),
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Vazgeç'),
+          ),
           FilledButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              child: Text(_scheduleMode ? 'Planla' : 'Gönder')),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text(_scheduleMode ? 'Planla' : 'Gönder'),
+          ),
         ],
       ),
     );
@@ -201,13 +205,13 @@ class _AdminBroadcastScreenState extends ConsumerState<AdminBroadcastScreen> {
   }
 
   String _audienceLabel() => switch (_audience) {
-        'artisans' => 'Ustalar',
-        'customers' => 'Müşteriler',
-        'profession' => 'Meslek: ${_profession.text.trim()}',
-        'province' => 'İl: ${_province.text.trim()}',
-        'user' => 'Tek kişi: ${_targetUser.text.trim()}',
-        _ => 'Tümü (son 300)',
-      };
+    'artisans' => 'Ustalar',
+    'customers' => 'Müşteriler',
+    'profession' => 'Meslek: ${_profession.text.trim()}',
+    'province' => 'İl: ${_province.text.trim()}',
+    'user' => 'Tek kişi: ${_targetUser.text.trim()}',
+    _ => 'Tümü (son 300)',
+  };
 
   @override
   Widget build(BuildContext context) {
@@ -229,9 +233,12 @@ class _AdminBroadcastScreenState extends ConsumerState<AdminBroadcastScreen> {
         padding: const EdgeInsets.fromLTRB(20, 16, 20, 40),
         child: ListView(
           children: [
-            Text('Gönderim tipi',
-                style: theme.textTheme.titleSmall
-                    ?.copyWith(fontWeight: FontWeight.w800)),
+            Text(
+              'Gönderim tipi',
+              style: theme.textTheme.titleSmall?.copyWith(
+                fontWeight: FontWeight.w800,
+              ),
+            ),
             const SizedBox(height: 8),
             LayoutBuilder(
               builder: (context, c) {
@@ -242,9 +249,7 @@ class _AdminBroadcastScreenState extends ConsumerState<AdminBroadcastScreen> {
                     ButtonSegment(
                       value: false,
                       label: Text(compact ? 'Şimdi' : 'Şimdi gönder'),
-                      icon: compact
-                          ? null
-                          : const Icon(Icons.send, size: 16),
+                      icon: compact ? null : const Icon(Icons.send, size: 16),
                     ),
                     ButtonSegment(
                       value: true,
@@ -258,9 +263,9 @@ class _AdminBroadcastScreenState extends ConsumerState<AdminBroadcastScreen> {
                   onSelectionChanged: _busy
                       ? null
                       : (s) => setState(() {
-                            _scheduleMode = s.first;
-                            if (!_scheduleMode) _scheduledAt = null;
-                          }),
+                          _scheduleMode = s.first;
+                          if (!_scheduleMode) _scheduledAt = null;
+                        }),
                 );
               },
             ),
@@ -282,9 +287,12 @@ class _AdminBroadcastScreenState extends ConsumerState<AdminBroadcastScreen> {
               ),
             ],
             const SizedBox(height: 16),
-            Text('Hedef kitle',
-                style: theme.textTheme.titleSmall
-                    ?.copyWith(fontWeight: FontWeight.w800)),
+            Text(
+              'Hedef kitle',
+              style: theme.textTheme.titleSmall?.copyWith(
+                fontWeight: FontWeight.w800,
+              ),
+            ),
             const SizedBox(height: 8),
             Wrap(
               spacing: 8,
@@ -301,8 +309,9 @@ class _AdminBroadcastScreenState extends ConsumerState<AdminBroadcastScreen> {
                   ChoiceChip(
                     label: Text(e.$2),
                     selected: _audience == e.$1,
-                    onSelected:
-                        _busy ? null : (_) => setState(() => _audience = e.$1),
+                    onSelected: _busy
+                        ? null
+                        : (_) => setState(() => _audience = e.$1),
                   ),
               ],
             ),
@@ -362,8 +371,9 @@ class _AdminBroadcastScreenState extends ConsumerState<AdminBroadcastScreen> {
               contentPadding: EdgeInsets.zero,
               title: const Text('Push da gönder'),
               value: _sendPush,
-              onChanged:
-                  (!can || _busy) ? null : (v) => setState(() => _sendPush = v),
+              onChanged: (!can || _busy)
+                  ? null
+                  : (v) => setState(() => _sendPush = v),
             ),
             const SizedBox(height: 8),
             FilledButton.icon(
@@ -374,15 +384,24 @@ class _AdminBroadcastScreenState extends ConsumerState<AdminBroadcastScreen> {
                       height: 18,
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
-                  : Icon(_scheduleMode ? Icons.event_available : Icons.send_outlined),
-              label: Text(_busy
-                  ? 'İşleniyor…'
-                  : (_scheduleMode ? 'Kampanyayı planla' : 'Şimdi gönder')),
+                  : Icon(
+                      _scheduleMode
+                          ? Icons.event_available
+                          : Icons.send_outlined,
+                    ),
+              label: Text(
+                _busy
+                    ? 'İşleniyor…'
+                    : (_scheduleMode ? 'Kampanyayı planla' : 'Şimdi gönder'),
+              ),
             ),
             const Divider(height: 40),
-            Text('Planlanan / geçmiş kampanyalar',
-                style: theme.textTheme.titleSmall
-                    ?.copyWith(fontWeight: FontWeight.w800)),
+            Text(
+              'Planlanan / geçmiş kampanyalar',
+              style: theme.textTheme.titleSmall?.copyWith(
+                fontWeight: FontWeight.w800,
+              ),
+            ),
             const SizedBox(height: 8),
             campaignsAsync.when(
               loading: () => const Padding(
@@ -401,9 +420,7 @@ class _AdminBroadcastScreenState extends ConsumerState<AdminBroadcastScreen> {
                   );
                 }
                 return Column(
-                  children: [
-                    for (final c in list) _CampaignTile(campaign: c),
-                  ],
+                  children: [for (final c in list) _CampaignTile(campaign: c)],
                 );
               },
             ),
@@ -419,13 +436,13 @@ class _CampaignTile extends ConsumerWidget {
   final ScheduledCampaign campaign;
 
   Color _statusColor(AppPalette p) => switch (campaign.status) {
-        'pending' => p.warning,
-        'processing' => p.primary,
-        'sent' => p.success,
-        'failed' => p.danger,
-        'cancelled' => p.inkFaint,
-        _ => p.inkMuted,
-      };
+    'pending' => p.warning,
+    'processing' => p.primary,
+    'sent' => p.success,
+    'failed' => p.danger,
+    'cancelled' => p.inkFaint,
+    _ => p.inkMuted,
+  };
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -439,8 +456,10 @@ class _CampaignTile extends ConsumerWidget {
         side: BorderSide(color: palette.hairline),
       ),
       child: ListTile(
-        title: Text(campaign.title,
-            style: const TextStyle(fontWeight: FontWeight.w700)),
+        title: Text(
+          campaign.title,
+          style: const TextStyle(fontWeight: FontWeight.w700),
+        ),
         subtitle: Text(
           '${campaign.status} · ${fmt.format(campaign.scheduledAt.toLocal())}\n'
           '${campaign.audience}'
@@ -461,11 +480,13 @@ class _CampaignTile extends ConsumerWidget {
                       content: Text(campaign.title),
                       actions: [
                         TextButton(
-                            onPressed: () => Navigator.pop(ctx, false),
-                            child: const Text('Vazgeç')),
+                          onPressed: () => Navigator.pop(ctx, false),
+                          child: const Text('Vazgeç'),
+                        ),
                         FilledButton(
-                            onPressed: () => Navigator.pop(ctx, true),
-                            child: const Text('İptal et')),
+                          onPressed: () => Navigator.pop(ctx, true),
+                          child: const Text('İptal et'),
+                        ),
                       ],
                     ),
                   );

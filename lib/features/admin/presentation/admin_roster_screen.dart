@@ -80,11 +80,12 @@ class _AdminRosterScreenState extends ConsumerState<AdminRosterScreen> {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Text('Yetkiler — ${entry.uid}',
-                        style: Theme.of(ctx)
-                            .textTheme
-                            .titleMedium
-                            ?.copyWith(fontWeight: FontWeight.w800)),
+                    Text(
+                      'Yetkiler — ${entry.uid}',
+                      style: Theme.of(ctx).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
                     const SizedBox(height: 8),
                     SizedBox(
                       height: 360,
@@ -95,8 +96,10 @@ class _AdminRosterScreenState extends ConsumerState<AdminRosterScreen> {
                               dense: true,
                               value: selected.contains(code),
                               title: Text(AdminCapabilities.labelTR(code)),
-                              subtitle: Text(code,
-                                  style: const TextStyle(fontSize: 11)),
+                              subtitle: Text(
+                                code,
+                                style: const TextStyle(fontSize: 11),
+                              ),
                               onChanged: (v) {
                                 setLocal(() {
                                   if (v == true) {
@@ -124,10 +127,9 @@ class _AdminRosterScreenState extends ConsumerState<AdminRosterScreen> {
     );
     if (ok != true || !mounted) return;
     try {
-      await ref.read(adminUserRepositoryProvider).setCapabilities(
-            entry.uid,
-            selected.toList()..sort(),
-          );
+      await ref
+          .read(adminUserRepositoryProvider)
+          .setCapabilities(entry.uid, selected.toList()..sort());
       if (mounted) context.showSuccess('Yetkiler güncellendi.');
     } catch (_) {
       if (mounted) context.showError('Yetkiler kaydedilemedi.');
@@ -158,11 +160,12 @@ class _AdminRosterScreenState extends ConsumerState<AdminRosterScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Text('Moderatör davet et',
-                    style: Theme.of(context)
-                        .textTheme
-                        .titleSmall
-                        ?.copyWith(fontWeight: FontWeight.w800)),
+                Text(
+                  'Moderatör davet et',
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800),
+                ),
                 const SizedBox(height: 6),
                 Text(
                   'Şifre üretilmez. Kişi admin paneline kendi hesabıyla girer '
@@ -198,20 +201,25 @@ class _AdminRosterScreenState extends ConsumerState<AdminRosterScreen> {
                   ],
                 ),
                 const SizedBox(height: 16),
-                Text('Bekleyen davetler',
-                    style: Theme.of(context)
-                        .textTheme
-                        .titleSmall
-                        ?.copyWith(fontWeight: FontWeight.w800)),
+                Text(
+                  'Bekleyen davetler',
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800),
+                ),
                 const SizedBox(height: 8),
                 invitesAsync.when(
                   loading: () => const LinearProgressIndicator(),
-                  error: (_, _) => Text('Davetler yüklenemedi',
-                      style: TextStyle(color: palette.danger)),
+                  error: (_, _) => Text(
+                    'Davetler yüklenemedi',
+                    style: TextStyle(color: palette.danger),
+                  ),
                   data: (list) {
                     if (list.isEmpty) {
-                      return Text('Bekleyen davet yok.',
-                          style: TextStyle(color: palette.inkFaint));
+                      return Text(
+                        'Bekleyen davet yok.',
+                        style: TextStyle(color: palette.inkFaint),
+                      );
                     }
                     return Column(
                       children: [
@@ -233,15 +241,18 @@ class _AdminRosterScreenState extends ConsumerState<AdminRosterScreen> {
                               }
                             },
                             onCopy: () async {
-                              await Clipboard.setData(ClipboardData(
-                                text:
-                                    'https://alljob1-admin.web.app\n'
-                                    'Hesabınız: ${inv.email}\n'
-                                    'Giriş yapın → “Daveti kabul et”.',
-                              ));
+                              await Clipboard.setData(
+                                ClipboardData(
+                                  text:
+                                      'https://alljob1-admin.web.app\n'
+                                      'Hesabınız: ${inv.email}\n'
+                                      'Giriş yapın → “Daveti kabul et”.',
+                                ),
+                              );
                               if (context.mounted) {
                                 context.showSuccess(
-                                    'Davet metni panoya kopyalandı.');
+                                  'Davet metni panoya kopyalandı.',
+                                );
                               }
                             },
                           ),
@@ -250,11 +261,12 @@ class _AdminRosterScreenState extends ConsumerState<AdminRosterScreen> {
                   },
                 ),
                 const SizedBox(height: 24),
-                Text('Kadro',
-                    style: Theme.of(context)
-                        .textTheme
-                        .titleSmall
-                        ?.copyWith(fontWeight: FontWeight.w800)),
+                Text(
+                  'Kadro',
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800),
+                ),
                 const SizedBox(height: 8),
               ],
             ),
@@ -317,8 +329,10 @@ class _InviteTile extends StatelessWidget {
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
       child: ListTile(
-        title: Text(invite.email,
-            style: const TextStyle(fontWeight: FontWeight.w700)),
+        title: Text(
+          invite.email,
+          style: const TextStyle(fontWeight: FontWeight.w700),
+        ),
         subtitle: Text(
           'Bitiş: ${invite.expiresAt?.toLocal() ?? "—"} · '
           '${invite.capabilities.length} yetki',
@@ -362,8 +376,8 @@ class _RosterCard extends StatelessWidget {
     final capCount = entry.isSuperAdmin
         ? 'tüm'
         : entry.capabilitiesFieldPresent
-            ? '${entry.capabilities?.length ?? 0}'
-            : 'varsayılan';
+        ? '${entry.capabilities?.length ?? 0}'
+        : 'varsayılan';
     return Material(
       color: palette.card,
       borderRadius: BorderRadius.circular(16),
@@ -391,22 +405,32 @@ class _RosterCard extends StatelessWidget {
                   children: [
                     Text(
                       isSuper ? 'Süper Yönetici' : 'Moderatör',
-                      style: theme.textTheme.titleSmall
-                          ?.copyWith(fontWeight: FontWeight.w800),
+                      style: theme.textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w800,
+                      ),
                     ),
                     const SizedBox(height: 2),
                     if (entry.email != null && entry.email!.isNotEmpty)
-                      Text(entry.email!,
-                          style: theme.textTheme.bodySmall
-                              ?.copyWith(color: palette.inkMuted)),
-                    Text('UID: ${entry.uid}',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: theme.textTheme.labelSmall
-                            ?.copyWith(color: palette.inkFaint)),
-                    Text('Yetki: $capCount',
-                        style: theme.textTheme.labelSmall
-                            ?.copyWith(color: palette.inkFaint)),
+                      Text(
+                        entry.email!,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: palette.inkMuted,
+                        ),
+                      ),
+                    Text(
+                      'UID: ${entry.uid}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: palette.inkFaint,
+                      ),
+                    ),
+                    Text(
+                      'Yetki: $capCount',
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: palette.inkFaint,
+                      ),
+                    ),
                   ],
                 ),
               ),

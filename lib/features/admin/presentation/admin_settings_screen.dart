@@ -76,8 +76,9 @@ class _AdminSettingsScreenState extends ConsumerState<AdminSettingsScreen> {
   Widget build(BuildContext context) {
     final palette = context.palette;
     final cfgAsync = ref.watch(adminRuntimeConfigProvider);
-    final canManage =
-        ref.watch(adminCapabilitiesProvider).allows('config.manage');
+    final canManage = ref
+        .watch(adminCapabilitiesProvider)
+        .allows('config.manage');
 
     return Scaffold(
       backgroundColor: AdminChrome.surface,
@@ -89,9 +90,8 @@ class _AdminSettingsScreenState extends ConsumerState<AdminSettingsScreen> {
       ),
       body: cfgAsync.when(
         loading: () => const LoadingView(),
-        error: (_, _) => const ErrorView(
-          message: 'Config okunamadı (rules / ağ).',
-        ),
+        error: (_, _) =>
+            const ErrorView(message: 'Config okunamadı (rules / ağ).'),
         data: (cfg) {
           if (!_minSeeded) {
             _minSeeded = true;
@@ -110,8 +110,8 @@ class _AdminSettingsScreenState extends ConsumerState<AdminSettingsScreen> {
                 Text(
                   'Operasyon bayrakları',
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w800,
-                      ),
+                    fontWeight: FontWeight.w800,
+                  ),
                 ),
                 const SizedBox(height: 4),
                 Text(
@@ -124,7 +124,8 @@ class _AdminSettingsScreenState extends ConsumerState<AdminSettingsScreen> {
                   contentPadding: EdgeInsets.zero,
                   title: const Text('Premium beta ücretsiz'),
                   subtitle: const Text(
-                      'Usta Pro özellikleri Beta planında açık'),
+                    'Usta Pro özellikleri Beta planında açık',
+                  ),
                   value: cfg.premiumFreeDuringBeta,
                   onChanged: (!canManage || _busy)
                       ? null
@@ -134,7 +135,8 @@ class _AdminSettingsScreenState extends ConsumerState<AdminSettingsScreen> {
                   contentPadding: EdgeInsets.zero,
                   title: const Text('Bakım modu'),
                   subtitle: const Text(
-                      'Açıkken kullanıcılar bakım ekranına yönlenir'),
+                    'Açıkken kullanıcılar bakım ekranına yönlenir',
+                  ),
                   value: cfg.maintenanceMode,
                   onChanged: (!canManage || _busy)
                       ? null
@@ -151,8 +153,7 @@ class _AdminSettingsScreenState extends ConsumerState<AdminSettingsScreen> {
                 ),
                 const SizedBox(height: 12),
                 FilledButton.icon(
-                  onPressed:
-                      (!canManage || _busy) ? null : () => _saveMin(cfg),
+                  onPressed: (!canManage || _busy) ? null : () => _saveMin(cfg),
                   icon: _busy
                       ? const SizedBox(
                           width: 16,
@@ -174,8 +175,8 @@ class _AdminSettingsScreenState extends ConsumerState<AdminSettingsScreen> {
                 Text(
                   'Yasal URL’ler (kod + hosting)',
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w800,
-                      ),
+                    fontWeight: FontWeight.w800,
+                  ),
                 ),
                 const SizedBox(height: 8),
                 ListTile(
@@ -188,7 +189,8 @@ class _AdminSettingsScreenState extends ConsumerState<AdminSettingsScreen> {
                     icon: const Icon(Icons.copy, size: 18),
                     onPressed: () async {
                       await Clipboard.setData(
-                          ClipboardData(text: kLegalContactEmail));
+                        ClipboardData(text: kLegalContactEmail),
+                      );
                       if (context.mounted) {
                         context.showSuccess('Kopyalandı.');
                       }

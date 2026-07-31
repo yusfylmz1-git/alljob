@@ -43,7 +43,8 @@ class SupportTicket {
       adminNote: map['adminNote'] as String?,
       resolvedBy: map['resolvedBy'] as String?,
       resolvedAt: DateTime.tryParse(map['resolvedAt']?.toString() ?? ''),
-      createdAt: DateTime.tryParse(map['createdAt']?.toString() ?? '') ??
+      createdAt:
+          DateTime.tryParse(map['createdAt']?.toString() ?? '') ??
           DateTime.now(),
     );
   }
@@ -53,9 +54,9 @@ class AdminSupportRepository {
   AdminSupportRepository({
     FirebaseFirestore? firestore,
     FirebaseFunctions? functions,
-  })  : _db = firestore ?? FirebaseFirestore.instance,
-        _functions = functions ??
-            FirebaseFunctions.instanceFor(region: 'europe-west1');
+  }) : _db = firestore ?? FirebaseFirestore.instance,
+       _functions =
+           functions ?? FirebaseFunctions.instanceFor(region: 'europe-west1');
 
   final FirebaseFirestore _db;
   final FirebaseFunctions _functions;
@@ -93,8 +94,8 @@ class AdminSupportRepository {
 /// Kullanıcı tarafı talep oluşturma.
 class SupportTicketClient {
   SupportTicketClient({FirebaseFunctions? functions})
-      : _functions = functions ??
-            FirebaseFunctions.instanceFor(region: 'europe-west1');
+    : _functions =
+          functions ?? FirebaseFunctions.instanceFor(region: 'europe-west1');
 
   final FirebaseFunctions _functions;
 

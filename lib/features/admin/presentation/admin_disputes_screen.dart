@@ -33,7 +33,7 @@ class AdminDisputesScreen extends ConsumerWidget {
         subtitle: pageAsync.valueOrNull == null
             ? null
             : '${pageAsync.value!.items.length} anlaşmazlık'
-                '${pageAsync.value!.hasMore ? '+' : ''}',
+                  '${pageAsync.value!.hasMore ? '+' : ''}',
         actions: [
           IconButton(
             tooltip: 'Yenile',
@@ -45,8 +45,7 @@ class AdminDisputesScreen extends ConsumerWidget {
       body: pageAsync.when(
         loading: () => const LoadingView(),
         error: (_, _) => const ErrorView(
-          message:
-              'Anlaşmazlıklar yüklenemedi. Yetkiniz olduğundan emin olun.',
+          message: 'Anlaşmazlıklar yüklenemedi. Yetkiniz olduğundan emin olun.',
         ),
         data: (page) {
           if (page.items.isEmpty) return const _Empty();
@@ -120,8 +119,9 @@ class _DisputeCard extends StatelessWidget {
                   Expanded(
                     child: Text(
                       job.title,
-                      style: theme.textTheme.titleSmall
-                          ?.copyWith(fontWeight: FontWeight.w700),
+                      style: theme.textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
@@ -130,8 +130,9 @@ class _DisputeCard extends StatelessWidget {
               const SizedBox(height: 8),
               Text(
                 job.disputeReason?.labelTR ?? 'Sorun bildirildi',
-                style: theme.textTheme.bodyMedium
-                    ?.copyWith(fontWeight: FontWeight.w600),
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
               ),
               if (job.disputeNote != null && job.disputeNote!.isNotEmpty) ...[
                 const SizedBox(height: 4),
@@ -139,15 +140,17 @@ class _DisputeCard extends StatelessWidget {
                   job.disputeNote!,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.bodySmall
-                      ?.copyWith(color: palette.inkMuted),
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: palette.inkMuted,
+                  ),
                 ),
               ],
               const SizedBox(height: 8),
               Text(
                 _formatDate(job.disputedAt ?? job.createdAt),
-                style: theme.textTheme.labelSmall
-                    ?.copyWith(color: palette.inkFaint),
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: palette.inkFaint,
+                ),
               ),
             ],
           ),
@@ -181,11 +184,14 @@ class _PartyBadge extends StatelessWidget {
         children: [
           Icon(icon, size: 13, color: palette.warning),
           const SizedBox(width: 4),
-          Text('$label bildirdi',
-              style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                  color: palette.warning)),
+          Text(
+            '$label bildirdi',
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              color: palette.warning,
+            ),
+          ),
         ],
       ),
     );
@@ -229,7 +235,9 @@ class _DisputeDetailSheetState extends ConsumerState<_DisputeDetailSheet> {
   Future<void> _apply(DisputeDecision decision) async {
     setState(() => _busy = true);
     try {
-      await ref.read(adminDisputeRepositoryProvider).resolveDispute(
+      await ref
+          .read(adminDisputeRepositoryProvider)
+          .resolveDispute(
             widget.job.jobId,
             decision: decision,
             note: _noteController.text,
@@ -280,27 +288,34 @@ class _DisputeDetailSheetState extends ConsumerState<_DisputeDetailSheet> {
               ),
               _PartyBadge(party: j.disputedBy),
               const SizedBox(height: 12),
-              Text(j.title,
-                  style: theme.textTheme.titleMedium
-                      ?.copyWith(fontWeight: FontWeight.w800)),
+              Text(
+                j.title,
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
               const SizedBox(height: 4),
-              Text(j.disputeReason?.labelTR ?? 'Sorun bildirildi',
-                  style: theme.textTheme.bodyMedium
-                      ?.copyWith(color: palette.inkMuted)),
+              Text(
+                j.disputeReason?.labelTR ?? 'Sorun bildirildi',
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: palette.inkMuted,
+                ),
+              ),
               const SizedBox(height: 12),
               if (j.disputeNote != null && j.disputeNote!.isNotEmpty)
                 _InfoBlock(label: 'Bildirim notu', value: j.disputeNote!),
               _InfoBlock(
-                  label: 'Sorun öncesi durum',
-                  value: (j.statusBeforeDispute ?? JobStatus.inProgress)
-                      .labelTR),
+                label: 'Sorun öncesi durum',
+                value: (j.statusBeforeDispute ?? JobStatus.inProgress).labelTR,
+              ),
               _InfoBlock(label: 'Müşteri (uid)', value: j.customerId),
               if (j.selectedArtisanId != null)
                 _InfoBlock(label: 'Usta (uid)', value: j.selectedArtisanId!),
               _InfoBlock(label: 'İlan kimliği', value: j.jobId),
               _InfoBlock(
-                  label: 'Bildirim tarihi',
-                  value: _formatDate(j.disputedAt ?? j.createdAt)),
+                label: 'Bildirim tarihi',
+                value: _formatDate(j.disputedAt ?? j.createdAt),
+              ),
               Wrap(
                 spacing: 8,
                 runSpacing: 8,
@@ -308,7 +323,8 @@ class _DisputeDetailSheetState extends ConsumerState<_DisputeDetailSheet> {
                   OutlinedButton.icon(
                     onPressed: _busy
                         ? null
-                        : () => showAdminUserActions(context, ref, j.customerId),
+                        : () =>
+                              showAdminUserActions(context, ref, j.customerId),
                     icon: const Icon(Icons.person_outline, size: 18),
                     label: const Text('Müşteriyi yönet'),
                   ),
@@ -317,19 +333,22 @@ class _DisputeDetailSheetState extends ConsumerState<_DisputeDetailSheet> {
                       onPressed: _busy
                           ? null
                           : () => showAdminUserActions(
-                                context,
-                                ref,
-                                j.selectedArtisanId!,
-                              ),
+                              context,
+                              ref,
+                              j.selectedArtisanId!,
+                            ),
                       icon: const Icon(Icons.handyman_outlined, size: 18),
                       label: const Text('Ustayı yönet'),
                     ),
                 ],
               ),
               const SizedBox(height: 12),
-              Text('Karar notu (opsiyonel — her iki tarafa iletilir)',
-                  style: theme.textTheme.labelLarge
-                      ?.copyWith(color: palette.inkMuted)),
+              Text(
+                'Karar notu (opsiyonel — her iki tarafa iletilir)',
+                style: theme.textTheme.labelLarge?.copyWith(
+                  color: palette.inkMuted,
+                ),
+              ),
               const SizedBox(height: 6),
               TextField(
                 controller: _noteController,
@@ -343,10 +362,11 @@ class _DisputeDetailSheetState extends ConsumerState<_DisputeDetailSheet> {
               const SizedBox(height: 16),
               if (_busy)
                 const Center(
-                    child: Padding(
-                  padding: EdgeInsets.all(8),
-                  child: CircularProgressIndicator(strokeWidth: 2.5),
-                ))
+                  child: Padding(
+                    padding: EdgeInsets.all(8),
+                    child: CircularProgressIndicator(strokeWidth: 2.5),
+                  ),
+                )
               else
                 Wrap(
                   spacing: 10,
@@ -359,7 +379,8 @@ class _DisputeDetailSheetState extends ConsumerState<_DisputeDetailSheet> {
                     ),
                     FilledButton.icon(
                       style: FilledButton.styleFrom(
-                          backgroundColor: palette.danger),
+                        backgroundColor: palette.danger,
+                      ),
                       onPressed: () => _apply(DisputeDecision.cancelJob),
                       icon: const Icon(Icons.cancel_outlined, size: 18),
                       label: const Text('İşi İptal Et'),
@@ -388,13 +409,19 @@ class _InfoBlock extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label,
-              style: theme.textTheme.labelSmall
-                  ?.copyWith(color: palette.inkFaint)),
+          Text(
+            label,
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: palette.inkFaint,
+            ),
+          ),
           const SizedBox(height: 2),
-          SelectableText(value,
-              style: theme.textTheme.bodyMedium
-                  ?.copyWith(fontWeight: FontWeight.w500)),
+          SelectableText(
+            value,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              fontWeight: FontWeight.w500,
+            ),
+          ),
         ],
       ),
     );

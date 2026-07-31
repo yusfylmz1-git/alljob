@@ -6,12 +6,7 @@ import 'package:cloud_functions/cloud_functions.dart';
 import '../../../data/models/app_user.dart';
 
 /// Kullanıcı dizin filtreleri (tek equality + `createdAt` — bileşik indeks PR0).
-enum AdminUserListFilter {
-  all,
-  suspended,
-  artisans,
-  nonArtisans,
-}
+enum AdminUserListFilter { all, suspended, artisans, nonArtisans }
 
 /// Yönetici kadrosu (`adminRoles/{uid}`) satırı: kimin hangi rolde olduğu.
 class AdminRosterEntry {
@@ -147,8 +142,7 @@ class AdminUserSummary {
       hasArtisanProfile: m['hasArtisanProfile'] == true,
       artisan: (m['artisan'] as Map?)?.cast<String, dynamic>(),
       counts: {
-        for (final e in rawCounts.entries)
-          e.key: (e.value as num?)?.toInt(),
+        for (final e in rawCounts.entries) e.key: (e.value as num?)?.toInt(),
       },
     );
   }
@@ -169,13 +163,13 @@ class AdminUserNote {
   final DateTime? createdAt;
 
   factory AdminUserNote.fromMap(Map<String, dynamic> m) => AdminUserNote(
-        id: (m['id'] ?? '') as String,
-        note: (m['note'] ?? '') as String,
-        actorUid: m['actorUid'] as String?,
-        createdAt: m['createdAt'] == null
-            ? null
-            : DateTime.tryParse(m['createdAt'].toString()),
-      );
+    id: (m['id'] ?? '') as String,
+    note: (m['note'] ?? '') as String,
+    actorUid: m['actorUid'] as String?,
+    createdAt: m['createdAt'] == null
+        ? null
+        : DateTime.tryParse(m['createdAt'].toString()),
+  );
 }
 
 /// [AdminUserRepository.bulkSuspend] tek satır sonucu.
@@ -206,9 +200,9 @@ class FirebaseAdminUserRepository implements AdminUserRepository {
   FirebaseAdminUserRepository({
     FirebaseFirestore? firestore,
     FirebaseFunctions? functions,
-  })  : _db = firestore ?? FirebaseFirestore.instance,
-        _functions = functions ??
-            FirebaseFunctions.instanceFor(region: 'europe-west1');
+  }) : _db = firestore ?? FirebaseFirestore.instance,
+       _functions =
+           functions ?? FirebaseFunctions.instanceFor(region: 'europe-west1');
 
   final FirebaseFirestore _db;
   final FirebaseFunctions _functions;
@@ -258,7 +252,8 @@ class FirebaseAdminUserRepository implements AdminUserRepository {
     final m = Map<String, dynamic>.from(data);
     final uid = m['uid']?.toString();
     if (uid == null || uid.isEmpty) return null;
-    final created = DateTime.tryParse(m['createdAt']?.toString() ?? '') ??
+    final created =
+        DateTime.tryParse(m['createdAt']?.toString() ?? '') ??
         DateTime.fromMillisecondsSinceEpoch(0);
     return AppUser(
       uid: uid,
@@ -320,8 +315,7 @@ class FirebaseAdminUserRepository implements AdminUserRepository {
               ? raw.map((e) => e.toString()).toList()
               : null,
         );
-      }).toList()
-        ..sort(_rosterSort);
+      }).toList()..sort(_rosterSort);
       return list;
     });
   }
@@ -368,10 +362,11 @@ class FirebaseAdminUserRepository implements AdminUserRepository {
     final res = await _functions
         .httpsCallable('adminBulkSuspend')
         .call<Object?>({
-      'uids': uids,
-      'suspended': suspended,
-      if (reason != null && reason.trim().isNotEmpty) 'reason': reason.trim(),
-    });
+          'uids': uids,
+          'suspended': suspended,
+          if (reason != null && reason.trim().isNotEmpty)
+            'reason': reason.trim(),
+        });
     final data = res.data;
     if (data is! Map) return const [];
     final raw = data['results'];
@@ -388,10 +383,7 @@ class FirebaseAdminUserRepository implements AdminUserRepository {
   }
 
   @override
-  Future<void> logExport({
-    required String kind,
-    required int rowCount,
-  }) async {
+  Future<void> logExport({required String kind, required int rowCount}) async {
     await _functions.httpsCallable('adminLogExport').call<Object?>({
       'kind': kind,
       'rowCount': rowCount,
@@ -409,9 +401,10 @@ class FirebaseAdminUserRepository implements AdminUserRepository {
 
   @override
   Future<void> addNote(String uid, String note) async {
-    await _functions
-        .httpsCallable('adminAddUserNote')
-        .call<Object?>({'uid': uid, 'note': note});
+    await _functions.httpsCallable('adminAddUserNote').call<Object?>({
+      'uid': uid,
+      'note': note,
+    });
   }
 
   @override
@@ -422,8 +415,7 @@ class FirebaseAdminUserRepository implements AdminUserRepository {
     final m = (res.data as Map?)?.cast<String, dynamic>() ?? const {};
     final items = (m['items'] as List?) ?? const [];
     return items
-        .map((e) =>
-            AdminUserNote.fromMap((e as Map).cast<String, dynamic>()))
+        .map((e) => AdminUserNote.fromMap((e as Map).cast<String, dynamic>()))
         .toList();
   }
 }
@@ -497,20 +489,17 @@ class MockAdminUserRepository implements AdminUserRepository {
     if (!_changes.isClosed) _changes.add(null);
   }
 
-  List<AdminRosterEntry> _roster() => _roles.entries
-      .map((e) {
-        final hasKey = _caps.containsKey(e.key);
-        final c = _caps[e.key];
-        return AdminRosterEntry(
-          uid: e.key,
-          role: e.value,
-          updatedAt: _roleUpdatedAt[e.key],
-          capabilitiesFieldPresent: hasKey && c != null,
-          capabilities: c,
-        );
-      })
-      .toList()
-    ..sort(_rosterSort);
+  List<AdminRosterEntry> _roster() => _roles.entries.map((e) {
+    final hasKey = _caps.containsKey(e.key);
+    final c = _caps[e.key];
+    return AdminRosterEntry(
+      uid: e.key,
+      role: e.value,
+      updatedAt: _roleUpdatedAt[e.key],
+      capabilitiesFieldPresent: hasKey && c != null,
+      capabilities: c,
+    );
+  }).toList()..sort(_rosterSort);
 
   @override
   Stream<List<AdminRosterEntry>> watchRoster() async* {
@@ -578,10 +567,7 @@ class MockAdminUserRepository implements AdminUserRepository {
   final List<({String kind, int rowCount})> exportLogs = [];
 
   @override
-  Future<void> logExport({
-    required String kind,
-    required int rowCount,
-  }) async {
+  Future<void> logExport({required String kind, required int rowCount}) async {
     exportLogs.add((kind: kind, rowCount: rowCount));
   }
 

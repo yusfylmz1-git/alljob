@@ -48,7 +48,8 @@ abstract final class AdminChrome {
             decoration: BoxDecoration(
               border: Border(
                 bottom: BorderSide(
-                    color: theme.dividerColor.withValues(alpha: 0.6)),
+                  color: theme.dividerColor.withValues(alpha: 0.6),
+                ),
               ),
             ),
             padding: const EdgeInsets.symmetric(horizontal: 8),
@@ -74,7 +75,9 @@ abstract final class AdminChrome {
         child: Container(
           decoration: BoxDecoration(
             border: Border(
-              bottom: BorderSide(color: theme.dividerColor.withValues(alpha: 0.6)),
+              bottom: BorderSide(
+                color: theme.dividerColor.withValues(alpha: 0.6),
+              ),
             ),
           ),
           padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -91,7 +94,11 @@ abstract final class AdminChrome {
                       color: theme.colorScheme.primary.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(10),
                     ),
-                    child: Icon(icon, size: 20, color: theme.colorScheme.primary),
+                    child: Icon(
+                      icon,
+                      size: 20,
+                      color: theme.colorScheme.primary,
+                    ),
                   ),
                   const SizedBox(width: 12),
                 ],
@@ -170,7 +177,11 @@ abstract final class AdminChrome {
               ),
               const Spacer(),
               if (onTap != null)
-                Icon(Icons.chevron_right, size: 18, color: context.palette.inkFaint),
+                Icon(
+                  Icons.chevron_right,
+                  size: 18,
+                  color: context.palette.inkFaint,
+                ),
             ],
           ),
           const SizedBox(height: 14),

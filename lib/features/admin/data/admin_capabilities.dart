@@ -59,27 +59,27 @@ class AdminCapabilities {
   ];
 
   static String labelTR(String code) => switch (code) {
-        'reports.manage' => 'Şikayet yönetimi',
-        'disputes.manage' => 'Anlaşmazlık hakemliği',
-        'users.read' => 'Kullanıcı okuma',
-        'users.suspend' => 'Kullanıcı askıya alma',
-        'jobs.read' => 'İlan okuma',
-        'jobs.moderate' => 'İlan moderasyonu',
-        'artisans.read' => 'Usta okuma',
-        'artisans.moderate' => 'Usta moderasyonu',
-        'reviews.moderate' => 'Değerlendirme gizleme',
-        'stats.read' => 'İstatistik',
-        'products.read' => 'Ürün okuma',
-        'products.moderate' => 'Ürün moderasyonu',
-        'products.purge' => 'Ürün kalıcı silme',
-        'chats.read' => 'Sohbet kanıtı (opt-in)',
-        'audit.read' => 'Denetim kaydı',
-        'staff.manage' => 'Kadro / davet',
-        'config.manage' => 'Ayarlar',
-        'export.run' => 'Dışa aktarım',
-        'finance.manage' => 'Premium / finans müdahalesi',
-        _ => code,
-      };
+    'reports.manage' => 'Şikayet yönetimi',
+    'disputes.manage' => 'Anlaşmazlık hakemliği',
+    'users.read' => 'Kullanıcı okuma',
+    'users.suspend' => 'Kullanıcı askıya alma',
+    'jobs.read' => 'İlan okuma',
+    'jobs.moderate' => 'İlan moderasyonu',
+    'artisans.read' => 'Usta okuma',
+    'artisans.moderate' => 'Usta moderasyonu',
+    'reviews.moderate' => 'Değerlendirme gizleme',
+    'stats.read' => 'İstatistik',
+    'products.read' => 'Ürün okuma',
+    'products.moderate' => 'Ürün moderasyonu',
+    'products.purge' => 'Ürün kalıcı silme',
+    'chats.read' => 'Sohbet kanıtı (opt-in)',
+    'audit.read' => 'Denetim kaydı',
+    'staff.manage' => 'Kadro / davet',
+    'config.manage' => 'Ayarlar',
+    'export.run' => 'Dışa aktarım',
+    'finance.manage' => 'Premium / finans müdahalesi',
+    _ => code,
+  };
 
   bool allows(String c) {
     if (isSuperAdmin) return true;
@@ -90,10 +90,10 @@ class AdminCapabilities {
   }
 
   factory AdminCapabilities.superAdmin() => const AdminCapabilities(
-        isSuperAdmin: true,
-        capsFieldMissing: false,
-        caps: {},
-      );
+    isSuperAdmin: true,
+    capsFieldMissing: false,
+    caps: {},
+  );
 
   factory AdminCapabilities.fromRoster({
     required bool isSuperAdmin,

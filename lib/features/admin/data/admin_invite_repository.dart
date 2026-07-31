@@ -28,20 +28,20 @@ class AdminInvite {
   bool get isPending => status == 'pending';
 
   factory AdminInvite.fromMap(String id, Map<String, dynamic> m) => AdminInvite(
-        id: id,
-        email: (m['email'] ?? m['emailNormalized'] ?? '') as String,
-        status: (m['status'] ?? 'pending') as String,
-        capabilities: ((m['capabilities'] as List?) ?? const [])
-            .map((e) => e.toString())
-            .toList(),
-        createdAt: DateTime.tryParse(m['createdAt']?.toString() ?? '') ??
-            DateTime.now(),
-        expiresAt: m['expiresAt'] != null
-            ? DateTime.tryParse(m['expiresAt'].toString())
-            : null,
-        createdBy: m['createdBy'] as String?,
-        acceptedByUid: m['acceptedByUid'] as String?,
-      );
+    id: id,
+    email: (m['email'] ?? m['emailNormalized'] ?? '') as String,
+    status: (m['status'] ?? 'pending') as String,
+    capabilities: ((m['capabilities'] as List?) ?? const [])
+        .map((e) => e.toString())
+        .toList(),
+    createdAt:
+        DateTime.tryParse(m['createdAt']?.toString() ?? '') ?? DateTime.now(),
+    expiresAt: m['expiresAt'] != null
+        ? DateTime.tryParse(m['expiresAt'].toString())
+        : null,
+    createdBy: m['createdBy'] as String?,
+    acceptedByUid: m['acceptedByUid'] as String?,
+  );
 }
 
 abstract interface class AdminInviteRepository {
@@ -59,9 +59,9 @@ class FirebaseAdminInviteRepository implements AdminInviteRepository {
   FirebaseAdminInviteRepository({
     FirebaseFirestore? firestore,
     FirebaseFunctions? functions,
-  })  : _db = firestore ?? FirebaseFirestore.instance,
-        _functions = functions ??
-            FirebaseFunctions.instanceFor(region: 'europe-west1');
+  }) : _db = firestore ?? FirebaseFirestore.instance,
+       _functions =
+           functions ?? FirebaseFunctions.instanceFor(region: 'europe-west1');
 
   final FirebaseFirestore _db;
   final FirebaseFunctions _functions;
@@ -74,9 +74,11 @@ class FirebaseAdminInviteRepository implements AdminInviteRepository {
         .orderBy('createdAt', descending: true)
         .limit(50)
         .snapshots()
-        .map((snap) => snap.docs
-            .map((d) => AdminInvite.fromMap(d.id, d.data()))
-            .toList());
+        .map(
+          (snap) => snap.docs
+              .map((d) => AdminInvite.fromMap(d.id, d.data()))
+              .toList(),
+        );
   }
 
   @override
@@ -126,10 +128,9 @@ class MockAdminInviteRepository implements AdminInviteRepository {
     }
   }
 
-  List<AdminInvite> _pending() => _items.values
-      .where((i) => i.isPending)
-      .toList()
-    ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+  List<AdminInvite> _pending() =>
+      _items.values.where((i) => i.isPending).toList()
+        ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
 
   @override
   Future<String> create({
@@ -139,8 +140,7 @@ class MockAdminInviteRepository implements AdminInviteRepository {
   }) async {
     final id = 'inv_${++_seq}';
     final e = email.trim().toLowerCase();
-    for (final x in _items.values.where(
-        (i) => i.email == e && i.isPending)) {
+    for (final x in _items.values.where((i) => i.email == e && i.isPending)) {
       _items[x.id] = AdminInvite(
         id: x.id,
         email: x.email,

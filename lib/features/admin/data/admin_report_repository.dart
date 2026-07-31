@@ -59,9 +59,9 @@ class FirebaseAdminReportRepository implements AdminReportRepository {
   FirebaseAdminReportRepository({
     FirebaseFirestore? firestore,
     FirebaseFunctions? functions,
-  })  : _db = firestore ?? FirebaseFirestore.instance,
-        _functions = functions ??
-            FirebaseFunctions.instanceFor(region: 'europe-west1');
+  }) : _db = firestore ?? FirebaseFirestore.instance,
+       _functions =
+           functions ?? FirebaseFunctions.instanceFor(region: 'europe-west1');
 
   final FirebaseFirestore _db;
   final FirebaseFunctions _functions;
@@ -82,16 +82,16 @@ class FirebaseAdminReportRepository implements AdminReportRepository {
         .limit(_pageLimit)
         .snapshots()
         .map((snap) {
-      final all =
-          snap.docs.map((d) => Report.fromMap(d.id, d.data())).toList();
-      return openOnly ? all.where((r) => !r.status.isClosed).toList() : all;
-    });
+          final all = snap.docs
+              .map((d) => Report.fromMap(d.id, d.data()))
+              .toList();
+          return openOnly ? all.where((r) => !r.status.isClosed).toList() : all;
+        });
   }
 
   @override
   Future<List<Report>> fetchPage({String? beforeCursor, int limit = 30}) async {
-    Query<Map<String, dynamic>> q =
-        _col.orderBy('createdAt', descending: true);
+    Query<Map<String, dynamic>> q = _col.orderBy('createdAt', descending: true);
     if (beforeCursor != null && beforeCursor.isNotEmpty) {
       q = q.where('createdAt', isLessThan: beforeCursor);
     }
@@ -136,12 +136,13 @@ class FirebaseAdminReportRepository implements AdminReportRepository {
     required String chatId,
     int limit = 100,
   }) async {
-    final res =
-        await _functions.httpsCallable('adminGetChatTranscript').call<Object?>({
-      'reportId': reportId,
-      'chatId': chatId,
-      'limit': limit,
-    });
+    final res = await _functions
+        .httpsCallable('adminGetChatTranscript')
+        .call<Object?>({
+          'reportId': reportId,
+          'chatId': chatId,
+          'limit': limit,
+        });
     final data = res.data;
     if (data is Map && data['messages'] is List) {
       return (data['messages'] as List)
@@ -181,10 +182,11 @@ class MockAdminReportRepository implements AdminReportRepository {
   final _changes = StreamController<void>.broadcast();
 
   List<Report> _query(bool openOnly) {
-    final list = _items.values
-        .where((r) => openOnly ? !r.status.isClosed : true)
-        .toList()
-      ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    final list =
+        _items.values
+            .where((r) => openOnly ? !r.status.isClosed : true)
+            .toList()
+          ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
     return list;
   }
 
@@ -271,8 +273,7 @@ class MockAdminReportRepository implements AdminReportRepository {
     required String reportId,
     required String chatId,
     int limit = 100,
-  }) async =>
-      const [];
+  }) async => const [];
 
   /// Gizlenen hedefler (test doğrulaması için).
   final Set<String> hiddenTargets = {};

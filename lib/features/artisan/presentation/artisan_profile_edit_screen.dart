@@ -50,8 +50,10 @@ class ArtisanProfileEditScreen extends ConsumerWidget {
       body: draftAsync.when(
         loading: () => const LoadingView(),
         error: (_, _) => const ErrorView(
-            message: 'Profil yüklenemedi. Bağlantınızı kontrol edip '
-                'tekrar deneyin.'),
+          message:
+              'Profil yüklenemedi. Bağlantınızı kontrol edip '
+              'tekrar deneyin.',
+        ),
         data: (_) => _EditForm(focusStep: focusStep),
       ),
     );
@@ -127,10 +129,7 @@ class _EditFormState extends ConsumerState<_EditForm> {
     );
   }
 
-  Widget _focusWrap({
-    required String id,
-    required Widget child,
-  }) {
+  Widget _focusWrap({required String id, required Widget child}) {
     final focused = widget.focusStep == id;
     final palette = context.palette;
     return KeyedSubtree(
@@ -163,15 +162,19 @@ class _EditFormState extends ConsumerState<_EditForm> {
             mainAxisSize: MainAxisSize.min,
             children: [
               ListTile(
-                leading: Icon(Icons.photo_camera_outlined,
-                    color: palette.primary),
+                leading: Icon(
+                  Icons.photo_camera_outlined,
+                  color: palette.primary,
+                ),
                 title: const Text('Kamera ile çek'),
                 subtitle: const Text('Yeni fotoğraf çekin'),
                 onTap: () => Navigator.pop(ctx, ImageSource.camera),
               ),
               ListTile(
-                leading: Icon(Icons.photo_library_outlined,
-                    color: palette.primary),
+                leading: Icon(
+                  Icons.photo_library_outlined,
+                  color: palette.primary,
+                ),
                 title: const Text('Galeriden seç'),
                 subtitle: const Text('Mevcut fotoğraflardan'),
                 onTap: () => Navigator.pop(ctx, ImageSource.gallery),
@@ -206,9 +209,11 @@ class _EditFormState extends ConsumerState<_EditForm> {
       );
     } catch (_) {
       if (mounted) {
-        context.showError(source == ImageSource.camera
-            ? 'Kamera açılamadı. İzinleri kontrol edin.'
-            : 'Görsel seçilemedi.');
+        context.showError(
+          source == ImageSource.camera
+              ? 'Kamera açılamadı. İzinleri kontrol edin.'
+              : 'Görsel seçilemedi.',
+        );
       }
       return;
     }
@@ -223,15 +228,15 @@ class _EditFormState extends ConsumerState<_EditForm> {
     setState(() => _uploading = pathHint);
     try {
       // Yol uid ile başlar: Storage kuralı yalnızca kendi klasörüne yazmaya izin verir.
-      final handle = await ref.read(storageRepositoryProvider).uploadImage(
-            pathHint: '$pathHint/$uid',
-            bytes: bytes,
-          );
+      final handle = await ref
+          .read(storageRepositoryProvider)
+          .uploadImage(pathHint: '$pathHint/$uid', bytes: bytes);
       onHandle(handle);
     } catch (_) {
       if (mounted) {
         context.showError(
-            'Görsel yüklenemedi. Bağlantınızı kontrol edip tekrar deneyin.');
+          'Görsel yüklenemedi. Bağlantınızı kontrol edip tekrar deneyin.',
+        );
       }
     } finally {
       if (mounted) setState(() => _uploading = null);
@@ -317,365 +322,457 @@ class _EditFormState extends ConsumerState<_EditForm> {
       child: ListView(
         padding: const EdgeInsets.all(20),
         children: [
-            // --- Profil fotoğrafı ---
-            _focusWrap(
-              id: 'photo',
-              child: Center(
-                child: Stack(
-                  children: [
-                    CircleAvatar(
-                      radius: 52,
-                      backgroundColor:
-                          Theme.of(context).colorScheme.primaryContainer,
-                      child: ClipOval(
-                        child: SizedBox(
-                          width: 104,
-                          height: 104,
-                          child: draft.profilePhotoUrl != null
-                              ? AppImage(handle: draft.profilePhotoUrl)
-                              : Icon(Icons.person,
-                                  size: 52,
-                                  color: Theme.of(context)
-                                      .colorScheme
-                                      .onPrimaryContainer),
-                        ),
+          // --- Profil fotoğrafı ---
+          _focusWrap(
+            id: 'photo',
+            child: Center(
+              child: Stack(
+                children: [
+                  CircleAvatar(
+                    radius: 52,
+                    backgroundColor: Theme.of(
+                      context,
+                    ).colorScheme.primaryContainer,
+                    child: ClipOval(
+                      child: SizedBox(
+                        width: 104,
+                        height: 104,
+                        child: draft.profilePhotoUrl != null
+                            ? AppImage(handle: draft.profilePhotoUrl)
+                            : Icon(
+                                Icons.person,
+                                size: 52,
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.onPrimaryContainer,
+                              ),
                       ),
                     ),
-                    // Yükleme sürerken avatar üstünde karartma + spinner
-                    // (WhatsApp foto balonuyla aynı dil).
-                    if (_uploading == 'profile')
-                      const Positioned.fill(
-                        child: ClipOval(
-                          child: ColoredBox(
-                            color: Colors.black38,
-                            child: Center(
-                              child: SizedBox(
-                                width: 28,
-                                height: 28,
-                                child: CircularProgressIndicator(
-                                    strokeWidth: 3, color: Colors.white),
+                  ),
+                  // Yükleme sürerken avatar üstünde karartma + spinner
+                  // (WhatsApp foto balonuyla aynı dil).
+                  if (_uploading == 'profile')
+                    const Positioned.fill(
+                      child: ClipOval(
+                        child: ColoredBox(
+                          color: Colors.black38,
+                          child: Center(
+                            child: SizedBox(
+                              width: 28,
+                              height: 28,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 3,
+                                color: Colors.white,
                               ),
                             ),
                           ),
                         ),
                       ),
-                    Positioned(
-                      right: 0,
-                      bottom: 0,
-                      child: Material(
-                        color: Theme.of(context).colorScheme.primary,
-                        shape: const CircleBorder(),
-                        child: InkWell(
-                          customBorder: const CircleBorder(),
-                          onTap: () => _pickImage(
-                              pathHint: 'profile',
-                              onHandle: _controller.setProfilePhoto),
-                          child: const Padding(
-                            padding: EdgeInsets.all(8),
-                            child: Icon(Icons.camera_alt,
-                                size: 18, color: Colors.white),
+                    ),
+                  Positioned(
+                    right: 0,
+                    bottom: 0,
+                    child: Material(
+                      color: Theme.of(context).colorScheme.primary,
+                      shape: const CircleBorder(),
+                      child: InkWell(
+                        customBorder: const CircleBorder(),
+                        onTap: () => _pickImage(
+                          pathHint: 'profile',
+                          onHandle: _controller.setProfilePhoto,
+                        ),
+                        child: const Padding(
+                          padding: EdgeInsets.all(8),
+                          child: Icon(
+                            Icons.camera_alt,
+                            size: 18,
+                            color: Colors.white,
                           ),
                         ),
                       ),
                     ),
-                  ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 24),
+
+          // --- Ad Soyad ---
+          _Label('Ad Soyad'),
+          TextFormField(
+            initialValue: draft.displayName,
+            textCapitalization: TextCapitalization.words,
+            maxLength: AppConstants.maxDisplayNameLength,
+            validator: Validators.displayName,
+            decoration: const InputDecoration(
+              prefixIcon: Icon(Icons.person_outline),
+              helperText: "Harf, rakam, boşluk ve . ' -",
+            ),
+            onChanged: _controller.setDisplayName,
+          ),
+          const SizedBox(height: 16),
+
+          // --- Meslek(ler) ---
+          _focusWrap(
+            id: 'profession',
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _Label(
+                  'Meslekler (en fazla ${MyProfileController.maxProfessions})',
                 ),
-              ),
-            ),
-            const SizedBox(height: 24),
-
-            // --- Ad Soyad ---
-            _Label('Ad Soyad'),
-            TextFormField(
-              initialValue: draft.displayName,
-              textCapitalization: TextCapitalization.words,
-              maxLength: AppConstants.maxDisplayNameLength,
-              validator: Validators.displayName,
-              decoration: const InputDecoration(
-                prefixIcon: Icon(Icons.person_outline),
-                helperText: "Harf, rakam, boşluk ve . ' -",
-              ),
-              onChanged: _controller.setDisplayName,
-            ),
-            const SizedBox(height: 16),
-
-            // --- Meslek(ler) ---
-            _focusWrap(
-              id: 'profession',
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  _Label(
-                      'Meslekler (en fazla ${MyProfileController.maxProfessions})'),
-                  Text(
-                    'Arayarak seçin. En az bir meslek zorunlu.',
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: context.palette.inkMuted,
+                Text(
+                  'Arayarak seçin. En az bir meslek zorunlu.',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: context.palette.inkMuted,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                _ProfessionMultiSelect(
+                  selected: profile.professionCodes,
+                  onToggle: (code) {
+                    final cur = profile.professionCodes;
+                    final adding = !cur.contains(code);
+                    if (adding &&
+                        cur.length >= MyProfileController.maxProfessions) {
+                      context.showError(
+                        'En fazla ${MyProfileController.maxProfessions} meslek seçebilirsiniz.',
+                      );
+                      return;
+                    }
+                    _controller.toggleProfession(code);
+                    // İlk kez Hızlı Destek mesleği seçilince bir kerelik tanıtım.
+                    if (adding && code == kOtherProfession) {
+                      showQuickSupportArtisanIntro(context);
+                    }
+                  },
+                ),
+                if (profile.professionCodes.contains(kOtherProfession)) ...[
+                  const SizedBox(height: 8),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: context.palette.warningSurface,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.bolt,
+                          color: context.palette.warning,
+                          size: 20,
                         ),
-                  ),
-                  const SizedBox(height: 10),
-                  _ProfessionMultiSelect(
-                    selected: profile.professionCodes,
-                    onToggle: (code) {
-                      final cur = profile.professionCodes;
-                      final adding = !cur.contains(code);
-                      if (adding &&
-                          cur.length >= MyProfileController.maxProfessions) {
-                        context.showError(
-                            'En fazla ${MyProfileController.maxProfessions} meslek seçebilirsiniz.');
-                        return;
-                      }
-                      _controller.toggleProfession(code);
-                      // İlk kez Hızlı Destek mesleği seçilince bir kerelik tanıtım.
-                      if (adding && code == kOtherProfession) {
-                        showQuickSupportArtisanIntro(context);
-                      }
-                    },
-                  ),
-                  if (profile.professionCodes.contains(kOtherProfession)) ...[
-                    const SizedBox(height: 8),
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: context.palette.warningSurface,
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Row(
-                        children: [
-                          Icon(Icons.bolt,
-                              color: context.palette.warning, size: 20),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Text(
-                              profile.professionCodes
-                                      .where((c) => c != kOtherProfession)
-                                      .isEmpty
-                                  ? 'Yalnız Hızlı Destek seçili: size market, taşıma '
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            profile.professionCodes
+                                    .where((c) => c != kOtherProfession)
+                                    .isEmpty
+                                ? 'Yalnız Hızlı Destek seçili: size market, taşıma '
                                       'gibi ayak işi ilanları gelir; boya/elektrik '
                                       'gibi klasik meslek ilanları gelmez.'
-                                  : 'Hızlı Destek + meslek: hem ayak işi hem seçtiğiniz '
+                                : 'Hızlı Destek + meslek: hem ayak işi hem seçtiğiniz '
                                       'meslek ilanlarını alırsınız.',
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .bodySmall
-                                  ?.copyWith(fontWeight: FontWeight.w600),
-                            ),
+                            style: Theme.of(context).textTheme.bodySmall
+                                ?.copyWith(fontWeight: FontWeight.w600),
                           ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
-                  ],
+                  ),
                 ],
-              ),
-            ),
-            const SizedBox(height: 16),
-
-            // --- Deneyim ---
-            _Label('Deneyim (yıl)'),
-            TextFormField(
-              initialValue: () {
-                final y = Validators.clampExperienceYears(profile.experienceYears);
-                return y == 0 ? '' : '$y';
-              }(),
-              keyboardType: TextInputType.number,
-              maxLength: 2,
-              inputFormatters: [
-                FilteringTextInputFormatter.digitsOnly,
               ],
-              decoration: InputDecoration(
-                prefixIcon: const Icon(Icons.workspace_premium_outlined),
-                hintText: 'Örn. 15',
-                helperText: 'En fazla ${AppConstants.maxExperienceYears} yıl',
-                counterText: '',
-              ),
-              validator: Validators.experienceYears,
-              onChanged: (v) =>
-                  _controller.setExperience(int.tryParse(v.trim()) ?? 0),
             ),
-            const SizedBox(height: 16),
+          ),
+          const SizedBox(height: 16),
 
-            // --- Hakkımda ---
-            _focusWrap(
-              id: 'about',
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  _Label('Hakkımda'),
-                  TextFormField(
-                    initialValue: profile.aboutText,
-                    maxLines: 4,
-                    maxLength: AppConstants.maxAboutLength,
-                    decoration: const InputDecoration(
-                      hintText: 'Kendinizi ve işlerinizi kısaca tanıtın',
-                      alignLabelWithHint: true,
-                    ),
-                    validator: (v) => Validators.freeText(
-                      v,
-                      max: AppConstants.maxAboutLength,
-                      field: 'Hakkımda',
-                    ),
-                    onChanged: _controller.setAbout,
+          // --- Deneyim ---
+          _Label('Deneyim (yıl)'),
+          TextFormField(
+            initialValue: () {
+              final y = Validators.clampExperienceYears(
+                profile.experienceYears,
+              );
+              return y == 0 ? '' : '$y';
+            }(),
+            keyboardType: TextInputType.number,
+            maxLength: 2,
+            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+            decoration: InputDecoration(
+              prefixIcon: const Icon(Icons.workspace_premium_outlined),
+              hintText: 'Örn. 15',
+              helperText: 'En fazla ${AppConstants.maxExperienceYears} yıl',
+              counterText: '',
+            ),
+            validator: Validators.experienceYears,
+            onChanged: (v) =>
+                _controller.setExperience(int.tryParse(v.trim()) ?? 0),
+          ),
+          const SizedBox(height: 16),
+
+          // --- Hakkımda ---
+          _focusWrap(
+            id: 'about',
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _Label('Hakkımda'),
+                TextFormField(
+                  initialValue: profile.aboutText,
+                  maxLines: 4,
+                  maxLength: AppConstants.maxAboutLength,
+                  decoration: const InputDecoration(
+                    hintText: 'Kendinizi ve işlerinizi kısaca tanıtın',
+                    alignLabelWithHint: true,
                   ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 8),
-
-            // --- Hizmet Bölgeleri ---
-            _focusWrap(
-              id: 'area',
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  _Label('Hizmet Bölgeleri'),
-                  const SizedBox(height: 4),
-                  _ServiceAreaAdder(
-                    province: _addProvince,
-                    district: _addDistrict,
-                    onProvince: (p) => setState(() {
-                      _addProvince = p;
-                      _addDistrict = null;
-                    }),
-                    onDistrict: (d) => setState(() => _addDistrict = d),
-                    onAdd: _addArea,
+                  validator: (v) => Validators.freeText(
+                    v,
+                    max: AppConstants.maxAboutLength,
+                    field: 'Hakkımda',
                   ),
-                  const SizedBox(height: 12),
-                  if (profile.serviceAreas.isEmpty)
-                    Text('Henüz bölge eklemediniz.',
-                        style: Theme.of(context).textTheme.bodySmall)
-                  else
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: profile.serviceAreas
-                          .map((a) => Chip(
-                                label: Text(a.labelTR),
-                                onDeleted: () =>
-                                    _controller.removeServiceArea(a),
-                              ))
-                          .toList(),
-                    ),
-                ],
-              ),
+                  onChanged: _controller.setAbout,
+                ),
+              ],
             ),
-            const SizedBox(height: 20),
+          ),
+          const SizedBox(height: 8),
 
-            // --- İş Fotoğrafları ---
-            _focusWrap(
-              id: 'photos',
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  _Label('İş Fotoğrafları'),
-                  const SizedBox(height: 8),
-                  _WorkPhotos(
-                    handles: profile.workPhotos,
-                    uploading: _uploading == 'work',
-                    onAdd: () => _pickImage(
-                        pathHint: 'work', onHandle: _controller.addWorkPhoto),
-                    onRemove: _controller.removeWorkPhoto,
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 24),
-
-            // --- Sertifikalar ve Belgeler ---
-            _Label('Sertifikalar ve Belgeler'),
-            const SizedBox(height: 4),
-            Text(
-              'Ustalık belgesi, sertifika vb. görsellerini ekleyin. '
-              'Belgeler yönetici onayından geçer.',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant),
-            ),
-            const SizedBox(height: 8),
-            _WorkPhotos(
-              handles: profile.certificates,
-              uploading: _uploading == 'certificate',
-              onAdd: () => _pickImage(
-                  pathHint: 'certificate',
-                  onHandle: _controller.addCertificate),
-              onRemove: _controller.removeCertificate,
-            ),
-            const SizedBox(height: 24),
-
-            // --- Çalışma Takvimi / Müsaitlik ---
-            _focusWrap(
-              id: 'hours',
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  _Label('Çalışma Takvimi'),
-                  const SizedBox(height: 4),
+          // --- Hizmet Bölgeleri ---
+          _focusWrap(
+            id: 'area',
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _Label('Hizmet Bölgeleri'),
+                const SizedBox(height: 4),
+                _ServiceAreaAdder(
+                  province: _addProvince,
+                  district: _addDistrict,
+                  onProvince: (p) => setState(() {
+                    _addProvince = p;
+                    _addDistrict = null;
+                  }),
+                  onDistrict: (d) => setState(() => _addDistrict = d),
+                  onAdd: _addArea,
+                ),
+                const SizedBox(height: 12),
+                if (profile.serviceAreas.isEmpty)
                   Text(
-                    'Müşteriler öncelikle "şu an müsait" ustaları görür.',
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color:
-                            Theme.of(context).colorScheme.onSurfaceVariant),
+                    'Henüz bölge eklemediniz.',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  )
+                else
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: profile.serviceAreas
+                        .map(
+                          (a) => Chip(
+                            label: Text(a.labelTR),
+                            onDeleted: () => _controller.removeServiceArea(a),
+                          ),
+                        )
+                        .toList(),
                   ),
-                  const SizedBox(height: 10),
-                  _AvailabilitySection(
-                    mode: profile.availabilityMode,
-                    schedule: profile.weeklySchedule,
-                    onMode: _controller.setAvailabilityMode,
-                    onToggleDay: _controller.toggleScheduleDay,
-                    onDayHours: (wd, {startMinute, endMinute}) =>
-                        _controller.setScheduleDayHours(wd,
-                            startMinute: startMinute, endMinute: endMinute),
+              ],
+            ),
+          ),
+          const SizedBox(height: 20),
+
+          // --- İş Fotoğrafları ---
+          _focusWrap(
+            id: 'photos',
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _Label('İş Fotoğrafları'),
+                const SizedBox(height: 8),
+                _WorkPhotos(
+                  handles: profile.workPhotos,
+                  uploading: _uploading == 'work',
+                  onAdd: () => _pickImage(
+                    pathHint: 'work',
+                    onHandle: _controller.addWorkPhoto,
                   ),
-                ],
-              ),
+                  onRemove: _controller.removeWorkPhoto,
+                ),
+              ],
             ),
-            const SizedBox(height: 24),
+          ),
+          const SizedBox(height: 24),
 
-            // --- İletişim görünürlüğü (telefon rızası) ---
-            _Label('İletişim'),
-            const SizedBox(height: 4),
-            _PhoneVisibilityTile(profile: profile),
-            const SizedBox(height: 24),
-
-            // --- Sosyal Medya / İş Hattı ---
-            _Label('Sosyal Medya ve Bağlantılar'),
-            const SizedBox(height: 4),
-            Text(
-              'İsteğe bağlı. Eklerseniz profilinizde dokunulabilir bağlantı '
-              'olarak görünür; boş bıraktığınız alan gösterilmez.',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant),
+          // --- Sertifikalar ve Belgeler ---
+          _Label('Sertifikalar ve Belgeler'),
+          const SizedBox(height: 4),
+          Text(
+            'Ustalık belgesi, sertifika vb. görsellerini ekleyin. '
+            'Belgeler yönetici onayından geçer.',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
             ),
-            const SizedBox(height: 10),
-            _SocialLinksSection(
-              value: profile.socialLinks,
-              onChanged: ({
-                String? instagram,
-                String? youtube,
-                String? tiktok,
-                String? whatsapp,
-                String? website,
-              }) =>
-                  _controller.setSocialLinks(
-                instagram: instagram,
-                youtube: youtube,
-                tiktok: tiktok,
-                whatsapp: whatsapp,
-                website: website,
-              ),
+          ),
+          const SizedBox(height: 8),
+          _WorkPhotos(
+            handles: profile.certificates,
+            uploading: _uploading == 'certificate',
+            onAdd: () => _pickImage(
+              pathHint: 'certificate',
+              onHandle: _controller.addCertificate,
             ),
-            const SizedBox(height: 24),
+            onRemove: _controller.removeCertificate,
+          ),
+          if (profile.certificates.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            _CertificateStatusNote(profile: profile),
+          ],
+          const SizedBox(height: 24),
 
-            // --- Doğrulama (mavi tik) — form alanlarının altında, kaydetmeden
-            // bağımsız tek seferlik işlem olduğu için en sona alındı. ---
-            const VerificationTile(artisanContext: true),
-            const SizedBox(height: 28),
-
-            AppButton(
-              label: 'Kaydet',
-              icon: Icons.save_outlined,
-              isLoading: _isSaving,
-              onPressed: _save,
+          // --- Çalışma Takvimi / Müsaitlik ---
+          _focusWrap(
+            id: 'hours',
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _Label('Çalışma Takvimi'),
+                const SizedBox(height: 4),
+                Text(
+                  'Müşteriler öncelikle "şu an müsait" ustaları görür.',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                _AvailabilitySection(
+                  mode: profile.availabilityMode,
+                  schedule: profile.weeklySchedule,
+                  onMode: _controller.setAvailabilityMode,
+                  onToggleDay: _controller.toggleScheduleDay,
+                  onDayHours: (wd, {startMinute, endMinute}) =>
+                      _controller.setScheduleDayHours(
+                        wd,
+                        startMinute: startMinute,
+                        endMinute: endMinute,
+                      ),
+                ),
+              ],
             ),
-            const SizedBox(height: 12),
+          ),
+          const SizedBox(height: 24),
+
+          // --- İletişim görünürlüğü (telefon rızası) ---
+          _Label('İletişim'),
+          const SizedBox(height: 4),
+          _PhoneVisibilityTile(profile: profile),
+          const SizedBox(height: 24),
+
+          // --- Sosyal Medya / İş Hattı ---
+          _Label('Sosyal Medya ve Bağlantılar'),
+          const SizedBox(height: 4),
+          Text(
+            'İsteğe bağlı. Eklerseniz profilinizde dokunulabilir bağlantı '
+            'olarak görünür; boş bıraktığınız alan gösterilmez.',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: 10),
+          _SocialLinksSection(
+            value: profile.socialLinks,
+            onChanged:
+                ({
+                  String? instagram,
+                  String? youtube,
+                  String? tiktok,
+                  String? whatsapp,
+                  String? website,
+                }) => _controller.setSocialLinks(
+                  instagram: instagram,
+                  youtube: youtube,
+                  tiktok: tiktok,
+                  whatsapp: whatsapp,
+                  website: website,
+                ),
+          ),
+          const SizedBox(height: 24),
+
+          // --- Doğrulama (mavi tik) — form alanlarının altında, kaydetmeden
+          // bağımsız tek seferlik işlem olduğu için en sona alındı. ---
+          const VerificationTile(artisanContext: true),
+          const SizedBox(height: 28),
+
+          AppButton(
+            label: 'Kaydet',
+            icon: Icons.save_outlined,
+            isLoading: _isSaving,
+            onPressed: _save,
+          ),
+          const SizedBox(height: 12),
+        ],
+      ),
+    );
+  }
+}
+
+/// Belgelerin inceleme durumu — ustaya nerede olduğunu söyler.
+/// Reddedildiyse gerekçe gösterilir; usta neyi düzelteceğini bilmeli.
+class _CertificateStatusNote extends StatelessWidget {
+  const _CertificateStatusNote({required this.profile});
+  final ArtisanProfile profile;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    final theme = Theme.of(context);
+
+    final (
+      String text,
+      Color color,
+      IconData icon,
+    ) = switch (profile.certificateStatus) {
+      'approved' => (
+        'Belgeleriniz onaylandı — profilinizde "Belgeli usta" rozeti '
+            'görünüyor.',
+        palette.success,
+        Icons.verified_user_outlined,
+      ),
+      'rejected' => (
+        'Belgeleriniz reddedildi. '
+            '${profile.certificateNote ?? "Lütfen yeniden yükleyin."}',
+        palette.danger,
+        Icons.gpp_bad_outlined,
+      ),
+      'pending' => (
+        'Belgeleriniz inceleniyor. Sonuç bildirim olarak gönderilecek.',
+        palette.warning,
+        Icons.hourglass_empty,
+      ),
+      _ => (
+        'Belgeleriniz kaydedildikten sonra incelemeye alınır.',
+        palette.inkMuted,
+        Icons.info_outline,
+      ),
+    };
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: color.withValues(alpha: 0.35)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 16, color: color),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              text,
+              style: theme.textTheme.bodySmall?.copyWith(color: color),
+            ),
+          ),
         ],
       ),
     );
@@ -704,8 +801,9 @@ class _PhoneVisibilityTile extends ConsumerWidget {
       return Text(
         'Telefonunuzu profilinizde gösterebilmek için önce doğrulamanız '
         'gerekir. Doğrulama bu sayfanın altındadır.',
-        style: theme.textTheme.bodySmall
-            ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+        style: theme.textTheme.bodySmall?.copyWith(
+          color: theme.colorScheme.onSurfaceVariant,
+        ),
       );
     }
 
@@ -717,8 +815,9 @@ class _PhoneVisibilityTile extends ConsumerWidget {
         profile.showPhoneOnProfile
             ? '$phone — müşteriler doğrudan arayabilir.'
             : 'Kapalıyken müşteriler yalnız uygulama içi sohbetle ulaşır.',
-        style: theme.textTheme.bodySmall
-            ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+        style: theme.textTheme.bodySmall?.copyWith(
+          color: theme.colorScheme.onSurfaceVariant,
+        ),
       ),
       onChanged: (v) async {
         final ok = await ref
@@ -727,7 +826,8 @@ class _PhoneVisibilityTile extends ConsumerWidget {
         if (!context.mounted) return;
         if (ok) {
           context.showSuccess(
-              v ? 'Telefonunuz profilinizde görünecek.' : 'Telefonunuz gizlendi.');
+            v ? 'Telefonunuz profilinizde görünecek.' : 'Telefonunuz gizlendi.',
+          );
         } else {
           context.showError('Ayar kaydedilemedi, tekrar deneyin.');
         }
@@ -751,7 +851,8 @@ class _SocialLinksSection extends StatefulWidget {
     String? tiktok,
     String? whatsapp,
     String? website,
-  }) onChanged;
+  })
+  onChanged;
 
   @override
   State<_SocialLinksSection> createState() => _SocialLinksSectionState();
@@ -786,12 +887,12 @@ class _SocialLinksSectionState extends State<_SocialLinksSection> {
   }
 
   void _push() => widget.onChanged(
-        instagram: _instagram.text,
-        youtube: _youtube.text,
-        tiktok: _tiktok.text,
-        whatsapp: _whatsapp.text,
-        website: _website.text,
-      );
+    instagram: _instagram.text,
+    youtube: _youtube.text,
+    tiktok: _tiktok.text,
+    whatsapp: _whatsapp.text,
+    website: _website.text,
+  );
 
   /// Odak kaybında normalize edilmiş değeri kutuya geri yazar; böylece usta
   /// tam URL yapıştırsa bile kaydedilen kullanıcı adını görür.
@@ -881,11 +982,12 @@ class _Label extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 6),
-      child: Text(text,
-          style: Theme.of(context)
-              .textTheme
-              .titleSmall
-              ?.copyWith(fontWeight: FontWeight.w700)),
+      child: Text(
+        text,
+        style: Theme.of(
+          context,
+        ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+      ),
     );
   }
 }
@@ -933,8 +1035,9 @@ class _ProfessionMultiSelectState
         // Liste sırası sabit kalır (seçilince en üste zıplamaz); seçili
         // olanlar üstteki chip'lerde + satırda ✓ ile görünür.
         final filtered = professions
-            .where((p) =>
-                matchesTrSearch(p.nameTR, q) || matchesTrSearch(p.code, q))
+            .where(
+              (p) => matchesTrSearch(p.nameTR, q) || matchesTrSearch(p.code, q),
+            )
             .toList(growable: false);
 
         return Column(
@@ -1008,8 +1111,10 @@ class _ProfessionMultiSelectState
                   borderRadius: BorderRadius.circular(12),
                 ),
                 isDense: true,
-                contentPadding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 12,
+                ),
               ),
             ),
             const SizedBox(height: 8),
@@ -1040,8 +1145,9 @@ class _ProfessionMultiSelectState
                             child: Text(
                               'Eşleşen meslek yok.\nFarklı bir arama deneyin.',
                               textAlign: TextAlign.center,
-                              style: theme.textTheme.bodyMedium
-                                  ?.copyWith(color: palette.inkMuted),
+                              style: theme.textTheme.bodyMedium?.copyWith(
+                                color: palette.inkMuted,
+                              ),
                             ),
                           ),
                         )
@@ -1079,7 +1185,9 @@ class _ProfessionMultiSelectState
                               ),
                               onTap: () => widget.onToggle(p.code),
                               contentPadding: const EdgeInsets.symmetric(
-                                  horizontal: 14, vertical: 0),
+                                horizontal: 14,
+                                vertical: 0,
+                              ),
                             );
                           },
                         ),
@@ -1144,27 +1252,28 @@ class _ServiceAreaAdder extends ConsumerWidget {
                       hint: 'Önce il seçin',
                       onSelected: (_) {},
                     )
-                  : ref.watch(districtsProvider(province!.id)).when(
-                        loading: () => const LinearProgressIndicator(),
-                        error: (_, _) => const Text('İlçe verisi yüklenemedi'),
-                        data: (districts) => SearchableSelectField<District>(
-                          label: 'İlçe',
-                          value: district,
-                          items: districts,
-                          itemLabel: (d) => d.name,
-                          searchHint: 'İlçe ara…',
-                          prefixIcon: Icons.location_city_outlined,
-                          equals: (a, b) => a.id == b.id,
-                          onSelected: (d) => onDistrict(d),
+                  : ref
+                        .watch(districtsProvider(province!.id))
+                        .when(
+                          loading: () => const LinearProgressIndicator(),
+                          error: (_, _) =>
+                              const Text('İlçe verisi yüklenemedi'),
+                          data: (districts) => SearchableSelectField<District>(
+                            label: 'İlçe',
+                            value: district,
+                            items: districts,
+                            itemLabel: (d) => d.name,
+                            searchHint: 'İlçe ara…',
+                            prefixIcon: Icons.location_city_outlined,
+                            equals: (a, b) => a.id == b.id,
+                            onSelected: (d) => onDistrict(d),
+                          ),
                         ),
-                      ),
             ),
             const SizedBox(width: 8),
             FilledButton.tonal(
               onPressed: onAdd,
-              style: FilledButton.styleFrom(
-                minimumSize: const Size(64, 56),
-              ),
+              style: FilledButton.styleFrom(minimumSize: const Size(64, 56)),
               child: const Icon(Icons.add),
             ),
           ],
@@ -1287,7 +1396,8 @@ class _AvailabilitySection extends StatelessWidget {
   final WeeklySchedule schedule;
   final ValueChanged<AvailabilityMode> onMode;
   final void Function(int weekday, bool enabled) onToggleDay;
-  final void Function(int weekday, {int? startMinute, int? endMinute}) onDayHours;
+  final void Function(int weekday, {int? startMinute, int? endMinute})
+  onDayHours;
 
   @override
   Widget build(BuildContext context) {
@@ -1338,8 +1448,11 @@ class _AvailabilitySection extends StatelessWidget {
     );
   }
 
-  Future<void> _pickTime(BuildContext context, int weekday,
-      {required bool isStart}) async {
+  Future<void> _pickTime(
+    BuildContext context,
+    int weekday, {
+    required bool isStart,
+  }) async {
     final day = schedule.dayFor(weekday);
     final current = isStart ? day.startMinute : day.endMinute;
     final picked = await showTimePicker(
@@ -1377,8 +1490,10 @@ class _DayRow extends StatelessWidget {
         children: [
           SizedBox(
             width: 96,
-            child: Text(WeeklySchedule.weekdayName(day.weekday),
-                style: Theme.of(context).textTheme.bodyMedium),
+            child: Text(
+              WeeklySchedule.weekdayName(day.weekday),
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
           ),
           Switch(value: day.enabled, onChanged: onToggle),
           const Spacer(),
@@ -1390,9 +1505,12 @@ class _DayRow extends StatelessWidget {
             ),
             _TimeChip(label: day.endLabel, onTap: onPickEnd),
           ] else
-            Text('Kapalı',
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant)),
+            Text(
+              'Kapalı',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+            ),
         ],
       ),
     );

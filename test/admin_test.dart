@@ -644,6 +644,46 @@ void main() {
       );
     });
 
+    test('belge onayı rozet verir; mavi tike DOKUNMAZ', () async {
+      final repo = MockAdminArtisanRepository([
+        seed().copyWith(certificates: ['cert1.jpg']),
+      ]);
+      await repo.reviewCertificates('a1', approve: true);
+
+      final after = (await repo.fetchPage()).single;
+      expect(after.hasApprovedCertificates, isTrue);
+      expect(after.certificateStatus, 'approved');
+      // Mavi tik ayrı bir sinyal — belge onayı onu değiştirmemeli.
+      expect(after.adminVerified, isFalse);
+      expect(after.isVerified, isFalse);
+    });
+
+    test('reddetme gerekçe ister ve gerekçeyi saklar', () async {
+      final repo = MockAdminArtisanRepository([
+        seed().copyWith(certificates: ['cert1.jpg']),
+      ]);
+      // Gerekçesiz reddedilemez.
+      expect(
+        () => repo.reviewCertificates('a1', approve: false),
+        throwsArgumentError,
+      );
+
+      await repo.reviewCertificates('a1',
+          approve: false, note: 'Belge okunaksız, net fotoğraf yükleyin.');
+      final after = (await repo.fetchPage()).single;
+      expect(after.certificateStatus, 'rejected');
+      expect(after.certificateNote, contains('okunaksız'));
+      expect(after.hasApprovedCertificates, isFalse);
+    });
+
+    test('belgesi olmayan usta incelenemez', () {
+      final repo = MockAdminArtisanRepository([seed()]);
+      expect(
+        () => repo.reviewCertificates('a1', approve: true),
+        throwsStateError,
+      );
+    });
+
     test('dahili admin notu eklenir ve yeniden eskiye listelenir', () async {
       final repo = MockAdminUserRepository();
       await repo.addNote('u1', 'Kullanıcı arandı, belge gönderecek.');

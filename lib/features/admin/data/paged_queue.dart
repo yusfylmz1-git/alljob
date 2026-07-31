@@ -14,11 +14,7 @@ class PagedData<T> {
   final bool hasMore;
   final bool loadingMore;
 
-  PagedData<T> copyWith({
-    List<T>? items,
-    bool? hasMore,
-    bool? loadingMore,
-  }) =>
+  PagedData<T> copyWith({List<T>? items, bool? hasMore, bool? loadingMore}) =>
       PagedData<T>(
         items: items ?? this.items,
         hasMore: hasMore ?? this.hasMore,
@@ -28,10 +24,8 @@ class PagedData<T> {
 
 /// Bir sayfayı (en yeni üstte) çeken fonksiyon. [beforeCursor] verilirse yalnız
 /// ondan eski öğeler döner. Dönen liste [limit]'e eşitse muhtemelen daha var.
-typedef PageFetcher<T> = Future<List<T>> Function({
-  String? beforeCursor,
-  int limit,
-});
+typedef PageFetcher<T> =
+    Future<List<T>> Function({String? beforeCursor, int limit});
 
 /// Bir öğeden sayfalama imlecini (genelde ham `createdAt` metni) üretir.
 typedef CursorOf<T> = String Function(T item);
@@ -43,9 +37,9 @@ class PagedController<T> extends StateNotifier<AsyncValue<PagedData<T>>> {
     required PageFetcher<T> fetch,
     required CursorOf<T> cursorOf,
     this.pageSize = 30,
-  })  : _fetch = fetch,
-        _cursorOf = cursorOf,
-        super(const AsyncLoading()) {
+  }) : _fetch = fetch,
+       _cursorOf = cursorOf,
+       super(const AsyncLoading()) {
     load();
   }
 
@@ -58,7 +52,8 @@ class PagedController<T> extends StateNotifier<AsyncValue<PagedData<T>>> {
     try {
       final first = await _fetch(limit: pageSize);
       state = AsyncData(
-          PagedData<T>(items: first, hasMore: first.length == pageSize));
+        PagedData<T>(items: first, hasMore: first.length == pageSize),
+      );
     } catch (e, st) {
       state = AsyncError(e, st);
     }
@@ -77,10 +72,12 @@ class PagedController<T> extends StateNotifier<AsyncValue<PagedData<T>>> {
         beforeCursor: _cursorOf(cur.items.last),
         limit: pageSize,
       );
-      state = AsyncData(PagedData<T>(
-        items: [...cur.items, ...next],
-        hasMore: next.length == pageSize,
-      ));
+      state = AsyncData(
+        PagedData<T>(
+          items: [...cur.items, ...next],
+          hasMore: next.length == pageSize,
+        ),
+      );
     } catch (_) {
       // Hata: yalnız "yükleniyor"u kapat, mevcut öğeler korunur.
       state = AsyncData(cur.copyWith(loadingMore: false));

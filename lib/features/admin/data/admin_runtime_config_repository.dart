@@ -93,9 +93,9 @@ class FirebaseAdminRuntimeConfigRepository
   FirebaseAdminRuntimeConfigRepository({
     FirebaseFirestore? firestore,
     FirebaseFunctions? functions,
-  })  : _db = firestore ?? FirebaseFirestore.instance,
-        _functions = functions ??
-            FirebaseFunctions.instanceFor(region: 'europe-west1');
+  }) : _db = firestore ?? FirebaseFirestore.instance,
+       _functions =
+           functions ?? FirebaseFunctions.instanceFor(region: 'europe-west1');
 
   final FirebaseFirestore _db;
   final FirebaseFunctions _functions;
@@ -121,10 +121,9 @@ class FirebaseAdminRuntimeConfigRepository
 }
 
 /// Bellek-içi (test / mock backend).
-class MockAdminRuntimeConfigRepository
-    implements AdminRuntimeConfigRepository {
+class MockAdminRuntimeConfigRepository implements AdminRuntimeConfigRepository {
   MockAdminRuntimeConfigRepository([AdminRuntimeConfig? seed])
-      : _config = seed ?? const AdminRuntimeConfig();
+    : _config = seed ?? const AdminRuntimeConfig();
 
   AdminRuntimeConfig _config;
   final _changes = StreamController<AdminRuntimeConfig>.broadcast();
@@ -173,9 +172,9 @@ class AdminBroadcastRepository {
   AdminBroadcastRepository({
     FirebaseFunctions? functions,
     FirebaseFirestore? firestore,
-  })  : _functions = functions ??
-            FirebaseFunctions.instanceFor(region: 'europe-west1'),
-        _db = firestore ?? FirebaseFirestore.instance;
+  }) : _functions =
+           functions ?? FirebaseFunctions.instanceFor(region: 'europe-west1'),
+       _db = firestore ?? FirebaseFirestore.instance;
 
   final FirebaseFunctions _functions;
   final FirebaseFirestore _db;
@@ -189,19 +188,17 @@ class AdminBroadcastRepository {
     String? province,
     String? targetUid,
     String? targetEmail,
-  }) =>
-      {
-        'title': title,
-        'body': body,
-        'audience': audience,
-        'sendPush': sendPush,
-        if (profession != null && profession.isNotEmpty)
-          'profession': profession,
-        if (province != null && province.isNotEmpty) 'province': province,
-        if (targetUid != null && targetUid.isNotEmpty) 'targetUid': targetUid,
-        if (targetEmail != null && targetEmail.isNotEmpty)
-          'targetEmail': targetEmail,
-      };
+  }) => {
+    'title': title,
+    'body': body,
+    'audience': audience,
+    'sendPush': sendPush,
+    if (profession != null && profession.isNotEmpty) 'profession': profession,
+    if (province != null && province.isNotEmpty) 'province': province,
+    if (targetUid != null && targetUid.isNotEmpty) 'targetUid': targetUid,
+    if (targetEmail != null && targetEmail.isNotEmpty)
+      'targetEmail': targetEmail,
+  };
 
   /// Anında gönder.
   Future<Map<String, dynamic>> send({
@@ -216,16 +213,18 @@ class AdminBroadcastRepository {
   }) async {
     final res = await _functions
         .httpsCallable('adminBroadcastNotification')
-        .call<Object?>(_payload(
-          title: title,
-          body: body,
-          audience: audience,
-          sendPush: sendPush,
-          profession: profession,
-          province: province,
-          targetUid: targetUid,
-          targetEmail: targetEmail,
-        ));
+        .call<Object?>(
+          _payload(
+            title: title,
+            body: body,
+            audience: audience,
+            sendPush: sendPush,
+            profession: profession,
+            province: province,
+            targetUid: targetUid,
+            targetEmail: targetEmail,
+          ),
+        );
     final data = res.data;
     if (data is Map) return Map<String, dynamic>.from(data);
     return {'ok': true};
@@ -246,18 +245,18 @@ class AdminBroadcastRepository {
     final res = await _functions
         .httpsCallable('adminScheduleCampaign')
         .call<Object?>({
-      ..._payload(
-        title: title,
-        body: body,
-        audience: audience,
-        sendPush: sendPush,
-        profession: profession,
-        province: province,
-        targetUid: targetUid,
-        targetEmail: targetEmail,
-      ),
-      'scheduledAt': scheduledAt.toUtc().toIso8601String(),
-    });
+          ..._payload(
+            title: title,
+            body: body,
+            audience: audience,
+            sendPush: sendPush,
+            profession: profession,
+            province: province,
+            targetUid: targetUid,
+            targetEmail: targetEmail,
+          ),
+          'scheduledAt': scheduledAt.toUtc().toIso8601String(),
+        });
     final data = res.data;
     if (data is Map) return Map<String, dynamic>.from(data);
     return {'ok': true};
@@ -275,9 +274,11 @@ class AdminBroadcastRepository {
         .orderBy('scheduledAtMs', descending: true)
         .limit(limit)
         .snapshots()
-        .map((snap) => snap.docs
-            .map((d) => ScheduledCampaign.fromMap(d.id, d.data()))
-            .toList());
+        .map(
+          (snap) => snap.docs
+              .map((d) => ScheduledCampaign.fromMap(d.id, d.data()))
+              .toList(),
+        );
   }
 }
 
@@ -322,9 +323,11 @@ class ScheduledCampaign {
       body: (map['body'] as String?) ?? '',
       audience: (map['audience'] as String?) ?? 'all',
       status: (map['status'] as String?) ?? 'pending',
-      scheduledAt: DateTime.tryParse(map['scheduledAt']?.toString() ?? '') ??
+      scheduledAt:
+          DateTime.tryParse(map['scheduledAt']?.toString() ?? '') ??
           DateTime.fromMillisecondsSinceEpoch(
-              (map['scheduledAtMs'] as num?)?.toInt() ?? 0),
+            (map['scheduledAtMs'] as num?)?.toInt() ?? 0,
+          ),
       sendPush: map['sendPush'] == true,
       profession: map['profession'] as String?,
       province: map['province'] as String?,

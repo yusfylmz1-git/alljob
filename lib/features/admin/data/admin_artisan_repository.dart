@@ -32,15 +32,27 @@ abstract interface class AdminArtisanRepository {
     int? days,
     bool revoke = false,
   });
+
+  /// Yüklenen belgeleri onaylar/reddeder (usta bazında tek karar).
+  /// Reddetmede [note] zorunludur — usta neyi düzelteceğini bilmeli.
+  /// Onay yalnız "Belgeli usta" rozeti verir; mavi tike etki etmez.
+  Future<void> reviewCertificates(
+    String uid, {
+    required bool approve,
+    String? note,
+  });
+
+  /// Belgeleri incelemeyi bekleyen ustalar (`certificateStatus == pending`).
+  Future<List<ArtisanProfile>> pendingCertificates({int limit = 50});
 }
 
 class FirebaseAdminArtisanRepository implements AdminArtisanRepository {
   FirebaseAdminArtisanRepository({
     FirebaseFirestore? firestore,
     FirebaseFunctions? functions,
-  })  : _db = firestore ?? FirebaseFirestore.instance,
-        _functions = functions ??
-            FirebaseFunctions.instanceFor(region: 'europe-west1');
+  }) : _db = firestore ?? FirebaseFirestore.instance,
+       _functions =
+           functions ?? FirebaseFunctions.instanceFor(region: 'europe-west1');
 
   final FirebaseFirestore _db;
   final FirebaseFunctions _functions;
@@ -93,14 +105,42 @@ class FirebaseAdminArtisanRepository implements AdminArtisanRepository {
     int? days,
     bool revoke = false,
   }) async {
-    final res = await _functions.httpsCallable('adminGrantPremium').call<Object?>({
-      'uid': uid,
-      'reason': reason,
-      if (revoke) 'revoke': true else 'days': days,
-    });
+    final res = await _functions
+        .httpsCallable('adminGrantPremium')
+        .call<Object?>({
+          'uid': uid,
+          'reason': reason,
+          if (revoke) 'revoke': true else 'days': days,
+        });
     final data = (res.data as Map?)?.cast<String, dynamic>();
     final iso = data?['expiresAt'] as String?;
     return iso == null ? null : DateTime.tryParse(iso);
+  }
+
+  @override
+  Future<void> reviewCertificates(
+    String uid, {
+    required bool approve,
+    String? note,
+  }) async {
+    await _functions.httpsCallable('adminReviewCertificates').call<Object?>({
+      'uid': uid,
+      'approve': approve,
+      if (note != null && note.trim().isNotEmpty) 'note': note.trim(),
+    });
+  }
+
+  @override
+  Future<List<ArtisanProfile>> pendingCertificates({int limit = 50}) async {
+    // Tek alan eşitliği → bileşik indeks gerekmez.
+    final snap = await _db
+        .collection('artisanProfiles')
+        .where('certificateStatus', isEqualTo: 'pending')
+        .limit(limit)
+        .get();
+    return snap.docs
+        .map((d) => ArtisanProfile.fromMap(d.id, d.data()))
+        .toList();
   }
 }
 
@@ -187,10 +227,62 @@ class MockAdminArtisanRepository implements AdminArtisanRepository {
     // UZATMA: aktif üyelik varsa üzerine ekle — aksi hâlde süre KISALIRDI.
     final now = DateTime.now();
     final currentEnd = current.premiumExpiresAt;
-    final base =
-        (currentEnd != null && currentEnd.isAfter(now)) ? currentEnd : now;
+    final base = (currentEnd != null && currentEnd.isAfter(now))
+        ? currentEnd
+        : now;
     final expiry = base.add(Duration(days: d));
     _items[uid] = current.copyWith(isPremium: true, premiumExpiresAt: expiry);
     return expiry;
+  }
+
+  /// Belge inceleme kararları (sunucu audit log'unun test karşılığı).
+  final List<({String uid, bool approve, String? note})> certDecisions = [];
+
+  @override
+  Future<void> reviewCertificates(
+    String uid, {
+    required bool approve,
+    String? note,
+  }) async {
+    final current = _items[uid];
+    if (current == null) throw StateError('Usta profili yok.');
+    if (current.certificates.isEmpty) {
+      throw StateError('Bu ustanın yüklenmiş belgesi yok.');
+    }
+    // Sunucudaki kural: reddetmede gerekçe zorunlu.
+    if (!approve && (note == null || note.trim().length < 5)) {
+      throw ArgumentError('Red gerekçesi zorunlu (en az 5 karakter).');
+    }
+    certDecisions.add((uid: uid, approve: approve, note: note));
+    _items[uid] = _withCertStatus(
+      current,
+      approve ? 'approved' : 'rejected',
+      approve ? null : note!.trim(),
+    );
+  }
+
+  @override
+  Future<List<ArtisanProfile>> pendingCertificates({int limit = 50}) async {
+    return _items.values
+        .where((a) => a.certificateStatus == 'pending')
+        .take(limit)
+        .toList();
+  }
+
+  /// `certificateStatus` salt okunur (CF yazar) → copyWith desteklemez;
+  /// mock'ta sunucu etkisini taklit etmek için map üzerinden yeniden kurulur.
+  static ArtisanProfile _withCertStatus(
+    ArtisanProfile p,
+    String status,
+    String? note,
+  ) {
+    final map = Map<String, dynamic>.from(p.toMap())
+      ..['certificateStatus'] = status
+      ..['certificateNote'] = note
+      // toMap salt-okunur alanları yazmaz; testte korunmaları gerekiyor.
+      ..['isPremium'] = p.isPremium
+      ..['premiumExpiresAt'] = p.premiumExpiresAt?.toIso8601String()
+      ..['premiumProductId'] = p.premiumProductId;
+    return ArtisanProfile.fromMap(p.uid, map);
   }
 }

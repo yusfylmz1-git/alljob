@@ -22,9 +22,9 @@ class FirebaseAdminJobRepository implements AdminJobRepository {
   FirebaseAdminJobRepository({
     FirebaseFirestore? firestore,
     FirebaseFunctions? functions,
-  })  : _db = firestore ?? FirebaseFirestore.instance,
-        _functions = functions ??
-            FirebaseFunctions.instanceFor(region: 'europe-west1');
+  }) : _db = firestore ?? FirebaseFirestore.instance,
+       _functions =
+           functions ?? FirebaseFunctions.instanceFor(region: 'europe-west1');
 
   final FirebaseFirestore _db;
   final FirebaseFunctions _functions;
@@ -52,8 +52,11 @@ class FirebaseAdminJobRepository implements AdminJobRepository {
   }
 
   @override
-  Future<void> moderate(String jobId,
-      {required String decision, String? note}) async {
+  Future<void> moderate(
+    String jobId, {
+    required String decision,
+    String? note,
+  }) async {
     await _functions.httpsCallable('adminModerateJob').call<Object?>({
       'jobId': jobId,
       'decision': decision,
@@ -101,8 +104,11 @@ class MockAdminJobRepository implements AdminJobRepository {
   }
 
   @override
-  Future<void> moderate(String jobId,
-      {required String decision, String? note}) async {
+  Future<void> moderate(
+    String jobId, {
+    required String decision,
+    String? note,
+  }) async {
     final j = _jobs[jobId];
     if (j == null) return;
     // Mock: only force_cancel status change; hide fields not on const Job fully.

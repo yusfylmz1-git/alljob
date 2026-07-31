@@ -35,26 +35,26 @@ class AuditEntry {
 
   /// Eylem kodunun Türkçe karşılığı (bilinmeyen kod olduğu gibi gösterilir).
   String get actionLabelTR => switch (action) {
-        'grant_admin' => 'Yönetici yetkisi verildi',
-        'set_role' => 'Rol atandı',
-        'revoke_admin' => 'Yönetici yetkisi kaldırıldı',
-        'set_capabilities' => 'Yetkiler güncellendi',
-        'invite_create' => 'Moderatör daveti oluşturuldu',
-        'invite_accept' => 'Davet kabul edildi',
-        'invite_revoke' => 'Davet iptal edildi',
-        'stats_rebuild' => 'İstatistikler yeniden kuruldu',
-        'moderate_job' => 'İlan moderasyonu',
-        'set_artisan_flags' => 'Usta bayrakları',
-        'hide_review' => 'Değerlendirme gizleme',
-        'get_chat_transcript' => 'Sohbet kanıtı okundu',
-        'suspend_user' => 'Kullanıcı askıya alındı',
-        'unsuspend_user' => 'Askı kaldırıldı',
-        'resolve_report' => 'Şikayet karara bağlandı',
-        'claim_report' => 'Şikayet üstlenildi',
-        'release_report' => 'Şikayet bırakıldı',
-        'resolve_dispute' => 'Anlaşmazlık çözüldü',
-        _ => action,
-      };
+    'grant_admin' => 'Yönetici yetkisi verildi',
+    'set_role' => 'Rol atandı',
+    'revoke_admin' => 'Yönetici yetkisi kaldırıldı',
+    'set_capabilities' => 'Yetkiler güncellendi',
+    'invite_create' => 'Moderatör daveti oluşturuldu',
+    'invite_accept' => 'Davet kabul edildi',
+    'invite_revoke' => 'Davet iptal edildi',
+    'stats_rebuild' => 'İstatistikler yeniden kuruldu',
+    'moderate_job' => 'İlan moderasyonu',
+    'set_artisan_flags' => 'Usta bayrakları',
+    'hide_review' => 'Değerlendirme gizleme',
+    'get_chat_transcript' => 'Sohbet kanıtı okundu',
+    'suspend_user' => 'Kullanıcı askıya alındı',
+    'unsuspend_user' => 'Askı kaldırıldı',
+    'resolve_report' => 'Şikayet karara bağlandı',
+    'claim_report' => 'Şikayet üstlenildi',
+    'release_report' => 'Şikayet bırakıldı',
+    'resolve_dispute' => 'Anlaşmazlık çözüldü',
+    _ => action,
+  };
 
   static DateTime _date(dynamic v) {
     if (v is String) return DateTime.tryParse(v) ?? DateTime.now();
@@ -65,17 +65,17 @@ class AuditEntry {
       v is Map ? Map<String, dynamic>.from(v) : null;
 
   factory AuditEntry.fromMap(String id, Map<String, dynamic> m) => AuditEntry(
-        id: id,
-        actorUid: (m['actorUid'] ?? '') as String,
-        action: (m['action'] ?? '') as String,
-        createdAt: _date(m['createdAt']),
-        // İmleç = ham depo metni (varsa); böylece sınır kayması olmaz.
-        cursor: m['createdAt'] is String ? m['createdAt'] as String : null,
-        targetType: m['targetType'] as String?,
-        targetId: m['targetId'] as String?,
-        before: _map(m['before']),
-        after: _map(m['after']),
-      );
+    id: id,
+    actorUid: (m['actorUid'] ?? '') as String,
+    action: (m['action'] ?? '') as String,
+    createdAt: _date(m['createdAt']),
+    // İmleç = ham depo metni (varsa); böylece sınır kayması olmaz.
+    cursor: m['createdAt'] is String ? m['createdAt'] as String : null,
+    targetType: m['targetType'] as String?,
+    targetId: m['targetId'] as String?,
+    before: _map(m['before']),
+    after: _map(m['after']),
+  );
 }
 
 /// Denetim kaydı eylem kategorileri (istemci-tarafı filtre için). Her kategori
@@ -91,25 +91,27 @@ enum AuditCategory {
   final String labelTR;
 
   bool matches(AuditEntry e) => switch (this) {
-        AuditCategory.all => true,
-        AuditCategory.roles => const {
-            'grant_admin',
-            'set_role',
-            'revoke_admin',
-            'set_capabilities',
-            'invite_create',
-            'invite_accept',
-            'invite_revoke',
-          }.contains(e.action),
-        AuditCategory.suspension =>
-          const {'suspend_user', 'unsuspend_user'}.contains(e.action),
-        AuditCategory.reports => const {
-            'resolve_report',
-            'claim_report',
-            'release_report'
-          }.contains(e.action),
-        AuditCategory.disputes => e.action == 'resolve_dispute',
-      };
+    AuditCategory.all => true,
+    AuditCategory.roles => const {
+      'grant_admin',
+      'set_role',
+      'revoke_admin',
+      'set_capabilities',
+      'invite_create',
+      'invite_accept',
+      'invite_revoke',
+    }.contains(e.action),
+    AuditCategory.suspension => const {
+      'suspend_user',
+      'unsuspend_user',
+    }.contains(e.action),
+    AuditCategory.reports => const {
+      'resolve_report',
+      'claim_report',
+      'release_report',
+    }.contains(e.action),
+    AuditCategory.disputes => e.action == 'resolve_dispute',
+  };
 }
 
 /// Denetim kayıtlarını kategori + serbest metin (aktör/hedef uid) ile süzer.
@@ -141,7 +143,7 @@ abstract interface class AdminAuditRepository {
 /// metni; bir sonraki sayfa `createdAt < cursor` ile çekilir (sınır kayması yok).
 class FirebaseAdminAuditRepository implements AdminAuditRepository {
   FirebaseAdminAuditRepository({FirebaseFirestore? firestore})
-      : _db = firestore ?? FirebaseFirestore.instance;
+    : _db = firestore ?? FirebaseFirestore.instance;
 
   final FirebaseFirestore _db;
 
@@ -165,7 +167,7 @@ class FirebaseAdminAuditRepository implements AdminAuditRepository {
 /// mock repo'lar yazmadığından liste [seed] ile verilir.
 class MockAdminAuditRepository implements AdminAuditRepository {
   MockAdminAuditRepository([List<AuditEntry>? seed])
-      : _items = [...?seed]..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    : _items = [...?seed]..sort((a, b) => b.createdAt.compareTo(a.createdAt));
 
   final List<AuditEntry> _items;
 

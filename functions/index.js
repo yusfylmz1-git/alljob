@@ -1353,6 +1353,117 @@ exports.onArtisanProfileWritten = onDocumentWritten(
       } catch (e) {
         logger.warn(`adminStats artisan: ${e}`);
       }
+
+      // Belge listesi DEGISTIYSE inceleme durumunu sifirla (pending).
+      // Istemci certificateStatus yazamaz (rules); onay listesini degistirip
+      // "onayli" rozetini koruyamasin -- yeni belge yeniden incelenir.
+      try {
+        if (!after) return;
+        const b = (event.data.before && event.data.before.exists) ?
+          (event.data.before.data() || {}) : {};
+        const a = event.data.after.data() || {};
+        const beforeCerts = Array.isArray(b.certificates) ? b.certificates : [];
+        const afterCerts = Array.isArray(a.certificates) ? a.certificates : [];
+        const changed =
+          beforeCerts.length !== afterCerts.length ||
+          afterCerts.some((c, i) => c !== beforeCerts[i]);
+        if (!changed) return;
+
+        const nextStatus = afterCerts.length === 0 ? "none" : "pending";
+        if (a.certificateStatus === nextStatus) return;
+        await event.data.after.ref.set({
+          certificateStatus: nextStatus,
+          certificateNote: admin.firestore.FieldValue.delete(),
+          certificateUpdatedAt:
+            admin.firestore.FieldValue.serverTimestamp(),
+        }, {merge: true});
+      } catch (e) {
+        logger.warn(`certificate status reset: ${e}`);
+      }
+    },
+);
+
+/**
+ * Belge (sertifika) inceleme karari — usta bazinda tek onay.
+ *
+ * Uygulama ustaya "Belgeler yonetici onayindan gecer" diyor; bu CF o sozun
+ * karsiligi. Onay YALNIZ rozet verir: mavi tik (telefon/platform onayi)
+ * mantigina dokunmaz.
+ */
+exports.adminReviewCertificates = onCall(
+    {region: REGION},
+    async (request) => {
+      const auth = request.auth;
+      await assertCap(auth, "artisans.moderate");
+      const {uid, approve, note} = request.data || {};
+      if (typeof uid !== "string" || !uid.trim()) {
+        throw new HttpsError("invalid-argument", "uid gerekli.");
+      }
+      if (typeof approve !== "boolean") {
+        throw new HttpsError("invalid-argument", "approve gerekli.");
+      }
+      const reason = String(note || "").trim();
+      // Reddetmede gerekce ZORUNLU: usta neyi duzeltecegini bilmeli.
+      if (!approve && reason.length < 5) {
+        throw new HttpsError(
+            "invalid-argument",
+            "Red gerekcesi zorunlu (en az 5 karakter).",
+        );
+      }
+      if (reason.length > 500) {
+        throw new HttpsError("invalid-argument", "Gerekce cok uzun.");
+      }
+
+      const ref = db.collection("artisanProfiles").doc(uid.trim());
+      const snap = await ref.get();
+      if (!snap.exists) {
+        throw new HttpsError("not-found", "Usta profili yok.");
+      }
+      const before = snap.data() || {};
+      const certs = Array.isArray(before.certificates) ?
+        before.certificates : [];
+      if (certs.length === 0) {
+        throw new HttpsError(
+            "failed-precondition",
+            "Bu ustanin yuklenmis belgesi yok.",
+        );
+      }
+
+      await ref.set({
+        certificateStatus: approve ? "approved" : "rejected",
+        certificateNote: approve ?
+          admin.firestore.FieldValue.delete() : reason,
+        certificateReviewedBy: auth.uid,
+        certificateUpdatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      }, {merge: true});
+
+      // Ustaya bildir: sonucu ogrenmeli (ozellikle red gerekcesini).
+      try {
+        const title = approve ?
+          "Belgeleriniz onaylandi" : "Belgeleriniz reddedildi";
+        const body = approve ?
+          "Profilinizde \"Belgeli usta\" rozeti gorunecek." :
+          `Gerekce: ${reason}`;
+        await saveNotification(uid.trim(), `certs_${Date.now()}`, {
+          type: "system",
+          title,
+          body,
+        });
+        await sendPushToUid(uid.trim(), title, body, {type: "system"});
+      } catch (e) {
+        logger.warn(`certificate notify: ${e}`);
+      }
+
+      await writeAuditLog({
+        actorUid: auth.uid,
+        action: approve ? "approve_certificates" : "reject_certificates",
+        targetType: "artisan",
+        targetId: uid.trim(),
+        reason: approve ? null : reason,
+        before: {certificateStatus: before.certificateStatus || "none"},
+        after: {certificateStatus: approve ? "approved" : "rejected"},
+      });
+      return {ok: true, status: approve ? "approved" : "rejected"};
     },
 );
 

@@ -55,9 +55,9 @@ class FirebaseAdminDisputeRepository implements AdminDisputeRepository {
   FirebaseAdminDisputeRepository({
     FirebaseFirestore? firestore,
     FirebaseFunctions? functions,
-  })  : _db = firestore ?? FirebaseFirestore.instance,
-        _functions = functions ??
-            FirebaseFunctions.instanceFor(region: 'europe-west1');
+  }) : _db = firestore ?? FirebaseFirestore.instance,
+       _functions =
+           functions ?? FirebaseFunctions.instanceFor(region: 'europe-west1');
 
   final FirebaseFirestore _db;
   final FirebaseFunctions _functions;
@@ -72,14 +72,15 @@ class FirebaseAdminDisputeRepository implements AdminDisputeRepository {
         .limit(_pageLimit)
         .snapshots()
         .map((snap) {
-      final list = snap.docs.map((d) => Job.fromMap(d.id, d.data())).toList()
-        ..sort((a, b) {
-          final ad = a.disputedAt ?? a.createdAt;
-          final bd = b.disputedAt ?? b.createdAt;
-          return bd.compareTo(ad); // en yeni bildirilen üstte
+          final list =
+              snap.docs.map((d) => Job.fromMap(d.id, d.data())).toList()
+                ..sort((a, b) {
+                  final ad = a.disputedAt ?? a.createdAt;
+                  final bd = b.disputedAt ?? b.createdAt;
+                  return bd.compareTo(ad); // en yeni bildirilen üstte
+                });
+          return list;
         });
-      return list;
-    });
   }
 
   @override
@@ -125,14 +126,13 @@ class MockAdminDisputeRepository implements AdminDisputeRepository {
   final _changes = StreamController<void>.broadcast();
 
   List<Job> _query() {
-    final list = _items.values
-        .where((j) => j.status == JobStatus.disputed)
-        .toList()
-      ..sort((a, b) {
-        final ad = a.disputedAt ?? a.createdAt;
-        final bd = b.disputedAt ?? b.createdAt;
-        return bd.compareTo(ad);
-      });
+    final list =
+        _items.values.where((j) => j.status == JobStatus.disputed).toList()
+          ..sort((a, b) {
+            final ad = a.disputedAt ?? a.createdAt;
+            final bd = b.disputedAt ?? b.createdAt;
+            return bd.compareTo(ad);
+          });
     return list;
   }
 
@@ -150,10 +150,9 @@ class MockAdminDisputeRepository implements AdminDisputeRepository {
         ? null
         : DateTime.tryParse(beforeCursor);
     // Firebase paritesi: sayfalama createdAt'e göre (mevcut indeks).
-    final sorted = _items.values
-        .where((j) => j.status == JobStatus.disputed)
-        .toList()
-      ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    final sorted =
+        _items.values.where((j) => j.status == JobStatus.disputed).toList()
+          ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
     final list = before == null
         ? sorted
         : sorted.where((j) => j.createdAt.isBefore(before)).toList();

@@ -43,7 +43,7 @@ class _AdminAuditScreenState extends ConsumerState<AdminAuditScreen> {
         subtitle: pageAsync.valueOrNull == null
             ? null
             : '${pageAsync.value!.entries.length} kayıt yüklü'
-                '${pageAsync.value!.hasMore ? '+' : ''}',
+                  '${pageAsync.value!.hasMore ? '+' : ''}',
         actions: [
           IconButton(
             tooltip: 'Yenile',
@@ -65,8 +65,11 @@ class _AdminAuditScreenState extends ConsumerState<AdminAuditScreen> {
               message: 'Henüz kaydedilmiş bir yönetici eylemi yok.',
             );
           }
-          final list = filterAudit(page.entries,
-              category: _category, query: _query.text);
+          final list = filterAudit(
+            page.entries,
+            category: _category,
+            query: _query.text,
+          );
           return Column(
             children: [
               _FilterBar(
@@ -129,15 +132,19 @@ class _NoMatch extends StatelessWidget {
           children: [
             Icon(Icons.search_off, size: 48, color: palette.inkFaint),
             const SizedBox(height: 12),
-            Text('Eşleşen kayıt yok',
-                style: theme.textTheme.titleMedium
-                    ?.copyWith(fontWeight: FontWeight.w700)),
+            Text(
+              'Eşleşen kayıt yok',
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w700,
+              ),
+            ),
             const SizedBox(height: 6),
             Text(
               'Filtreyi değiştirin ya da daha eski kayıtları yükleyin.',
               textAlign: TextAlign.center,
-              style: theme.textTheme.bodyMedium
-                  ?.copyWith(color: palette.inkMuted),
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: palette.inkMuted,
+              ),
             ),
             if (hasMore) ...[
               const SizedBox(height: 16),
@@ -173,13 +180,15 @@ class _LoadMoreFooter extends StatelessWidget {
                 child: CircularProgressIndicator(strokeWidth: 2.5),
               )
             : page.hasMore
-                ? OutlinedButton.icon(
-                    onPressed: onLoadMore,
-                    icon: const Icon(Icons.expand_more_rounded, size: 18),
-                    label: const Text('Daha fazla yükle'),
-                  )
-                : Text('Kaydın sonu',
-                    style: TextStyle(color: palette.inkFaint, fontSize: 12)),
+            ? OutlinedButton.icon(
+                onPressed: onLoadMore,
+                icon: const Icon(Icons.expand_more_rounded, size: 18),
+                label: const Text('Daha fazla yükle'),
+              )
+            : Text(
+                'Kaydın sonu',
+                style: TextStyle(color: palette.inkFaint, fontSize: 12),
+              ),
       ),
     );
   }
@@ -270,9 +279,12 @@ class _AuditCard extends StatelessWidget {
               Icon(_icon(entry.action), size: 16, color: palette.primary),
               const SizedBox(width: 8),
               Expanded(
-                child: Text(entry.actionLabelTR,
-                    style: theme.textTheme.titleSmall
-                        ?.copyWith(fontWeight: FontWeight.w700)),
+                child: Text(
+                  entry.actionLabelTR,
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
               ),
             ],
           ),
@@ -282,9 +294,12 @@ class _AuditCard extends StatelessWidget {
             _kv(context, 'Hedef', entry.targetId!),
           if (detail != null) _kv(context, 'Ayrıntı', detail),
           const SizedBox(height: 6),
-          Text(_formatDate(entry.createdAt),
-              style:
-                  theme.textTheme.labelSmall?.copyWith(color: palette.inkFaint)),
+          Text(
+            _formatDate(entry.createdAt),
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: palette.inkFaint,
+            ),
+          ),
         ],
       ),
     );
@@ -295,29 +310,39 @@ class _AuditCard extends StatelessWidget {
     final theme = Theme.of(context);
     return Padding(
       padding: const EdgeInsets.only(bottom: 2),
-      child: Text.rich(TextSpan(children: [
+      child: Text.rich(
         TextSpan(
-            text: '$k: ',
-            style: theme.textTheme.bodySmall?.copyWith(color: palette.inkFaint)),
-        TextSpan(
-            text: v,
-            style: theme.textTheme.bodySmall
-                ?.copyWith(color: palette.inkMuted, fontWeight: FontWeight.w600)),
-      ])),
+          children: [
+            TextSpan(
+              text: '$k: ',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: palette.inkFaint,
+              ),
+            ),
+            TextSpan(
+              text: v,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: palette.inkMuted,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
   IconData _icon(String action) => switch (action) {
-        'grant_admin' || 'set_role' => Icons.workspace_premium_outlined,
-        'revoke_admin' => Icons.remove_moderator_outlined,
-        'suspend_user' => Icons.gpp_bad_outlined,
-        'unsuspend_user' => Icons.lock_open_outlined,
-        'resolve_report' => Icons.flag_outlined,
-        'claim_report' => Icons.pan_tool_alt_outlined,
-        'release_report' => Icons.free_cancellation_outlined,
-        'resolve_dispute' => Icons.gavel_outlined,
-        _ => Icons.bolt_outlined,
-      };
+    'grant_admin' || 'set_role' => Icons.workspace_premium_outlined,
+    'revoke_admin' => Icons.remove_moderator_outlined,
+    'suspend_user' => Icons.gpp_bad_outlined,
+    'unsuspend_user' => Icons.lock_open_outlined,
+    'resolve_report' => Icons.flag_outlined,
+    'claim_report' => Icons.pan_tool_alt_outlined,
+    'release_report' => Icons.free_cancellation_outlined,
+    'resolve_dispute' => Icons.gavel_outlined,
+    _ => Icons.bolt_outlined,
+  };
 
   /// `after` haritasından okunabilir kısa bir özet üretir.
   String? _detailLine(AuditEntry e) {

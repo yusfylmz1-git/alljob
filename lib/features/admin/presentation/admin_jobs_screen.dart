@@ -47,7 +47,7 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
         subtitle: pageAsync.valueOrNull == null
             ? null
             : '${pageAsync.value!.items.length} yüklü'
-                '${pageAsync.value!.hasMore ? '+' : ''}',
+                  '${pageAsync.value!.hasMore ? '+' : ''}',
         actions: [
           IconButton(
             tooltip: 'CSV kopyala (yüklü sayfa)',
@@ -60,21 +60,21 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
               }
               final items =
                   ref.read(jobDirectoryControllerProvider).valueOrNull?.items ??
-                      const <Job>[];
+                  const <Job>[];
               if (items.isEmpty) {
                 context.showError('Yüklü satır yok.');
                 return;
               }
-              await Clipboard.setData(
-                  ClipboardData(text: buildJobsCsv(items)));
+              await Clipboard.setData(ClipboardData(text: buildJobsCsv(items)));
               try {
-                await ref.read(adminUserRepositoryProvider).logExport(
-                      kind: 'jobs',
-                      rowCount: items.length,
-                    );
+                await ref
+                    .read(adminUserRepositoryProvider)
+                    .logExport(kind: 'jobs', rowCount: items.length);
               } catch (_) {}
               if (context.mounted) {
-                context.showSuccess('${items.length} ilan CSV panoya kopyalandı.');
+                context.showSuccess(
+                  '${items.length} ilan CSV panoya kopyalandı.',
+                );
               }
             },
           ),
@@ -235,12 +235,14 @@ class _JobCard extends ConsumerWidget {
   final Job job;
 
   Future<void> _moderate(
-      BuildContext context, WidgetRef ref, String decision) async {
+    BuildContext context,
+    WidgetRef ref,
+    String decision,
+  ) async {
     try {
-      await ref.read(adminJobRepositoryProvider).moderate(
-            job.jobId,
-            decision: decision,
-          );
+      await ref
+          .read(adminJobRepositoryProvider)
+          .moderate(job.jobId, decision: decision);
       if (context.mounted) {
         context.showSuccess(switch (decision) {
           'hide' => 'İlan gizlendi.',
@@ -279,8 +281,9 @@ class _JobCard extends ConsumerWidget {
                 Expanded(
                   child: Text(
                     job.title.isEmpty ? '(başlıksız)' : job.title,
-                    style: theme.textTheme.titleSmall
-                        ?.copyWith(fontWeight: FontWeight.w800),
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w800,
+                    ),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -296,14 +299,16 @@ class _JobCard extends ConsumerWidget {
             const SizedBox(height: 6),
             Text(
               '$cat · ${job.province} / ${job.district}',
-              style: theme.textTheme.bodySmall
-                  ?.copyWith(color: palette.inkMuted),
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: palette.inkMuted,
+              ),
             ),
             const SizedBox(height: 4),
             Text(
               'Müşteri: ${job.customerName}',
-              style: theme.textTheme.labelSmall
-                  ?.copyWith(color: palette.inkFaint),
+              style: theme.textTheme.labelSmall?.copyWith(
+                color: palette.inkFaint,
+              ),
             ),
             const SizedBox(height: 8),
             Wrap(
@@ -328,8 +333,10 @@ class _JobCard extends ConsumerWidget {
                 if (job.status != JobStatus.cancelled)
                   TextButton(
                     onPressed: () => _moderate(context, ref, 'force_cancel'),
-                    child: Text('Zorla iptal',
-                        style: TextStyle(color: palette.danger)),
+                    child: Text(
+                      'Zorla iptal',
+                      style: TextStyle(color: palette.danger),
+                    ),
                   ),
               ],
             ),
@@ -351,16 +358,19 @@ class _StatusChip extends StatelessWidget {
       JobStatus.open => (palette.successSurface, palette.success),
       JobStatus.disputed => (palette.dangerSurface, palette.danger),
       JobStatus.cancelled ||
-      JobStatus.expired =>
-        (palette.surfaceMuted, palette.inkMuted),
+      JobStatus.expired => (palette.surfaceMuted, palette.inkMuted),
       _ => (palette.surfaceMuted, palette.primary),
     };
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration:
-          BoxDecoration(color: bg, borderRadius: BorderRadius.circular(20)),
-      child: Text(status.labelTR,
-          style: TextStyle(color: fg, fontWeight: FontWeight.w700, fontSize: 11)),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Text(
+        status.labelTR,
+        style: TextStyle(color: fg, fontWeight: FontWeight.w700, fontSize: 11),
+      ),
     );
   }
 }

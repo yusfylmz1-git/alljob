@@ -111,10 +111,9 @@ class _AdminPlatformScreenState extends ConsumerState<AdminPlatformScreen> {
     setState(() => _busy = true);
     try {
       // Storage: platform/{adminUid}/… — kural: admin claim + kendi uid.
-      final url = await ref.read(storageRepositoryProvider).uploadImage(
-            pathHint: 'platform/$uid',
-            bytes: bytes,
-          );
+      final url = await ref
+          .read(storageRepositoryProvider)
+          .uploadImage(pathHint: 'platform/$uid', bytes: bytes);
       _logoUrl.text = url;
       await ref.read(adminRuntimeConfigRepositoryProvider).update({
         'logoUrl': url,
@@ -123,8 +122,7 @@ class _AdminPlatformScreenState extends ConsumerState<AdminPlatformScreen> {
       context.showSuccess('Logo yüklendi ve kaydedildi.');
     } catch (_) {
       if (!mounted) return;
-      context.showError(
-          'Logo yüklenemedi. Storage kuralı deploy edildi mi?');
+      context.showError('Logo yüklenemedi. Storage kuralı deploy edildi mi?');
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -143,22 +141,26 @@ class _AdminPlatformScreenState extends ConsumerState<AdminPlatformScreen> {
         'tagline': _tagline.text.trim().isEmpty ? null : _tagline.text,
         'logoUrl': _logoUrl.text.trim().isEmpty ? null : _logoUrl.text,
         'aboutShort': _about.text.trim().isEmpty ? null : _about.text,
-        'supportEmail':
-            _supportEmail.text.trim().isEmpty ? null : _supportEmail.text,
-        'supportPhone':
-            _supportPhone.text.trim().isEmpty ? null : _supportPhone.text,
+        'supportEmail': _supportEmail.text.trim().isEmpty
+            ? null
+            : _supportEmail.text,
+        'supportPhone': _supportPhone.text.trim().isEmpty
+            ? null
+            : _supportPhone.text,
         'playStoreUrl': _play.text.trim().isEmpty ? null : _play.text,
         'appStoreUrl': _appStore.text.trim().isEmpty ? null : _appStore.text,
         'websiteUrl': _web.text.trim().isEmpty ? null : _web.text,
         'announcementEnabled': _annEnabled,
-        'announcementTitle':
-            _annTitle.text.trim().isEmpty ? null : _annTitle.text,
-        'announcementBody':
-            _annBody.text.trim().isEmpty ? null : _annBody.text,
-        'announcementCtaLabel':
-            _annCta.text.trim().isEmpty ? null : _annCta.text,
-        'announcementCtaUrl':
-            _annCtaUrl.text.trim().isEmpty ? null : _annCtaUrl.text,
+        'announcementTitle': _annTitle.text.trim().isEmpty
+            ? null
+            : _annTitle.text,
+        'announcementBody': _annBody.text.trim().isEmpty ? null : _annBody.text,
+        'announcementCtaLabel': _annCta.text.trim().isEmpty
+            ? null
+            : _annCta.text,
+        'announcementCtaUrl': _annCtaUrl.text.trim().isEmpty
+            ? null
+            : _annCtaUrl.text,
       });
       if (!mounted) return;
       context.showSuccess('Platform ayarları kaydedildi.');
@@ -214,7 +216,8 @@ class _AdminPlatformScreenState extends ConsumerState<AdminPlatformScreen> {
                       leading: Icon(Icons.lock_outline),
                       title: Text('Salt okunur'),
                       subtitle: Text(
-                          'Düzenlemek için superadmin + config.manage gerekir.'),
+                        'Düzenlemek için superadmin + config.manage gerekir.',
+                      ),
                     ),
                   ),
                 _sectionTitle(context, 'Marka'),
@@ -310,9 +313,7 @@ class _AdminPlatformScreenState extends ConsumerState<AdminPlatformScreen> {
                 TextField(
                   controller: _appStore,
                   enabled: can && !_busy,
-                  decoration: const InputDecoration(
-                    labelText: 'App Store URL',
-                  ),
+                  decoration: const InputDecoration(labelText: 'App Store URL'),
                 ),
                 const SizedBox(height: 10),
                 TextField(
@@ -387,9 +388,9 @@ class _AdminPlatformScreenState extends ConsumerState<AdminPlatformScreen> {
       padding: const EdgeInsets.only(top: 20, bottom: 10),
       child: Text(
         t,
-        style: Theme.of(context).textTheme.titleSmall?.copyWith(
-              fontWeight: FontWeight.w800,
-            ),
+        style: Theme.of(
+          context,
+        ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800),
       ),
     );
   }

@@ -53,9 +53,8 @@ class _AdminGate extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final authState = ref.watch(authStateProvider);
     return authState.when(
-      loading: () => const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
-      ),
+      loading: () =>
+          const Scaffold(body: Center(child: CircularProgressIndicator())),
       error: (_, _) => const _AdminLoginScreen(),
       data: (user) {
         if (user == null) return const _AdminLoginScreen();
@@ -226,8 +225,7 @@ class _AdminHomeScreenState extends ConsumerState<_AdminHomeScreen> {
         onSelect: select,
         email: email,
         roleLabel: roleLabel,
-        onSignOut: () =>
-            ref.read(authControllerProvider.notifier).signOut(),
+        onSignOut: () => ref.read(authControllerProvider.notifier).signOut(),
       ),
       appBar: AppBar(
         backgroundColor: AdminChrome.topBarBg,
@@ -378,8 +376,9 @@ class _AdminNavDrawer extends StatelessWidget {
                         color: selected
                             ? AdminChrome.railSelected
                             : AdminChrome.railFg,
-                        fontWeight:
-                            selected ? FontWeight.w700 : FontWeight.w500,
+                        fontWeight: selected
+                            ? FontWeight.w700
+                            : FontWeight.w500,
                         fontSize: 14,
                       ),
                     ),
@@ -393,8 +392,10 @@ class _AdminNavDrawer extends StatelessWidget {
             ),
             const Divider(color: Color(0xFF1E293B), height: 1),
             ListTile(
-              leading: const Icon(Icons.logout_rounded,
-                  color: AdminChrome.railMuted),
+              leading: const Icon(
+                Icons.logout_rounded,
+                color: AdminChrome.railMuted,
+              ),
               title: const Text(
                 'Çıkış yap',
                 style: TextStyle(color: AdminChrome.railFg),
@@ -481,8 +482,10 @@ class _AdminSideRail extends StatelessWidget {
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
                 child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 6,
+                  ),
                   decoration: BoxDecoration(
                     color: Colors.white.withValues(alpha: 0.06),
                     borderRadius: BorderRadius.circular(8),
@@ -554,7 +557,9 @@ class _AdminSideRail extends StatelessWidget {
                                   if (d.badge > 0)
                                     Container(
                                       padding: const EdgeInsets.symmetric(
-                                          horizontal: 7, vertical: 2),
+                                        horizontal: 7,
+                                        vertical: 2,
+                                      ),
                                       decoration: BoxDecoration(
                                         color: const Color(0xFFEF4444),
                                         borderRadius: BorderRadius.circular(99),
@@ -591,8 +596,8 @@ class _AdminSideRail extends StatelessWidget {
                         children: [
                           CircleAvatar(
                             radius: 14,
-                            backgroundColor:
-                                AdminChrome.railSelected.withValues(alpha: 0.2),
+                            backgroundColor: AdminChrome.railSelected
+                                .withValues(alpha: 0.2),
                             child: Text(
                               email.isNotEmpty ? email[0].toUpperCase() : '?',
                               style: const TextStyle(
@@ -677,9 +682,7 @@ class _AdminTopBar extends StatelessWidget {
         height: 52,
         padding: const EdgeInsets.symmetric(horizontal: 20),
         decoration: const BoxDecoration(
-          border: Border(
-            bottom: BorderSide(color: AdminChrome.cardBorder),
-          ),
+          border: Border(bottom: BorderSide(color: AdminChrome.cardBorder)),
         ),
         child: Row(
           children: [
@@ -747,11 +750,7 @@ class _NavItem {
 
 /// Sayaç > 0 ise ikonun üstünde küçük rozet.
 class _BadgeIcon extends StatelessWidget {
-  const _BadgeIcon({
-    required this.icon,
-    required this.count,
-    this.color,
-  });
+  const _BadgeIcon({required this.icon, required this.count, this.color});
   final IconData icon;
   final int count;
   final Color? color;
@@ -760,10 +759,7 @@ class _BadgeIcon extends StatelessWidget {
   Widget build(BuildContext context) {
     final iconWidget = Icon(icon, color: color, size: 22);
     if (count <= 0) return iconWidget;
-    return Badge(
-      label: Text(count > 99 ? '99+' : '$count'),
-      child: iconWidget,
-    );
+    return Badge(label: Text(count > 99 ? '99+' : '$count'), child: iconWidget);
   }
 }
 
@@ -797,10 +793,9 @@ class _AdminLoginScreenState extends ConsumerState<_AdminLoginScreen> {
       _error = null;
     });
     // login() hata fırlatmaz: bool döndürür, hatayı controller state'ine koyar.
-    final ok = await ref.read(authControllerProvider.notifier).login(
-          email: _email.text.trim(),
-          password: _password.text,
-        );
+    final ok = await ref
+        .read(authControllerProvider.notifier)
+        .login(email: _email.text.trim(), password: _password.text);
     if (!mounted) return;
     if (ok) {
       // Başarıda _AdminGate auth akışıyla otomatik ilerler.
@@ -809,8 +804,9 @@ class _AdminLoginScreenState extends ConsumerState<_AdminLoginScreen> {
     final err = ref.read(authControllerProvider).error;
     setState(() {
       _busy = false;
-      _error =
-          err is AuthException ? err.message : 'Giriş yapılamadı. Tekrar deneyin.';
+      _error = err is AuthException
+          ? err.message
+          : 'Giriş yapılamadı. Tekrar deneyin.';
     });
   }
 
@@ -875,14 +871,17 @@ class _AdminLoginScreenState extends ConsumerState<_AdminLoginScreen> {
                       children: [
                         Text(
                           'Yönetici girişi',
-                          style: theme.textTheme.headlineSmall
-                              ?.copyWith(fontWeight: FontWeight.w800),
+                          style: theme.textTheme.headlineSmall?.copyWith(
+                            fontWeight: FontWeight.w800,
+                          ),
                         ),
                         const SizedBox(height: 6),
                         Text(
                           'Yalnız yetkili personel. Tüm işlemler denetim kaydına yazılır.',
-                          style: theme.textTheme.bodyMedium
-                              ?.copyWith(color: palette.inkMuted, height: 1.35),
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color: palette.inkMuted,
+                            height: 1.35,
+                          ),
                         ),
                         const SizedBox(height: 28),
                         TextFormField(
@@ -913,9 +912,13 @@ class _AdminLoginScreenState extends ConsumerState<_AdminLoginScreen> {
                         ),
                         if (_error != null) ...[
                           const SizedBox(height: 12),
-                          Text(_error!,
-                              style: TextStyle(
-                                  color: palette.danger, fontSize: 13)),
+                          Text(
+                            _error!,
+                            style: TextStyle(
+                              color: palette.danger,
+                              fontSize: 13,
+                            ),
+                          ),
                         ],
                         const SizedBox(height: 20),
                         AppButton(
@@ -952,8 +955,9 @@ class _AccessDeniedScreenState extends ConsumerState<_AccessDeniedScreen> {
   Future<void> _enable() async {
     setState(() => _busy = true);
     try {
-      final ok =
-          await ref.read(authControllerProvider.notifier).claimAdminAccess();
+      final ok = await ref
+          .read(authControllerProvider.notifier)
+          .claimAdminAccess();
       if (!mounted) return;
       if (!ok) context.showError('Yönetici erişimi verilemedi.');
     } on AuthException catch (e) {
@@ -973,13 +977,13 @@ class _AccessDeniedScreenState extends ConsumerState<_AccessDeniedScreen> {
       await ref.read(adminInviteRepositoryProvider).accept();
       if (!mounted) return;
       // CF claim yazar + refresh token iptal eder → yeniden giriş gerekir.
-      context.showSuccess(
-          'Davet kabul edildi. Lütfen tekrar giriş yapın.');
+      context.showSuccess('Davet kabul edildi. Lütfen tekrar giriş yapın.');
       await ref.read(authControllerProvider.notifier).signOut();
     } catch (_) {
       if (!mounted) return;
       context.showError(
-          'Davet kabul edilemedi (bekleyen davet yok veya süresi dolmuş).');
+        'Davet kabul edilemedi (bekleyen davet yok veya süresi dolmuş).',
+      );
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -1001,14 +1005,20 @@ class _AccessDeniedScreenState extends ConsumerState<_AccessDeniedScreen> {
               children: [
                 Icon(Icons.lock_outline, size: 56, color: palette.warning),
                 const SizedBox(height: 16),
-                Text('Yetkiniz yok',
-                    style: theme.textTheme.headlineSmall
-                        ?.copyWith(fontWeight: FontWeight.w800)),
+                Text(
+                  'Yetkiniz yok',
+                  style: theme.textTheme.headlineSmall?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
                 const SizedBox(height: 6),
-                Text('$email hesabı yönetici değil.',
-                    textAlign: TextAlign.center,
-                    style: theme.textTheme.bodyMedium
-                        ?.copyWith(color: palette.inkMuted)),
+                Text(
+                  '$email hesabı yönetici değil.',
+                  textAlign: TextAlign.center,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: palette.inkMuted,
+                  ),
+                ),
                 const SizedBox(height: 24),
                 if (_busy)
                   const CircularProgressIndicator()

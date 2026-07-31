@@ -16,9 +16,9 @@ enum ReportStatus {
       this == ReportStatus.resolved || this == ReportStatus.dismissed;
 
   static ReportStatus fromString(String? v) => values.firstWhere(
-        (e) => e.apiValue == v,
-        orElse: () => ReportStatus.open,
-      );
+    (e) => e.apiValue == v,
+    orElse: () => ReportStatus.open,
+  );
 }
 
 /// Bir şikayet kaydının admin tarafındaki TAM görünümü (`reports/{id}`).
@@ -65,14 +65,14 @@ class Report {
   final String? assignedTo;
 
   static ReportTarget _target(String? v) => ReportTarget.values.firstWhere(
-        (e) => e.apiValue == v,
-        orElse: () => ReportTarget.user,
-      );
+    (e) => e.apiValue == v,
+    orElse: () => ReportTarget.user,
+  );
 
   static ReportReason _reason(String? v) => ReportReason.values.firstWhere(
-        (e) => e.apiValue == v,
-        orElse: () => ReportReason.other,
-      );
+    (e) => e.apiValue == v,
+    orElse: () => ReportReason.other,
+  );
 
   static DateTime _date(dynamic v) {
     if (v is String) return DateTime.tryParse(v) ?? DateTime.now();
@@ -80,19 +80,19 @@ class Report {
   }
 
   factory Report.fromMap(String id, Map<String, dynamic> m) => Report(
-        id: id,
-        reporterUid: (m['reporterUid'] ?? '') as String,
-        reportedUid: (m['reportedUid'] ?? '') as String,
-        target: _target(m['targetType'] as String?),
-        targetId: (m['targetId'] ?? '') as String,
-        chatId: m['chatId'] as String?,
-        reason: _reason(m['reason'] as String?),
-        note: m['note'] as String?,
-        status: ReportStatus.fromString(m['status'] as String?),
-        createdAt: _date(m['createdAt']),
-        adminNote: m['adminNote'] as String?,
-        resolvedBy: m['resolvedBy'] as String?,
-        resolvedAt: m['resolvedAt'] == null ? null : _date(m['resolvedAt']),
-        assignedTo: m['assignedTo'] as String?,
-      );
+    id: id,
+    reporterUid: (m['reporterUid'] ?? '') as String,
+    reportedUid: (m['reportedUid'] ?? '') as String,
+    target: _target(m['targetType'] as String?),
+    targetId: (m['targetId'] ?? '') as String,
+    chatId: m['chatId'] as String?,
+    reason: _reason(m['reason'] as String?),
+    note: m['note'] as String?,
+    status: ReportStatus.fromString(m['status'] as String?),
+    createdAt: _date(m['createdAt']),
+    adminNote: m['adminNote'] as String?,
+    resolvedBy: m['resolvedBy'] as String?,
+    resolvedAt: m['resolvedAt'] == null ? null : _date(m['resolvedAt']),
+    assignedTo: m['assignedTo'] as String?,
+  );
 }

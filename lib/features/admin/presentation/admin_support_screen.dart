@@ -47,9 +47,8 @@ class _AdminSupportScreenState extends ConsumerState<AdminSupportScreen> {
       ),
       body: async.when(
         loading: () => const LoadingView(),
-        error: (e, _) => ErrorView(
-          message: 'Talepler yüklenemedi. İndeks veya yetki: $e',
-        ),
+        error: (e, _) =>
+            ErrorView(message: 'Talepler yüklenemedi. İndeks veya yetki: $e'),
         data: (list) {
           if (list.isEmpty) {
             return Center(
@@ -75,7 +74,9 @@ class _AdminSupportScreenState extends ConsumerState<AdminSupportScreen> {
                   ),
                   child: ListTile(
                     contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 16, vertical: 8),
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
                     title: Text(
                       t.subject,
                       style: const TextStyle(fontWeight: FontWeight.w700),
@@ -122,16 +123,19 @@ class _AdminSupportScreenState extends ConsumerState<AdminSupportScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Text(t.subject,
-                        style: Theme.of(ctx)
-                            .textTheme
-                            .titleMedium
-                            ?.copyWith(fontWeight: FontWeight.w800)),
+                    Text(
+                      t.subject,
+                      style: Theme.of(ctx).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
                     const SizedBox(height: 6),
                     Text(
                       '${t.email ?? t.uid} · ${t.createdAt.toLocal()}',
                       style: TextStyle(
-                          color: context.palette.inkMuted, fontSize: 12),
+                        color: context.palette.inkMuted,
+                        fontSize: 12,
+                      ),
                     ),
                     const SizedBox(height: 12),
                     Text(t.body, style: const TextStyle(height: 1.4)),
@@ -143,11 +147,17 @@ class _AdminSupportScreenState extends ConsumerState<AdminSupportScreen> {
                       items: const [
                         DropdownMenuItem(value: 'open', child: Text('Açık')),
                         DropdownMenuItem(
-                            value: 'in_progress', child: Text('İnceleniyor')),
+                          value: 'in_progress',
+                          child: Text('İnceleniyor'),
+                        ),
                         DropdownMenuItem(
-                            value: 'resolved', child: Text('Çözüldü')),
+                          value: 'resolved',
+                          child: Text('Çözüldü'),
+                        ),
                         DropdownMenuItem(
-                            value: 'closed', child: Text('Kapalı')),
+                          value: 'closed',
+                          child: Text('Kapalı'),
+                        ),
                       ],
                       onChanged: !can
                           ? null
@@ -183,13 +193,15 @@ class _AdminSupportScreenState extends ConsumerState<AdminSupportScreen> {
                                 Navigator.pop(ctx);
                                 messenger.showSnackBar(
                                   const SnackBar(
-                                      content: Text('Talep güncellendi.')),
+                                    content: Text('Talep güncellendi.'),
+                                  ),
                                 );
                               } catch (_) {
                                 if (!ctx.mounted) return;
                                 messenger.showSnackBar(
                                   const SnackBar(
-                                      content: Text('Güncellenemedi.')),
+                                    content: Text('Güncellenemedi.'),
+                                  ),
                                 );
                               }
                             },

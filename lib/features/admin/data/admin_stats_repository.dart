@@ -156,28 +156,32 @@ class FirebaseAdminStatsRepository implements AdminStatsRepository {
   FirebaseAdminStatsRepository({
     FirebaseFirestore? firestore,
     FirebaseFunctions? functions,
-  })  : _db = firestore ?? FirebaseFirestore.instance,
-        _functions = functions ??
-            FirebaseFunctions.instanceFor(region: 'europe-west1');
+  }) : _db = firestore ?? FirebaseFirestore.instance,
+       _functions =
+           functions ?? FirebaseFunctions.instanceFor(region: 'europe-west1');
 
   final FirebaseFirestore _db;
   final FirebaseFunctions _functions;
 
   @override
   Stream<AdminStatsSnapshot> watchGlobal() {
-    return _db.collection('adminStats').doc('global').snapshots().map(
-          (s) => AdminStatsSnapshot.fromMap(s.data()),
-        );
+    return _db
+        .collection('adminStats')
+        .doc('global')
+        .snapshots()
+        .map((s) => AdminStatsSnapshot.fromMap(s.data()));
   }
 
   @override
   Future<AdminStatsSnapshot> rebuild() async {
-    final res =
-        await _functions.httpsCallable('adminRebuildStats').call<Object?>({});
+    final res = await _functions
+        .httpsCallable('adminRebuildStats')
+        .call<Object?>({});
     final data = res.data;
     if (data is Map && data['counts'] is Map) {
       return AdminStatsSnapshot.fromMap(
-          Map<String, dynamic>.from(data['counts'] as Map));
+        Map<String, dynamic>.from(data['counts'] as Map),
+      );
     }
     return const AdminStatsSnapshot();
   }

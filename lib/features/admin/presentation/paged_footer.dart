@@ -30,13 +30,15 @@ class PagedFooter extends StatelessWidget {
                 child: CircularProgressIndicator(strokeWidth: 2.5),
               )
             : hasMore
-                ? OutlinedButton.icon(
-                    onPressed: onLoadMore,
-                    icon: const Icon(Icons.expand_more_rounded, size: 18),
-                    label: const Text('Daha fazla yükle'),
-                  )
-                : Text(endLabel,
-                    style: TextStyle(color: palette.inkFaint, fontSize: 12)),
+            ? OutlinedButton.icon(
+                onPressed: onLoadMore,
+                icon: const Icon(Icons.expand_more_rounded, size: 18),
+                label: const Text('Daha fazla yükle'),
+              )
+            : Text(
+                endLabel,
+                style: TextStyle(color: palette.inkFaint, fontSize: 12),
+              ),
       ),
     );
   }

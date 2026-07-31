@@ -74,7 +74,9 @@ class _AdminUserOverviewState extends ConsumerState<AdminUserOverview> {
     setState(() => _savingNote = true);
     try {
       await ref.read(adminUserRepositoryProvider).addNote(widget.uid, text);
-      final fresh = await ref.read(adminUserRepositoryProvider).notes(widget.uid);
+      final fresh = await ref
+          .read(adminUserRepositoryProvider)
+          .notes(widget.uid);
       if (!mounted) return;
       setState(() {
         _notes = fresh;
@@ -104,9 +106,12 @@ class _AdminUserOverviewState extends ConsumerState<AdminUserOverview> {
           children: [
             Icon(Icons.insights_outlined, size: 16, color: palette.inkMuted),
             const SizedBox(width: 6),
-            Text('Aktivite özeti',
-                style: theme.textTheme.labelLarge
-                    ?.copyWith(fontWeight: FontWeight.w800)),
+            Text(
+              'Aktivite özeti',
+              style: theme.textTheme.labelLarge?.copyWith(
+                fontWeight: FontWeight.w800,
+              ),
+            ),
             const Spacer(),
             if (_loading)
               const SizedBox(
@@ -119,9 +124,10 @@ class _AdminUserOverviewState extends ConsumerState<AdminUserOverview> {
         const SizedBox(height: 8),
 
         if (_error != null)
-          Text(_error!,
-              style: theme.textTheme.bodySmall
-                  ?.copyWith(color: palette.inkMuted))
+          Text(
+            _error!,
+            style: theme.textTheme.bodySmall?.copyWith(color: palette.inkMuted),
+          )
         else if (!_loading && _summary != null) ...[
           _CountGrid(summary: _summary!),
           if (_summary!.artisan != null) ...[
@@ -133,24 +139,32 @@ class _AdminUserOverviewState extends ConsumerState<AdminUserOverview> {
         const SizedBox(height: 18),
         Row(
           children: [
-            Icon(Icons.sticky_note_2_outlined,
-                size: 16, color: palette.inkMuted),
+            Icon(
+              Icons.sticky_note_2_outlined,
+              size: 16,
+              color: palette.inkMuted,
+            ),
             const SizedBox(width: 6),
-            Text('Dahili notlar',
-                style: theme.textTheme.labelLarge
-                    ?.copyWith(fontWeight: FontWeight.w800)),
+            Text(
+              'Dahili notlar',
+              style: theme.textTheme.labelLarge?.copyWith(
+                fontWeight: FontWeight.w800,
+              ),
+            ),
           ],
         ),
         const SizedBox(height: 2),
-        Text('Yalnız yöneticiler görür. Notlar silinmez.',
-            style:
-                theme.textTheme.labelSmall?.copyWith(color: palette.inkFaint)),
+        Text(
+          'Yalnız yöneticiler görür. Notlar silinmez.',
+          style: theme.textTheme.labelSmall?.copyWith(color: palette.inkFaint),
+        ),
         const SizedBox(height: 8),
 
         if (_notes.isEmpty && !_loading)
-          Text('Henüz not yok.',
-              style: theme.textTheme.bodySmall
-                  ?.copyWith(color: palette.inkMuted))
+          Text(
+            'Henüz not yok.',
+            style: theme.textTheme.bodySmall?.copyWith(color: palette.inkMuted),
+          )
         else
           for (final n in _notes) _NoteTile(note: n),
 
@@ -162,7 +176,8 @@ class _AdminUserOverviewState extends ConsumerState<AdminUserOverview> {
           maxLength: 2000,
           enabled: !_savingNote,
           decoration: const InputDecoration(
-            hintText: 'Örn: Kullanıcı arandı, sertifika orijinalini '
+            hintText:
+                'Örn: Kullanıcı arandı, sertifika orijinalini '
                 'mail atacak.',
             border: OutlineInputBorder(),
             isDense: true,
@@ -225,15 +240,19 @@ class _CountGrid extends StatelessWidget {
                   style: theme.textTheme.titleSmall?.copyWith(
                     fontWeight: FontWeight.w800,
                     // Hakkında şikayet varsa dikkat çeksin.
-                    color: e.key == 'reportsAgainst' &&
+                    color:
+                        e.key == 'reportsAgainst' &&
                             (summary.counts[e.key] ?? 0) > 0
                         ? palette.danger
                         : null,
                   ),
                 ),
-                Text(e.value,
-                    style: theme.textTheme.labelSmall
-                        ?.copyWith(color: palette.inkMuted)),
+                Text(
+                  e.value,
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: palette.inkMuted,
+                  ),
+                ),
               ],
             ),
           ),
@@ -301,7 +320,7 @@ class _NoteTile extends StatelessWidget {
     final stamp = d == null
         ? ''
         : '${d.day.toString().padLeft(2, '0')}.'
-            '${d.month.toString().padLeft(2, '0')}.${d.year}';
+              '${d.month.toString().padLeft(2, '0')}.${d.year}';
 
     return Container(
       width: double.infinity,
@@ -318,10 +337,13 @@ class _NoteTile extends StatelessWidget {
           Text(note.note, style: theme.textTheme.bodySmall),
           const SizedBox(height: 4),
           Text(
-            [stamp, if (note.actorUid != null) note.actorUid!]
-                .where((s) => s.isNotEmpty)
-                .join(' · '),
-            style: theme.textTheme.labelSmall?.copyWith(color: palette.inkFaint),
+            [
+              stamp,
+              if (note.actorUid != null) note.actorUid!,
+            ].where((s) => s.isNotEmpty).join(' · '),
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: palette.inkFaint,
+            ),
           ),
         ],
       ),

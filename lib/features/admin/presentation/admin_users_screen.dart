@@ -67,16 +67,16 @@ class _AdminUsersScreenState extends ConsumerState<AdminUsersScreen> {
     final csv = buildUsersCsv(users);
     await Clipboard.setData(ClipboardData(text: csv));
     try {
-      await ref.read(adminUserRepositoryProvider).logExport(
-            kind: 'users',
-            rowCount: users.length,
-          );
+      await ref
+          .read(adminUserRepositoryProvider)
+          .logExport(kind: 'users', rowCount: users.length);
     } catch (_) {
       // Audit opsiyonel; CSV panoda.
     }
     if (!mounted) return;
     context.showSuccess(
-        '${users.length} satır CSV panoya kopyalandı (telefon yok).');
+      '${users.length} satır CSV panoya kopyalandı (telefon yok).',
+    );
   }
 
   Future<void> _bulkSuspend({required bool suspended}) async {
@@ -110,22 +110,22 @@ class _AdminUsersScreenState extends ConsumerState<AdminUsersScreen> {
         ),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('İptal')),
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('İptal'),
+          ),
           FilledButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Onayla')),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Onayla'),
+          ),
         ],
       ),
     );
     if (ok != true || !mounted) return;
     setState(() => _bulkBusy = true);
     try {
-      final results = await ref.read(adminUserRepositoryProvider).bulkSuspend(
-            uids,
-            suspended: suspended,
-            reason: reasonCtrl.text,
-          );
+      final results = await ref
+          .read(adminUserRepositoryProvider)
+          .bulkSuspend(uids, suspended: suspended, reason: reasonCtrl.text);
       final okN = results.where((r) => r.ok).length;
       final failN = results.length - okN;
       if (!mounted) return;
@@ -206,7 +206,7 @@ class _AdminUsersScreenState extends ConsumerState<AdminUsersScreen> {
         subtitle: dirAsync.valueOrNull == null
             ? null
             : 'Dizin: ${dirAsync.value!.items.length}'
-                '${dirAsync.value!.hasMore ? '+' : ''}',
+                  '${dirAsync.value!.hasMore ? '+' : ''}',
         actions: [
           if (_selectMode) ...[
             IconButton(
@@ -228,9 +228,9 @@ class _AdminUsersScreenState extends ConsumerState<AdminUsersScreen> {
               onPressed: _bulkBusy
                   ? null
                   : () => setState(() {
-                        _selectMode = false;
-                        _selected.clear();
-                      }),
+                      _selectMode = false;
+                      _selected.clear();
+                    }),
               icon: const Icon(Icons.close),
             ),
           ] else ...[
@@ -258,8 +258,10 @@ class _AdminUsersScreenState extends ConsumerState<AdminUsersScreen> {
             Material(
               color: palette.primary.withValues(alpha: 0.08),
               child: Padding(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
+                ),
                 child: Row(
                   children: [
                     Text(
@@ -307,8 +309,9 @@ class _AdminUsersScreenState extends ConsumerState<AdminUsersScreen> {
                   Padding(
                     padding: const EdgeInsets.only(top: 12),
                     child: _UserCard(
-                        user: _result!,
-                        onTap: () => _openActions(_result!)),
+                      user: _result!,
+                      onTap: () => _openActions(_result!),
+                    ),
                   )
                 else if (_searched)
                   Padding(
@@ -335,9 +338,13 @@ class _AdminUsersScreenState extends ConsumerState<AdminUsersScreen> {
                               AdminUserListFilter.nonArtisans => 'Müşteriler',
                             }),
                             selected: filter == f,
-                            onSelected: (_) => ref
-                                .read(userDirectoryFilterProvider.notifier)
-                                .state = f,
+                            onSelected: (_) =>
+                                ref
+                                        .read(
+                                          userDirectoryFilterProvider.notifier,
+                                        )
+                                        .state =
+                                    f,
                           ),
                         ),
                       ],
@@ -347,9 +354,9 @@ class _AdminUsersScreenState extends ConsumerState<AdminUsersScreen> {
                 const SizedBox(height: 8),
                 Text(
                   'Kayıtlı kullanıcı dizini (en yeni üstte)',
-                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.w800,
-                      ),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800),
                 ),
                 const SizedBox(height: 4),
               ],
@@ -358,9 +365,8 @@ class _AdminUsersScreenState extends ConsumerState<AdminUsersScreen> {
           Expanded(
             child: dirAsync.when(
               loading: () => const LoadingView(),
-              error: (err, _) => ErrorView(
-                message: _directoryErrorMessage(err),
-              ),
+              error: (err, _) =>
+                  ErrorView(message: _directoryErrorMessage(err)),
               data: (page) {
                 if (page.items.isEmpty) {
                   return Center(
@@ -422,11 +428,7 @@ class _AdminUsersScreenState extends ConsumerState<AdminUsersScreen> {
 }
 
 class _UserCard extends StatelessWidget {
-  const _UserCard({
-    required this.user,
-    required this.onTap,
-    this.selected,
-  });
+  const _UserCard({required this.user, required this.onTap, this.selected});
   final AppUser user;
   final VoidCallback onTap;
 
@@ -469,42 +471,52 @@ class _UserCard extends StatelessWidget {
                   ],
                   Expanded(
                     child: Text(
-                      user.displayName.isEmpty
-                          ? '(isimsiz)'
-                          : user.displayName,
-                      style: theme.textTheme.titleMedium
-                          ?.copyWith(fontWeight: FontWeight.w800),
+                      user.displayName.isEmpty ? '(isimsiz)' : user.displayName,
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w800,
+                      ),
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
                   if (user.suspended)
                     _Chip(
-                        label: 'Askıya Alındı',
-                        bg: palette.dangerSurface,
-                        fg: palette.danger)
+                      label: 'Askıya Alındı',
+                      bg: palette.dangerSurface,
+                      fg: palette.danger,
+                    )
                   else
                     _Chip(
-                        label: 'Aktif',
-                        bg: palette.successSurface,
-                        fg: palette.success),
+                      label: 'Aktif',
+                      bg: palette.successSurface,
+                      fg: palette.success,
+                    ),
                 ],
               ),
               const SizedBox(height: 6),
-              SelectableText(user.email,
-                  style: theme.textTheme.bodyMedium
-                      ?.copyWith(color: palette.inkMuted)),
+              SelectableText(
+                user.email,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: palette.inkMuted,
+                ),
+              ),
               const SizedBox(height: 2),
-              SelectableText('UID: ${user.uid}',
-                  style: theme.textTheme.labelSmall
-                      ?.copyWith(color: palette.inkFaint)),
+              SelectableText(
+                'UID: ${user.uid}',
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: palette.inkFaint,
+                ),
+              ),
               if (selected == null) ...[
                 const SizedBox(height: 12),
                 Align(
                   alignment: Alignment.centerRight,
-                  child: Text('Yönet →',
-                      style: TextStyle(
-                          color: palette.primary,
-                          fontWeight: FontWeight.w700)),
+                  child: Text(
+                    'Yönet →',
+                    style: TextStyle(
+                      color: palette.primary,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
                 ),
               ],
             ],
@@ -525,10 +537,14 @@ class _Chip extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration:
-          BoxDecoration(color: bg, borderRadius: BorderRadius.circular(20)),
-      child: Text(label,
-          style: TextStyle(color: fg, fontWeight: FontWeight.w700, fontSize: 11)),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(color: fg, fontWeight: FontWeight.w700, fontSize: 11),
+      ),
     );
   }
 }
@@ -585,8 +601,9 @@ class _UserActionSheetState extends ConsumerState<_UserActionSheet> {
 
   Future<void> _loadRole() async {
     try {
-      final r =
-          await ref.read(adminUserRepositoryProvider).findRole(widget.user.uid);
+      final r = await ref
+          .read(adminUserRepositoryProvider)
+          .findRole(widget.user.uid);
       if (!mounted) return;
       setState(() {
         _role = r;
@@ -613,9 +630,11 @@ class _UserActionSheetState extends ConsumerState<_UserActionSheet> {
       if (!mounted) return;
       Navigator.of(context).pop();
       widget.onChanged?.call();
-      context.showSuccess(role == null
-          ? 'Yönetici yetkisi kaldırıldı.'
-          : 'Rol atandı: ${_roleLabel(role)}.');
+      context.showSuccess(
+        role == null
+            ? 'Yönetici yetkisi kaldırıldı.'
+            : 'Rol atandı: ${_roleLabel(role)}.',
+      );
     } catch (_) {
       if (!mounted) return;
       setState(() => _busy = false);
@@ -626,7 +645,9 @@ class _UserActionSheetState extends ConsumerState<_UserActionSheet> {
   Future<void> _apply(bool suspend) async {
     setState(() => _busy = true);
     try {
-      await ref.read(adminUserRepositoryProvider).setSuspended(
+      await ref
+          .read(adminUserRepositoryProvider)
+          .setSuspended(
             widget.user.uid,
             suspended: suspend,
             reason: _reason.text,
@@ -634,9 +655,11 @@ class _UserActionSheetState extends ConsumerState<_UserActionSheet> {
       if (!mounted) return;
       Navigator.of(context).pop();
       widget.onChanged?.call();
-      context.showSuccess(suspend
-          ? 'Kullanıcı askıya alındı.'
-          : 'Kullanıcının askısı kaldırıldı.');
+      context.showSuccess(
+        suspend
+            ? 'Kullanıcı askıya alındı.'
+            : 'Kullanıcının askısı kaldırıldı.',
+      );
     } catch (_) {
       if (!mounted) return;
       setState(() => _busy = false);
@@ -671,20 +694,27 @@ class _UserActionSheetState extends ConsumerState<_UserActionSheet> {
                   ),
                 ),
               ),
-              Text(u.displayName.isEmpty ? '(isimsiz)' : u.displayName,
-                  style: theme.textTheme.titleMedium
-                      ?.copyWith(fontWeight: FontWeight.w800)),
+              Text(
+                u.displayName.isEmpty ? '(isimsiz)' : u.displayName,
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
               const SizedBox(height: 2),
-              Text(u.email,
-                  style: theme.textTheme.bodyMedium
-                      ?.copyWith(color: palette.inkMuted)),
+              Text(
+                u.email,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: palette.inkMuted,
+                ),
+              ),
               const SizedBox(height: 16),
               if (u.suspended) ...[
                 Text(
                   'Bu kullanıcı şu an askıda. Geri açıldığında yeniden içerik '
                   'oluşturabilir.',
-                  style: theme.textTheme.bodySmall
-                      ?.copyWith(color: palette.inkMuted),
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: palette.inkMuted,
+                  ),
                 ),
                 const SizedBox(height: 16),
                 if (_busy)
@@ -696,9 +726,12 @@ class _UserActionSheetState extends ConsumerState<_UserActionSheet> {
                     label: const Text('Askıyı Kaldır'),
                   ),
               ] else ...[
-                Text('Askıya alma nedeni (opsiyonel — yalnız denetim kaydına)',
-                    style: theme.textTheme.labelLarge
-                        ?.copyWith(color: palette.inkMuted)),
+                Text(
+                  'Askıya alma nedeni (opsiyonel — yalnız denetim kaydına)',
+                  style: theme.textTheme.labelLarge?.copyWith(
+                    color: palette.inkMuted,
+                  ),
+                ),
                 const SizedBox(height: 6),
                 TextField(
                   controller: _reason,
@@ -715,7 +748,8 @@ class _UserActionSheetState extends ConsumerState<_UserActionSheet> {
                 else
                   FilledButton.icon(
                     style: FilledButton.styleFrom(
-                        backgroundColor: palette.danger),
+                      backgroundColor: palette.danger,
+                    ),
                     onPressed: () => _apply(true),
                     icon: const Icon(Icons.gpp_bad_outlined, size: 18),
                     label: const Text('Askıya Al'),
@@ -748,13 +782,17 @@ class _UserActionSheetState extends ConsumerState<_UserActionSheet> {
           children: [
             Icon(Icons.shield_outlined, size: 16, color: palette.inkMuted),
             const SizedBox(width: 6),
-            Text('Yönetici rolü: ',
-                style: theme.textTheme.bodyMedium
-                    ?.copyWith(color: palette.inkMuted)),
+            Text(
+              'Yönetici rolü: ',
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: palette.inkMuted,
+              ),
+            ),
             Text(
               _roleLoading ? '…' : _roleLabel(_role),
-              style: theme.textTheme.bodyMedium
-                  ?.copyWith(fontWeight: FontWeight.w800),
+              style: theme.textTheme.bodyMedium?.copyWith(
+                fontWeight: FontWeight.w800,
+              ),
             ),
           ],
         ),
@@ -779,7 +817,8 @@ class _UserActionSheetState extends ConsumerState<_UserActionSheet> {
               if (_role != null)
                 OutlinedButton.icon(
                   style: OutlinedButton.styleFrom(
-                      foregroundColor: palette.danger),
+                    foregroundColor: palette.danger,
+                  ),
                   onPressed: () => _applyRole(null),
                   icon: const Icon(Icons.remove_moderator_outlined, size: 16),
                   label: const Text('Yetkiyi kaldır'),
@@ -794,7 +833,7 @@ class _UserActionSheetState extends ConsumerState<_UserActionSheet> {
 
 /// Rol kodunu Türkçe etikete çevirir (null = yönetici değil).
 String _roleLabel(String? role) => switch (role) {
-      'superadmin' => 'Süper Yönetici',
-      'moderator' => 'Moderatör',
-      _ => 'Yok',
-    };
+  'superadmin' => 'Süper Yönetici',
+  'moderator' => 'Moderatör',
+  _ => 'Yok',
+};

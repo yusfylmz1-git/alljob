@@ -210,8 +210,15 @@ class _ProfileBody extends ConsumerWidget {
 
                     if (profile.certificates.isNotEmpty) ...[
                       _Section(
-                        icon: Icons.verified_outlined,
-                        title: 'Sertifikalar ve belgeler',
+                        // Yalnız ONAYLI belgeler "doğrulanmış" olarak sunulur;
+                        // inceleme bekleyen/reddedilen belge müşteriye
+                        // doğrulanmış gibi gösterilmez.
+                        icon: profile.hasApprovedCertificates
+                            ? Icons.verified_user
+                            : Icons.verified_outlined,
+                        title: profile.hasApprovedCertificates
+                            ? 'Sertifikalar ve belgeler · onaylı'
+                            : 'Sertifikalar ve belgeler',
                         child: SizedBox(
                           height: 100,
                           child: ListView.separated(

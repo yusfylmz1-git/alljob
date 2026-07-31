@@ -30,7 +30,8 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
     } catch (_) {
       if (mounted) {
         context.showError(
-            'Yeniden kurulum başarısız (10 dk limit veya yetki).');
+          'Yeniden kurulum başarısız (10 dk limit veya yetki).',
+        );
       }
     } finally {
       if (mounted) setState(() => _rebuilding = false);
@@ -45,10 +46,8 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
     final statsAsync = ref.watch(adminStatsProvider);
     final openReportsApprox = ref.watch(openReportCountProvider);
     final openDisputesApprox = ref.watch(openDisputeCountProvider);
-    final reportWindow =
-        ref.watch(adminReportsProvider).valueOrNull?.length;
-    final disputeWindow =
-        ref.watch(adminDisputesProvider).valueOrNull?.length;
+    final reportWindow = ref.watch(adminReportsProvider).valueOrNull?.length;
+    final disputeWindow = ref.watch(adminDisputesProvider).valueOrNull?.length;
 
     final stats = statsAsync.valueOrNull ?? const AdminStatsSnapshot();
 
@@ -75,7 +74,9 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                       )
                     : const Icon(Icons.restart_alt_rounded, size: 18),
                 label: Text(
-                  AdminChrome.isCompact(context) ? 'Yenile' : 'Sayaçları yenile',
+                  AdminChrome.isCompact(context)
+                      ? 'Yenile'
+                      : 'Sayaçları yenile',
                 ),
               ),
             ),
@@ -92,30 +93,38 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                 elevation: 0,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
-                  side: BorderSide(color: palette.warning.withValues(alpha: 0.35)),
+                  side: BorderSide(
+                    color: palette.warning.withValues(alpha: 0.35),
+                  ),
                 ),
                 child: ListTile(
                   leading: Icon(Icons.warning_amber, color: palette.warning),
-                  title: const Text('Sayaçlar güncel değil veya boş',
-                      style: TextStyle(fontWeight: FontWeight.w700)),
+                  title: const Text(
+                    'Sayaçlar güncel değil veya boş',
+                    style: TextStyle(fontWeight: FontWeight.w700),
+                  ),
                   subtitle: Text(
                     isSuper
                         ? 'Üstten “Sayaçları yenile” ile tam tarama '
-                            '(en fazla 10 dakikada bir).'
+                              '(en fazla 10 dakikada bir).'
                         : 'Superadmin yeniden kurulum çalıştırmalı.',
                     style: TextStyle(color: palette.inkMuted, fontSize: 12),
                   ),
                 ),
               ),
             if (stats.isStale) const SizedBox(height: 16),
-            Text('Platform KPI',
-                style: theme.textTheme.titleSmall
-                    ?.copyWith(fontWeight: FontWeight.w800)),
+            Text(
+              'Platform KPI',
+              style: theme.textTheme.titleSmall?.copyWith(
+                fontWeight: FontWeight.w800,
+              ),
+            ),
             const SizedBox(height: 4),
             Text(
               'Kaynak: adminStats/global (olay bazlı). Operasyon için birincil metrikler.',
-              style: theme.textTheme.bodySmall
-                  ?.copyWith(color: palette.inkMuted),
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: palette.inkMuted,
+              ),
             ),
             const SizedBox(height: 14),
             _kpiGrid(context, [
@@ -172,21 +181,24 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
               ),
             ]),
             const SizedBox(height: 24),
-            Text('Yaklaşık kuyruk pencereleri',
-                style: theme.textTheme.titleSmall
-                    ?.copyWith(fontWeight: FontWeight.w800)),
+            Text(
+              'Yaklaşık kuyruk pencereleri',
+              style: theme.textTheme.titleSmall?.copyWith(
+                fontWeight: FontWeight.w800,
+              ),
+            ),
             const SizedBox(height: 4),
             Text(
               'Canlı stream tavanı (son ~200). Tam toplam değildir — üstteki '
               'KPI tercih edilmeli.',
-              style: theme.textTheme.bodySmall
-                  ?.copyWith(color: palette.inkMuted),
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: palette.inkMuted,
+              ),
             ),
             const SizedBox(height: 12),
             _kpiGrid(context, [
               _KpiCard(
-                title:
-                    'Son ${reportWindow ?? 200} kayıttaki açık şikayet',
+                title: 'Son ${reportWindow ?? 200} kayıttaki açık şikayet',
                 value: '$openReportsApprox',
                 icon: Icons.flag_outlined,
                 color: palette.warning,
@@ -195,8 +207,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                     : () => widget.onOpenSection!(1),
               ),
               _KpiCard(
-                title:
-                    'Açık anlaşmazlık (max ${disputeWindow ?? 200})',
+                title: 'Açık anlaşmazlık (max ${disputeWindow ?? 200})',
                 value: '$openDisputesApprox',
                 icon: Icons.gavel_outlined,
                 color: palette.danger,
@@ -206,9 +217,12 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
               ),
             ]),
             const SizedBox(height: 24),
-            Text('Hızlı erişim',
-                style: theme.textTheme.titleSmall
-                    ?.copyWith(fontWeight: FontWeight.w800)),
+            Text(
+              'Hızlı erişim',
+              style: theme.textTheme.titleSmall?.copyWith(
+                fontWeight: FontWeight.w800,
+              ),
+            ),
             const SizedBox(height: 8),
             Wrap(
               spacing: 8,
@@ -237,8 +251,10 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
             Text(
               'Ops notu: Platform (marka/duyuru) ve Bildirim superadmin '
               'config.manage ile yönetilir. Sistem bayrakları menüde “Sistem”.',
-              style: theme.textTheme.bodySmall
-                  ?.copyWith(color: palette.inkFaint, height: 1.35),
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: palette.inkFaint,
+                height: 1.35,
+              ),
             ),
           ],
         ),
@@ -252,16 +268,14 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
         final cols = c.maxWidth >= 960
             ? 3
             : c.maxWidth >= 560
-                ? 2
-                : 1;
+            ? 2
+            : 1;
         final gap = 12.0;
         final w = (c.maxWidth - gap * (cols - 1)) / cols;
         return Wrap(
           spacing: gap,
           runSpacing: gap,
-          children: [
-            for (final card in cards) SizedBox(width: w, child: card),
-          ],
+          children: [for (final card in cards) SizedBox(width: w, child: card)],
         );
       },
     );

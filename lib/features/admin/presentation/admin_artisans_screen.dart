@@ -9,6 +9,7 @@ import '../../../core/widgets/status_views.dart';
 import '../../../data/local/mock_database.dart' show kProfessionNames;
 import '../../../data/models/artisan_profile.dart';
 import '../data/admin_providers.dart';
+import 'admin_certificate_sheet.dart';
 import 'admin_premium_sheet.dart';
 import 'admin_users_screen.dart';
 import 'paged_footer.dart';
@@ -47,7 +48,7 @@ class _AdminArtisansScreenState extends ConsumerState<AdminArtisansScreen> {
         subtitle: pageAsync.valueOrNull == null
             ? null
             : '${pageAsync.value!.items.length} yüklü'
-                '${pageAsync.value!.hasMore ? '+' : ''}',
+                  '${pageAsync.value!.hasMore ? '+' : ''}',
         actions: [
           IconButton(
             tooltip: 'Yenile',
@@ -61,37 +62,39 @@ class _AdminArtisansScreenState extends ConsumerState<AdminArtisansScreen> {
           _ArtisanFilters(
             professionController: _professionCtrl,
             verified: verified,
-            professionActive:
-                profession != null && profession.isNotEmpty,
+            professionActive: profession != null && profession.isNotEmpty,
             onProfessionSubmit: () {
               final t = _professionCtrl.text.trim();
               ref
                   .read(artisanDirectoryProfessionFilterProvider.notifier)
-                  .state = t.isEmpty ? null : t;
+                  .state = t.isEmpty
+                  ? null
+                  : t;
               if (t.isNotEmpty) {
                 ref
-                    .read(artisanDirectoryVerifiedFilterProvider.notifier)
-                    .state = null;
+                        .read(artisanDirectoryVerifiedFilterProvider.notifier)
+                        .state =
+                    null;
               }
             },
             onVerified: (v) {
-              ref
-                  .read(artisanDirectoryVerifiedFilterProvider.notifier)
-                  .state = v;
+              ref.read(artisanDirectoryVerifiedFilterProvider.notifier).state =
+                  v;
               if (v != null) {
                 ref
-                    .read(artisanDirectoryProfessionFilterProvider.notifier)
-                    .state = null;
+                        .read(artisanDirectoryProfessionFilterProvider.notifier)
+                        .state =
+                    null;
                 _professionCtrl.clear();
               }
             },
             onClearAll: () {
               ref
-                  .read(artisanDirectoryProfessionFilterProvider.notifier)
-                  .state = null;
-              ref
-                  .read(artisanDirectoryVerifiedFilterProvider.notifier)
-                  .state = null;
+                      .read(artisanDirectoryProfessionFilterProvider.notifier)
+                      .state =
+                  null;
+              ref.read(artisanDirectoryVerifiedFilterProvider.notifier).state =
+                  null;
               _professionCtrl.clear();
             },
           ),
@@ -219,9 +222,8 @@ class _PremiumLine extends StatelessWidget {
     final palette = context.palette;
     final theme = Theme.of(context);
     final until = profile.premiumExpiresAt;
-    final active = profile.isPremium &&
-        until != null &&
-        until.isAfter(DateTime.now());
+    final active =
+        profile.isPremium && until != null && until.isAfter(DateTime.now());
 
     final String label;
     final Color color;
@@ -239,9 +241,7 @@ class _PremiumLine extends StatelessWidget {
     return Row(
       children: [
         Icon(
-          active
-              ? Icons.workspace_premium
-              : Icons.workspace_premium_outlined,
+          active ? Icons.workspace_premium : Icons.workspace_premium_outlined,
           size: 15,
           color: color,
         ),
@@ -257,8 +257,11 @@ class _PremiumLine extends StatelessWidget {
         if (profile.premiumProductId == 'manual_admin_grant')
           Tooltip(
             message: 'Yönetici tarafından manuel tanımlandı',
-            child: Icon(Icons.admin_panel_settings_outlined,
-                size: 15, color: palette.warning),
+            child: Icon(
+              Icons.admin_panel_settings_outlined,
+              size: 15,
+              color: palette.warning,
+            ),
           ),
       ],
     );
@@ -267,6 +270,62 @@ class _PremiumLine extends StatelessWidget {
   static String _fmtDate(DateTime d) =>
       '${d.day.toString().padLeft(2, '0')}.'
       '${d.month.toString().padLeft(2, '0')}.${d.year}';
+}
+
+/// Belge inceleme durumu satırı: kaç belge var, hangi aşamada.
+class _CertificateLine extends StatelessWidget {
+  const _CertificateLine({required this.profile});
+  final ArtisanProfile profile;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    final theme = Theme.of(context);
+    final n = profile.certificates.length;
+
+    final (
+      String label,
+      Color color,
+      IconData icon,
+    ) = switch (profile.certificateStatus) {
+      'approved' => (
+        '$n belge · onaylı',
+        palette.success,
+        Icons.verified_user_outlined,
+      ),
+      'rejected' => (
+        '$n belge · reddedildi',
+        palette.danger,
+        Icons.gpp_bad_outlined,
+      ),
+      'pending' => (
+        '$n belge · İNCELEME BEKLİYOR',
+        palette.warning,
+        Icons.hourglass_empty,
+      ),
+      _ => ('$n belge', palette.inkMuted, Icons.description_outlined),
+    };
+
+    return Row(
+      children: [
+        Icon(icon, size: 15, color: color),
+        const SizedBox(width: 6),
+        Expanded(
+          child: Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: color,
+              fontWeight: profile.certificatesPending
+                  ? FontWeight.w800
+                  : FontWeight.w500,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
 }
 
 class _ArtisanCard extends ConsumerWidget {
@@ -281,7 +340,9 @@ class _ArtisanCard extends ConsumerWidget {
     bool? moderationHidden,
   }) async {
     try {
-      await ref.read(adminArtisanRepositoryProvider).setFlags(
+      await ref
+          .read(adminArtisanRepositoryProvider)
+          .setFlags(
             profile.uid,
             adminVerified: adminVerified,
             featured: featured,
@@ -309,8 +370,7 @@ class _ArtisanCard extends ConsumerWidget {
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(14),
           border: Border.all(
-            color:
-                profile.moderationHidden ? palette.danger : palette.hairline,
+            color: profile.moderationHidden ? palette.danger : palette.hairline,
           ),
         ),
         child: Column(
@@ -321,8 +381,9 @@ class _ArtisanCard extends ConsumerWidget {
                 Expanded(
                   child: Text(
                     name.isEmpty ? '(meslek yok)' : name,
-                    style: theme.textTheme.titleSmall
-                        ?.copyWith(fontWeight: FontWeight.w800),
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w800,
+                    ),
                   ),
                 ),
                 if (profile.showVerifiedBadge)
@@ -332,19 +393,27 @@ class _ArtisanCard extends ConsumerWidget {
               ],
             ),
             const SizedBox(height: 4),
-            Text('UID: ${profile.uid}',
-                style: theme.textTheme.labelSmall
-                    ?.copyWith(color: palette.inkFaint)),
+            Text(
+              'UID: ${profile.uid}',
+              style: theme.textTheme.labelSmall?.copyWith(
+                color: palette.inkFaint,
+              ),
+            ),
             const SizedBox(height: 6),
             Text(
               '★ ${profile.averageRating.toStringAsFixed(1)} · '
               '${profile.totalReviews} değerlendirme · '
               '${profile.completedJobs} iş',
-              style: theme.textTheme.bodySmall
-                  ?.copyWith(color: palette.inkMuted),
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: palette.inkMuted,
+              ),
             ),
             const SizedBox(height: 6),
             _PremiumLine(profile: profile),
+            if (profile.certificates.isNotEmpty) ...[
+              const SizedBox(height: 4),
+              _CertificateLine(profile: profile),
+            ],
             const SizedBox(height: 8),
             Wrap(
               spacing: 6,
@@ -354,9 +423,14 @@ class _ArtisanCard extends ConsumerWidget {
                       showAdminUserActions(context, ref, profile.uid),
                   child: const Text('Kullanıcı'),
                 ),
-                if (ref.watch(adminCapabilitiesProvider).allows('finance.manage'))
+                if (ref
+                    .watch(adminCapabilitiesProvider)
+                    .allows('finance.manage'))
                   OutlinedButton.icon(
-                    icon: const Icon(Icons.workspace_premium_outlined, size: 16),
+                    icon: const Icon(
+                      Icons.workspace_premium_outlined,
+                      size: 16,
+                    ),
                     label: const Text('Premium'),
                     onPressed: () => showPremiumOverrideSheet(
                       context,
@@ -364,23 +438,54 @@ class _ArtisanCard extends ConsumerWidget {
                       profile: profile,
                     ),
                   ),
+                if (profile.certificates.isNotEmpty)
+                  OutlinedButton.icon(
+                    icon: Icon(
+                      profile.certificatesPending
+                          ? Icons.hourglass_empty
+                          : Icons.fact_check_outlined,
+                      size: 16,
+                      color: profile.certificatesPending
+                          ? palette.warning
+                          : null,
+                    ),
+                    label: const Text('Belgeler'),
+                    onPressed: () => showCertificateReviewSheet(
+                      context,
+                      ref,
+                      profile: profile,
+                    ),
+                  ),
                 OutlinedButton(
-                  onPressed: () => _flag(context, ref,
-                      adminVerified: !profile.adminVerified),
-                  child: Text(profile.adminVerified
-                      ? 'Platform onayını kaldır'
-                      : 'Platform onayla'),
+                  onPressed: () => _flag(
+                    context,
+                    ref,
+                    adminVerified: !profile.adminVerified,
+                  ),
+                  child: Text(
+                    profile.adminVerified
+                        ? 'Platform onayını kaldır'
+                        : 'Platform onayla',
+                  ),
                 ),
                 OutlinedButton(
                   onPressed: () =>
                       _flag(context, ref, featured: !profile.featured),
-                  child: Text(profile.featured ? 'Öne çıkarmayı kaldır' : 'Öne çıkar'),
+                  child: Text(
+                    profile.featured ? 'Öne çıkarmayı kaldır' : 'Öne çıkar',
+                  ),
                 ),
                 OutlinedButton(
-                  onPressed: () => _flag(context, ref,
-                      moderationHidden: !profile.moderationHidden),
+                  onPressed: () => _flag(
+                    context,
+                    ref,
+                    moderationHidden: !profile.moderationHidden,
+                  ),
                   child: Text(
-                      profile.moderationHidden ? 'Profili göster' : 'Profili gizle'),
+                    profile.moderationHidden
+                        ? 'Profili göster'
+                        : 'Profili gizle',
+                  ),
                 ),
               ],
             ),

@@ -57,8 +57,9 @@ class _AdminReportsScreenState extends ConsumerState<AdminReportsScreen> {
         data: (page) {
           final all = page.items;
           if (all.isEmpty) return _Empty(openOnly: _openOnly);
-          final list =
-              _openOnly ? all.where((r) => !r.status.isClosed).toList() : all;
+          final list = _openOnly
+              ? all.where((r) => !r.status.isClosed).toList()
+              : all;
           final myUid = ref.read(currentUserProvider)?.uid;
           return Column(
             children: [
@@ -91,7 +92,8 @@ class _AdminReportsScreenState extends ConsumerState<AdminReportsScreen> {
                                         ? 'Yüklü kayıtlarda açık şikayet yok.'
                                         : 'Kayıt yok.',
                                     style: TextStyle(
-                                        color: context.palette.inkMuted),
+                                      color: context.palette.inkMuted,
+                                    ),
                                   ),
                                 ),
                               PagedFooter(
@@ -171,8 +173,11 @@ class _FilterBar extends StatelessWidget {
 }
 
 class _Seg extends StatelessWidget {
-  const _Seg(
-      {required this.label, required this.selected, required this.onTap});
+  const _Seg({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
   final String label;
   final bool selected;
   final VoidCallback onTap;
@@ -203,8 +208,7 @@ class _Seg extends StatelessWidget {
 }
 
 class _ReportCard extends StatelessWidget {
-  const _ReportCard(
-      {required this.report, required this.onTap, this.myUid});
+  const _ReportCard({required this.report, required this.onTap, this.myUid});
   final Report report;
   final String? myUid;
   final VoidCallback onTap;
@@ -235,8 +239,9 @@ class _ReportCard extends StatelessWidget {
                   Expanded(
                     child: Text(
                       report.reason.labelTR,
-                      style: theme.textTheme.titleSmall
-                          ?.copyWith(fontWeight: FontWeight.w700),
+                      style: theme.textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
@@ -249,8 +254,9 @@ class _ReportCard extends StatelessWidget {
                   report.note!,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.bodySmall
-                      ?.copyWith(color: palette.inkMuted),
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: palette.inkMuted,
+                  ),
                 ),
               ],
               const SizedBox(height: 8),
@@ -258,13 +264,13 @@ class _ReportCard extends StatelessWidget {
                 children: [
                   Text(
                     _formatDate(report.createdAt),
-                    style: theme.textTheme.labelSmall
-                        ?.copyWith(color: palette.inkFaint),
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: palette.inkFaint,
+                    ),
                   ),
                   const Spacer(),
                   if (report.assignedTo != null)
-                    _AssignBadge(
-                        mine: report.assignedTo == myUid),
+                    _AssignBadge(mine: report.assignedTo == myUid),
                 ],
               ),
             ],
@@ -288,17 +294,27 @@ class _AssignBadge extends StatelessWidget {
         : (palette.surfaceMuted, palette.inkMuted);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration:
-          BoxDecoration(color: bg, borderRadius: BorderRadius.circular(20)),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(20),
+      ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(mine ? Icons.person_pin : Icons.lock_person_outlined,
-              size: 12, color: fg),
+          Icon(
+            mine ? Icons.person_pin : Icons.lock_person_outlined,
+            size: 12,
+            color: fg,
+          ),
           const SizedBox(width: 4),
-          Text(mine ? 'Bende' : 'Üstlenildi',
-              style: TextStyle(
-                  fontSize: 11, fontWeight: FontWeight.w700, color: fg)),
+          Text(
+            mine ? 'Bende' : 'Üstlenildi',
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              color: fg,
+            ),
+          ),
         ],
       ),
     );
@@ -331,11 +347,14 @@ class _TargetBadge extends StatelessWidget {
         children: [
           Icon(icon, size: 13, color: palette.inkMuted),
           const SizedBox(width: 4),
-          Text(label,
-              style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                  color: palette.inkMuted)),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              color: palette.inkMuted,
+            ),
+          ),
         ],
       ),
     );
@@ -357,8 +376,10 @@ class _StatusChip extends StatelessWidget {
     };
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration:
-          BoxDecoration(color: bg, borderRadius: BorderRadius.circular(20)),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(20),
+      ),
       child: Text(
         status.labelTR,
         style: TextStyle(color: fg, fontWeight: FontWeight.w700, fontSize: 11),
@@ -414,7 +435,9 @@ class _ReportDetailSheetState extends ConsumerState<_ReportDetailSheet> {
     if (uid == null) return;
     setState(() => _busy = true);
     try {
-      await ref.read(adminReportRepositoryProvider).updateStatus(
+      await ref
+          .read(adminReportRepositoryProvider)
+          .updateStatus(
             widget.report.id,
             status: status,
             resolvedBy: uid,
@@ -435,15 +458,14 @@ class _ReportDetailSheetState extends ConsumerState<_ReportDetailSheet> {
     if (uid == null) return;
     setState(() => _busy = true);
     try {
-      await ref.read(adminReportRepositoryProvider).assignReport(
-            widget.report.id,
-            assign: assign,
-            adminUid: uid,
-          );
+      await ref
+          .read(adminReportRepositoryProvider)
+          .assignReport(widget.report.id, assign: assign, adminUid: uid);
       if (!mounted) return;
       Navigator.of(context).pop();
       context.showSuccess(
-          assign ? 'Şikayeti üstlendiniz.' : 'Şikayet bırakıldı.');
+        assign ? 'Şikayeti üstlendiniz.' : 'Şikayet bırakıldı.',
+      );
     } catch (_) {
       if (!mounted) return;
       setState(() => _busy = false);
@@ -456,7 +478,9 @@ class _ReportDetailSheetState extends ConsumerState<_ReportDetailSheet> {
   Future<void> _moderateStaffing(bool hide) async {
     setState(() => _busy = true);
     try {
-      await ref.read(adminReportRepositoryProvider).moderateStaffing(
+      await ref
+          .read(adminReportRepositoryProvider)
+          .moderateStaffing(
             targetType: widget.report.target,
             targetId: widget.report.targetId,
             hide: hide,
@@ -465,7 +489,8 @@ class _ReportDetailSheetState extends ConsumerState<_ReportDetailSheet> {
       if (!mounted) return;
       setState(() => _busy = false);
       context.showSuccess(
-          hide ? 'İçerik gizlendi.' : 'İçerik yeniden yayında.');
+        hide ? 'İçerik gizlendi.' : 'İçerik yeniden yayında.',
+      );
     } catch (_) {
       if (!mounted) return;
       setState(() => _busy = false);
@@ -482,11 +507,9 @@ class _ReportDetailSheetState extends ConsumerState<_ReportDetailSheet> {
     }
     setState(() => _busy = true);
     try {
-      final msgs =
-          await ref.read(adminReportRepositoryProvider).fetchChatTranscript(
-                reportId: r.id,
-                chatId: chatId,
-              );
+      final msgs = await ref
+          .read(adminReportRepositoryProvider)
+          .fetchChatTranscript(reportId: r.id, chatId: chatId);
       if (!mounted) return;
       setState(() => _busy = false);
       await showDialog<void>(
@@ -527,8 +550,7 @@ class _ReportDetailSheetState extends ConsumerState<_ReportDetailSheet> {
     } catch (_) {
       if (!mounted) return;
       setState(() => _busy = false);
-      context.showError(
-          'Transcript alınamadı (yetki, bağlam veya limit).');
+      context.showError('Transcript alınamadı (yetki, bağlam veya limit).');
     }
   }
 
@@ -568,9 +590,12 @@ class _ReportDetailSheetState extends ConsumerState<_ReportDetailSheet> {
                 ],
               ),
               const SizedBox(height: 12),
-              Text(r.reason.labelTR,
-                  style: theme.textTheme.titleMedium
-                      ?.copyWith(fontWeight: FontWeight.w800)),
+              Text(
+                r.reason.labelTR,
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
               const SizedBox(height: 12),
               if (r.note != null && r.note!.isNotEmpty)
                 _InfoBlock(label: 'Şikayet notu', value: r.note!),
@@ -591,36 +616,41 @@ class _ReportDetailSheetState extends ConsumerState<_ReportDetailSheet> {
                 _InfoBlock(label: 'İşleyen (uid)', value: r.resolvedBy!),
               if (r.assignedTo != null)
                 _InfoBlock(
-                    label: 'Üstlenen (uid)',
-                    value: r.assignedTo == ref.read(currentUserProvider)?.uid
-                        ? '${r.assignedTo}  (siz)'
-                        : r.assignedTo!),
+                  label: 'Üstlenen (uid)',
+                  value: r.assignedTo == ref.read(currentUserProvider)?.uid
+                      ? '${r.assignedTo}  (siz)'
+                      : r.assignedTo!,
+                ),
               if (!r.status.isClosed && !_busy) ...[
                 const SizedBox(height: 4),
-                Builder(builder: (context) {
-                  final myUid = ref.read(currentUserProvider)?.uid;
-                  final mine = r.assignedTo != null && r.assignedTo == myUid;
-                  if (r.assignedTo == null) {
+                Builder(
+                  builder: (context) {
+                    final myUid = ref.read(currentUserProvider)?.uid;
+                    final mine = r.assignedTo != null && r.assignedTo == myUid;
+                    if (r.assignedTo == null) {
+                      return OutlinedButton.icon(
+                        onPressed: () => _assign(true),
+                        icon: const Icon(Icons.pan_tool_alt_outlined, size: 18),
+                        label: const Text('Şikayeti üstlen'),
+                      );
+                    }
+                    if (mine) {
+                      return OutlinedButton.icon(
+                        onPressed: () => _assign(false),
+                        icon: const Icon(
+                          Icons.free_cancellation_outlined,
+                          size: 18,
+                        ),
+                        label: const Text('Üstlenmeyi bırak'),
+                      );
+                    }
                     return OutlinedButton.icon(
                       onPressed: () => _assign(true),
-                      icon: const Icon(Icons.pan_tool_alt_outlined, size: 18),
-                      label: const Text('Şikayeti üstlen'),
+                      icon: const Icon(Icons.swap_horiz_rounded, size: 18),
+                      label: const Text('Devral'),
                     );
-                  }
-                  if (mine) {
-                    return OutlinedButton.icon(
-                      onPressed: () => _assign(false),
-                      icon: const Icon(Icons.free_cancellation_outlined,
-                          size: 18),
-                      label: const Text('Üstlenmeyi bırak'),
-                    );
-                  }
-                  return OutlinedButton.icon(
-                    onPressed: () => _assign(true),
-                    icon: const Icon(Icons.swap_horiz_rounded, size: 18),
-                    label: const Text('Devral'),
-                  );
-                }),
+                  },
+                ),
               ],
               // Eleman modülü hedefi: içerik doğrudan buradan indirilebilir
               // (istemci listeleri moderationHidden=true kaydı göstermez).
@@ -632,15 +662,12 @@ class _ReportDetailSheetState extends ConsumerState<_ReportDetailSheet> {
                   runSpacing: 10,
                   children: [
                     OutlinedButton.icon(
-                      onPressed:
-                          _busy ? null : () => _moderateStaffing(true),
-                      icon: const Icon(Icons.visibility_off_outlined,
-                          size: 18),
+                      onPressed: _busy ? null : () => _moderateStaffing(true),
+                      icon: const Icon(Icons.visibility_off_outlined, size: 18),
                       label: const Text('İçeriği gizle'),
                     ),
                     OutlinedButton.icon(
-                      onPressed:
-                          _busy ? null : () => _moderateStaffing(false),
+                      onPressed: _busy ? null : () => _moderateStaffing(false),
                       icon: const Icon(Icons.visibility_outlined, size: 18),
                       label: const Text('Gizlemeyi kaldır'),
                     ),
@@ -652,19 +679,18 @@ class _ReportDetailSheetState extends ConsumerState<_ReportDetailSheet> {
                 OutlinedButton.icon(
                   onPressed: _busy
                       ? null
-                      : () => showAdminUserActions(
-                            context,
-                            ref,
-                            r.reportedUid,
-                          ),
+                      : () => showAdminUserActions(context, ref, r.reportedUid),
                   icon: const Icon(Icons.manage_accounts_outlined, size: 18),
                   label: const Text('Bildirilen kullanıcıyı yönet'),
                 ),
               ],
               const SizedBox(height: 12),
-              Text('Çözüm notu (opsiyonel)',
-                  style: theme.textTheme.labelLarge
-                      ?.copyWith(color: palette.inkMuted)),
+              Text(
+                'Çözüm notu (opsiyonel)',
+                style: theme.textTheme.labelLarge?.copyWith(
+                  color: palette.inkMuted,
+                ),
+              ),
               const SizedBox(height: 6),
               TextField(
                 controller: _noteController,
@@ -678,10 +704,11 @@ class _ReportDetailSheetState extends ConsumerState<_ReportDetailSheet> {
               const SizedBox(height: 16),
               if (_busy)
                 const Center(
-                    child: Padding(
-                  padding: EdgeInsets.all(8),
-                  child: CircularProgressIndicator(strokeWidth: 2.5),
-                ))
+                  child: Padding(
+                    padding: EdgeInsets.all(8),
+                    child: CircularProgressIndicator(strokeWidth: 2.5),
+                  ),
+                )
               else
                 Wrap(
                   spacing: 10,
@@ -727,13 +754,19 @@ class _InfoBlock extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label,
-              style: theme.textTheme.labelSmall
-                  ?.copyWith(color: palette.inkFaint)),
+          Text(
+            label,
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: palette.inkFaint,
+            ),
+          ),
           const SizedBox(height: 2),
-          SelectableText(value,
-              style: theme.textTheme.bodyMedium
-                  ?.copyWith(fontWeight: FontWeight.w500)),
+          SelectableText(
+            value,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              fontWeight: FontWeight.w500,
+            ),
+          ),
         ],
       ),
     );

@@ -35,8 +35,7 @@ class _PremiumOverrideSheet extends ConsumerStatefulWidget {
       _PremiumOverrideSheetState();
 }
 
-class _PremiumOverrideSheetState
-    extends ConsumerState<_PremiumOverrideSheet> {
+class _PremiumOverrideSheetState extends ConsumerState<_PremiumOverrideSheet> {
   final _reason = TextEditingController();
   int _days = 30;
   bool _busy = false;
@@ -85,9 +84,11 @@ class _PremiumOverrideSheetState
       if (!mounted) return;
       Navigator.of(context).pop();
       ref.invalidate(artisanDirectoryControllerProvider);
-      context.showSuccess(revoke
-          ? 'Premium iptal edildi.'
-          : 'Premium tanımlandı — ${_fmtDate(until)} tarihine kadar.');
+      context.showSuccess(
+        revoke
+            ? 'Premium iptal edildi.'
+            : 'Premium tanımlandı — ${_fmtDate(until)} tarihine kadar.',
+      );
     } catch (e) {
       if (!mounted) return;
       setState(() => _busy = false);
@@ -125,13 +126,19 @@ class _PremiumOverrideSheetState
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Premium müdahalesi',
-                  style: theme.textTheme.titleMedium
-                      ?.copyWith(fontWeight: FontWeight.w800)),
+              Text(
+                'Premium müdahalesi',
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
               const SizedBox(height: 2),
-              Text('UID: ${p.uid}',
-                  style: theme.textTheme.labelSmall
-                      ?.copyWith(color: palette.inkFaint)),
+              Text(
+                'UID: ${p.uid}',
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: palette.inkFaint,
+                ),
+              ),
               const SizedBox(height: 10),
 
               // Mevcut durum.
@@ -146,8 +153,8 @@ class _PremiumOverrideSheetState
                   active
                       ? 'Şu an PREMIUM · bitiş ${_fmtDate(until)}'
                       : until != null
-                          ? 'Premium süresi dolmuş · ${_fmtDate(until)}'
-                          : 'Premium yok',
+                      ? 'Premium süresi dolmuş · ${_fmtDate(until)}'
+                      : 'Premium yok',
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: active ? palette.success : palette.inkMuted,
                     fontWeight: FontWeight.w600,
@@ -158,8 +165,9 @@ class _PremiumOverrideSheetState
                 const SizedBox(height: 6),
                 Text(
                   'Uzatma, kalan süreye EKLENİR (mevcut üyelik kısalmaz).',
-                  style: theme.textTheme.labelSmall
-                      ?.copyWith(color: palette.inkMuted),
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: palette.inkMuted,
+                  ),
                 ),
               ],
               const SizedBox(height: 14),
@@ -176,15 +184,16 @@ class _PremiumOverrideSheetState
                       onSelected: _busy
                           ? null
                           : (_) => setState(() {
-                                _custom = false;
-                                _days = d;
-                              }),
+                              _custom = false;
+                              _days = d;
+                            }),
                     ),
                   ChoiceChip(
                     label: const Text('Özel'),
                     selected: _custom,
-                    onSelected:
-                        _busy ? null : (_) => setState(() => _custom = true),
+                    onSelected: _busy
+                        ? null
+                        : (_) => setState(() => _custom = true),
                   ),
                 ],
               ),
@@ -210,15 +219,17 @@ class _PremiumOverrideSheetState
                 enabled: !_busy,
                 decoration: const InputDecoration(
                   labelText: 'Gerekçe (zorunlu)',
-                  hintText: 'Örn: Ödeme alındı, Play doğrulaması düştü — '
+                  hintText:
+                      'Örn: Ödeme alındı, Play doğrulaması düştü — '
                       'destek talebi #123',
                   border: OutlineInputBorder(),
                 ),
               ),
               Text(
                 'Bu işlem denetim kaydına yazılır.',
-                style: theme.textTheme.labelSmall
-                    ?.copyWith(color: palette.inkMuted),
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: palette.inkMuted,
+                ),
               ),
               const SizedBox(height: 14),
 
@@ -230,8 +241,9 @@ class _PremiumOverrideSheetState
                           ? const SizedBox(
                               width: 16,
                               height: 16,
-                              child:
-                                  CircularProgressIndicator(strokeWidth: 2.2),
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2.2,
+                              ),
                             )
                           : const Icon(Icons.workspace_premium, size: 18),
                       label: Text(active ? 'Uzat' : 'Premium ver'),
@@ -242,7 +254,8 @@ class _PremiumOverrideSheetState
                     const SizedBox(width: 8),
                     OutlinedButton(
                       style: OutlinedButton.styleFrom(
-                          foregroundColor: palette.danger),
+                        foregroundColor: palette.danger,
+                      ),
                       onPressed: _busy ? null : () => _apply(revoke: true),
                       child: const Text('İptal et'),
                     ),

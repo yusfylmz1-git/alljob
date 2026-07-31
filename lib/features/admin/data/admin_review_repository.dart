@@ -5,10 +5,7 @@ import '../../../data/models/review.dart';
 
 /// Admin review row (+ hide flag).
 class AdminReview {
-  const AdminReview({
-    required this.review,
-    this.hiddenByAdmin = false,
-  });
+  const AdminReview({required this.review, this.hiddenByAdmin = false});
 
   final Review review;
   final bool hiddenByAdmin;
@@ -23,18 +20,21 @@ class FirebaseAdminReviewRepository implements AdminReviewRepository {
   FirebaseAdminReviewRepository({
     FirebaseFirestore? firestore,
     FirebaseFunctions? functions,
-  })  : _db = firestore ?? FirebaseFirestore.instance,
-        _functions = functions ??
-            FirebaseFunctions.instanceFor(region: 'europe-west1');
+  }) : _db = firestore ?? FirebaseFirestore.instance,
+       _functions =
+           functions ?? FirebaseFunctions.instanceFor(region: 'europe-west1');
 
   final FirebaseFirestore _db;
   final FirebaseFunctions _functions;
 
   @override
-  Future<List<AdminReview>> fetchPage(
-      {String? beforeCursor, int limit = 30}) async {
-    Query<Map<String, dynamic>> q =
-        _db.collection('reviews').orderBy('createdAt', descending: true);
+  Future<List<AdminReview>> fetchPage({
+    String? beforeCursor,
+    int limit = 30,
+  }) async {
+    Query<Map<String, dynamic>> q = _db
+        .collection('reviews')
+        .orderBy('createdAt', descending: true);
     if (beforeCursor != null && beforeCursor.isNotEmpty) {
       q = q.where('createdAt', isLessThan: beforeCursor);
     }
@@ -63,8 +63,10 @@ class MockAdminReviewRepository implements AdminReviewRepository {
   void put(AdminReview r) => _items.add(r);
 
   @override
-  Future<List<AdminReview>> fetchPage(
-      {String? beforeCursor, int limit = 30}) async {
+  Future<List<AdminReview>> fetchPage({
+    String? beforeCursor,
+    int limit = 30,
+  }) async {
     var list = List<AdminReview>.from(_items)
       ..sort((a, b) => b.review.createdAt.compareTo(a.review.createdAt));
     if (beforeCursor != null) {

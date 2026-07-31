@@ -203,7 +203,11 @@ service cloud.firestore {
                        'completedJobs','isPremium','premiumExpiresAt',
                        'premiumProductId','premiumUpdatedAt',
                        'adminVerified','featured','moderationHidden',
-                       'moderatedBy','moderatedAt'])
+                       'moderatedBy','moderatedAt',
+                       // Belge inceleme sonucu: yalnız CF yazar. Aksi hâlde
+                       // usta kendini "belgeli usta" ilan ederdi.
+                       'certificateStatus','certificateNote',
+                       'certificateReviewedBy','certificateUpdatedAt'])
         && verifiedClaimOk()
         && emailVerifiedMirrorOk()
         && profileContentOk();
@@ -214,7 +218,11 @@ service cloud.firestore {
                        'isPremium','premiumExpiresAt',
                        'premiumProductId','premiumUpdatedAt',
                        'adminVerified','featured','moderationHidden',
-                       'moderatedBy','moderatedAt'])
+                       'moderatedBy','moderatedAt',
+                       // Belge inceleme sonucu: yalnız CF yazar (usta belge
+                       // listesini değiştirince trigger pending'e döndürür).
+                       'certificateStatus','certificateNote',
+                       'certificateReviewedBy','certificateUpdatedAt'])
         && verifiedClaimOk()
         && emailVerifiedMirrorOk()
         && profileContentOk();

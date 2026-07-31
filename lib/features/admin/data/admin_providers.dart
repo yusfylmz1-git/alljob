@@ -53,15 +53,18 @@ final openReportCountProvider = Provider<int>((ref) {
 
 /// Şikayet kuyruğu liste controller'ı (cursor sayfalama). Rozet için canlı
 /// stream ayrı ([openReportCountProvider]); bu yalnız listenin sayfalanmasıdır.
-final reportQueueControllerProvider = StateNotifierProvider.autoDispose<
-    PagedController<Report>, AsyncValue<PagedData<Report>>>((ref) {
-  final repo = ref.watch(adminReportRepositoryProvider);
-  return PagedController<Report>(
-    fetch: ({beforeCursor, limit = 30}) =>
-        repo.fetchPage(beforeCursor: beforeCursor, limit: limit),
-    cursorOf: (r) => r.createdAt.toIso8601String(),
-  );
-});
+final reportQueueControllerProvider =
+    StateNotifierProvider.autoDispose<
+      PagedController<Report>,
+      AsyncValue<PagedData<Report>>
+    >((ref) {
+      final repo = ref.watch(adminReportRepositoryProvider);
+      return PagedController<Report>(
+        fetch: ({beforeCursor, limit = 30}) =>
+            repo.fetchPage(beforeCursor: beforeCursor, limit: limit),
+        cursorOf: (r) => r.createdAt.toIso8601String(),
+      );
+    });
 
 final adminDisputeRepositoryProvider = Provider<AdminDisputeRepository>((ref) {
   if (useFirebaseBackend) return FirebaseAdminDisputeRepository();
@@ -84,15 +87,18 @@ final openDisputeCountProvider = Provider<int>((ref) {
 });
 
 /// Anlaşmazlık kuyruğu liste controller'ı (cursor sayfalama, createdAt).
-final disputeQueueControllerProvider = StateNotifierProvider.autoDispose<
-    PagedController<Job>, AsyncValue<PagedData<Job>>>((ref) {
-  final repo = ref.watch(adminDisputeRepositoryProvider);
-  return PagedController<Job>(
-    fetch: ({beforeCursor, limit = 30}) =>
-        repo.fetchPage(beforeCursor: beforeCursor, limit: limit),
-    cursorOf: (j) => j.createdAt.toIso8601String(),
-  );
-});
+final disputeQueueControllerProvider =
+    StateNotifierProvider.autoDispose<
+      PagedController<Job>,
+      AsyncValue<PagedData<Job>>
+    >((ref) {
+      final repo = ref.watch(adminDisputeRepositoryProvider);
+      return PagedController<Job>(
+        fetch: ({beforeCursor, limit = 30}) =>
+            repo.fetchPage(beforeCursor: beforeCursor, limit: limit),
+        cursorOf: (j) => j.createdAt.toIso8601String(),
+      );
+    });
 
 final adminUserRepositoryProvider = Provider<AdminUserRepository>((ref) {
   if (useFirebaseBackend) return FirebaseAdminUserRepository();
@@ -104,22 +110,26 @@ final adminUserRepositoryProvider = Provider<AdminUserRepository>((ref) {
 /// Kullanıcı dizini filtresi (shell ekranı).
 final userDirectoryFilterProvider =
     StateProvider.autoDispose<AdminUserListFilter>(
-        (ref) => AdminUserListFilter.all);
+      (ref) => AdminUserListFilter.all,
+    );
 
 /// Sayfalı kullanıcı dizini.
-final userDirectoryControllerProvider = StateNotifierProvider.autoDispose<
-    PagedController<AppUser>, AsyncValue<PagedData<AppUser>>>((ref) {
-  final repo = ref.watch(adminUserRepositoryProvider);
-  final filter = ref.watch(userDirectoryFilterProvider);
-  return PagedController<AppUser>(
-    fetch: ({beforeCursor, limit = 30}) => repo.fetchPage(
-      beforeCursor: beforeCursor,
-      limit: limit,
-      filter: filter,
-    ),
-    cursorOf: (u) => u.createdAt.toUtc().toIso8601String(),
-  );
-});
+final userDirectoryControllerProvider =
+    StateNotifierProvider.autoDispose<
+      PagedController<AppUser>,
+      AsyncValue<PagedData<AppUser>>
+    >((ref) {
+      final repo = ref.watch(adminUserRepositoryProvider);
+      final filter = ref.watch(userDirectoryFilterProvider);
+      return PagedController<AppUser>(
+        fetch: ({beforeCursor, limit = 30}) => repo.fetchPage(
+          beforeCursor: beforeCursor,
+          limit: limit,
+          filter: filter,
+        ),
+        cursorOf: (u) => u.createdAt.toUtc().toIso8601String(),
+      );
+    });
 
 final adminJobRepositoryProvider = Provider<AdminJobRepository>((ref) {
   if (useFirebaseBackend) return FirebaseAdminJobRepository();
@@ -127,28 +137,33 @@ final adminJobRepositoryProvider = Provider<AdminJobRepository>((ref) {
 });
 
 /// İlan listesi: durum filtresi (null = hepsi). Province ayrı provider.
-final jobDirectoryStatusFilterProvider =
-    StateProvider.autoDispose<JobStatus?>((ref) => null);
+final jobDirectoryStatusFilterProvider = StateProvider.autoDispose<JobStatus?>(
+  (ref) => null,
+);
 
-final jobDirectoryProvinceFilterProvider =
-    StateProvider.autoDispose<String?>((ref) => null);
+final jobDirectoryProvinceFilterProvider = StateProvider.autoDispose<String?>(
+  (ref) => null,
+);
 
-final jobDirectoryControllerProvider = StateNotifierProvider.autoDispose<
-    PagedController<Job>, AsyncValue<PagedData<Job>>>((ref) {
-  final repo = ref.watch(adminJobRepositoryProvider);
-  final status = ref.watch(jobDirectoryStatusFilterProvider);
-  final province = ref.watch(jobDirectoryProvinceFilterProvider);
-  return PagedController<Job>(
-    fetch: ({beforeCursor, limit = 30}) => repo.fetchPage(
-      beforeCursor: beforeCursor,
-      limit: limit,
-      // Tek equality: status seçiliyse province yok sayılır (repo kuralı).
-      status: status,
-      province: status == null ? province : null,
-    ),
-    cursorOf: (j) => j.createdAt.toUtc().toIso8601String(),
-  );
-});
+final jobDirectoryControllerProvider =
+    StateNotifierProvider.autoDispose<
+      PagedController<Job>,
+      AsyncValue<PagedData<Job>>
+    >((ref) {
+      final repo = ref.watch(adminJobRepositoryProvider);
+      final status = ref.watch(jobDirectoryStatusFilterProvider);
+      final province = ref.watch(jobDirectoryProvinceFilterProvider);
+      return PagedController<Job>(
+        fetch: ({beforeCursor, limit = 30}) => repo.fetchPage(
+          beforeCursor: beforeCursor,
+          limit: limit,
+          // Tek equality: status seçiliyse province yok sayılır (repo kuralı).
+          status: status,
+          province: status == null ? province : null,
+        ),
+        cursorOf: (j) => j.createdAt.toUtc().toIso8601String(),
+      );
+    });
 
 final adminArtisanRepositoryProvider = Provider<AdminArtisanRepository>((ref) {
   if (useFirebaseBackend) return FirebaseAdminArtisanRepository();
@@ -158,40 +173,48 @@ final adminArtisanRepositoryProvider = Provider<AdminArtisanRepository>((ref) {
 final artisanDirectoryProfessionFilterProvider =
     StateProvider.autoDispose<String?>((ref) => null);
 
-final artisanDirectoryVerifiedFilterProvider =
-    StateProvider.autoDispose<bool?>((ref) => null);
+final artisanDirectoryVerifiedFilterProvider = StateProvider.autoDispose<bool?>(
+  (ref) => null,
+);
 
-final artisanDirectoryControllerProvider = StateNotifierProvider.autoDispose<
-    PagedController<ArtisanProfile>,
-    AsyncValue<PagedData<ArtisanProfile>>>((ref) {
-  final repo = ref.watch(adminArtisanRepositoryProvider);
-  final profession = ref.watch(artisanDirectoryProfessionFilterProvider);
-  final verified = ref.watch(artisanDirectoryVerifiedFilterProvider);
-  return PagedController<ArtisanProfile>(
-    fetch: ({beforeCursor, limit = 30}) => repo.fetchPage(
-      beforeCursor: beforeCursor,
-      limit: limit,
-      profession: profession,
-      isVerified: (profession == null || profession.isEmpty) ? verified : null,
-    ),
-    cursorOf: (a) => a.createdAt.toUtc().toIso8601String(),
-  );
-});
+final artisanDirectoryControllerProvider =
+    StateNotifierProvider.autoDispose<
+      PagedController<ArtisanProfile>,
+      AsyncValue<PagedData<ArtisanProfile>>
+    >((ref) {
+      final repo = ref.watch(adminArtisanRepositoryProvider);
+      final profession = ref.watch(artisanDirectoryProfessionFilterProvider);
+      final verified = ref.watch(artisanDirectoryVerifiedFilterProvider);
+      return PagedController<ArtisanProfile>(
+        fetch: ({beforeCursor, limit = 30}) => repo.fetchPage(
+          beforeCursor: beforeCursor,
+          limit: limit,
+          profession: profession,
+          isVerified: (profession == null || profession.isEmpty)
+              ? verified
+              : null,
+        ),
+        cursorOf: (a) => a.createdAt.toUtc().toIso8601String(),
+      );
+    });
 
 final adminReviewRepositoryProvider = Provider<AdminReviewRepository>((ref) {
   if (useFirebaseBackend) return FirebaseAdminReviewRepository();
   return MockAdminReviewRepository();
 });
 
-final reviewDirectoryControllerProvider = StateNotifierProvider.autoDispose<
-    PagedController<AdminReview>, AsyncValue<PagedData<AdminReview>>>((ref) {
-  final repo = ref.watch(adminReviewRepositoryProvider);
-  return PagedController<AdminReview>(
-    fetch: ({beforeCursor, limit = 30}) =>
-        repo.fetchPage(beforeCursor: beforeCursor, limit: limit),
-    cursorOf: (r) => r.review.createdAt.toUtc().toIso8601String(),
-  );
-});
+final reviewDirectoryControllerProvider =
+    StateNotifierProvider.autoDispose<
+      PagedController<AdminReview>,
+      AsyncValue<PagedData<AdminReview>>
+    >((ref) {
+      final repo = ref.watch(adminReviewRepositoryProvider);
+      return PagedController<AdminReview>(
+        fetch: ({beforeCursor, limit = 30}) =>
+            repo.fetchPage(beforeCursor: beforeCursor, limit: limit),
+        cursorOf: (r) => r.review.createdAt.toUtc().toIso8601String(),
+      );
+    });
 
 /// Yönetici kadrosu (rol sahipleri). Yalnız yönetici için akar.
 final adminRosterProvider = StreamProvider<List<AdminRosterEntry>>((ref) {
@@ -222,8 +245,9 @@ final adminCapabilitiesProvider = Provider<AdminCapabilities>((ref) {
   }
   return AdminCapabilities.fromRoster(
     isSuperAdmin: mine.isSuperAdmin,
-    capabilities:
-        mine.capabilitiesFieldPresent ? (mine.capabilities ?? const []) : null,
+    capabilities: mine.capabilitiesFieldPresent
+        ? (mine.capabilities ?? const [])
+        : null,
   );
 });
 
@@ -235,8 +259,7 @@ final adminInviteRepositoryProvider = Provider<AdminInviteRepository>((ref) {
 });
 
 /// Bekleyen davetler (superadmin okur).
-final adminPendingInvitesProvider =
-    StreamProvider<List<AdminInvite>>((ref) {
+final adminPendingInvitesProvider = StreamProvider<List<AdminInvite>>((ref) {
   if (!ref.watch(isSuperAdminProvider)) {
     return Stream.value(const <AdminInvite>[]);
   }
@@ -263,11 +286,11 @@ final adminAuditRepositoryProvider = Provider<AdminAuditRepository>((ref) {
 
 final adminRuntimeConfigRepositoryProvider =
     Provider<AdminRuntimeConfigRepository>((ref) {
-  if (useFirebaseBackend) return FirebaseAdminRuntimeConfigRepository();
-  final repo = MockAdminRuntimeConfigRepository();
-  ref.onDispose(repo.dispose);
-  return repo;
-});
+      if (useFirebaseBackend) return FirebaseAdminRuntimeConfigRepository();
+      final repo = MockAdminRuntimeConfigRepository();
+      ref.onDispose(repo.dispose);
+      return repo;
+    });
 
 /// Runtime config stream (adminConfig/runtime).
 final adminRuntimeConfigProvider = StreamProvider<AdminRuntimeConfig>((ref) {
@@ -277,18 +300,20 @@ final adminRuntimeConfigProvider = StreamProvider<AdminRuntimeConfig>((ref) {
   return ref.watch(adminRuntimeConfigRepositoryProvider).watchRuntime();
 });
 
-final adminBroadcastRepositoryProvider = Provider<AdminBroadcastRepository>((ref) {
+final adminBroadcastRepositoryProvider = Provider<AdminBroadcastRepository>((
+  ref,
+) {
   return AdminBroadcastRepository();
 });
 
 /// Zamanlanmış kampanyalar (en yeni plan üstte).
 final scheduledCampaignsProvider =
     StreamProvider.autoDispose<List<ScheduledCampaign>>((ref) {
-  if (!ref.watch(isAdminProvider)) {
-    return Stream.value(const []);
-  }
-  return ref.watch(adminBroadcastRepositoryProvider).watchCampaigns();
-});
+      if (!ref.watch(isAdminProvider)) {
+        return Stream.value(const []);
+      }
+      return ref.watch(adminBroadcastRepositoryProvider).watchCampaigns();
+    });
 
 final adminSupportRepositoryProvider = Provider<AdminSupportRepository>((ref) {
   return AdminSupportRepository();
@@ -297,13 +322,13 @@ final adminSupportRepositoryProvider = Provider<AdminSupportRepository>((ref) {
 /// [openOnly] true → yalnız open/in_progress.
 final adminSupportTicketsProvider = StreamProvider.autoDispose
     .family<List<SupportTicket>, bool>((ref, openOnly) {
-  if (!ref.watch(isAdminProvider)) {
-    return Stream.value(const []);
-  }
-  return ref
-      .watch(adminSupportRepositoryProvider)
-      .watchTickets(openOnly: openOnly);
-});
+      if (!ref.watch(isAdminProvider)) {
+        return Stream.value(const []);
+      }
+      return ref
+          .watch(adminSupportRepositoryProvider)
+          .watchTickets(openOnly: openOnly);
+    });
 
 /// Sayfalanmış denetim kaydı durumu: birikmiş kayıtlar + daha eski var mı +
 /// "daha fazla yükleniyor" bayrağı.
@@ -322,12 +347,11 @@ class AuditPage {
     List<AuditEntry>? entries,
     bool? hasMore,
     bool? loadingMore,
-  }) =>
-      AuditPage(
-        entries: entries ?? this.entries,
-        hasMore: hasMore ?? this.hasMore,
-        loadingMore: loadingMore ?? this.loadingMore,
-      );
+  }) => AuditPage(
+    entries: entries ?? this.entries,
+    hasMore: hasMore ?? this.hasMore,
+    loadingMore: loadingMore ?? this.loadingMore,
+  );
 }
 
 /// Denetim kaydını cursor ile sayfalar: ilk sayfa + "daha eski" ekler +
@@ -346,7 +370,8 @@ class AuditLogController extends StateNotifier<AsyncValue<AuditPage>> {
     try {
       final first = await _repo.fetchPage(limit: _pageSize);
       state = AsyncData(
-          AuditPage(entries: first, hasMore: first.length == _pageSize));
+        AuditPage(entries: first, hasMore: first.length == _pageSize),
+      );
     } catch (e, st) {
       state = AsyncError(e, st);
     }
@@ -365,10 +390,12 @@ class AuditLogController extends StateNotifier<AsyncValue<AuditPage>> {
         beforeCursor: cur.entries.last.cursor,
         limit: _pageSize,
       );
-      state = AsyncData(AuditPage(
-        entries: [...cur.entries, ...next],
-        hasMore: next.length == _pageSize,
-      ));
+      state = AsyncData(
+        AuditPage(
+          entries: [...cur.entries, ...next],
+          hasMore: next.length == _pageSize,
+        ),
+      );
     } catch (_) {
       // Hata: yalnız "yükleniyor"u kapat, mevcut kayıtlar korunur.
       state = AsyncData(cur.copyWith(loadingMore: false));
@@ -378,8 +405,11 @@ class AuditLogController extends StateNotifier<AsyncValue<AuditPage>> {
 
 /// Denetim kaydı sayfalama controller'ı. Yalnız yönetici için yükler; değilse
 /// boş kalır (sekme zaten süper yöneticiye görünür). Sekmeden çıkınca sıfırlanır.
-final auditLogControllerProvider = StateNotifierProvider.autoDispose<
-    AuditLogController, AsyncValue<AuditPage>>((ref) {
-  final repo = ref.watch(adminAuditRepositoryProvider);
-  return AuditLogController(repo);
-});
+final auditLogControllerProvider =
+    StateNotifierProvider.autoDispose<
+      AuditLogController,
+      AsyncValue<AuditPage>
+    >((ref) {
+      final repo = ref.watch(adminAuditRepositoryProvider);
+      return AuditLogController(repo);
+    });

@@ -28,6 +28,8 @@ class ArtisanProfile {
     required this.createdAt,
     this.premiumExpiresAt,
     this.premiumProductId,
+    this.certificateStatus = 'none',
+    this.certificateNote,
     this.adminVerified = false,
     this.featured = false,
     this.moderationHidden = false,
@@ -59,6 +61,23 @@ class ArtisanProfile {
   final bool adminVerified;
   final bool featured;
   final bool moderationHidden;
+
+  /// Yüklenen ustalık/yeterlilik belgelerinin inceleme durumu.
+  /// `none` (belge yok) · `pending` (incelemede) · `approved` · `rejected`.
+  /// SALT OKUNUR: yalnız CF (adminReviewCertificates) yazar; istemci belge
+  /// yükleyince sunucu tarafında `pending`e döner.
+  final String certificateStatus;
+
+  /// Reddedildiyse ustaya gösterilen gerekçe (`rejected` dışında null).
+  final String? certificateNote;
+
+  /// Belgeleri onaylanmış usta mı? Profilde "Belgeli usta" rozeti çıkar.
+  /// Mavi tike (telefon/platform onayı) ETKİ ETMEZ — ayrı bir sinyaldir.
+  bool get hasApprovedCertificates =>
+      certificateStatus == 'approved' && certificates.isNotEmpty;
+
+  /// Belgeler incelemede mi? (usta profilinde "inceleniyor" bilgisi)
+  bool get certificatesPending => certificateStatus == 'pending';
 
   /// Usta, doğrulanmış telefonunu vitrinde herkese açık göstermeyi seçti mi?
   /// true ise [publicPhone] profilde (avatar altında) görünür ve aramaya açılır.
@@ -182,26 +201,26 @@ class ArtisanProfile {
 
   /// Yeni kayıt olan usta için boş başlangıç profili.
   factory ArtisanProfile.initial(String uid) => ArtisanProfile(
-        uid: uid,
-        profession: '',
-        professions: const [],
-        experienceYears: 0,
-        aboutText: '',
-        serviceAreas: const [],
-        certificates: const [],
-        workPhotos: const [],
-        isVerified: false,
-        emailVerified: false,
-        averageRating: 0,
-        totalReviews: 0,
-        totalRatingSum: 0,
-        isPremium: false,
-        premiumExpiresAt: null,
-        alwaysAvailable: false,
-        manualPause: false,
-        weeklySchedule: WeeklySchedule.empty(),
-        createdAt: DateTime.now(),
-      );
+    uid: uid,
+    profession: '',
+    professions: const [],
+    experienceYears: 0,
+    aboutText: '',
+    serviceAreas: const [],
+    certificates: const [],
+    workPhotos: const [],
+    isVerified: false,
+    emailVerified: false,
+    averageRating: 0,
+    totalReviews: 0,
+    totalRatingSum: 0,
+    isPremium: false,
+    premiumExpiresAt: null,
+    alwaysAvailable: false,
+    manualPause: false,
+    weeklySchedule: WeeklySchedule.empty(),
+    createdAt: DateTime.now(),
+  );
 
   ArtisanProfile copyWith({
     String? profession,
@@ -224,8 +243,8 @@ class ArtisanProfile {
     SocialLinks? socialLinks,
   }) {
     final nextList = professions ?? this.professions;
-    final nextPrimary = profession ??
-        (nextList.isNotEmpty ? nextList.first : this.profession);
+    final nextPrimary =
+        profession ?? (nextList.isNotEmpty ? nextList.first : this.profession);
     return ArtisanProfile(
       uid: uid,
       profession: nextPrimary,
@@ -245,6 +264,8 @@ class ArtisanProfile {
       isPremium: isPremium ?? this.isPremium,
       premiumExpiresAt: premiumExpiresAt ?? this.premiumExpiresAt,
       premiumProductId: premiumProductId,
+      certificateStatus: certificateStatus,
+      certificateNote: certificateNote,
       alwaysAvailable: alwaysAvailable ?? this.alwaysAvailable,
       manualPause: manualPause ?? this.manualPause,
       weeklySchedule: weeklySchedule ?? this.weeklySchedule,
@@ -253,8 +274,7 @@ class ArtisanProfile {
       featured: featured,
       moderationHidden: moderationHidden,
       showPhoneOnProfile: showPhoneOnProfile ?? this.showPhoneOnProfile,
-      publicPhone:
-          clearPublicPhone ? null : (publicPhone ?? this.publicPhone),
+      publicPhone: clearPublicPhone ? null : (publicPhone ?? this.publicPhone),
       socialLinks: socialLinks ?? this.socialLinks,
     );
   }
@@ -287,6 +307,8 @@ class ArtisanProfile {
       isPremium: isPremium,
       premiumExpiresAt: premiumExpiresAt,
       premiumProductId: premiumProductId,
+      certificateStatus: certificateStatus,
+      certificateNote: certificateNote,
       alwaysAvailable: alwaysAvailable,
       manualPause: manualPause,
       weeklySchedule: weeklySchedule,
@@ -311,8 +333,10 @@ class ArtisanProfile {
       'aboutText': aboutText,
       'serviceAreas': serviceAreas.map((e) => e.toMap()).toList(),
       // H3: rules eşleşmesi için "İl|İlçe" anahtarları (serviceAreas ile senkron).
-      'serviceAreaKeys':
-          serviceAreas.map((e) => e.key).where((k) => k != '|').toList(),
+      'serviceAreaKeys': serviceAreas
+          .map((e) => e.key)
+          .where((k) => k != '|')
+          .toList(),
       'certificates': certificates,
       'workPhotos': workPhotos,
       'isVerified': isVerified,
@@ -336,7 +360,8 @@ class ArtisanProfile {
 
   factory ArtisanProfile.fromMap(String uid, Map<String, dynamic> map) {
     final single = (map['profession'] as String?) ?? '';
-    final rawList = (map['professions'] as List?)
+    final rawList =
+        (map['professions'] as List?)
             ?.map((e) => e.toString())
             .where((s) => s.trim().isNotEmpty)
             .toList() ??
@@ -358,8 +383,12 @@ class ArtisanProfile {
       serviceAreas: ((map['serviceAreas'] as List?) ?? [])
           .map((e) => ServiceArea.fromMap(Map<String, dynamic>.from(e as Map)))
           .toList(),
-      certificates: ((map['certificates'] as List?) ?? []).map((e) => e.toString()).toList(),
-      workPhotos: ((map['workPhotos'] as List?) ?? []).map((e) => e.toString()).toList(),
+      certificates: ((map['certificates'] as List?) ?? [])
+          .map((e) => e.toString())
+          .toList(),
+      workPhotos: ((map['workPhotos'] as List?) ?? [])
+          .map((e) => e.toString())
+          .toList(),
       isVerified: (map['isVerified'] as bool?) ?? false,
       emailVerified: map['emailVerified'] == true,
       averageRating: (map['averageRating'] as num?)?.toDouble() ?? 0,
@@ -375,10 +404,16 @@ class ArtisanProfile {
           ? DateTime.tryParse(map['premiumExpiresAt'].toString())
           : null,
       premiumProductId: map['premiumProductId'] as String?,
+      certificateStatus:
+          (map['certificateStatus'] as String?)?.trim().isNotEmpty == true
+          ? map['certificateStatus'] as String
+          : 'none',
+      certificateNote: map['certificateNote'] as String?,
       alwaysAvailable: (map['alwaysAvailable'] as bool?) ?? false,
       manualPause: (map['manualPause'] as bool?) ?? false,
       weeklySchedule: WeeklySchedule.fromMap(map['weeklySchedule'] as Map?),
-      createdAt: DateTime.tryParse(map['createdAt']?.toString() ?? '') ??
+      createdAt:
+          DateTime.tryParse(map['createdAt']?.toString() ?? '') ??
           DateTime.now(),
       adminVerified: map['adminVerified'] == true,
       featured: map['featured'] == true,
@@ -386,7 +421,8 @@ class ArtisanProfile {
       showPhoneOnProfile: map['showPhoneOnProfile'] == true,
       publicPhone: map['publicPhone'] as String?,
       socialLinks: SocialLinks.fromMap(
-          (map['socialLinks'] as Map?)?.cast<String, dynamic>()),
+        (map['socialLinks'] as Map?)?.cast<String, dynamic>(),
+      ),
     );
   }
 }

@@ -29,7 +29,7 @@ class AdminReviewsScreen extends ConsumerWidget {
         subtitle: pageAsync.valueOrNull == null
             ? null
             : '${pageAsync.value!.items.length} yüklü'
-                '${pageAsync.value!.hasMore ? '+' : ''}',
+                  '${pageAsync.value!.hasMore ? '+' : ''}',
         actions: [
           IconButton(
             tooltip: 'Yenile',
@@ -54,14 +54,15 @@ class AdminReviewsScreen extends ConsumerWidget {
           Expanded(
             child: pageAsync.when(
               loading: () => const LoadingView(),
-              error: (_, _) => const ErrorView(
-                message: 'Değerlendirmeler yüklenemedi.',
-              ),
+              error: (_, _) =>
+                  const ErrorView(message: 'Değerlendirmeler yüklenemedi.'),
               data: (page) {
                 if (page.items.isEmpty) {
                   return Center(
-                    child: Text('Kayıt yok.',
-                        style: TextStyle(color: palette.inkMuted)),
+                    child: Text(
+                      'Kayıt yok.',
+                      style: TextStyle(color: palette.inkMuted),
+                    ),
                   );
                 }
                 return RefreshIndicator(
@@ -119,39 +120,51 @@ class _ReviewCard extends ConsumerWidget {
           children: [
             Row(
               children: [
-                Text('★ ${r.rating}',
-                    style: const TextStyle(fontWeight: FontWeight.w800)),
+                Text(
+                  '★ ${r.rating}',
+                  style: const TextStyle(fontWeight: FontWeight.w800),
+                ),
                 const Spacer(),
                 if (item.hiddenByAdmin)
-                  Text('Gizli',
-                      style: TextStyle(
-                          color: palette.danger,
-                          fontWeight: FontWeight.w700,
-                          fontSize: 12)),
+                  Text(
+                    'Gizli',
+                    style: TextStyle(
+                      color: palette.danger,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 12,
+                    ),
+                  ),
               ],
             ),
             const SizedBox(height: 4),
-            Text('Usta: ${r.artisanUid}',
-                style: TextStyle(color: palette.inkMuted, fontSize: 12)),
-            Text('Müşteri: ${r.customerDisplayName} (${r.customerUid})',
-                style: TextStyle(color: palette.inkFaint, fontSize: 11)),
+            Text(
+              'Usta: ${r.artisanUid}',
+              style: TextStyle(color: palette.inkMuted, fontSize: 12),
+            ),
+            Text(
+              'Müşteri: ${r.customerDisplayName} (${r.customerUid})',
+              style: TextStyle(color: palette.inkFaint, fontSize: 11),
+            ),
             if (r.tags.isNotEmpty) ...[
               const SizedBox(height: 4),
-              Text(r.tags.join(' · '),
-                  style: TextStyle(color: palette.inkMuted, fontSize: 12)),
+              Text(
+                r.tags.join(' · '),
+                style: TextStyle(color: palette.inkMuted, fontSize: 12),
+              ),
             ],
             const SizedBox(height: 8),
             OutlinedButton(
               onPressed: () async {
                 try {
-                  await ref.read(adminReviewRepositoryProvider).setHidden(
-                        r.id,
-                        hidden: !item.hiddenByAdmin,
-                      );
+                  await ref
+                      .read(adminReviewRepositoryProvider)
+                      .setHidden(r.id, hidden: !item.hiddenByAdmin);
                   if (context.mounted) {
-                    context.showSuccess(item.hiddenByAdmin
-                        ? 'Gizleme kaldırıldı.'
-                        : 'Değerlendirme gizlendi.');
+                    context.showSuccess(
+                      item.hiddenByAdmin
+                          ? 'Gizleme kaldırıldı.'
+                          : 'Değerlendirme gizlendi.',
+                    );
                     ref.invalidate(reviewDirectoryControllerProvider);
                   }
                 } catch (_) {
