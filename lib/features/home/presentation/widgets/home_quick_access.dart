@@ -8,16 +8,18 @@ import '../../../../core/widgets/tap_scale.dart';
 import '../../../auth/application/auth_controller.dart';
 
 /// Ana Sayfa üst aksiyon bloğu: büyük "Usta Bul" davet kartı + altında iki
-/// ikincil aksiyon kutusu (İş Ver / Ürünleri Keşfet). Etiketler role göre
-/// değişir: müşteri "Usta Bul + İş Ver", usta "İş Bul" görür. Alt barın yerine
+/// ikincil aksiyon kutusu (İş İlanı Ver / Ürünleri Keşfet). Etiketler role
+/// göre değişir: müşteri "Usta Bul + İş İlanı Ver", usta "İş Bul" görür. Alt
+/// barın yerine
 /// geçmez; ana sayfanın birincil giriş noktasıdır.
 class HomeQuickAccess extends ConsumerWidget {
   const HomeQuickAccess({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final isArtisan =
-        ref.watch(currentUserProvider.select((u) => u?.isArtisan ?? false));
+    final isArtisan = ref.watch(
+      currentUserProvider.select((u) => u?.isArtisan ?? false),
+    );
 
     // ── Büyük davet kartı (rol bazlı) ──
     final hero = isArtisan
@@ -49,7 +51,7 @@ class HomeQuickAccess extends ConsumerWidget {
       else
         _QuickItem(
           icon: Icons.post_add_rounded,
-          label: 'İş Ver',
+          label: 'İş İlanı Ver',
           hint: 'İlan oluştur,\nteklif al',
           color: const Color(0xFF2563EB),
           onTap: () => context.push(RoutePaths.newJob),
@@ -172,7 +174,9 @@ class _HeroCta extends StatelessWidget {
                           ),
                           child: Padding(
                             padding: const EdgeInsets.symmetric(
-                                horizontal: 18, vertical: 12),
+                              horizontal: 18,
+                              vertical: 12,
+                            ),
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
@@ -184,8 +188,11 @@ class _HeroCta extends StatelessWidget {
                                   ),
                                 ),
                                 const SizedBox(width: 8),
-                                Icon(Icons.arrow_forward_rounded,
-                                    size: 18, color: palette.heroBottom),
+                                Icon(
+                                  Icons.arrow_forward_rounded,
+                                  size: 18,
+                                  color: palette.heroBottom,
+                                ),
                               ],
                             ),
                           ),
@@ -220,7 +227,7 @@ class _QuickItem {
 }
 
 /// İkincil aksiyon kutusu: renkli ikon rozeti + başlık + iki satır ipucu +
-/// sağda ince ileri oku. Görseldeki "İş Ver / Ürünleri Keşfet" kutuları.
+/// sağda ince ileri oku. Görseldeki "İş İlanı Ver / Ürünleri Keşfet" kutuları.
 class _QuickCard extends StatelessWidget {
   const _QuickCard({required this.item});
 
@@ -258,8 +265,11 @@ class _QuickCard extends StatelessWidget {
                       child: Icon(item.icon, color: item.color, size: 21),
                     ),
                     const Spacer(),
-                    Icon(Icons.chevron_right_rounded,
-                        size: 20, color: theme.colorScheme.onSurfaceVariant),
+                    Icon(
+                      Icons.chevron_right_rounded,
+                      size: 20,
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
                   ],
                 ),
                 const SizedBox(height: 12),

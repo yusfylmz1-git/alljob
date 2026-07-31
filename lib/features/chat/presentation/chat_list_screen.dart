@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 
 import '../../../core/router/route_paths.dart';
 import '../../../core/theme/app_palette.dart';
+import '../../../core/utils/search_fold.dart';
 import '../../../core/utils/snackbar_helper.dart';
 import '../../../core/widgets/app_image.dart';
 import '../../../core/widgets/app_menu_drawer.dart';
@@ -31,10 +32,14 @@ class ChatListScreen extends ConsumerStatefulWidget {
   ConsumerState<ChatListScreen> createState() => _ChatListScreenState();
 }
 
+/// Mesajlar listesinin görünüm kipi.
+enum _ChatFilter { tumu, okunmamis, arsiv }
+
 class _ChatListScreenState extends ConsumerState<ChatListScreen> {
   String _query = '';
   bool _selectionMode = false;
   final Set<String> _selected = {};
+  _ChatFilter _filter = _ChatFilter.tumu;
 
   void _exitSelection() => setState(() {
         _selectionMode = false;
@@ -84,6 +89,85 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
       context
           .showInfo(count == 1 ? 'Sohbet silindi.' : '$count sohbet silindi.');
     }
+  }
+
+  /// Sohbeti arşivler/arşivden çıkarır. Kişiseldir; karşı taraf etkilenmez.
+  Future<void> _toggleArchive(ChatThread t, String uid) async {
+    final archived = t.isArchivedFor(uid);
+    try {
+      await ref.read(chatRepositoryProvider).setThreadArchived(
+            chatId: t.id,
+            uid: uid,
+            archived: !archived,
+          );
+      if (!mounted) return;
+      context.showInfo(archived ? 'Sohbet arşivden çıkarıldı.' : 'Sohbet arşivlendi.');
+    } catch (_) {
+      if (mounted) context.showError('İşlem başarısız, tekrar deneyin.');
+    }
+  }
+
+  /// Sohbeti listenin başına sabitler/kaldırır (kişisel).
+  Future<void> _togglePin(ChatThread t, String uid) async {
+    final pinned = t.isPinnedFor(uid);
+    try {
+      await ref.read(chatRepositoryProvider).setThreadPinned(
+            chatId: t.id,
+            uid: uid,
+            pinned: !pinned,
+          );
+      if (!mounted) return;
+      context.showInfo(pinned ? 'Sabitleme kaldırıldı.' : 'Sohbet sabitlendi.');
+    } catch (_) {
+      if (mounted) context.showError('İşlem başarısız, tekrar deneyin.');
+    }
+  }
+
+  /// Satıra uzun basınca açılan eylem menüsü (WhatsApp kalıbı).
+  Future<void> _showThreadActions(ChatThread t, String uid) async {
+    final pinned = t.isPinnedFor(uid);
+    final archived = t.isArchivedFor(uid);
+    await showModalBottomSheet<void>(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: Icon(pinned
+                  ? Icons.push_pin_outlined
+                  : Icons.push_pin_rounded),
+              title: Text(pinned ? 'Sabitlemeyi kaldır' : 'Sohbeti sabitle'),
+              onTap: () {
+                Navigator.pop(ctx);
+                _togglePin(t, uid);
+              },
+            ),
+            ListTile(
+              leading: Icon(archived
+                  ? Icons.unarchive_outlined
+                  : Icons.archive_outlined),
+              title: Text(archived ? 'Arşivden çıkar' : 'Arşivle'),
+              onTap: () {
+                Navigator.pop(ctx);
+                _toggleArchive(t, uid);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.checklist_rounded),
+              title: const Text('Seç'),
+              onTap: () {
+                Navigator.pop(ctx);
+                setState(() {
+                  _selectionMode = true;
+                  _selected.add(t.id);
+                });
+              },
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   /// Liste görünürken karşı taraf fotoğraflarını ısıt — thread açılınca
@@ -202,13 +286,38 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
           }
 
           final repo = ref.watch(chatRepositoryProvider);
-          final q = _query.trim().toLowerCase();
-          final visible = q.isEmpty
-              ? threads
-              : threads
-                  .where(
-                      (t) => t.otherName(user.uid).toLowerCase().contains(q))
-                  .toList();
+          final q = foldTrSearch(_query);
+
+          // Arşiv sekmesi yalnız arşivlenenleri; diğer sekmeler arşivi GİZLER.
+          final archivedCount =
+              threads.where((t) => t.isArchivedFor(user.uid)).length;
+          Iterable<ChatThread> pool = threads;
+          switch (_filter) {
+            case _ChatFilter.tumu:
+              pool = threads.where((t) => !t.isArchivedFor(user.uid));
+            case _ChatFilter.okunmamis:
+              pool = threads.where((t) =>
+                  !t.isArchivedFor(user.uid) &&
+                  repo.unreadCount(chatId: t.id, uid: user.uid) > 0);
+            case _ChatFilter.arsiv:
+              pool = threads.where((t) => t.isArchivedFor(user.uid));
+          }
+
+          // Arama: karşı taraf adı + son mesaj önizlemesi (Türkçe uyumlu fold).
+          if (q.isNotEmpty) {
+            pool = pool.where((t) =>
+                foldTrSearch(t.otherName(user.uid)).contains(q) ||
+                foldTrSearch(t.lastMessage ?? '').contains(q));
+          }
+
+          // Sabitlenenler her zaman üstte; kendi içlerinde tarih sırası korunur.
+          final visible = pool.toList()
+            ..sort((a, b) {
+              final ap = a.isPinnedFor(user.uid);
+              final bp = b.isPinnedFor(user.uid);
+              if (ap != bp) return ap ? -1 : 1;
+              return b.updatedAt.compareTo(a.updatedAt);
+            });
 
           final palette = context.palette;
           return ColoredBox(
@@ -246,13 +355,47 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
                       ),
                     ),
                   ),
+                  // Filtre sekmeleri: Tümü · Okunmamış · Arşiv.
+                  // Arşiv sekmesi arşivlenmiş sohbet yoksa gösterilmez.
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                    child: Row(
+                      children: [
+                        for (final f in [
+                          _ChatFilter.tumu,
+                          _ChatFilter.okunmamis,
+                          if (archivedCount > 0 || _filter == _ChatFilter.arsiv)
+                            _ChatFilter.arsiv,
+                        ]) ...[
+                          Padding(
+                            padding: const EdgeInsets.only(right: 8),
+                            child: ChoiceChip(
+                              label: Text(switch (f) {
+                                _ChatFilter.tumu => 'Tümü',
+                                _ChatFilter.okunmamis => 'Okunmamış',
+                                _ChatFilter.arsiv => 'Arşiv ($archivedCount)',
+                              }),
+                              selected: _filter == f,
+                              onSelected: (_) => setState(() => _filter = f),
+                              visualDensity: VisualDensity.compact,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
                   Expanded(
                     child: visible.isEmpty
                         ? RefreshableEmpty(
                             onRefresh: refresh,
                             child: Center(
                               child: Text(
-                                'Eşleşen sohbet yok.',
+                                switch (_filter) {
+                                  _ChatFilter.okunmamis =>
+                                    'Okunmamış mesaj yok.',
+                                  _ChatFilter.arsiv => 'Arşiv boş.',
+                                  _ChatFilter.tumu => 'Eşleşen sohbet yok.',
+                                },
                                 style: Theme.of(context)
                                     .textTheme
                                     .bodyMedium
@@ -282,12 +425,18 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
                                 selectionMode: _selectionMode,
                                 selected:
                                     _selected.contains(visible[i].id),
+                                pinned: visible[i].isPinnedFor(user.uid),
+                                // Karşı taraf bu sohbeti en son ne zaman
+                                // okudu? Kendi son mesajımızın tiki için.
+                                otherLastRead: repo.lastReadBy(
+                                  chatId: visible[i].id,
+                                  uid: visible[i].otherUid(user.uid),
+                                ),
                                 onToggle: () =>
                                     _toggleSelected(visible[i].id),
-                                onEnterSelection: () => setState(() {
-                                  _selectionMode = true;
-                                  _selected.add(visible[i].id);
-                                }),
+                                // Uzun basış: sabitle/arşivle/seç menüsü.
+                                onEnterSelection: () =>
+                                    _showThreadActions(visible[i], user.uid),
                               ),
                             ),
                           ),
@@ -311,6 +460,8 @@ class _ThreadTile extends StatelessWidget {
     this.unread = 0,
     this.selectionMode = false,
     this.selected = false,
+    this.pinned = false,
+    this.otherLastRead,
     this.onToggle,
     this.onEnterSelection,
   });
@@ -319,6 +470,11 @@ class _ThreadTile extends StatelessWidget {
   final int unread;
   final bool selectionMode;
   final bool selected;
+  final bool pinned;
+
+  /// Karşı tarafın bu sohbeti son okuma anı — kendi mesajımızın "okundu"
+  /// tikini belirler. Bilinmiyorsa null (tek tik gösterilir).
+  final DateTime? otherLastRead;
   final VoidCallback? onToggle;
   final VoidCallback? onEnterSelection;
 
@@ -344,6 +500,13 @@ class _ThreadTile extends StatelessWidget {
     final preview = thread.lastMessage?.trim().isNotEmpty == true
         ? thread.lastMessage!
         : 'Sohbete başlayın';
+
+    // Son mesajı biz mi yazdık? (tik yalnız kendi mesajımızda görünür)
+    final isMine = thread.lastMessageSenderUid != null &&
+        thread.lastMessageSenderUid == myUid;
+    // Karşı taraf son mesajdan SONRA okuduysa çift tik.
+    final isReadByOther =
+        otherLastRead != null && !otherLastRead!.isBefore(thread.updatedAt);
 
     return Material(
       color: selected
@@ -403,6 +566,19 @@ class _ThreadTile extends StatelessWidget {
                     const SizedBox(height: 4),
                     Row(
                       children: [
+                        // Okundu/iletildi tiki — yalnız SON mesajı biz
+                        // yazdıysak. Karşı taraf mesajdan sonra okuduysa
+                        // çift mavi tik, yoksa tek gri tik (WhatsApp).
+                        if (isMine && !hasUnread) ...[
+                          Icon(
+                            isReadByOther ? Icons.done_all : Icons.done,
+                            size: 15,
+                            color: isReadByOther
+                                ? palette.primary
+                                : palette.inkMuted,
+                          ),
+                          const SizedBox(width: 4),
+                        ],
                         Expanded(
                           child: Text(
                             preview,
@@ -419,6 +595,12 @@ class _ThreadTile extends StatelessWidget {
                             ),
                           ),
                         ),
+                        // Sabitlenmiş sohbet göstergesi (rozetin solunda).
+                        if (pinned) ...[
+                          const SizedBox(width: 6),
+                          Icon(Icons.push_pin_rounded,
+                              size: 14, color: palette.inkMuted),
+                        ],
                         if (hasUnread) ...[
                           const SizedBox(width: 8),
                           Container(

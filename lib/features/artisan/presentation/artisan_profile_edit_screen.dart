@@ -18,7 +18,9 @@ import '../../../core/widgets/status_views.dart';
 import '../../../data/local/local_data_service.dart';
 import '../../../data/models/availability.dart';
 import '../../../data/models/geo_models.dart';
+import '../../../data/models/artisan_profile.dart';
 import '../../../data/models/job.dart' show kOtherProfession;
+import '../../../data/models/social_links.dart';
 import '../../auth/application/auth_controller.dart';
 import '../../auth/presentation/verification_tile.dart';
 import '../../jobs/presentation/quick_support_intro_sheet.dart';
@@ -627,6 +629,41 @@ class _EditFormState extends ConsumerState<_EditForm> {
             ),
             const SizedBox(height: 24),
 
+            // --- İletişim görünürlüğü (telefon rızası) ---
+            _Label('İletişim'),
+            const SizedBox(height: 4),
+            _PhoneVisibilityTile(profile: profile),
+            const SizedBox(height: 24),
+
+            // --- Sosyal Medya / İş Hattı ---
+            _Label('Sosyal Medya ve Bağlantılar'),
+            const SizedBox(height: 4),
+            Text(
+              'İsteğe bağlı. Eklerseniz profilinizde dokunulabilir bağlantı '
+              'olarak görünür; boş bıraktığınız alan gösterilmez.',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant),
+            ),
+            const SizedBox(height: 10),
+            _SocialLinksSection(
+              value: profile.socialLinks,
+              onChanged: ({
+                String? instagram,
+                String? youtube,
+                String? tiktok,
+                String? whatsapp,
+                String? website,
+              }) =>
+                  _controller.setSocialLinks(
+                instagram: instagram,
+                youtube: youtube,
+                tiktok: tiktok,
+                whatsapp: whatsapp,
+                website: website,
+              ),
+            ),
+            const SizedBox(height: 24),
+
             // --- Doğrulama (mavi tik) — form alanlarının altında, kaydetmeden
             // bağımsız tek seferlik işlem olduğu için en sona alındı. ---
             const VerificationTile(artisanContext: true),
@@ -641,6 +678,197 @@ class _EditFormState extends ConsumerState<_EditForm> {
             const SizedBox(height: 12),
         ],
       ),
+    );
+  }
+}
+
+/// Doğrulanmış telefonun vitrinde görünmesi (KVKK: açık rıza, her an geri
+/// alınabilir). Telefon doğrulanmamışsa anahtar yerine yönlendirme gösterilir —
+/// doğrulanmamış numara vitrinde yayınlanamaz.
+///
+/// Anahtar ANINDA kaydeder (formun "Kaydet" düğmesini beklemez): rıza geri
+/// alma tek dokunuşta etkili olmalı.
+class _PhoneVisibilityTile extends ConsumerWidget {
+  const _PhoneVisibilityTile({required this.profile});
+
+  final ArtisanProfile profile;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final user = ref.watch(currentUserProvider);
+    final theme = Theme.of(context);
+    final phone = user?.phoneNumber;
+    final verified = user?.phoneVerified == true;
+
+    if (!verified || phone == null || phone.trim().isEmpty) {
+      return Text(
+        'Telefonunuzu profilinizde gösterebilmek için önce doğrulamanız '
+        'gerekir. Doğrulama bu sayfanın altındadır.',
+        style: theme.textTheme.bodySmall
+            ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+      );
+    }
+
+    return SwitchListTile(
+      contentPadding: EdgeInsets.zero,
+      value: profile.showPhoneOnProfile,
+      title: const Text('Telefon numaram profilimde görünsün'),
+      subtitle: Text(
+        profile.showPhoneOnProfile
+            ? '$phone — müşteriler doğrudan arayabilir.'
+            : 'Kapalıyken müşteriler yalnız uygulama içi sohbetle ulaşır.',
+        style: theme.textTheme.bodySmall
+            ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+      ),
+      onChanged: (v) async {
+        final ok = await ref
+            .read(myProfileControllerProvider.notifier)
+            .setPhoneVisibility(show: v, publicPhone: v ? phone : null);
+        if (!context.mounted) return;
+        if (ok) {
+          context.showSuccess(
+              v ? 'Telefonunuz profilinizde görünecek.' : 'Telefonunuz gizlendi.');
+        } else {
+          context.showError('Ayar kaydedilemedi, tekrar deneyin.');
+        }
+      },
+    );
+  }
+}
+
+/// Sosyal medya / iş hattı alanları. Kullanıcı adı ya da tam URL girilebilir;
+/// odak alandan çıkınca [SocialLinks] normalize eder ve taslağa yazar.
+///
+/// Denetleyiciler bir kez kurulur (her yeniden çizimde değil) — aksi hâlde
+/// yazarken imleç başa sıçrardı.
+class _SocialLinksSection extends StatefulWidget {
+  const _SocialLinksSection({required this.value, required this.onChanged});
+
+  final SocialLinks value;
+  final void Function({
+    String? instagram,
+    String? youtube,
+    String? tiktok,
+    String? whatsapp,
+    String? website,
+  }) onChanged;
+
+  @override
+  State<_SocialLinksSection> createState() => _SocialLinksSectionState();
+}
+
+class _SocialLinksSectionState extends State<_SocialLinksSection> {
+  late final TextEditingController _instagram;
+  late final TextEditingController _youtube;
+  late final TextEditingController _tiktok;
+  late final TextEditingController _whatsapp;
+  late final TextEditingController _website;
+
+  @override
+  void initState() {
+    super.initState();
+    final v = widget.value;
+    _instagram = TextEditingController(text: v.instagram ?? '');
+    _youtube = TextEditingController(text: v.youtube ?? '');
+    _tiktok = TextEditingController(text: v.tiktok ?? '');
+    _whatsapp = TextEditingController(text: v.whatsapp ?? '');
+    _website = TextEditingController(text: v.website ?? '');
+  }
+
+  @override
+  void dispose() {
+    _instagram.dispose();
+    _youtube.dispose();
+    _tiktok.dispose();
+    _whatsapp.dispose();
+    _website.dispose();
+    super.dispose();
+  }
+
+  void _push() => widget.onChanged(
+        instagram: _instagram.text,
+        youtube: _youtube.text,
+        tiktok: _tiktok.text,
+        whatsapp: _whatsapp.text,
+        website: _website.text,
+      );
+
+  /// Odak kaybında normalize edilmiş değeri kutuya geri yazar; böylece usta
+  /// tam URL yapıştırsa bile kaydedilen kullanıcı adını görür.
+  Widget _field({
+    required TextEditingController controller,
+    required String label,
+    required String hint,
+    required IconData icon,
+    required String? Function(String) normalize,
+    TextInputType? keyboardType,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Focus(
+        onFocusChange: (hasFocus) {
+          if (hasFocus) return;
+          final normalized = normalize(controller.text);
+          controller.text = normalized ?? '';
+          _push();
+        },
+        child: TextField(
+          controller: controller,
+          keyboardType: keyboardType,
+          decoration: InputDecoration(
+            labelText: label,
+            hintText: hint,
+            prefixIcon: Icon(icon),
+            border: const OutlineInputBorder(),
+          ),
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _field(
+          controller: _instagram,
+          label: 'Instagram',
+          hint: 'kullanici_adi',
+          icon: Icons.camera_alt_outlined,
+          normalize: SocialLinks.normalizeHandle,
+        ),
+        _field(
+          controller: _youtube,
+          label: 'YouTube',
+          hint: 'kanal_adi',
+          icon: Icons.play_circle_outline,
+          normalize: SocialLinks.normalizeHandle,
+        ),
+        _field(
+          controller: _tiktok,
+          label: 'TikTok',
+          hint: 'kullanici_adi',
+          icon: Icons.music_note_outlined,
+          normalize: SocialLinks.normalizeHandle,
+        ),
+        _field(
+          controller: _whatsapp,
+          label: 'WhatsApp iş hattı',
+          hint: '0532 123 45 67',
+          icon: Icons.chat_outlined,
+          keyboardType: TextInputType.phone,
+          normalize: SocialLinks.normalizeWhatsapp,
+        ),
+        _field(
+          controller: _website,
+          label: 'Web sitesi',
+          hint: 'ornek.com',
+          icon: Icons.language_outlined,
+          keyboardType: TextInputType.url,
+          normalize: SocialLinks.normalizeWebsite,
+        ),
+      ],
     );
   }
 }

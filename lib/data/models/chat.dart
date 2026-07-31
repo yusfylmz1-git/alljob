@@ -40,6 +40,9 @@ class ChatThread {
     this.lastMessage,
     this.artisanPhotoUrl,
     this.customerPhotoUrl,
+    this.lastMessageSenderUid,
+    this.archivedBy = const {},
+    this.pinnedBy = const {},
   });
 
   final String id;
@@ -55,6 +58,21 @@ class ChatThread {
   final String? artisanPhotoUrl;
   final String? customerPhotoUrl;
 
+  /// Son mesajı kim yazdı? Okundu/iletildi tiki yalnız KENDİ mesajımızda
+  /// gösterilir (WhatsApp davranışı); null ise tik çizilmez.
+  final String? lastMessageSenderUid;
+
+  /// Sohbeti arşivleyen kullanıcılar. Arşiv KİŞİSELDİR: karşı taraf
+  /// etkilenmez, yeni mesaj gelince sohbet arşivden kendiliğinden çıkar.
+  final Set<String> archivedBy;
+
+  /// Sohbeti listenin başına sabitleyen kullanıcılar (kişisel).
+  final Set<String> pinnedBy;
+
+  bool isArchivedFor(String uid) => archivedBy.contains(uid);
+
+  bool isPinnedFor(String uid) => pinnedBy.contains(uid);
+
   DateTime get openedAt => createdAt ?? updatedAt;
 
   bool involves(String uid) => uid == customerUid || uid == artisanUid;
@@ -67,6 +85,29 @@ class ChatThread {
 
   String? otherPhoto(String myUid) =>
       myUid == customerUid ? artisanPhotoUrl : customerPhotoUrl;
+
+  ChatThread copyWith({
+    String? lastMessage,
+    DateTime? updatedAt,
+    String? lastMessageSenderUid,
+    Set<String>? archivedBy,
+    Set<String>? pinnedBy,
+  }) =>
+      ChatThread(
+        id: id,
+        customerUid: customerUid,
+        artisanUid: artisanUid,
+        customerName: customerName,
+        artisanName: artisanName,
+        updatedAt: updatedAt ?? this.updatedAt,
+        createdAt: createdAt,
+        lastMessage: lastMessage ?? this.lastMessage,
+        artisanPhotoUrl: artisanPhotoUrl,
+        customerPhotoUrl: customerPhotoUrl,
+        lastMessageSenderUid: lastMessageSenderUid ?? this.lastMessageSenderUid,
+        archivedBy: archivedBy ?? this.archivedBy,
+        pinnedBy: pinnedBy ?? this.pinnedBy,
+      );
 }
 
 /// Denormalize sohbet okunmamış sayacı (`users/{uid}/private/chatMeta`).

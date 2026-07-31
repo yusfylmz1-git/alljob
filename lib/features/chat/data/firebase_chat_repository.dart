@@ -487,6 +487,18 @@ class FirebaseChatRepository implements ChatRepository {
     };
     final members = _membersFromChatId(chatId);
     if (members != null) meta['members'] = members;
+    // Yeni mesaj sohbeti ALICI'nın arşivinden çıkarır (WhatsApp davranışı).
+    // Gönderenin kendi arşivi korunur — kendi yazdığı mesaj arşivi bozmaz.
+    // NOT: `set(merge:true)` ile nokta notasyonu ALAN ADI sayılır, iç içe
+    // haritayı güncellemez → iç içe map olarak yazılır (merge yalnız bu
+    // anahtarı değiştirir, karşı tarafın kaydına dokunmaz).
+    final thread = _threads[chatId];
+    if (thread != null) {
+      final receiver = thread.otherUid(senderUid);
+      if (thread.archivedBy.contains(receiver)) {
+        meta['archivedBy'] = {receiver: false};
+      }
+    }
     await _chats.doc(chatId).set(meta, SetOptions(merge: true));
 
     return wasMasked;
@@ -534,6 +546,30 @@ class FirebaseChatRepository implements ChatRepository {
   DateTime? clearedAt({required String chatId, required String uid}) =>
       _clearedAt[chatId]?[uid];
 
+  @override
+  Future<void> setThreadArchived({
+    required String chatId,
+    required String uid,
+    required bool archived,
+  }) async {
+    // Kişisel alan: `archivedBy.<uid>`. true/false yerine silme kullanmıyoruz
+    // ki karşı tarafın kaydı etkilenmesin (harita alanı tek tek yazılır).
+    await _chats.doc(chatId).update({'archivedBy.$uid': archived});
+  }
+
+  @override
+  Future<void> setThreadPinned({
+    required String chatId,
+    required String uid,
+    required bool pinned,
+  }) async {
+    await _chats.doc(chatId).update({'pinnedBy.$uid': pinned});
+  }
+
+  @override
+  DateTime? lastReadBy({required String chatId, required String uid}) =>
+      _lastRead[chatId]?[uid];
+
   static Map<String, bool>? _membersFromChatId(String chatId) {
     final uids = _uidsFromChatId(chatId);
     if (uids == null) return null;
@@ -560,9 +596,23 @@ class FirebaseChatRepository implements ChatRepository {
       customerPhotoUrl: d['customerPhotoURL'] as String?,
       artisanPhotoUrl: d['artisanPhotoURL'] as String?,
       lastMessage: d['lastMessage'] as String?,
+      lastMessageSenderUid: d['lastMessageSenderUid'] as String?,
       createdAt: (d['createdAt'] as Timestamp?)?.toDate(),
       updatedAt: updated,
+      archivedBy: _flagSet(d['archivedBy']),
+      pinnedBy: _flagSet(d['pinnedBy']),
     );
+  }
+
+  /// `{uid: true}` haritasından yalnız true olan uid'leri toplar (false
+  /// yazılmış kayıtlar = arşivden çıkarılmış demektir).
+  static Set<String> _flagSet(dynamic raw) {
+    if (raw is! Map) return const {};
+    final out = <String>{};
+    raw.forEach((k, v) {
+      if (v == true) out.add(k.toString());
+    });
+    return out;
   }
 
   Map<String, DateTime> _readMap(dynamic raw) {

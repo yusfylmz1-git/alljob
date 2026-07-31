@@ -1,6 +1,7 @@
 import '../../core/constants/app_constants.dart';
 import 'availability.dart';
 import 'geo_models.dart';
+import 'social_links.dart';
 
 /// `artisanProfiles` koleksiyonundaki usta profili. Döküman ID'si = Auth UID.
 class ArtisanProfile {
@@ -31,6 +32,7 @@ class ArtisanProfile {
     this.moderationHidden = false,
     this.showPhoneOnProfile = false,
     this.publicPhone,
+    this.socialLinks = SocialLinks.empty,
   });
 
   final String uid;
@@ -64,6 +66,10 @@ class ArtisanProfile {
   /// Vitrinde gösterilecek E.164 telefon (yalnız [showPhoneOnProfile] true iken).
   /// Private `users/.../contact` kopyası değildir; açık rıza ile yazılır.
   final String? publicPhone;
+
+  /// Vitrinde gösterilen sosyal medya / iş hattı bağlantıları (opsiyonel).
+  /// Kullanıcı adları normalize edilmiş biçimde saklanır — bkz. [SocialLinks].
+  final SocialLinks socialLinks;
 
   /// Profilde aranabilir telefon gösterilsin mi?
   bool get hasPublicPhone =>
@@ -209,6 +215,7 @@ class ArtisanProfile {
     bool? showPhoneOnProfile,
     String? publicPhone,
     bool clearPublicPhone = false,
+    SocialLinks? socialLinks,
   }) {
     final nextList = professions ?? this.professions;
     final nextPrimary = profession ??
@@ -241,6 +248,7 @@ class ArtisanProfile {
       showPhoneOnProfile: showPhoneOnProfile ?? this.showPhoneOnProfile,
       publicPhone:
           clearPublicPhone ? null : (publicPhone ?? this.publicPhone),
+      socialLinks: socialLinks ?? this.socialLinks,
     );
   }
 
@@ -280,6 +288,7 @@ class ArtisanProfile {
       moderationHidden: moderationHidden,
       showPhoneOnProfile: showPhoneOnProfile,
       publicPhone: publicPhone,
+      socialLinks: socialLinks,
     );
   }
 
@@ -313,6 +322,7 @@ class ArtisanProfile {
       'createdAt': createdAt.toIso8601String(),
       'showPhoneOnProfile': showPhoneOnProfile,
       'publicPhone': publicPhone,
+      'socialLinks': socialLinks.toMap(),
     };
   }
 
@@ -366,6 +376,8 @@ class ArtisanProfile {
       moderationHidden: map['moderationHidden'] == true,
       showPhoneOnProfile: map['showPhoneOnProfile'] == true,
       publicPhone: map['publicPhone'] as String?,
+      socialLinks: SocialLinks.fromMap(
+          (map['socialLinks'] as Map?)?.cast<String, dynamic>()),
     );
   }
 }

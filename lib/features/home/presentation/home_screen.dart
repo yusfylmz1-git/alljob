@@ -10,6 +10,8 @@ import '../../../core/widgets/notification_bell.dart';
 import '../../../core/widgets/responsive_center.dart';
 import '../../../core/widgets/role_bottom_bar.dart';
 import '../../auth/application/auth_controller.dart';
+import '../../jobs/data/job_providers.dart';
+import '../../products/data/product_providers.dart';
 import 'widgets/home_discover.dart';
 import 'widgets/home_featured.dart';
 import 'widgets/home_guest_banner.dart';
@@ -18,9 +20,12 @@ import 'widgets/home_stats.dart';
 import 'widgets/home_tools.dart';
 
 /// Ana Sayfa — Ustasından'ın canlı vitrini. Uygulamaya giren önce burayı
-/// görür: sade karşılama + arama + 3 ana aksiyon + kategoriler + "Bugün
-/// Ustasından'da" keşif kartları + öne çıkan ustalar + minimal istatistik.
-/// Keşfet (arama ızgarası) ayrı sekmedir.
+/// görür: sade karşılama + 3 ana aksiyon + "Bugün Ustasından'da" keşif
+/// kartları + öne çıkan ustalar + minimal istatistik. Aşağı çekince
+/// veriye bağlı bölümler tazelenir.
+///
+/// Arama BURADA YOK: Keşfet sekmesinde gerçek arama/filtre var, ana sayfadaki
+/// kutu yalnız oraya yönlendirdiği için kaldırıldı.
 ///
 /// Misafir dâhil herkese açıktır. Amaç yalnız "usta arama" değil; usta +
 /// müşteri + iş + ürün ekosistemini keşfedilir kılmak.
@@ -41,9 +46,14 @@ class HomeScreen extends ConsumerWidget {
           Expanded(
             child: ResponsiveCenter(
               maxWidth: 760,
-              child: ListView(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
-                children: _sections(isGuest: isGuest, isArtisan: isArtisan),
+              child: RefreshIndicator(
+                onRefresh: () => _refresh(ref),
+                child: ListView(
+                  // Aşağı çekme, içerik ekranı doldurmasa da çalışmalı.
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
+                  children: _sections(isGuest: isGuest, isArtisan: isArtisan),
+                ),
               ),
             ),
           ),
@@ -53,8 +63,28 @@ class HomeScreen extends ConsumerWidget {
     );
   }
 
-  /// Bölüm sırası: aksiyon → keşif → öne çıkanlar → istatistik → kategoriler
-  /// (kategoriler en alta yakın; ana sayfa vitrin/keşif ağırlıklı akar).
+  /// Aşağı çekince veriye bağlı bölümleri tazeler. Her provider kendi
+  /// hatasını yutar (biri düşerse diğerleri yine yenilenir); aksi hâlde tek
+  /// bir hatalı bölüm yenilemenin tamamını iptal ederdi.
+  Future<void> _refresh(WidgetRef ref) async {
+    ref.invalidate(homeStatsProvider);
+    ref.invalidate(oneChikanUstalarProvider);
+    ref.invalidate(discoverProductsProvider);
+    ref.invalidate(openJobsProvider);
+
+    await Future.wait<void>([
+      for (final f in <Future<Object?>>[
+        ref.read(homeStatsProvider.future),
+        ref.read(oneChikanUstalarProvider.future),
+        ref.read(discoverProductsProvider.future),
+        ref.read(openJobsProvider.future),
+      ])
+        f.then<void>((_) {}, onError: (_) {}),
+    ]);
+  }
+
+  /// Bölüm sırası: aksiyon → keşif → öne çıkanlar → istatistik (ana sayfa
+  /// vitrin/keşif ağırlıklı akar).
   /// Veriye bağlı bölümler (keşif/istatistik) boşsa kendini gizler.
   List<Widget> _sections({required bool isGuest, required bool isArtisan}) {
     const gap = SizedBox(height: 24);
@@ -89,7 +119,7 @@ class HomeScreen extends ConsumerWidget {
   }
 }
 
-/// Üst karşılama alanı: menü + marka + selamlama + bildirim/profil + arama.
+/// Üst karşılama alanı: menü + marka + selamlama + bildirim/giriş.
 class _HomeHero extends ConsumerWidget {
   const _HomeHero();
 
@@ -153,7 +183,9 @@ class _HomeHero extends ConsumerWidget {
                         foregroundColor: Colors.white,
                         backgroundColor: Colors.white.withValues(alpha: 0.12),
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 12, vertical: 8),
+                          horizontal: 12,
+                          vertical: 8,
+                        ),
                         visualDensity: VisualDensity.compact,
                       ),
                       icon: const Icon(Icons.login_rounded, size: 18),
@@ -162,45 +194,6 @@ class _HomeHero extends ConsumerWidget {
                     ),
                 ],
               ),
-              const SizedBox(height: 14),
-              // Arama: Keşfet'e yönlendirir (gerçek arama orada).
-              _HomeSearchBar(),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// Ana Sayfa arama kutusu — dokununca Keşfet'e götürür (arama motoru orada).
-class _HomeSearchBar extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Material(
-      color: theme.colorScheme.surface,
-      borderRadius: BorderRadius.circular(16),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(16),
-        onTap: () => context.go(RoutePaths.explore),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-          child: Row(
-            children: [
-              Icon(Icons.search_rounded,
-                  color: theme.colorScheme.onSurfaceVariant),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  'Usta, hizmet veya ürün ara…',
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
-                ),
-              ),
-              Icon(Icons.tune_rounded,
-                  size: 20, color: theme.colorScheme.onSurfaceVariant),
             ],
           ),
         ),

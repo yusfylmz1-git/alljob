@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart' as fb;
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show debugPrint, kIsWeb;
 import 'package:google_sign_in/google_sign_in.dart';
 
 import '../../../core/utils/validators.dart';
@@ -576,12 +576,41 @@ class FirebaseAuthRepository implements AuthRepository {
                   timeout: const Duration(minutes: 3)))
           .call<Map<String, dynamic>>();
     } on FirebaseFunctionsException catch (e) {
-      throw AuthException(
-          'Hesap silinemedi (${e.code}). Bağlantınızı kontrol edip '
-          'tekrar deneyin.');
+      // Ham hata konsola: App Check reddi sahada "sebepsiz silinmiyor" gibi
+      // görünüyordu; kod/mesaj/detay olmadan teşhis edilemiyor.
+      debugPrint('deleteAccount CF hatası: ${e.code} / ${e.message} / '
+          '${e.details}');
+      throw AuthException(_deleteErrorMessage(e));
     }
     // Auth kaydı sunucuda silindi; yerel oturum verisini temizle.
     await _auth.signOut();
+  }
+
+  /// CF hata kodunu kullanıcının anlayacağı TR mesaja çevirir. `deleteAccount`
+  /// App Check zorunlu bir callable'dır: cihaz kaydı yoksa SDK isteği daha
+  /// handler'a varmadan reddeder ve kullanıcı sebepsiz bir hata görür.
+  static String _deleteErrorMessage(FirebaseFunctionsException e) {
+    switch (e.code) {
+      case 'unauthenticated':
+        return 'Oturum doğrulanamadı. Çıkış yapıp yeniden giriş yapın; '
+            'sorun sürerse uygulamayı güncelleyin.';
+      case 'internal':
+      case 'permission-denied':
+        return 'Güvenlik doğrulaması geçilemedi. Uygulamayı kapatıp yeniden '
+            'açın; sorun sürerse destek ekibine bildirin.';
+      case 'deadline-exceeded':
+      case 'unavailable':
+        return 'Sunucuya ulaşılamadı. Bağlantınızı kontrol edip tekrar '
+            'deneyin.';
+      case 'failed-precondition':
+        return e.message?.trim().isNotEmpty == true
+            ? e.message!
+            : 'Hesap şu anda silinemiyor. Devam eden işleriniz varsa önce '
+                'onları tamamlayın.';
+      default:
+        return 'Hesap silinemedi (${e.code}). Bağlantınızı kontrol edip '
+            'tekrar deneyin.';
+    }
   }
 
   @override

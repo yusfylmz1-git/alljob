@@ -4,6 +4,7 @@ import '../../../core/utils/validators.dart';
 import '../../../data/models/artisan_profile.dart';
 import '../../../data/models/availability.dart';
 import '../../../data/models/geo_models.dart';
+import '../../../data/models/social_links.dart';
 import '../../auth/application/auth_controller.dart';
 import '../data/my_profile_repository.dart';
 
@@ -117,6 +118,28 @@ class MyProfileController extends AsyncNotifier<MyProfileDraft> {
   void setAbout(String text) => _update((d) => d.copyWith(
         profile: d.profile.copyWith(aboutText: Validators.sanitizeFreeText(text)),
       ));
+
+  /// Sosyal medya / iş hattı bağlantılarını günceller. Ham girdi normalize
+  /// edilir (kullanıcı tam URL yapıştırsa da kullanıcı adına indirgenir);
+  /// boş bırakılan alan o bağlantıyı kaldırır.
+  void setSocialLinks({
+    String? instagram,
+    String? youtube,
+    String? tiktok,
+    String? whatsapp,
+    String? website,
+  }) =>
+      _update((d) => d.copyWith(
+            profile: d.profile.copyWith(
+              socialLinks: SocialLinks(
+                instagram: SocialLinks.normalizeHandle(instagram),
+                youtube: SocialLinks.normalizeHandle(youtube),
+                tiktok: SocialLinks.normalizeHandle(tiktok),
+                whatsapp: SocialLinks.normalizeWhatsapp(whatsapp),
+                website: SocialLinks.normalizeWebsite(website),
+              ),
+            ),
+          ));
 
   /// Hizmet bölgesi ekler (aynısı varsa eklemez).
   bool addServiceArea(ServiceArea area) {

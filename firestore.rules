@@ -164,7 +164,32 @@ service cloud.firestore {
           && years >= 0
           && years <= 60
           && about is string
-          && about.size() <= 500;
+          && about.size() <= 500
+          && socialLinksOk();
+      }
+
+      // Sosyal bağlantılar: yalnız bilinen anahtarlar, her biri string|null ve
+      // makul uzunlukta. Web sitesi http(s) olmak zorunda; kullanıcı adlarına
+      // URL/boşluk yazılamaz (istemci normalize eder, kural burada zorlar).
+      function socialLinksOk() {
+        let s = request.resource.data.get('socialLinks', {});
+        return !('socialLinks' in request.resource.data)
+          || (s is map
+              && s.keys().hasOnly(['instagram','youtube','tiktok',
+                                   'whatsapp','website'])
+              && handleOk(s.get('instagram', null))
+              && handleOk(s.get('youtube', null))
+              && handleOk(s.get('tiktok', null))
+              && handleOk(s.get('whatsapp', null))
+              && websiteOk(s.get('website', null)));
+      }
+      function handleOk(v) {
+        return v == null
+          || (v is string && v.size() <= 60 && !v.matches('.*[/\\\\s].*'));
+      }
+      function websiteOk(v) {
+        return v == null
+          || (v is string && v.size() <= 200 && v.matches('https?://.*'));
       }
 
       allow read: if true;
@@ -224,7 +249,42 @@ service cloud.firestore {
       function chatUpdateKeysOk() {
         return request.resource.data.diff(resource.data).affectedKeys()
           .hasOnly(['lastMessage', 'lastMessageSenderUid', 'updatedAt',
-                    'lastRead', 'clearedAt', 'members']);
+                    'lastRead', 'clearedAt', 'members',
+                    'archivedBy', 'pinnedBy'])
+          && personalFlagsOk('archivedBy')
+          && personalFlagsOk('pinnedBy');
+      }
+
+      // Arşiv/sabitleme KİŞİSELDİR: kullanıcı yalnız KENDİ anahtarını
+      // değiştirebilir. Karşı tarafın sohbetini arşivleyemez/sabitleyemez.
+      // İstisna: mesaj gönderen taraf, ALICI'nın arşiv bayrağını yalnız
+      // false yapabilir (yeni mesaj sohbeti arşivden çıkarır).
+      function personalFlagsOk(field) {
+        return !request.resource.data.diff(resource.data)
+              .affectedKeys().hasAny([field])
+          || (request.resource.data[field] is map
+              && request.resource.data[field].diff(
+                   resource.data.get(field, {})).affectedKeys()
+                 .hasOnly([request.auth.uid])
+              )
+          || (field == 'archivedBy'
+              && unarchiveForOtherOk());
+      }
+      // Karşı tarafın arşivini yalnız SIFIRLAMAYA (false) izin verilir: yeni
+      // mesaj gelince sohbet alıcının arşivinden çıkar. Değişen tek anahtar
+      // karşı tarafın uid'i olmalı ve yeni değeri false — böylece kimse
+      // başkasının sohbetini arşive GÖMEMEZ.
+      //
+      // Sohbette yalnız iki taraf var, o yüzden "karşı taraf" doğrudan
+      // hesaplanır (Set indekslenemediği için hasOnly ile eşleştiriyoruz).
+      function unarchiveForOtherOk() {
+        let other = request.auth.uid == resource.data.customerUid
+          ? resource.data.artisanUid
+          : resource.data.customerUid;
+        return request.resource.data.archivedBy.diff(
+              resource.data.get('archivedBy', {})).affectedKeys()
+                .hasOnly([other])
+          && request.resource.data.archivedBy.get(other, false) == false;
       }
       function chatMembersHealOk() {
         return !request.resource.data.diff(resource.data)

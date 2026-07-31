@@ -72,6 +72,25 @@ abstract interface class ChatRepository {
   /// gösterilmez. Hiç silmediyse null.
   DateTime? clearedAt({required String chatId, required String uid});
 
+  /// Sohbeti [uid] için arşivler/arşivden çıkarır (kişisel; karşı taraf
+  /// etkilenmez). Yeni mesaj gelince sohbet arşivden kendiliğinden çıkar.
+  Future<void> setThreadArchived({
+    required String chatId,
+    required String uid,
+    required bool archived,
+  });
+
+  /// Sohbeti [uid] için listenin başına sabitler/kaldırır (kişisel).
+  Future<void> setThreadPinned({
+    required String chatId,
+    required String uid,
+    required bool pinned,
+  });
+
+  /// Karşı taraf ([otherUid]) bu sohbeti en son ne zaman okudu? Kendi
+  /// mesajımızın "okundu" tikini çizmek için kullanılır; bilinmiyorsa null.
+  DateTime? lastReadBy({required String chatId, required String uid});
+
   /// Denormalize okunmamış sayacı (alt bar / menü rozeti).
   /// Thread listesini açmadan canlı dinlenir (`private/chatMeta`).
   Stream<ChatUnreadMeta> watchUnreadMeta(String uid);
@@ -237,20 +256,18 @@ class MockChatRepository implements ChatRepository {
     list.add(msg);
     _ctrl(chatId).add(List.unmodifiable(list));
 
-    // Başlık özetini güncelle.
+    // Başlık özetini güncelle. Yeni mesaj sohbeti ALICI'nın arşivinden
+    // çıkarır (WhatsApp davranışı); gönderenin kendi arşivi korunur.
     final t = _threads[chatId];
     if (t != null) {
-      _threads[chatId] = ChatThread(
-        id: t.id,
-        customerUid: t.customerUid,
-        artisanUid: t.artisanUid,
-        customerName: t.customerName,
-        artisanName: t.artisanName,
-        customerPhotoUrl: t.customerPhotoUrl,
-        artisanPhotoUrl: t.artisanPhotoUrl,
+      final receiver = t.otherUid(senderUid);
+      _threads[chatId] = t.copyWith(
         lastMessage: imageHandle != null ? '📷 Fotoğraf' : masked,
-        createdAt: t.createdAt,
         updatedAt: msg.createdAt,
+        lastMessageSenderUid: senderUid,
+        archivedBy: t.archivedBy.contains(receiver)
+            ? ({...t.archivedBy}..remove(receiver))
+            : null,
       );
       _threadsTick.add(null);
     }
@@ -307,6 +324,38 @@ class MockChatRepository implements ChatRepository {
   @override
   DateTime? clearedAt({required String chatId, required String uid}) =>
       _clearedAt[chatId]?[uid];
+
+  @override
+  Future<void> setThreadArchived({
+    required String chatId,
+    required String uid,
+    required bool archived,
+  }) async {
+    final t = _threads[chatId];
+    if (t == null) return;
+    final next = {...t.archivedBy};
+    archived ? next.add(uid) : next.remove(uid);
+    _threads[chatId] = t.copyWith(archivedBy: next);
+    _threadsTick.add(null);
+  }
+
+  @override
+  Future<void> setThreadPinned({
+    required String chatId,
+    required String uid,
+    required bool pinned,
+  }) async {
+    final t = _threads[chatId];
+    if (t == null) return;
+    final next = {...t.pinnedBy};
+    pinned ? next.add(uid) : next.remove(uid);
+    _threads[chatId] = t.copyWith(pinnedBy: next);
+    _threadsTick.add(null);
+  }
+
+  @override
+  DateTime? lastReadBy({required String chatId, required String uid}) =>
+      _lastRead[chatId]?[uid];
 
   void dispose() {
     for (final c in _msgControllers.values) {
