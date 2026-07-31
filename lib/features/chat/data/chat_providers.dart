@@ -16,54 +16,43 @@ final chatRepositoryProvider = Provider<ChatRepository>((ref) {
 });
 
 /// Oturum açmış kullanıcının sohbet listesi (canlı).
-final myThreadsProvider = StreamProvider<List<ChatThread>>((ref) {
+/// Yalnız Mesajlar ekranı (ve listeye bağlı UI) dinler — alt bar rozeti
+/// [chatUnreadMetaProvider] kullanır; tüm thread snapshot'ı global tutulmaz.
+final myThreadsProvider = StreamProvider.autoDispose<List<ChatThread>>((ref) {
   final user = ref.watch(currentUserProvider);
   if (user == null) return const Stream.empty();
   return ref.watch(chatRepositoryProvider).watchThreads(user.uid);
 });
 
 /// Belirli bir sohbetin mesajları (canlı).
+/// autoDispose: sohbet kapanınca listener + bellek serbest kalsın.
 final messagesProvider =
-    StreamProvider.family<List<ChatMessage>, String>((ref, chatId) {
+    StreamProvider.autoDispose.family<List<ChatMessage>, String>((ref, chatId) {
   return ref.watch(chatRepositoryProvider).watchMessages(chatId);
 });
 
-/// Oturum açmış kullanıcının tüm sohbetlerindeki toplam okunmamış mesaj sayısı.
-/// Sohbet listesi akışı yeniden yayınlandıkça (yeni mesaj / okundu) tazelenir.
+/// Denormalize sohbet okunmamış sayacı (`private/chatMeta`).
+/// Alt bar + menü bunu izler; maliyet: tek döküman snapshot.
+final chatUnreadMetaProvider = StreamProvider<ChatUnreadMeta>((ref) {
+  final user = ref.watch(currentUserProvider);
+  if (user == null) return Stream.value(ChatUnreadMeta.zero);
+  return ref.watch(chatRepositoryProvider).watchUnreadMeta(user.uid);
+});
+
+/// Oturum açmış kullanıcının toplam okunmamış sohbet sayısı (alt bar rozeti).
 final totalUnreadProvider = Provider<int>((ref) {
   final user = ref.watch(currentUserProvider);
   if (user == null) return 0;
-  final repo = ref.watch(chatRepositoryProvider);
-  final threadsAsync = ref.watch(myThreadsProvider);
-  return threadsAsync.maybeWhen(
-    data: (threads) => threads.fold<int>(
-        0, (sum, t) => sum + repo.unreadCount(chatId: t.id, uid: user.uid)),
-    orElse: () => 0,
-  );
+  return ref.watch(chatUnreadMetaProvider).valueOrNull?.total ?? 0;
 });
 
-/// Okunmamışları TARAFA göre ayırır (tek hesap, çift rol): kullanıcının usta
-/// olduğu sohbetler "usta tarafı", müşteri olduğu sohbetler "müşteri tarafı".
+/// Okunmamışları TARAFA göre ayırır (tek hesap, çift rol).
 final unreadBySideProvider = Provider<({int customer, int artisan})>((ref) {
   final user = ref.watch(currentUserProvider);
   if (user == null) return (customer: 0, artisan: 0);
-  final repo = ref.watch(chatRepositoryProvider);
-  final threadsAsync = ref.watch(myThreadsProvider);
-  return threadsAsync.maybeWhen(
-    data: (threads) {
-      var customer = 0, artisan = 0;
-      for (final t in threads) {
-        final n = repo.unreadCount(chatId: t.id, uid: user.uid);
-        if (t.artisanUid == user.uid) {
-          artisan += n;
-        } else {
-          customer += n;
-        }
-      }
-      return (customer: customer, artisan: artisan);
-    },
-    orElse: () => (customer: 0, artisan: 0),
-  );
+  final meta = ref.watch(chatUnreadMetaProvider).valueOrNull;
+  if (meta == null) return (customer: 0, artisan: 0);
+  return (customer: meta.customer, artisan: meta.artisan);
 });
 
 /// Aktif modun KARŞISINA düşen okunmamışlar (çapraz mod rozeti): müşteri

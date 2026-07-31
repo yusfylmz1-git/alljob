@@ -6,6 +6,7 @@ import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/theme_mode_state.dart';
 import '../../../core/utils/snackbar_helper.dart';
 import '../../../core/widgets/app_button.dart';
+import '../../../core/widgets/brand_mark.dart';
 import '../../auth/application/auth_controller.dart';
 import '../../auth/data/auth_repository.dart';
 import '../data/admin_providers.dart';
@@ -216,25 +217,53 @@ class _AdminHomeScreenState extends ConsumerState<_AdminHomeScreen> {
       );
     }
 
+    // Telefon: 10+ sekme NavigationBar taşır/kırılır → çekmece menü.
     return Scaffold(
       backgroundColor: AdminChrome.surface,
+      drawer: _AdminNavDrawer(
+        destinations: destinations,
+        selectedIndex: safeIndex,
+        onSelect: select,
+        email: email,
+        roleLabel: roleLabel,
+        onSignOut: () =>
+            ref.read(authControllerProvider.notifier).signOut(),
+      ),
       appBar: AppBar(
         backgroundColor: AdminChrome.topBarBg,
         foregroundColor: Colors.white,
+        elevation: 0,
+        titleSpacing: 0,
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
               'Ustasından Ops',
-              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800),
+              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800),
             ),
             Text(
               destinations[safeIndex].label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
               style: const TextStyle(fontSize: 12, color: Colors.white70),
             ),
           ],
         ),
         actions: [
+          if (email.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(right: 4),
+              child: Center(
+                child: Text(
+                  roleLabel,
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: Colors.white60,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ),
           IconButton(
             tooltip: 'Çıkış',
             icon: const Icon(Icons.logout_rounded),
@@ -244,21 +273,139 @@ class _AdminHomeScreenState extends ConsumerState<_AdminHomeScreen> {
         ],
       ),
       body: stack,
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: safeIndex,
-        onDestinationSelected: select,
-        destinations: [
-          for (final d in destinations)
-            NavigationDestination(
-              icon: d.badge > 0
-                  ? _BadgeIcon(icon: d.icon, count: d.badge)
-                  : Icon(d.icon),
-              selectedIcon: d.badge > 0
-                  ? _BadgeIcon(icon: d.selectedIcon, count: d.badge)
-                  : Icon(d.selectedIcon),
-              label: d.label,
+    );
+  }
+}
+
+/// Dar ekran: tüm bölümler kaydırılabilir çekmece (alt bar yok).
+class _AdminNavDrawer extends StatelessWidget {
+  const _AdminNavDrawer({
+    required this.destinations,
+    required this.selectedIndex,
+    required this.onSelect,
+    required this.email,
+    required this.roleLabel,
+    required this.onSignOut,
+  });
+
+  final List<_NavItem> destinations;
+  final int selectedIndex;
+  final ValueChanged<int> onSelect;
+  final String email;
+  final String roleLabel;
+  final VoidCallback onSignOut;
+
+  @override
+  Widget build(BuildContext context) {
+    return Drawer(
+      backgroundColor: AdminChrome.railBg,
+      child: SafeArea(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Padding(
+              padding: EdgeInsets.fromLTRB(16, 16, 16, 12),
+              child: Row(
+                children: [
+                  BrandMark(size: 44),
+                  SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Ops Console',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w800,
+                            fontSize: 16,
+                          ),
+                        ),
+                        Text(
+                          'Yönetim paneli',
+                          style: TextStyle(
+                            color: AdminChrome.railMuted,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
-        ],
+            if (email.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                child: Text(
+                  '$roleLabel · $email',
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: AdminChrome.railMuted,
+                    fontSize: 11,
+                  ),
+                ),
+              ),
+            const Divider(color: Color(0xFF1E293B), height: 1),
+            Expanded(
+              child: ListView.builder(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                itemCount: destinations.length,
+                itemBuilder: (context, i) {
+                  final d = destinations[i];
+                  final selected = i == selectedIndex;
+                  return ListTile(
+                    selected: selected,
+                    selectedTileColor: AdminChrome.railSelectedBg,
+                    leading: d.badge > 0
+                        ? _BadgeIcon(
+                            icon: selected ? d.selectedIcon : d.icon,
+                            count: d.badge,
+                            color: selected
+                                ? AdminChrome.railSelected
+                                : AdminChrome.railMuted,
+                          )
+                        : Icon(
+                            selected ? d.selectedIcon : d.icon,
+                            color: selected
+                                ? AdminChrome.railSelected
+                                : AdminChrome.railMuted,
+                          ),
+                    title: Text(
+                      d.label,
+                      style: TextStyle(
+                        color: selected
+                            ? AdminChrome.railSelected
+                            : AdminChrome.railFg,
+                        fontWeight:
+                            selected ? FontWeight.w700 : FontWeight.w500,
+                        fontSize: 14,
+                      ),
+                    ),
+                    onTap: () {
+                      Navigator.pop(context);
+                      onSelect(i);
+                    },
+                  );
+                },
+              ),
+            ),
+            const Divider(color: Color(0xFF1E293B), height: 1),
+            ListTile(
+              leading: const Icon(Icons.logout_rounded,
+                  color: AdminChrome.railMuted),
+              title: const Text(
+                'Çıkış yap',
+                style: TextStyle(color: AdminChrome.railFg),
+              ),
+              onTap: () {
+                Navigator.pop(context);
+                onSignOut();
+              },
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -299,19 +446,7 @@ class _AdminSideRail extends StatelessWidget {
               padding: EdgeInsets.fromLTRB(extended ? 16 : 12, 16, 12, 8),
               child: Row(
                 children: [
-                  Container(
-                    width: 36,
-                    height: 36,
-                    decoration: BoxDecoration(
-                      color: AdminChrome.railSelected.withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(
-                        color: AdminChrome.railSelected.withValues(alpha: 0.35),
-                      ),
-                    ),
-                    child: const Icon(Icons.shield_moon_outlined,
-                        color: AdminChrome.railSelected, size: 20),
-                  ),
+                  const BrandMark(size: 36),
                   if (extended) ...[
                     const SizedBox(width: 10),
                     const Expanded(
@@ -683,11 +818,12 @@ class _AdminLoginScreenState extends ConsumerState<_AdminLoginScreen> {
   Widget build(BuildContext context) {
     final palette = context.palette;
     final theme = Theme.of(context);
+    final wideLogin = MediaQuery.sizeOf(context).width >= 840;
     return Scaffold(
       body: Row(
         children: [
-          // Sol marka paneli (geniş ekran)
-          if (MediaQuery.sizeOf(context).width >= 840)
+          // Sol marka paneli (yalnız geniş ekran — telefonda formu bozmasın)
+          if (wideLogin)
             Expanded(
               child: Container(
                 color: AdminChrome.railBg,
@@ -696,8 +832,7 @@ class _AdminLoginScreenState extends ConsumerState<_AdminLoginScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(Icons.shield_moon_outlined,
-                        color: AdminChrome.railSelected, size: 40),
+                    BrandMark(size: 72),
                     SizedBox(height: 20),
                     Text(
                       'Ustasından\nOps Console',
@@ -726,7 +861,10 @@ class _AdminLoginScreenState extends ConsumerState<_AdminLoginScreen> {
           Expanded(
             child: Center(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.all(28),
+                padding: EdgeInsets.symmetric(
+                  horizontal: wideLogin ? 28 : 20,
+                  vertical: wideLogin ? 28 : 24,
+                ),
                 child: ConstrainedBox(
                   constraints: const BoxConstraints(maxWidth: 400),
                   child: Form(

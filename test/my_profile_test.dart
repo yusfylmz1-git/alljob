@@ -107,7 +107,7 @@ void main() {
     expect(saved.isPremium, isFalse); // premium yazılamadı (kural paritesi)
     expect(saved.hasActivePremium, isFalse);
     // Beta süresince premium ÖZELLİKLERİ yine herkese açık.
-    expect(saved.hasPremiumAccess, isTrue);
+    expect(saved.hasPremiumAccess(), isTrue);
   });
 
   test('profil alanları güncellenir ve kaydedilir', () async {

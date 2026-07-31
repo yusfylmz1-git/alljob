@@ -12,9 +12,15 @@ abstract interface class NotificationRepository {
   /// Kullanıcının bildirimleri — canlı akış, en yeni en üstte.
   Stream<List<AppNotification>> watchMyNotifications(String uid);
 
+  /// Zil rozeti: yalnız okunmamışlar (sınırlı). Tam listeyi çekmez.
+  Stream<int> watchUnreadCount(String uid);
+
   /// Verilen bildirimleri okundu işaretler (rozet sayacı sıfırlansın).
   Future<void> markRead(String uid, List<String> notificationIds);
 }
+
+/// Zil rozetinde sayılan en fazla okunmamış (fazlası 20+ gibi gösterilir).
+const kNotificationUnreadCap = 20;
 
 /// Firestore `users/{uid}/notifications` ile çalışan gerçek depo.
 class FirebaseNotificationRepository implements NotificationRepository {
@@ -36,6 +42,17 @@ class FirebaseNotificationRepository implements NotificationRepository {
         .map((s) => s.docs
             .map((d) => AppNotification.fromMap(d.id, d.data()))
             .toList());
+  }
+
+  @override
+  Stream<int> watchUnreadCount(String uid) {
+    // Tek eşitlik filtresi → ek composite indeks gerekmez. Zil her sekmede
+    // açıkken 50'lik tam liste yerine en fazla N okunmamış döküman.
+    return _col(uid)
+        .where('read', isEqualTo: false)
+        .limit(kNotificationUnreadCap)
+        .snapshots()
+        .map((s) => s.docs.length);
   }
 
   @override
@@ -98,6 +115,14 @@ class MockNotificationRepository implements NotificationRepository {
   }
 
   @override
+  Stream<int> watchUnreadCount(String uid) async* {
+    int count() =>
+        _list(uid).where((n) => !n.read).take(kNotificationUnreadCap).length;
+    yield count();
+    yield* _ctrl.stream.map((_) => count());
+  }
+
+  @override
   Future<void> markRead(String uid, List<String> notificationIds) async {
     final list = _list(uid);
     for (var i = 0; i < list.length; i++) {
@@ -115,15 +140,20 @@ final notificationRepositoryProvider = Provider<NotificationRepository>((ref) {
 });
 
 /// Kullanıcının bildirim akışı (en yeni üstte, ilk 50).
-final myNotificationsProvider =
-    StreamProvider.family<List<AppNotification>, String>((ref, uid) {
+/// autoDispose: yalnız bildirim merkezi açıkken tam liste dinlensin.
+final myNotificationsProvider = StreamProvider.autoDispose
+    .family<List<AppNotification>, String>((ref, uid) {
   return ref.watch(notificationRepositoryProvider).watchMyNotifications(uid);
 });
 
-/// Zil rozetindeki okunmamış sayısı.
+/// Zil rozeti: yalnız okunmamış sayımı (sınırlı sorgu / mock sayım).
 final unreadNotificationCountProvider =
     Provider.family<int, String>((ref, uid) {
-  final list = ref.watch(myNotificationsProvider(uid)).valueOrNull;
-  if (list == null) return 0;
-  return list.where((n) => !n.read).length;
+  return ref.watch(unreadNotificationCountStreamProvider(uid)).valueOrNull ?? 0;
+});
+
+/// Canlı okunmamış sayısı (zil her yerde bunu izler).
+final unreadNotificationCountStreamProvider =
+    StreamProvider.family<int, String>((ref, uid) {
+  return ref.watch(notificationRepositoryProvider).watchUnreadCount(uid);
 });

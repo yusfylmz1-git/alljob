@@ -1,6 +1,9 @@
+import 'dart:async' show unawaited;
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 
+import '../../../core/constants/app_constants.dart';
 import '../../../core/utils/contact_masker.dart';
 import '../../../data/models/chat.dart';
 import 'chat_repository.dart';
@@ -30,11 +33,17 @@ class FirebaseChatRepository implements ChatRepository {
   /// chatId → tek uçuşan ensure Future (çift create yarışını önler: ??=).
   final Map<String, Future<void>> _pendingChatDoc = {};
 
+  /// Son yazılan heal değeri — gereksiz chatMeta yazısını keser.
+  final Map<String, String> _lastHealedMetaKey = {};
+
   static String chatIdFor(String customerUid, String artisanUid) =>
       'chat_${customerUid}__$artisanUid';
 
   CollectionReference<Map<String, dynamic>> get _chats =>
       _db.collection('chats');
+
+  DocumentReference<Map<String, dynamic>> _chatMetaRef(String uid) =>
+      _db.collection('users').doc(uid).collection('private').doc('chatMeta');
 
   bool _legacyHealAttempted = false;
 
@@ -78,8 +87,90 @@ class FirebaseChatRepository implements ChatRepository {
         list.add(t);
       }
       list.sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+      // Liste açıkken sayacı thread'lerden yeniden hizala (eski hesap / drift).
+      unawaited(_healUnreadMeta(uid, list));
       return list;
     });
+  }
+
+  @override
+  Stream<ChatUnreadMeta> watchUnreadMeta(String uid) {
+    return _chatMetaRef(uid).snapshots().map(
+          (s) => ChatUnreadMeta.fromMap(s.data()),
+        );
+  }
+
+  /// Thread listesinden doğru sayıyı yaz (yalnız değer değiştiyse).
+  Future<void> _healUnreadMeta(String uid, List<ChatThread> threads) async {
+    var customer = 0, artisan = 0;
+    for (final t in threads) {
+      final n = unreadCount(chatId: t.id, uid: uid);
+      if (n <= 0) continue;
+      if (t.artisanUid == uid) {
+        artisan += n;
+      } else {
+        customer += n;
+      }
+    }
+    final total = customer + artisan;
+    final key = '$total|$customer|$artisan';
+    if (_lastHealedMetaKey[uid] == key) return;
+    _lastHealedMetaKey[uid] = key;
+    try {
+      await _chatMetaRef(uid).set({
+        'unreadTotal': total,
+        'unreadCustomer': customer,
+        'unreadArtisan': artisan,
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+    } catch (e) {
+      debugPrint('[chat] unreadMeta heal atlandı ($uid): $e');
+      _lastHealedMetaKey.remove(uid);
+    }
+  }
+
+  /// Okundu / CF drift: chatMeta'yı atomik düşür (negatife inmez).
+  Future<void> _decrementUnreadMeta(
+    String uid, {
+    required bool asArtisan,
+    int by = 1,
+  }) async {
+    if (by <= 0) return;
+    final ref = _chatMetaRef(uid);
+    try {
+      await _db.runTransaction((tx) async {
+        final snap = await tx.get(ref);
+        final data = snap.data() ?? const <String, dynamic>{};
+        int i(String k) {
+          final v = data[k];
+          if (v is int) return v;
+          if (v is num) return v.toInt();
+          return 0;
+        }
+
+        var customer = i('unreadCustomer');
+        var artisan = i('unreadArtisan');
+        if (asArtisan) {
+          artisan = (artisan - by).clamp(0, 1 << 30);
+        } else {
+          customer = (customer - by).clamp(0, 1 << 30);
+        }
+        final total = customer + artisan;
+        tx.set(
+          ref,
+          {
+            'unreadTotal': total,
+            'unreadCustomer': customer,
+            'unreadArtisan': artisan,
+            'updatedAt': FieldValue.serverTimestamp(),
+          },
+          SetOptions(merge: true),
+        );
+      });
+      _lastHealedMetaKey.remove(uid);
+    } catch (e) {
+      debugPrint('[chat] unreadMeta decrement atlandı ($uid): $e');
+    }
   }
 
   @override
@@ -108,23 +199,29 @@ class FirebaseChatRepository implements ChatRepository {
   }
 
   Stream<List<ChatMessage>> _messageSnapshots(String chatId) {
+    // En yeni N mesaj (limit) — tüm geçmişi çekmek okuma/RAM şişirir.
+    // descending + limit, sonra kronolojik (eskiden yeniye) sırala; UI reverse ListView.
     return _chats
         .doc(chatId)
         .collection('messages')
-        .orderBy('createdAt')
+        .orderBy('createdAt', descending: true)
+        .limit(AppConstants.chatMessagesFetchCap)
         .snapshots()
-        .map((snap) => snap.docs
-            .map((d) => ChatMessage(
-                  id: d.id,
-                  chatId: chatId,
-                  senderUid: (d.data()['senderUid'] as String?) ?? '',
-                  text: d.data()['text'] as String?,
-                  imageHandle: d.data()['imageHandle'] as String?,
-                  deleted: (d.data()['deleted'] as bool?) ?? false,
-                  createdAt: (d.data()['createdAt'] as Timestamp?)?.toDate() ??
-                      DateTime.now(),
-                ))
-            .toList());
+        .map((snap) {
+      final list = snap.docs
+          .map((d) => ChatMessage(
+                id: d.id,
+                chatId: chatId,
+                senderUid: (d.data()['senderUid'] as String?) ?? '',
+                text: d.data()['text'] as String?,
+                imageHandle: d.data()['imageHandle'] as String?,
+                deleted: (d.data()['deleted'] as bool?) ?? false,
+                createdAt: (d.data()['createdAt'] as Timestamp?)?.toDate() ??
+                    DateTime.now(),
+              ))
+          .toList();
+      return list.reversed.toList(growable: false);
+    });
   }
 
   @override
@@ -196,6 +293,8 @@ class FirebaseChatRepository implements ChatRepository {
 
   @override
   void markRead({required String chatId, required String uid}) {
+    final was = unreadCount(chatId: chatId, uid: uid);
+    final thread = _threads[chatId];
     final now = DateTime.now();
     (_lastRead[chatId] ??= {})[uid] = now;
     // ignore: discarded_futures
@@ -206,6 +305,13 @@ class FirebaseChatRepository implements ChatRepository {
             .update({'lastRead.$uid': Timestamp.fromDate(now)});
       } catch (e) {
         debugPrint('[chat] markRead atlandı ($chatId): $e');
+      }
+      // Alt bar rozeti: thread listesini açmadan düşür.
+      if (was > 0) {
+        final artisanUid =
+            thread?.artisanUid ?? _uidsFromChatId(chatId)?.$2;
+        final asArtisan = artisanUid != null && artisanUid == uid;
+        await _decrementUnreadMeta(uid, asArtisan: asArtisan, by: was);
       }
     });
   }

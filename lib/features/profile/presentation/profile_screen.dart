@@ -3,7 +3,6 @@ import 'dart:async' show unawaited;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:intl/intl.dart';
 
 import '../../../core/router/route_paths.dart';
 import '../../../core/theme/app_colors.dart';
@@ -16,9 +15,8 @@ import '../../../core/widgets/responsive_center.dart';
 import '../../../core/widgets/role_bottom_bar.dart';
 import '../../../data/local/mock_database.dart';
 import '../../../data/models/app_user.dart';
-import '../../../data/models/job.dart';
-import '../../../data/models/offer.dart';
 import '../../../data/models/user_role.dart';
+import '../../../data/models/favorite.dart';
 import '../../artisan/application/my_profile_controller.dart';
 import '../../artisan/data/shop_completion.dart';
 import '../../artisan/presentation/widgets/shop_completion_banner.dart';
@@ -26,14 +24,13 @@ import '../../auth/application/auth_controller.dart';
 import '../../auth/data/auth_repository.dart';
 import '../../auth/presentation/phone_verification_sheet.dart';
 import '../../favorites/data/favorite_providers.dart';
-import '../../jobs/data/job_providers.dart';
 import '../../membership/membership_access.dart';
 import '../../membership/membership_package.dart';
 
 /// Profil (alt bar): tek hesap, iki yüzey.
 ///  - Müşteri: talepler (ilanlar, takip) — "iş seçimi" yok.
 ///  - Usta: dükkân + işler (müsaitlik, vitrin, yakındaki işler).
-/// Ortak hesap/ayar en altta; araçlar (takip, eleman) kısa grup.
+/// Ortak hesap/ayar en altta; araçlar (çanta, ajanda) kısa grup.
 class ProfileScreen extends ConsumerWidget {
   const ProfileScreen({super.key});
 
@@ -93,21 +90,30 @@ class _Body extends ConsumerWidget {
               const _SectionLabel('ARAÇLAR'),
               _Group(children: [
                 _MenuRow(
+                  icon: Icons.handyman_outlined,
+                  iconColor: context.palette.primary,
+                  iconSurface: context.palette.primaryContainer,
+                  title: 'Usta Çantası',
+                  subtitle: 'Ölçüm, maliyet ve teklif araçları',
+                  onTap: () => context.push(RoutePaths.toolkit),
+                ),
+                _MenuRow(
                   icon: Icons.checklist_rounded,
                   iconColor: context.palette.primary,
                   iconSurface: context.palette.primaryContainer,
-                  title: 'Takip Merkezi',
-                  subtitle: 'Randevu ve hatırlatmalar',
+                  title: 'Ajanda',
+                  subtitle: 'Kişisel randevu ve hatırlatma (ilan işi değil)',
                   onTap: () => context.push(RoutePaths.tracking),
                 ),
-                _MenuRow(
-                  icon: Icons.badge_outlined,
-                  iconColor: context.palette.info,
-                  iconSurface: context.palette.infoSurface,
-                  title: 'Eleman',
-                  subtitle: 'İş ara veya eleman bul',
-                  onTap: () => context.push(RoutePaths.staffing),
-                ),
+                if (artisanMode)
+                  _MenuRow(
+                    icon: Icons.storefront_outlined,
+                    iconColor: context.palette.primary,
+                    iconSurface: context.palette.primaryContainer,
+                    title: 'Ürünlerim',
+                    subtitle: 'Keşfet vitrin ürünlerinizi yönetin',
+                    onTap: () => context.push(RoutePaths.myProducts),
+                  ),
               ]),
               const _SectionLabel('HESABIM'),
               _AccountGroup(user: user),
@@ -175,13 +181,30 @@ class _Hero extends StatelessWidget {
         bottom: false,
         child: ResponsiveCenter(
           maxWidth: 720,
-          padding: const EdgeInsets.fromLTRB(20, 10, 20, 24),
+          padding: const EdgeInsets.fromLTRB(12, 8, 12, 24),
           child: Column(
             children: [
-              const Align(
-                alignment: Alignment.centerLeft,
-                child: DrawerMenuButton(),
+              // Üst şerit: menü + başlık (ortada) + dengeleyici boşluk.
+              // Menü yalnız avatar üstünde “uçan” durmasın.
+              Row(
+                children: [
+                  const DrawerMenuButton(),
+                  Expanded(
+                    child: Text(
+                      artisanMode ? 'Usta dükkânı' : 'Müşteri',
+                      textAlign: TextAlign.center,
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: -0.2,
+                      ),
+                    ),
+                  ),
+                  // Menü ile simetrik genişlik (başlık gerçekten ortada).
+                  const SizedBox(width: 40),
+                ],
               ),
+              const SizedBox(height: 14),
               // Avatar + altındaki kalem → profil / vitrin düzenleme.
               Tooltip(
                 message: 'Profili düzenle',
@@ -213,7 +236,14 @@ class _Hero extends StatelessWidget {
                                   width: 72,
                                   height: 72,
                                   child: photo != null
-                                      ? AppImage(handle: photo)
+                                      ? AppImage(
+                                          handle: photo,
+                                          fit: BoxFit.cover,
+                                          width: 72,
+                                          height: 72,
+                                          memCacheWidth: 144,
+                                          memCacheHeight: 144,
+                                        )
                                       : Container(
                                           color: Colors.white12,
                                           alignment: Alignment.center,
@@ -329,8 +359,8 @@ class _ModeSwitcher extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final isLoading = ref.watch(authControllerProvider).isLoading;
-
+    // Global authController.isLoading ile KİLİTLENMEZ (e-posta/login loading
+    // sekmeleri pasif bırakıyordu). Repo optimistic; çift tık zararsız.
     return SegmentedButton<UserRole>(
       segments: const [
         ButtonSegment(
@@ -352,12 +382,10 @@ class _ModeSwitcher extends ConsumerWidget {
             Theme.of(context).colorScheme.onPrimary,
         minimumSize: const Size(0, 46),
       ),
-      onSelectionChanged: isLoading
-          ? null
-          : (selection) {
-              final mode = selection.first;
-              if (mode != user.activeMode) _switch(context, ref, mode);
-            },
+      onSelectionChanged: (selection) {
+        final mode = selection.first;
+        if (mode != user.activeMode) _switch(context, ref, mode);
+      },
     );
   }
 }
@@ -374,12 +402,8 @@ class _ArtisanHome extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final profile = draft?.profile;
-    final nearbyCount = ref.watch(nearbyJobsProvider).valueOrNull?.length ?? 0;
-    final offers =
-        ref.watch(myOffersProvider(user.uid)).valueOrNull ?? const <Offer>[];
-    final pendingOffers =
-        offers.where((o) => o.status == OfferStatus.pending).length;
-
+    // Rozet için nearbyJobs / myOffers canlı dinlenmez — profil menüsü
+    // 100+ open job + tüm teklif snapshot'ını açık tutuyordu (maliyet/RAM).
     final rating = profile?.averageRating ?? 0;
     final reviews = profile?.totalReviews ?? 0;
     final shopSubtitle = reviews > 0
@@ -399,6 +423,7 @@ class _ArtisanHome extends ConsumerWidget {
           shopSubtitle: shopSubtitle,
         ),
         const SizedBox(height: 4),
+        _FollowersSection(artisanUid: user.uid),
         const _SectionLabel('İŞLER'),
         _Group(children: [
           _MenuRow(
@@ -407,7 +432,6 @@ class _ArtisanHome extends ConsumerWidget {
             iconSurface: context.palette.infoSurface,
             title: 'Yakındaki işler',
             subtitle: 'Meslek ve bölgene uygun',
-            badge: nearbyCount,
             onTap: () => context.push(RoutePaths.panelJobs),
           ),
           _MenuRow(
@@ -416,23 +440,150 @@ class _ArtisanHome extends ConsumerWidget {
             iconSurface: context.palette.primaryContainer,
             title: 'İlgilendiğim işler',
             subtitle: 'Başvuru ve yürüyenler',
-            badge: pendingOffers,
             onTap: () => context.push(RoutePaths.panelOffers),
-          ),
-          _MenuRow(
-            icon: profile?.hasActivePremium == true
-                ? Icons.workspace_premium
-                : Icons.workspace_premium_outlined,
-            iconColor: context.palette.premium,
-            iconSurface: context.palette.premiumSurface,
-            title: 'Pro üyelik',
-            subtitle: ref.watch(artisanProAccessProvider)
-                ? 'Pro özellikler açık'
-                : 'Müsaitlik ve işler için',
-            onTap: () => context.push(RoutePaths.panelPremium),
           ),
         ]),
       ],
+    );
+  }
+}
+
+/// Ustanın takipçileri — dükkân ekranında görünür.
+class _FollowersSection extends ConsumerWidget {
+  const _FollowersSection({required this.artisanUid});
+  final String artisanUid;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final async = ref.watch(followersProvider(artisanUid));
+    final followers = async.valueOrNull ?? const <Favorite>[];
+    if (followers.isEmpty && !async.isLoading) {
+      return const SizedBox.shrink();
+    }
+
+    final theme = Theme.of(context);
+    final palette = context.palette;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const _SectionLabel('TAKİPÇİLER'),
+          Material(
+            color: palette.card,
+            borderRadius: BorderRadius.circular(16),
+            child: Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: palette.border),
+                boxShadow: AppTheme.softShadow,
+              ),
+              child: async.isLoading && followers.isEmpty
+                  ? const Padding(
+                      padding: EdgeInsets.all(20),
+                      child: Center(
+                        child: SizedBox(
+                          width: 22,
+                          height: 22,
+                          child: CircularProgressIndicator(strokeWidth: 2.5),
+                        ),
+                      ),
+                    )
+                  : Column(
+                      children: [
+                        for (var i = 0; i < followers.length; i++) ...[
+                          if (i > 0)
+                            Divider(height: 1, color: palette.hairline),
+                          _FollowerRow(follower: followers[i]),
+                        ],
+                      ],
+                    ),
+            ),
+          ),
+          if (followers.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 6, left: 4),
+              child: Text(
+                '${followers.length} kişi sizi takip ediyor',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: palette.inkMuted,
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _FollowerRow extends StatelessWidget {
+  const _FollowerRow({required this.follower});
+  final Favorite follower;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final palette = context.palette;
+    final name =
+        follower.customerName.isEmpty ? 'Kullanıcı' : follower.customerName;
+    final initial =
+        name.trim().isEmpty ? '?' : name.trim().substring(0, 1).toUpperCase();
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      child: Row(
+        children: [
+          ClipOval(
+            child: SizedBox(
+              width: 40,
+              height: 40,
+              child: follower.customerPhotoUrl != null
+                  ? AppImage(
+                      handle: follower.customerPhotoUrl,
+                      width: 40,
+                      height: 40,
+                      fit: BoxFit.cover,
+                      memCacheWidth: 80,
+                      memCacheHeight: 80,
+                    )
+                  : Container(
+                      color: palette.primaryContainer,
+                      alignment: Alignment.center,
+                      child: Text(
+                        initial,
+                        style: TextStyle(
+                          fontWeight: FontWeight.w800,
+                          color: palette.primary,
+                        ),
+                      ),
+                    ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.titleSmall
+                      ?.copyWith(fontWeight: FontWeight.w700),
+                ),
+                Text(
+                  'sizi takip ediyor',
+                  style: theme.textTheme.bodySmall
+                      ?.copyWith(color: palette.inkMuted),
+                ),
+              ],
+            ),
+          ),
+          Icon(Icons.favorite_rounded,
+              size: 18, color: palette.danger.withValues(alpha: 0.85)),
+        ],
+      ),
     );
   }
 }
@@ -630,16 +781,8 @@ class _CustomerHome extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final jobs =
-        ref.watch(myJobsProvider(user.uid)).valueOrNull ?? const <Job>[];
-    final favs = ref.watch(favoritesProvider(user.uid)).valueOrNull ?? const [];
-    final activeJobs = jobs
-        .where((j) =>
-            j.effectiveStatus == JobStatus.open ||
-            j.effectiveStatus == JobStatus.workerSelected ||
-            j.effectiveStatus == JobStatus.inProgress)
-        .length;
-
+    // İlan/favori listelerini yalnızca rozet için dinleme — ilgili ekranlar
+    // açılınca stream orada başlar (profil menüsü ucuz kalsın).
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -650,10 +793,7 @@ class _CustomerHome extends ConsumerWidget {
             iconColor: context.palette.primary,
             iconSurface: context.palette.primaryContainer,
             title: 'İlanlarım',
-            subtitle: activeJobs > 0
-                ? '$activeJobs aktif talep'
-                : 'Verdiğiniz hizmet ilanları',
-            badge: jobs.length,
+            subtitle: 'Verdiğiniz hizmet ilanları',
             onTap: () => context.push(RoutePaths.myJobs),
           ),
           _MenuRow(
@@ -662,7 +802,6 @@ class _CustomerHome extends ConsumerWidget {
             iconSurface: context.palette.danger.withValues(alpha: 0.10),
             title: 'Takip ettiklerim',
             subtitle: 'Favori ustalar',
-            badge: favs.length,
             onTap: () => context.push(RoutePaths.favorites),
           ),
         ]),
@@ -853,10 +992,13 @@ class _AccountGroup extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
-    final since = DateFormat('MMMM yyyy', 'tr_TR').format(user.createdAt);
-
     final plan = ref.watch(selectedMembershipPackageProvider) ??
         MembershipPackage.free;
+    final proOpen = ref.watch(artisanProAccessProvider);
+    final paidPremium = user.isArtisan &&
+        (ref.watch(myProfileControllerProvider).valueOrNull?.profile
+                .hasActivePremium ??
+            false);
 
     return _Group(children: [
       _MenuRow(
@@ -867,13 +1009,20 @@ class _AccountGroup extends ConsumerWidget {
         subtitle: 'Ad ve fotoğraf',
         onTap: () => context.push(RoutePaths.profileEdit),
       ),
+      // Tek üyelik girişi: plan + Pro erişim / faturalama (Premium ekranı).
       _MenuRow(
-        icon: Icons.workspace_premium_outlined,
-        iconColor: context.palette.primary,
-        iconSurface: context.palette.primaryContainer,
-        title: 'Plan: ${plan.titleTR}',
-        subtitle: '$since · ${plan.summaryTR}',
-        onTap: () => context.push('${RoutePaths.packageSelect}?change=1'),
+        icon: paidPremium || plan == MembershipPackage.pro
+            ? Icons.workspace_premium
+            : Icons.workspace_premium_outlined,
+        iconColor: context.palette.premium,
+        iconSurface: context.palette.premiumSurface,
+        title: 'Üyelik: ${plan.titleTR}',
+        subtitle: proOpen
+            ? (plan == MembershipPackage.free
+                ? 'Pro özellikler açık'
+                : plan.summaryTR)
+            : 'Pro özellikler kilitli · plan yükselt',
+        onTap: () => context.push(RoutePaths.panelPremium),
       ),
       if (user.phoneVerified)
         _MenuRow(
@@ -884,8 +1033,12 @@ class _AccountGroup extends ConsumerWidget {
           subtitle: user.hasArtisanProfile ? 'Mavi tik aktif' : null,
           trailing: Icon(Icons.check_circle,
               color: context.palette.success, size: 22),
-        )
-      else
+        ),
+      // Usta + doğrulanmış telefon: numarayı vitrinde göster/gizle. Açıkken
+      // profilde telefon + "Ara" düğmesi görünür (müşteri direkt arayabilir).
+      if (user.isArtisan && user.phoneVerified)
+        _PhoneVisibilityRow(phoneNumber: user.phoneNumber),
+      if (!user.phoneVerified)
         _MenuRow(
           icon: Icons.verified_outlined,
           iconColor: context.palette.verified,
@@ -1017,6 +1170,57 @@ class _AccountGroup extends ConsumerWidget {
 // Yapı taşları: bölüm etiketi, grup kartı, menü satırı, uyarı bandı
 // ---------------------------------------------------------------------------
 
+/// Usta için "telefonumu profilde göster" switch'i. Açıkken doğrulanmış
+/// numara ([ArtisanProfile.publicPhone]) vitrinde görünür ve müşteri "Ara"
+/// düğmesiyle arayabilir. Durum usta profil taslağından okunur.
+class _PhoneVisibilityRow extends ConsumerWidget {
+  const _PhoneVisibilityRow({required this.phoneNumber});
+  final String? phoneNumber;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final draft = ref.watch(myProfileControllerProvider).valueOrNull;
+    final shown = draft?.profile.hasPublicPhone ?? false;
+
+    Future<void> onChanged(bool value) async {
+      // Açarken doğrulanmış numara şart (numara yoksa gösterecek bir şey yok).
+      if (value && (phoneNumber == null || phoneNumber!.trim().isEmpty)) {
+        context.showError('Telefon numarası bulunamadı.');
+        return;
+      }
+      final ok = await ref
+          .read(myProfileControllerProvider.notifier)
+          .setPhoneVisibility(show: value, publicPhone: phoneNumber);
+      if (!context.mounted) return;
+      if (ok) {
+        context.showInfo(value
+            ? 'Numaran profilinde görünüyor. Müşteriler seni arayabilir.'
+            : 'Numaran artık profilinde gizli.');
+      } else {
+        context.showError('İşlem başarısız, tekrar deneyin.');
+      }
+    }
+
+    return _MenuRow(
+      icon: shown ? Icons.phone_in_talk_rounded : Icons.phone_disabled_rounded,
+      iconColor: shown
+          ? context.palette.success
+          : Theme.of(context).colorScheme.onSurfaceVariant,
+      iconSurface: shown
+          ? context.palette.successSurface
+          : Theme.of(context).colorScheme.surfaceContainer,
+      title: 'Telefonumu profilde göster',
+      subtitle: shown
+          ? 'Müşteriler numaranı görüp arayabilir'
+          : 'Kapalı — numaran gizli',
+      trailing: Switch(
+        value: shown,
+        onChanged: draft == null ? null : onChanged,
+      ),
+    );
+  }
+}
+
 class _SectionLabel extends StatelessWidget {
   const _SectionLabel(this.text);
   final String text;
@@ -1084,7 +1288,6 @@ class _MenuRow extends StatelessWidget {
     required this.title,
     this.titleColor,
     this.subtitle,
-    this.badge = 0,
     this.trailing,
     this.onTap,
   });
@@ -1095,7 +1298,6 @@ class _MenuRow extends StatelessWidget {
   final String title;
   final Color? titleColor;
   final String? subtitle;
-  final int badge;
   final Widget? trailing;
   final VoidCallback? onTap;
 
@@ -1142,24 +1344,6 @@ class _MenuRow extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 8),
-            if (badge > 0)
-              Container(
-                margin: const EdgeInsets.only(right: 4),
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                decoration: BoxDecoration(
-                  color: context.palette.primaryContainer,
-                  borderRadius: BorderRadius.circular(999),
-                ),
-                child: Text(
-                  '$badge',
-                  style: TextStyle(
-                    color: context.palette.onPrimaryContainer,
-                    fontWeight: FontWeight.w800,
-                    fontSize: 12.5,
-                  ),
-                ),
-              ),
             if (trailing != null)
               trailing!
             else if (onTap != null)

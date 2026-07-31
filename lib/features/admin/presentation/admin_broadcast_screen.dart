@@ -23,6 +23,7 @@ class _AdminBroadcastScreenState extends ConsumerState<AdminBroadcastScreen> {
   final _body = TextEditingController();
   final _profession = TextEditingController();
   final _province = TextEditingController();
+  final _targetUser = TextEditingController();
   String _audience = 'all';
   bool _sendPush = true;
   bool _busy = false;
@@ -37,7 +38,18 @@ class _AdminBroadcastScreenState extends ConsumerState<AdminBroadcastScreen> {
     _body.dispose();
     _profession.dispose();
     _province.dispose();
+    _targetUser.dispose();
     super.dispose();
+  }
+
+  /// E-posta ise targetEmail, aksi halde UID.
+  ({String? uid, String? email}) _parseTargetUser() {
+    final raw = _targetUser.text.trim();
+    if (raw.isEmpty) return (uid: null, email: null);
+    if (raw.contains('@')) {
+      return (uid: null, email: raw.toLowerCase());
+    }
+    return (uid: raw, email: null);
   }
 
   bool _validate() {
@@ -53,6 +65,10 @@ class _AdminBroadcastScreenState extends ConsumerState<AdminBroadcastScreen> {
     }
     if (_audience == 'province' && _province.text.trim().isEmpty) {
       context.showError('İl adı girin (örn. Bursa).');
+      return false;
+    }
+    if (_audience == 'user' && _targetUser.text.trim().isEmpty) {
+      context.showError('E-posta veya kullanıcı UID girin.');
       return false;
     }
     if (_scheduleMode) {
@@ -133,6 +149,7 @@ class _AdminBroadcastScreenState extends ConsumerState<AdminBroadcastScreen> {
     setState(() => _busy = true);
     try {
       final repo = ref.read(adminBroadcastRepositoryProvider);
+      final target = _parseTargetUser();
       if (_scheduleMode && when != null) {
         final res = await repo.schedule(
           title: title,
@@ -142,6 +159,8 @@ class _AdminBroadcastScreenState extends ConsumerState<AdminBroadcastScreen> {
           sendPush: _sendPush,
           profession: _profession.text.trim(),
           province: _province.text.trim(),
+          targetUid: target.uid,
+          targetEmail: target.email,
         );
         if (!mounted) return;
         context.showSuccess(
@@ -155,17 +174,22 @@ class _AdminBroadcastScreenState extends ConsumerState<AdminBroadcastScreen> {
           sendPush: _sendPush,
           profession: _profession.text.trim(),
           province: _province.text.trim(),
+          targetUid: target.uid,
+          targetEmail: target.email,
         );
         if (!mounted) return;
         context.showSuccess('Gönderildi · ${res['recipients'] ?? 0} alıcı.');
       }
       _title.clear();
       _body.clear();
+      _targetUser.clear();
     } catch (e) {
       if (!mounted) return;
       final s = e.toString();
       if (s.contains('resource-exhausted')) {
         context.showError('5 dakika bekleyin (anında gönderim).');
+      } else if (s.contains('not-found')) {
+        context.showError('Kullanıcı bulunamadı (e-posta veya UID).');
       } else if (s.contains('failed-precondition')) {
         context.showError('Hedefte alıcı yok veya filtre hatalı.');
       } else {
@@ -181,6 +205,7 @@ class _AdminBroadcastScreenState extends ConsumerState<AdminBroadcastScreen> {
         'customers' => 'Müşteriler',
         'profession' => 'Meslek: ${_profession.text.trim()}',
         'province' => 'İl: ${_province.text.trim()}',
+        'user' => 'Tek kişi: ${_targetUser.text.trim()}',
         _ => 'Tümü (son 300)',
       };
 
@@ -208,18 +233,36 @@ class _AdminBroadcastScreenState extends ConsumerState<AdminBroadcastScreen> {
                 style: theme.textTheme.titleSmall
                     ?.copyWith(fontWeight: FontWeight.w800)),
             const SizedBox(height: 8),
-            SegmentedButton<bool>(
-              segments: const [
-                ButtonSegment(value: false, label: Text('Şimdi'), icon: Icon(Icons.send, size: 16)),
-                ButtonSegment(value: true, label: Text('Zamanla'), icon: Icon(Icons.schedule, size: 16)),
-              ],
-              selected: {_scheduleMode},
-              onSelectionChanged: _busy
-                  ? null
-                  : (s) => setState(() {
-                        _scheduleMode = s.first;
-                        if (!_scheduleMode) _scheduledAt = null;
-                      }),
+            LayoutBuilder(
+              builder: (context, c) {
+                final compact = c.maxWidth < 360;
+                return SegmentedButton<bool>(
+                  showSelectedIcon: !compact,
+                  segments: [
+                    ButtonSegment(
+                      value: false,
+                      label: Text(compact ? 'Şimdi' : 'Şimdi gönder'),
+                      icon: compact
+                          ? null
+                          : const Icon(Icons.send, size: 16),
+                    ),
+                    ButtonSegment(
+                      value: true,
+                      label: const Text('Zamanla'),
+                      icon: compact
+                          ? null
+                          : const Icon(Icons.schedule, size: 16),
+                    ),
+                  ],
+                  selected: {_scheduleMode},
+                  onSelectionChanged: _busy
+                      ? null
+                      : (s) => setState(() {
+                            _scheduleMode = s.first;
+                            if (!_scheduleMode) _scheduledAt = null;
+                          }),
+                );
+              },
             ),
             if (_scheduleMode) ...[
               const SizedBox(height: 12),
@@ -253,6 +296,7 @@ class _AdminBroadcastScreenState extends ConsumerState<AdminBroadcastScreen> {
                   ('customers', 'Müşteriler'),
                   ('profession', 'Meslek'),
                   ('province', 'İl'),
+                  ('user', 'Tek kişi'),
                 ])
                   ChoiceChip(
                     label: Text(e.$2),
@@ -281,6 +325,19 @@ class _AdminBroadcastScreenState extends ConsumerState<AdminBroadcastScreen> {
                 decoration: const InputDecoration(
                   labelText: 'İl',
                   hintText: 'Bursa',
+                ),
+              ),
+            ],
+            if (_audience == 'user') ...[
+              const SizedBox(height: 12),
+              TextField(
+                controller: _targetUser,
+                enabled: can && !_busy,
+                keyboardType: TextInputType.emailAddress,
+                decoration: const InputDecoration(
+                  labelText: 'E-posta veya UID',
+                  hintText: 'ornek@gmail.com veya Firebase uid',
+                  helperText: '@ içeriyorsa e-posta, değilse UID sayılır',
                 ),
               ),
             ],

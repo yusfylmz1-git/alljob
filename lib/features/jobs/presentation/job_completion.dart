@@ -41,10 +41,10 @@ class JobCompletionCopy {
 
     if (status == JobStatus.disputed) {
       return JobCompletionCopy._(
-        headline: 'Sorun bildirildi — iş beklemede',
+        headline: 'Sorun — beklemede',
         detail:
-            'Anlaşmazlık çözülene dek tamamlanma onayı alınamaz. Gerekirse '
-            'şikayeti geri çekin veya sohbetten konuşun.',
+            'Anlaşmazlık çözülene dek iş kapanmaz. Sohbetten konuşun veya '
+            'şikayeti geri çekin.',
         confirmLabel: confirmLabel,
         confirmedLabel: confirmedLabel,
         canConfirm: false,
@@ -54,7 +54,7 @@ class JobCompletionCopy {
 
     if (status == JobStatus.completed) {
       return JobCompletionCopy._(
-        headline: 'İş tamamlandı',
+        headline: 'Tamamlandı',
         detail: isOwner
             ? 'Her iki taraf onayladı. İsterseniz ustayı değerlendirin.'
             : 'İş bitti. Değerlendirme müşteriden bekleniyor.',
@@ -67,8 +67,8 @@ class JobCompletionCopy {
 
     if (status == JobStatus.rated) {
       return JobCompletionCopy._(
-        headline: 'İş tamamlandı ve değerlendirildi',
-        detail: 'Teşekkürler — bu iş kapanmış durumda.',
+        headline: 'Tamamlandı · değerlendirildi',
+        detail: 'Bu iş kapanmış durumda.',
         confirmLabel: confirmLabel,
         confirmedLabel: confirmedLabel,
         canConfirm: false,
@@ -76,9 +76,9 @@ class JobCompletionCopy {
       );
     }
 
-    if (status != JobStatus.workerSelected && status != JobStatus.inProgress) {
+    if (!status.isInWork) {
       return JobCompletionCopy._(
-        headline: status.labelTR,
+        headline: status.simpleLabelTR,
         detail: 'Bu aşamada tamamlama onayı yok.',
         confirmLabel: confirmLabel,
         confirmedLabel: confirmedLabel,
@@ -87,7 +87,7 @@ class JobCompletionCopy {
       );
     }
 
-    // Aktif iş: onay durumu.
+    // İş yürüyor: çift onay (arka planda aynı mantık, sade metin).
     final remaining = job.autoCompleteAt?.difference(DateTime.now());
     final showCountdown = myDone != otherDone &&
         job.autoCompleteAt != null &&
@@ -95,14 +95,10 @@ class JobCompletionCopy {
 
     if (!myDone && !otherDone) {
       return JobCompletionCopy._(
-        headline: status == JobStatus.workerSelected
-            ? 'Usta seçildi · iş sürüyor'
-            : 'İş sürüyor',
+        headline: 'İş yürüyor',
         detail: isOwner
-            ? 'İş bittiğinde “İş bitti, onaylıyorum” deyin. Usta da onaylayınca '
-                'iş kapanır.'
-            : 'İşi bitirince “İşi teslim ettim” deyin. Müşteri de onaylayınca '
-                'iş kapanır.',
+            ? 'Bitince “İş bitti, onaylıyorum” deyin. Usta da onaylayınca kapanır.'
+            : 'Bitince “İşi teslim ettim” deyin. Müşteri de onaylayınca kapanır.',
         confirmLabel: confirmLabel,
         confirmedLabel: confirmedLabel,
         canConfirm: canConfirm,
@@ -112,13 +108,13 @@ class JobCompletionCopy {
 
     if (myDone && !otherDone) {
       final wait = remaining != null && !remaining.isNegative
-          ? ' Kalan süre: ${formatRemaining(remaining)}.'
+          ? ' Kalan: ${formatRemaining(remaining)}.'
           : '';
       return JobCompletionCopy._(
-        headline: 'Siz onayladınız · karşı taraf bekleniyor',
+        headline: 'Onayınız alındı · karşı taraf bekleniyor',
         detail:
-            '${isOwner ? "Usta" : "Müşteri"} onaylamazsa süre dolunca iş '
-            'otomatik tamamlanır.$wait',
+            '${isOwner ? "Usta" : "Müşteri"} onaylamazsa süre dolunca '
+            'otomatik kapanır.$wait',
         confirmLabel: confirmLabel,
         confirmedLabel: confirmedLabel,
         canConfirm: false,
@@ -129,15 +125,13 @@ class JobCompletionCopy {
 
     // otherDone && !myDone
     final wait = remaining != null && !remaining.isNegative
-        ? ' Otomatik tamamlanmaya: ${formatRemaining(remaining)}.'
+        ? ' Otomatik kapanış: ${formatRemaining(remaining)}.'
         : '';
     return JobCompletionCopy._(
-      headline: isOwner
-          ? 'Usta işi teslim etti · sizin onayınız bekleniyor'
-          : 'Müşteri onayladı · sizin onayınız bekleniyor',
+      headline: 'Sizin onayınız bekleniyor',
       detail:
-          'Onaylarsanız iş hemen tamamlanır.$wait '
-          'Yanıt vermezseniz süre sonunda sistem kapatır.',
+          'Onaylarsanız iş hemen kapanır.$wait '
+          'Yanıt yoksa süre sonunda sistem kapatır.',
       confirmLabel: confirmLabel,
       confirmedLabel: confirmedLabel,
       canConfirm: canConfirm,

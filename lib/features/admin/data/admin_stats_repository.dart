@@ -7,6 +7,7 @@ class AdminStatsSnapshot {
     this.usersTotal = 0,
     this.usersSuspended = 0,
     this.artisansTotal = 0,
+    this.productsTotal = 0,
     this.jobsOpen = 0,
     this.jobsInProgress = 0,
     this.jobsCompleted = 0,
@@ -22,6 +23,7 @@ class AdminStatsSnapshot {
   final int usersTotal;
   final int usersSuspended;
   final int artisansTotal;
+  final int productsTotal;
   final int jobsOpen;
   final int jobsInProgress;
   final int jobsCompleted;
@@ -57,6 +59,7 @@ class AdminStatsSnapshot {
       usersTotal: i('usersTotal'),
       usersSuspended: i('usersSuspended'),
       artisansTotal: i('artisansTotal'),
+      productsTotal: i('productsTotal'),
       jobsOpen: i('jobsOpen'),
       jobsInProgress: i('jobsInProgress'),
       jobsCompleted: i('jobsCompleted'),

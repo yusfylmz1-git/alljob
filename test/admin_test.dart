@@ -47,7 +47,6 @@ Job _dispute(
       province: 'İstanbul',
       district: 'Kadıköy',
       photos: const [],
-      isUrgent: false,
       priceType: JobPriceType.inspection,
       status: JobStatus.disputed,
       offerCount: 1,
@@ -446,7 +445,9 @@ void main() {
       final repo = MockAuthRepository();
       addTearDown(repo.dispose);
       await repo.register(
-          displayName: 'N', email: 'siradan@ornek.com', password: 'sifre123');
+          displayName: 'Normal Üye',
+          email: 'siradan@ornek.com',
+          password: 'sifre123');
 
       expect(() => repo.claimAdminAccess(), throwsA(isA<Exception>()));
       expect(repo.currentUser?.isAdmin, isFalse);
@@ -454,7 +455,7 @@ void main() {
   });
 
   group('Admin dizin sayfalama (Wave 1)', () {
-    AppUser _u(String id, DateTime t,
+    AppUser u(String id, DateTime t,
             {bool suspended = false, bool artisan = false}) =>
         AppUser(
           uid: id,
@@ -468,10 +469,10 @@ void main() {
     test('kullanıcı fetchPage createdAt desc + filtre + cursor', () async {
       final base = DateTime.utc(2026, 7, 1);
       final repo = MockAdminUserRepository([
-        _u('a', base),
-        _u('b', base.add(const Duration(days: 1)), suspended: true),
-        _u('c', base.add(const Duration(days: 2)), artisan: true),
-        _u('d', base.add(const Duration(days: 3))),
+        u('a', base),
+        u('b', base.add(const Duration(days: 1)), suspended: true),
+        u('c', base.add(const Duration(days: 2)), artisan: true),
+        u('d', base.add(const Duration(days: 3))),
       ]);
       final all = await repo.fetchPage(limit: 2);
       expect(all.map((u) => u.uid), ['d', 'c']);
@@ -497,7 +498,6 @@ void main() {
             province: 'İstanbul',
             district: 'Kadıköy',
             photos: const [],
-            isUrgent: false,
             priceType: JobPriceType.inspection,
             status: s,
             offerCount: 0,

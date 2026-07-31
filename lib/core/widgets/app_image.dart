@@ -52,7 +52,15 @@ class AppImage extends ConsumerWidget {
     if (h.startsWith('local://')) {
       final bytes = ref.read(storageRepositoryProvider).localBytes(h);
       if (bytes == null) return placeholder ?? _placeholder(context);
-      return Image.memory(bytes, fit: fit, width: width, height: height);
+      return Image.memory(
+        bytes,
+        fit: fit,
+        width: width,
+        height: height,
+        alignment: Alignment.center,
+        filterQuality: FilterQuality.medium,
+        gaplessPlayback: true,
+      );
     }
 
     if (h.startsWith('http')) {
@@ -63,6 +71,7 @@ class AppImage extends ConsumerWidget {
         fit: fit,
         width: width,
         height: height,
+        alignment: Alignment.center,
         memCacheWidth: memCacheWidth,
         memCacheHeight: memCacheHeight,
         fadeInDuration: fadeInDuration,

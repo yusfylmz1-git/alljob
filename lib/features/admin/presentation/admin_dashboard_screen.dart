@@ -63,16 +63,21 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
             : 'Son güncelleme: ${stats.updatedAt!.toLocal()}',
         actions: [
           if (isSuper)
-            FilledButton.tonalIcon(
-              onPressed: _rebuilding ? null : _rebuild,
-              icon: _rebuilding
-                  ? const SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.restart_alt_rounded, size: 18),
-              label: const Text('Sayaçları yenile'),
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+              child: FilledButton.tonalIcon(
+                onPressed: _rebuilding ? null : _rebuild,
+                icon: _rebuilding
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.restart_alt_rounded, size: 18),
+                label: Text(
+                  AdminChrome.isCompact(context) ? 'Yenile' : 'Sayaçları yenile',
+                ),
+              ),
             ),
         ],
       ),

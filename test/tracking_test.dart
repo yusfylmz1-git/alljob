@@ -428,7 +428,7 @@ void main() {
       // akışa yansımasını bekle.
       container.listen(currentUserProvider, (_, _) {});
       final user = await container.read(authRepositoryProvider).register(
-            displayName: 'N',
+            displayName: 'Nur Can',
             email: 'n@o.com',
             password: 'sifre123',
           );
@@ -521,7 +521,7 @@ void main() {
       ]);
       container.listen(currentUserProvider, (_, _) {});
       final user = await container.read(authRepositoryProvider).register(
-            displayName: 'N', email: 'a@o.com', password: 'sifre123');
+            displayName: 'Nur Can', email: 'a@o.com', password: 'sifre123');
       for (var i = 0;
           i < 200 && container.read(currentUserProvider)?.uid != user.uid;
           i++) {
@@ -580,7 +580,7 @@ void main() {
       ]);
       container.listen(currentUserProvider, (_, _) {});
       final user = await container.read(authRepositoryProvider).register(
-          displayName: 'N', email: 'b@o.com', password: 'sifre123');
+          displayName: 'Nur Can', email: 'b@o.com', password: 'sifre123');
       for (var i = 0;
           i < 200 && container.read(currentUserProvider)?.uid != user.uid;
           i++) {

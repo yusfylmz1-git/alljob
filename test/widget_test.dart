@@ -68,9 +68,10 @@ void main() {
         Validators.freeText('********"""', min: 3, max: 80, required: true),
         isNotNull,
       );
+      // Kontrol karakteri temizlenir (yapıştırma); metin geçerli kalır.
       expect(
         Validators.freeText('Ali\u0000test', min: 3, max: 80),
-        isNotNull,
+        isNull,
       );
     });
   });

@@ -4,7 +4,7 @@ import 'package:intl/intl.dart';
 
 import '../../../../core/router/route_paths.dart';
 import '../../../../core/theme/app_palette.dart';
-import '../../../../core/theme/app_theme.dart';
+import '../../../../core/widgets/premium_surface_card.dart';
 import '../../../../data/models/job.dart';
 
 /// Meslek/kategori koduna göre ilan kartında gösterilecek emoji.
@@ -42,6 +42,7 @@ String jobCategoryEmoji(String category) {
 }
 
 /// İlan durumunu renkli bir çip olarak gösterir (süre dolumu dahil).
+/// Metin: [JobStatus.simpleLabelTR] — 3 evreli sade dil.
 class JobStatusChip extends StatelessWidget {
   const JobStatusChip({super.key, required this.status});
 
@@ -50,15 +51,22 @@ class JobStatusChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final palette = context.palette;
+    // workerSelected + inProgress aynı “İş yürüyor” rengi.
     final (Color fg, Color bg) = switch (status) {
       JobStatus.open => (palette.info, palette.infoSurface),
-      JobStatus.workerSelected => (palette.premium, palette.premiumSurface),
-      JobStatus.inProgress => (palette.warning, palette.warningSurface),
-      JobStatus.completed => (palette.success, palette.successSurface),
-      JobStatus.rated => (palette.success, palette.successSurface),
+      JobStatus.workerSelected || JobStatus.inProgress => (
+          palette.warning,
+          palette.warningSurface,
+        ),
+      JobStatus.completed || JobStatus.rated => (
+          palette.success,
+          palette.successSurface,
+        ),
       JobStatus.disputed => (palette.danger, palette.dangerSurface),
-      JobStatus.cancelled => (palette.inkMuted, palette.surfaceMuted),
-      JobStatus.expired => (palette.inkMuted, palette.surfaceMuted),
+      JobStatus.cancelled || JobStatus.expired => (
+          palette.inkMuted,
+          palette.surfaceMuted,
+        ),
     };
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
@@ -67,53 +75,17 @@ class JobStatusChip extends StatelessWidget {
         borderRadius: BorderRadius.circular(999),
       ),
       child: Text(
-        status.labelTR,
+        status.simpleLabelTR,
         style: TextStyle(color: fg, fontWeight: FontWeight.w700, fontSize: 12),
       ),
     );
   }
 }
 
-/// 🚨 Acil rozeti.
-class UrgentBadge extends StatelessWidget {
-  const UrgentBadge({super.key, this.compact = false});
-
-  final bool compact;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: EdgeInsets.symmetric(horizontal: compact ? 8 : 10, vertical: 4),
-      decoration: BoxDecoration(
-        color: context.palette.danger,
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Icon(Icons.warning_amber_rounded, size: 14, color: Colors.white),
-          const SizedBox(width: 4),
-          Text(
-            'ACİL',
-            style: const TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.w800,
-              fontSize: 11,
-              letterSpacing: 0.5,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// İlan akış kartı — usta feed'i ve Keşfet "İş İlanları" (usta modu) paneli.
-/// KOMPAKT düzen (liste kalabalıklaşınca ekrana çok ilan sığsın): emoji rozeti
-/// + başlık/acil + tek satır açıklama + "📍 ilçe · zaman · N ilgilendi" meta
-/// satırı. Kartın tamamı tıklanabilir; ayrı CTA satırı kaldırıldı.
-/// Acil ilan kırmızı vurgulanır (#urgent). [ctaText] geriye dönük uyum için
-/// duruyor (artık görsel olarak kullanılmıyor).
+/// İlan akış kartı — usta feed'i ve Keşfet "İlanlar" (usta modu) paneli.
+/// KOMPAKT düzen: emoji rozeti + başlık + 1 satır açıklama +
+/// "📍 ilçe · zaman · N ilgilendi" meta. Kartın tamamı tıklanabilir.
+/// [ctaText] geriye dönük uyum için duruyor (görsel olarak kullanılmıyor).
 class NearbyJobCard extends StatelessWidget {
   const NearbyJobCard({
     super.key,
@@ -131,82 +103,53 @@ class NearbyJobCard extends StatelessWidget {
     final ago = _timeAgo(job.createdAt);
     final offers = job.offerCount > 0 ? ' · ${job.offerCount} ilgilendi' : '';
 
-    return Material(
-      color: palette.card,
-      borderRadius: BorderRadius.circular(16),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(16),
-        onTap: () => context.push(RoutePaths.jobDetail(job.jobId)),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
-          decoration: BoxDecoration(
-            color: palette.card,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-                color: job.isUrgent ? palette.danger : palette.hairline,
-                width: job.isUrgent ? 1.4 : 1),
-            boxShadow: AppTheme.softShadow,
+    return PremiumSurfaceCard(
+      onTap: () => context.push(RoutePaths.jobDetail(job.jobId)),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+      borderRadius: 16,
+      glass: false, // iş ilanı listeleri: düz kart, gradyan yok
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          PremiumIconWell(
+            size: 44,
+            child: Text(jobCategoryEmoji(job.category),
+                style: const TextStyle(fontSize: 20)),
           ),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Meslek emojisi rozeti.
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: palette.surfaceMuted,
-                  borderRadius: BorderRadius.circular(12),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(job.title,
+                    style: theme.textTheme.titleSmall
+                        ?.copyWith(fontWeight: FontWeight.w800),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis),
+                const SizedBox(height: 3),
+                Text(job.description,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.bodySmall
+                        ?.copyWith(color: palette.inkMuted)),
+                const SizedBox(height: 4),
+                Text(
+                  '📍 ${job.district} · $ago$offers',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.bodySmall
+                      ?.copyWith(color: palette.inkMuted, fontSize: 11.5),
                 ),
-                alignment: Alignment.center,
-                child: Text(jobCategoryEmoji(job.category),
-                    style: const TextStyle(fontSize: 20)),
-              ),
-              const SizedBox(width: 11),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(job.title,
-                              style: theme.textTheme.titleSmall
-                                  ?.copyWith(fontWeight: FontWeight.w700),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis),
-                        ),
-                        if (job.isUrgent) ...[
-                          const SizedBox(width: 6),
-                          const UrgentBadge(compact: true),
-                        ],
-                      ],
-                    ),
-                    const SizedBox(height: 2),
-                    Text(job.description,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: theme.textTheme.bodySmall),
-                    const SizedBox(height: 3),
-                    Text(
-                      '📍 ${job.district} · $ago$offers',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.bodySmall
-                          ?.copyWith(color: palette.inkMuted, fontSize: 11.5),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 4),
-              Padding(
-                padding: const EdgeInsets.only(top: 10),
-                child: Icon(Icons.chevron_right,
-                    size: 20, color: palette.inkMuted),
-              ),
-            ],
+              ],
+            ),
           ),
-        ),
+          const SizedBox(width: 4),
+          Padding(
+            padding: const EdgeInsets.only(top: 10),
+            child: Icon(Icons.chevron_right,
+                size: 20, color: palette.inkMuted),
+          ),
+        ],
       ),
     );
   }

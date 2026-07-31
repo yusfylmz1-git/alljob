@@ -13,7 +13,13 @@ abstract final class AdminChrome {
   static const Color surface = Color(0xFFF8FAFC);
   static const Color cardBorder = Color(0xFFE2E8F0);
 
+  /// Dar ekran (telefon) — kabuk zaten başlık/menü gösteriyor; çift AppBar olmasın.
+  static bool isCompact(BuildContext context) =>
+      MediaQuery.sizeOf(context).width < 900;
+
   /// Sayfa üst şeridi: başlık + alt yazı + aksiyonlar (GradientAppBar yerine).
+  ///
+  /// Telefonda yalnız aksiyonlar (varsa) ince şerit; başlık shell AppBar'da.
   static PreferredSizeWidget pageHeader({
     required BuildContext context,
     required String title,
@@ -22,6 +28,44 @@ abstract final class AdminChrome {
     List<Widget>? actions,
   }) {
     final theme = Theme.of(context);
+    final compact = isCompact(context);
+    final hasActions = actions != null && actions.isNotEmpty;
+
+    if (compact && !hasActions) {
+      return const PreferredSize(
+        preferredSize: Size.zero,
+        child: SizedBox.shrink(),
+      );
+    }
+
+    if (compact) {
+      // Yalnız aksiyonlar — dar ekranda taşmayı engellemek için sarmalayıcı.
+      return PreferredSize(
+        preferredSize: const Size.fromHeight(52),
+        child: Material(
+          color: theme.colorScheme.surface,
+          child: Container(
+            decoration: BoxDecoration(
+              border: Border(
+                bottom: BorderSide(
+                    color: theme.dividerColor.withValues(alpha: 0.6)),
+              ),
+            ),
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            alignment: Alignment.centerRight,
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              reverse: true,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: actions!,
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
     return PreferredSize(
       preferredSize: const Size.fromHeight(64),
       child: Material(
@@ -75,7 +119,7 @@ abstract final class AdminChrome {
                     ],
                   ),
                 ),
-                if (actions != null) ...actions,
+                if (hasActions) ...actions,
               ],
             ),
           ),

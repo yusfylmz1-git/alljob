@@ -4,8 +4,6 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/router/route_paths.dart';
 import '../../../core/theme/app_palette.dart';
-import '../../../core/theme/app_theme.dart';
-import '../../../core/widgets/app_image.dart';
 import '../../../core/widgets/surface_app_bar.dart';
 import '../../../core/widgets/pull_to_refresh.dart';
 import '../../../core/widgets/responsive_center.dart';
@@ -13,6 +11,7 @@ import '../../../core/widgets/status_views.dart';
 import '../data/staffing_providers.dart';
 import 'worker_detailed_search_sheet.dart';
 import 'worker_search_filter.dart';
+import 'widgets/staff_cards.dart';
 
 /// ELEMAN ARIYORUM — müsait eleman listesi.
 class WorkerBrowseScreen extends ConsumerStatefulWidget {
@@ -250,63 +249,10 @@ class _WorkerBrowseScreenState extends ConsumerState<WorkerBrowseScreen> {
                                   color: palette.inkMuted));
                         }
                       final w = list[i - 1];
-                      return Material(
-                        color: palette.card,
-                        borderRadius: BorderRadius.circular(14),
-                        child: InkWell(
-                          borderRadius: BorderRadius.circular(14),
-                          onTap: () => context
-                              .push(RoutePaths.staffWorkerDetail(w.id)),
-                          child: Container(
-                            padding: const EdgeInsets.all(14),
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(14),
-                              border: Border.all(color: palette.border),
-                              boxShadow: AppTheme.softShadow,
-                            ),
-                            child: Row(
-                              children: [
-                                AppAvatar(
-                                    name: w.displayName,
-                                    photo: w.photoUrl,
-                                    size: 48),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(w.title,
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: const TextStyle(
-                                              fontWeight: FontWeight.w800)),
-                                      Text(
-                                        '${w.professionLabel} · ${w.placeLabel}',
-                                        style: TextStyle(
-                                            fontSize: 12,
-                                            color: palette.inkMuted),
-                                      ),
-                                      Text(
-                                        [
-                                          w.rateLabel,
-                                          if (w.isDaily) 'Gündelik',
-                                        ].join(' · '),
-                                        style: TextStyle(
-                                          fontSize: 12,
-                                          color: palette.primary,
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                Icon(Icons.chevron_right,
-                                    color: palette.inkFaint),
-                              ],
-                            ),
-                          ),
-                        ),
+                      return StaffWorkerCard(
+                        worker: w,
+                        onTap: () =>
+                            context.push(RoutePaths.staffWorkerDetail(w.id)),
                       );
                     },
                     ),

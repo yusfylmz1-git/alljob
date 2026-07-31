@@ -18,6 +18,7 @@ class ArtisanProfile {
     required this.averageRating,
     required this.totalReviews,
     required this.totalRatingSum,
+    this.topTags = const [],
     this.completedJobs = 0,
     required this.isPremium,
     required this.alwaysAvailable,
@@ -28,6 +29,8 @@ class ArtisanProfile {
     this.adminVerified = false,
     this.featured = false,
     this.moderationHidden = false,
+    this.showPhoneOnProfile = false,
+    this.publicPhone,
   });
 
   final String uid;
@@ -53,6 +56,20 @@ class ArtisanProfile {
   final bool adminVerified;
   final bool featured;
   final bool moderationHidden;
+
+  /// Usta, doğrulanmış telefonunu vitrinde herkese açık göstermeyi seçti mi?
+  /// true ise [publicPhone] profilde (avatar altında) görünür ve aramaya açılır.
+  final bool showPhoneOnProfile;
+
+  /// Vitrinde gösterilecek E.164 telefon (yalnız [showPhoneOnProfile] true iken).
+  /// Private `users/.../contact` kopyası değildir; açık rıza ile yazılır.
+  final String? publicPhone;
+
+  /// Profilde aranabilir telefon gösterilsin mi?
+  bool get hasPublicPhone =>
+      showPhoneOnProfile &&
+      publicPhone != null &&
+      publicPhone!.trim().isNotEmpty;
 
   /// Mavi tik: telefon yolu VEYA platform onayı (e-posta tek başına yetmez).
   bool get showVerifiedBadge => isVerified || adminVerified;
@@ -93,6 +110,11 @@ class ArtisanProfile {
   final double averageRating;
   final int totalReviews;
   final int totalRatingSum;
+
+  /// En sık verilen (olumlu) değerlendirme etiketleri; en çok 3. Yalnızca
+  /// Cloud Functions `onReviewWritten` günceller (tagCounts'tan türetilir).
+  /// Keşfet / ana sayfa usta kartındaki rozetler bunu gösterir.
+  final List<String> topTags;
 
   /// Tamamlanan iş sayısı — yalnızca Cloud Functions günceller (`onJobWritten`,
   /// iş `completed` durumuna İLK geçtiğinde +1). İstemci yazamaz (kural).
@@ -184,6 +206,9 @@ class ArtisanProfile {
     bool? alwaysAvailable,
     bool? manualPause,
     WeeklySchedule? weeklySchedule,
+    bool? showPhoneOnProfile,
+    String? publicPhone,
+    bool clearPublicPhone = false,
   }) {
     final nextList = professions ?? this.professions;
     final nextPrimary = profession ??
@@ -202,6 +227,7 @@ class ArtisanProfile {
       averageRating: averageRating,
       totalReviews: totalReviews,
       totalRatingSum: totalRatingSum,
+      topTags: topTags,
       completedJobs: completedJobs,
       isPremium: isPremium ?? this.isPremium,
       premiumExpiresAt: premiumExpiresAt ?? this.premiumExpiresAt,
@@ -212,6 +238,9 @@ class ArtisanProfile {
       adminVerified: adminVerified,
       featured: featured,
       moderationHidden: moderationHidden,
+      showPhoneOnProfile: showPhoneOnProfile ?? this.showPhoneOnProfile,
+      publicPhone:
+          clearPublicPhone ? null : (publicPhone ?? this.publicPhone),
     );
   }
 
@@ -221,6 +250,7 @@ class ArtisanProfile {
     required double averageRating,
     required int totalReviews,
     required int totalRatingSum,
+    List<String>? topTags,
     int? completedJobs,
   }) {
     return ArtisanProfile(
@@ -237,6 +267,7 @@ class ArtisanProfile {
       averageRating: averageRating,
       totalReviews: totalReviews,
       totalRatingSum: totalRatingSum,
+      topTags: topTags ?? this.topTags,
       completedJobs: completedJobs ?? this.completedJobs,
       isPremium: isPremium,
       premiumExpiresAt: premiumExpiresAt,
@@ -247,6 +278,8 @@ class ArtisanProfile {
       adminVerified: adminVerified,
       featured: featured,
       moderationHidden: moderationHidden,
+      showPhoneOnProfile: showPhoneOnProfile,
+      publicPhone: publicPhone,
     );
   }
 
@@ -270,6 +303,7 @@ class ArtisanProfile {
       'averageRating': averageRating,
       'totalReviews': totalReviews,
       'totalRatingSum': totalRatingSum,
+      'topTags': topTags,
       'completedJobs': completedJobs,
       'isPremium': isPremium,
       'premiumExpiresAt': premiumExpiresAt?.toIso8601String(),
@@ -277,6 +311,8 @@ class ArtisanProfile {
       'manualPause': manualPause,
       'weeklySchedule': weeklySchedule.toMap(),
       'createdAt': createdAt.toIso8601String(),
+      'showPhoneOnProfile': showPhoneOnProfile,
+      'publicPhone': publicPhone,
     };
   }
 
@@ -311,6 +347,10 @@ class ArtisanProfile {
       averageRating: (map['averageRating'] as num?)?.toDouble() ?? 0,
       totalReviews: (map['totalReviews'] as num?)?.toInt() ?? 0,
       totalRatingSum: (map['totalRatingSum'] as num?)?.toInt() ?? 0,
+      topTags: ((map['topTags'] as List?) ?? const [])
+          .map((e) => e.toString())
+          .where((s) => s.trim().isNotEmpty)
+          .toList(),
       completedJobs: (map['completedJobs'] as num?)?.toInt() ?? 0,
       isPremium: (map['isPremium'] as bool?) ?? false,
       premiumExpiresAt: map['premiumExpiresAt'] != null
@@ -324,6 +364,8 @@ class ArtisanProfile {
       adminVerified: map['adminVerified'] == true,
       featured: map['featured'] == true,
       moderationHidden: map['moderationHidden'] == true,
+      showPhoneOnProfile: map['showPhoneOnProfile'] == true,
+      publicPhone: map['publicPhone'] as String?,
     );
   }
 }

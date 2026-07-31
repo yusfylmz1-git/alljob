@@ -4,7 +4,7 @@ import 'package:intl/date_symbol_data_local.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:usta_cepte/app.dart';
 import 'package:usta_cepte/features/auth/application/auth_controller.dart';
-import 'package:usta_cepte/features/customer/presentation/customer_dashboard_screen.dart';
+import 'package:usta_cepte/features/home/presentation/home_screen.dart';
 import 'package:usta_cepte/features/onboarding/onboarding_state.dart';
 import 'package:usta_cepte/features/onboarding/presentation/onboarding_screen.dart';
 
@@ -41,7 +41,7 @@ void main() {
     await tester.tap(find.text('Atla'));
     await tester.pump();
     await tester.pump(const Duration(seconds: 1));
-    expect(find.byType(CustomerDashboardScreen), findsOneWidget);
+    expect(find.byType(HomeScreen), findsOneWidget);
     expect(container.read(onboardingSeenProvider), isTrue);
   });
 
@@ -77,7 +77,7 @@ void main() {
     await tester.tap(find.text('Atla'));
     await tester.pump();
     await tester.pump(const Duration(seconds: 1));
-    expect(find.byType(CustomerDashboardScreen), findsOneWidget);
+    expect(find.byType(HomeScreen), findsOneWidget);
     expect(container.read(onboardingSeenProvider), isTrue);
   });
 
@@ -96,6 +96,6 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(seconds: 1));
     expect(find.byType(OnboardingScreen), findsNothing);
-    expect(find.byType(CustomerDashboardScreen), findsOneWidget);
+    expect(find.byType(HomeScreen), findsOneWidget);
   });
 }

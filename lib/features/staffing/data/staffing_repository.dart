@@ -39,7 +39,10 @@ class MockStaffingRepository implements StaffingRepository {
     bool? dailyOnly,
   }) async* {
     List<StaffWorkerListing> snap() {
-      var list = _workers.values.where((w) => w.openToWork).toList();
+      // Firebase paritesi: admin gizlemesi listede görünmez.
+      var list = _workers.values
+          .where((w) => w.openToWork && !w.moderationHidden)
+          .toList();
       if (province != null && province.isNotEmpty) {
         list = list.where((w) => w.province == province).toList();
       }
@@ -86,7 +89,9 @@ class MockStaffingRepository implements StaffingRepository {
     bool? dailyOnly,
   }) async* {
     List<StaffNeed> snap() {
-      var list = _needs.values.where((n) => n.isOpen).toList();
+      // Firebase paritesi: admin gizlemesi listede görünmez.
+      var list =
+          _needs.values.where((n) => n.isOpen && !n.moderationHidden).toList();
       if (province != null && province.isNotEmpty) {
         list = list.where((n) => n.province == province).toList();
       }

@@ -17,11 +17,23 @@ class ResponsiveCenter extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Telefonda yatay padding'i sıkıştır (admin formları taşmasın).
+    final w = MediaQuery.sizeOf(context).width;
+    EdgeInsetsGeometry effectivePadding = padding;
+    if (w < 600 && padding is EdgeInsets) {
+      final p = padding as EdgeInsets;
+      effectivePadding = EdgeInsets.fromLTRB(
+        p.left.clamp(0, 12),
+        p.top,
+        p.right.clamp(0, 12),
+        p.bottom,
+      );
+    }
     return Align(
       alignment: Alignment.topCenter,
       child: ConstrainedBox(
         constraints: BoxConstraints(maxWidth: maxWidth),
-        child: Padding(padding: padding, child: child),
+        child: Padding(padding: effectivePadding, child: child),
       ),
     );
   }

@@ -73,6 +73,9 @@ class _ReportSheetState extends State<_ReportSheet> {
         ReportTarget.message => 'Mesajı Şikayet Et',
         ReportTarget.job => 'İlanı Şikayet Et',
         ReportTarget.user => 'Kullanıcıyı Şikayet Et',
+        ReportTarget.staffWorker => 'Eleman Profilini Şikayet Et',
+        ReportTarget.staffNeed => 'Eleman İlanını Şikayet Et',
+        ReportTarget.product => 'Ürünü Şikayet Et',
       };
 
   @override

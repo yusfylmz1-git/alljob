@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/router/route_paths.dart';
 import '../../../core/theme/app_colors.dart';
@@ -15,7 +16,9 @@ import '../../../core/widgets/responsive_center.dart';
 import '../../../core/widgets/status_views.dart';
 import '../../../data/local/mock_database.dart' show kProfessionNames;
 import '../../../data/models/artisan_profile.dart';
+import '../../../data/models/product.dart';
 import '../../../data/models/review.dart';
+import '../../products/data/product_providers.dart';
 import '../../artisan/data/artisan_providers.dart';
 import '../../artisan/data/artisan_repository.dart';
 import '../../auth/application/auth_controller.dart';
@@ -24,7 +27,8 @@ import '../../chat/data/chat_providers.dart';
 import '../../favorites/presentation/favorite_button.dart';
 
 /// Ekran D — Usta Profil Sayfası (salt okunur). Müşteri kartına dokununca açılır.
-/// İletişim bilgisi (telefon/e-posta) burada ASLA gösterilmez (PRD §6).
+/// E-posta asla gösterilmez. Telefon yalnız usta açık rıza verdiyse
+/// ([ArtisanProfile.hasPublicPhone]) avatar altında görünür.
 class ArtisanProfileScreen extends ConsumerWidget {
   const ArtisanProfileScreen({super.key, required this.uid});
 
@@ -143,6 +147,13 @@ class _ProfileBody extends ConsumerWidget {
                           : _WorkPhotoGrid(handles: profile.workPhotos),
                     ),
                     const SizedBox(height: 14),
+
+                    // Dükkan — ustanın Keşfet vitrini için sattığı ürünler.
+                    // Ürünü varsa yatay önizleme + "Tümünü Gör"; yoksa gizli.
+                    _ShopSection(
+                      sellerUid: detail.uid,
+                      sellerName: detail.displayName,
+                    ),
 
                     _Section(
                       icon: Icons.location_on_outlined,
@@ -265,6 +276,65 @@ class _ProfileBody extends ConsumerWidget {
   }
 }
 
+/// Avatar altında tıklanabilir telefon — `tel:` ile aramaya yönlendirir.
+class _PublicPhoneChip extends StatelessWidget {
+  const _PublicPhoneChip({required this.phoneE164});
+  final String phoneE164;
+
+  static String formatTr(String e164) {
+    final d = e164.replaceAll(RegExp(r'\D'), '');
+    if (d.length == 12 && d.startsWith('90')) {
+      final n = d.substring(2);
+      return '0${n.substring(0, 3)} ${n.substring(3, 6)} '
+          '${n.substring(6, 8)} ${n.substring(8)}';
+    }
+    return e164;
+  }
+
+  Future<void> _call(BuildContext context) async {
+    final uri = Uri(scheme: 'tel', path: phoneE164);
+    try {
+      final ok = await launchUrl(uri);
+      if (!ok && context.mounted) {
+        context.showError('Arama başlatılamadı.');
+      }
+    } catch (_) {
+      if (context.mounted) context.showError('Arama başlatılamadı.');
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final label = formatTr(phoneE164);
+    return Material(
+      color: Colors.white.withValues(alpha: 0.14),
+      borderRadius: BorderRadius.circular(24),
+      child: InkWell(
+        onTap: () => _call(context),
+        borderRadius: BorderRadius.circular(24),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.phone_rounded, size: 18, color: Colors.white),
+              const SizedBox(width: 8),
+              Text(
+                label,
+                style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0.2,
+                    ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 /// 3 sütunlu iş fotoğrafı ızgarası (Instagram vitrin).
 class _WorkPhotoGrid extends StatelessWidget {
   const _WorkPhotoGrid({required this.handles});
@@ -372,7 +442,7 @@ void _showCertificate(BuildContext context, String handle) {
             borderRadius:
                 const BorderRadius.vertical(top: Radius.circular(12)),
             child: InteractiveViewer(
-              child: AppImage(handle: handle),
+              child: AppImage(handle: handle, fit: BoxFit.contain),
             ),
           ),
           Align(
@@ -451,46 +521,53 @@ class _HeroHeader extends StatelessWidget {
                   color:
                       available ? null : Colors.white.withValues(alpha: 0.3),
                 ),
-                child: Container(
-                  padding: const EdgeInsets.all(3),
-                  decoration: const BoxDecoration(
-                    color: Color(0xFF13293F),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Builder(
-                    builder: (context) {
-                      final letter = Container(
-                        width: 92,
-                        height: 92,
-                        decoration: const BoxDecoration(
-                          gradient: AppColors.brandGradient,
-                          shape: BoxShape.circle,
-                        ),
-                        alignment: Alignment.center,
-                        child: Text(initials,
-                            style: const TextStyle(
-                              fontSize: 34,
-                              fontWeight: FontWeight.w700,
-                              color: Colors.white,
-                            )),
-                      );
-                      final url = detail.profilePhotoUrl?.trim();
-                      if (url == null || url.isEmpty) return letter;
-                      return ClipOval(
-                        child: SizedBox(
+                child: GestureDetector(
+                  // Fotoğrafa dokun → hızlı aksiyon menüsü (Ara / Sohbet).
+                  // Kendi profilinde menü açılmaz.
+                  onTap: isOwner
+                      ? null
+                      : () => _showProfileQuickActions(context, detail),
+                  child: Container(
+                    padding: const EdgeInsets.all(3),
+                    decoration: const BoxDecoration(
+                      color: Color(0xFF13293F),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Builder(
+                      builder: (context) {
+                        final letter = Container(
                           width: 92,
                           height: 92,
-                          child: AppImage(
-                            handle: url,
+                          decoration: const BoxDecoration(
+                            gradient: AppColors.brandGradient,
+                            shape: BoxShape.circle,
+                          ),
+                          alignment: Alignment.center,
+                          child: Text(initials,
+                              style: const TextStyle(
+                                fontSize: 34,
+                                fontWeight: FontWeight.w700,
+                                color: Colors.white,
+                              )),
+                        );
+                        final url = detail.profilePhotoUrl?.trim();
+                        if (url == null || url.isEmpty) return letter;
+                        return ClipOval(
+                          child: SizedBox(
                             width: 92,
                             height: 92,
-                            memCacheWidth: 184,
-                            memCacheHeight: 184,
-                            placeholder: letter,
+                            child: AppImage(
+                              handle: url,
+                              width: 92,
+                              height: 92,
+                              memCacheWidth: 184,
+                              memCacheHeight: 184,
+                              placeholder: letter,
+                            ),
                           ),
-                        ),
-                      );
-                    },
+                        );
+                      },
+                    ),
                   ),
                 ),
               ),
@@ -523,6 +600,11 @@ class _HeroHeader extends StatelessWidget {
                   color: Colors.white.withValues(alpha: 0.72),
                 ),
               ),
+              // Açık rıza ile vitrin telefonu (avatar/ad altında).
+              if (profile.hasPublicPhone) ...[
+                const SizedBox(height: 10),
+                _PublicPhoneChip(phoneE164: profile.publicPhone!),
+              ],
               const SizedBox(height: 12),
               // Müsaitlik durumu (PRD §3).
               Container(
@@ -717,6 +799,115 @@ class _Stat extends StatelessWidget {
 }
 
 /// İkonlu başlığı olan, ince kenarlı beyaz bölüm kartı.
+/// Usta profilindeki "Dükkan" bölümü — o ustanın sattığı ürünlerin yatay
+/// resimli önizlemesi + "Tümünü Gör". Ürünü yoksa bölüm tamamen gizlenir.
+class _ShopSection extends ConsumerWidget {
+  const _ShopSection({required this.sellerUid, required this.sellerName});
+  final String sellerUid;
+  final String sellerName;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final products =
+        ref.watch(myProductsProvider(sellerUid)).valueOrNull ?? const [];
+    if (products.isEmpty) return const SizedBox.shrink();
+
+    final onceki = products.take(6).toList();
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: _Section(
+        icon: Icons.storefront_outlined,
+        title: 'Dükkan (${products.length})',
+        trailing: TextButton(
+          onPressed: () => context.push(
+            '${RoutePaths.artisanProducts(sellerUid)}'
+            '?ad=${Uri.encodeComponent(sellerName)}',
+          ),
+          child: const Text('Tümünü Gör →'),
+        ),
+        child: SizedBox(
+          height: 128,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            padding: EdgeInsets.zero,
+            itemCount: onceki.length,
+            separatorBuilder: (_, _) => const SizedBox(width: 10),
+            itemBuilder: (_, i) => _ShopThumb(product: onceki[i]),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Dükkan önizlemesindeki tek küçük ürün: kapak resmi + fiyat.
+class _ShopThumb extends StatelessWidget {
+  const _ShopThumb({required this.product});
+  final Product product;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final palette = context.palette;
+    return SizedBox(
+      width: 104,
+      child: Material(
+        color: palette.card,
+        borderRadius: BorderRadius.circular(12),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: () => context.push(RoutePaths.productDetail(product.id)),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SizedBox(
+                height: 80,
+                width: double.infinity,
+                child: product.coverPhoto != null
+                    ? AppImage(
+                        handle: product.coverPhoto,
+                        fit: BoxFit.cover,
+                        memCacheWidth: 208,
+                      )
+                    : Container(
+                        color: palette.surfaceMuted,
+                        alignment: Alignment.center,
+                        child: Icon(Icons.storefront_rounded,
+                            color: palette.primary, size: 24),
+                      ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(6, 5, 6, 6),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      product.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.labelSmall
+                          ?.copyWith(fontWeight: FontWeight.w600),
+                    ),
+                    Text(
+                      product.priceLabel,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: palette.primary,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _Section extends StatelessWidget {
   const _Section({
     required this.icon,
@@ -861,6 +1052,119 @@ class _ReviewTagChip extends StatelessWidget {
   }
 }
 
+/// Profil fotoğrafına dokununca açılan hızlı aksiyon menüsü: telefon açıksa
+/// "Ara" (tel: ile), her durumda "Sohbet başlat". Kendi profilinde açılmaz.
+void _showProfileQuickActions(BuildContext context, ArtisanDetail detail) {
+  final profile = detail.profile;
+  showModalBottomSheet<void>(
+    context: context,
+    showDragHandle: true,
+    builder: (sheetCtx) => SafeArea(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
+            child: Row(
+              children: [
+                Icon(Icons.bolt_rounded, color: sheetCtx.palette.primary),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    detail.displayName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(sheetCtx)
+                        .textTheme
+                        .titleMedium
+                        ?.copyWith(fontWeight: FontWeight.w800),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (profile.hasPublicPhone)
+            ListTile(
+              leading: Icon(Icons.phone_rounded,
+                  color: sheetCtx.palette.success),
+              title: const Text('Ara'),
+              subtitle: Text(profile.publicPhone!),
+              onTap: () async {
+                Navigator.pop(sheetCtx);
+                final uri = Uri(scheme: 'tel', path: profile.publicPhone);
+                try {
+                  final ok = await launchUrl(uri);
+                  if (!ok && context.mounted) {
+                    context.showError('Arama başlatılamadı.');
+                  }
+                } catch (_) {
+                  if (context.mounted) {
+                    context.showError('Arama başlatılamadı.');
+                  }
+                }
+              },
+            ),
+          Consumer(
+            builder: (ctx, ref, _) => ListTile(
+              leading: Icon(Icons.chat_bubble_outline,
+                  color: ctx.palette.primary),
+              title: const Text('Sohbet başlat'),
+              onTap: () {
+                Navigator.pop(ctx);
+                startChatWithArtisan(context, ref, detail);
+              },
+            ),
+          ),
+          const SizedBox(height: 8),
+        ],
+      ),
+    ),
+  );
+}
+
+/// Bir ustayla sohbet başlatır (sohbet barı + profil fotoğrafı hızlı menüsü
+/// ortak kullanır). Misafiri girişe, doğrulanmamış e-postayı doğrulamaya
+/// yönlendirir; kendi profilinde no-op. Başarıda sohbet ekranını açar.
+Future<void> startChatWithArtisan(
+  BuildContext context,
+  WidgetRef ref,
+  ArtisanDetail detail,
+) async {
+  final user = ref.read(currentUserProvider);
+  if (user == null) {
+    context.push(RoutePaths.login);
+    return;
+  }
+  if (user.uid == detail.uid) return; // kendiyle sohbet olmaz
+  final emailOk = await ensureEmailVerified(
+    context,
+    ref,
+    actionLabel: 'sohbet başlatmak',
+  );
+  if (!emailOk || !context.mounted) return;
+  if (user.suspended) {
+    context.showError('Hesabınız askıya alındığı için sohbet açılamaz.');
+    return;
+  }
+  try {
+    final chatId = await ref.read(chatRepositoryProvider).startChat(
+          customerUid: user.uid,
+          customerName: user.displayName,
+          customerPhotoUrl: user.profilePhotoUrl,
+          artisanUid: detail.uid,
+          artisanName: detail.displayName,
+          artisanPhotoUrl: detail.profilePhotoUrl,
+        );
+    if (!context.mounted) return;
+    context.push(RoutePaths.chatThread(chatId));
+  } catch (_) {
+    if (context.mounted) {
+      context.showError(
+          'Sohbet açılamadı. E-posta doğrulamanızı kontrol edin.');
+    }
+  }
+}
+
 class _ChatBar extends ConsumerWidget {
   const _ChatBar({required this.detail});
   final ArtisanDetail detail;
@@ -883,41 +1187,7 @@ class _ChatBar extends ConsumerWidget {
           child: AppButton(
             label: isGuest ? 'Sohbet için giriş yap' : 'Sohbet Başlat',
             icon: isGuest ? Icons.login : Icons.chat_bubble_outline,
-            onPressed: () async {
-              if (isGuest) {
-                // Misafir iletişime geçmek isterse girişe yönlendir (PRD §2).
-                context.push(RoutePaths.login);
-                return;
-              }
-              // M3: e-posta doğrulama (rules chat create da ister).
-              final emailOk = await ensureEmailVerified(
-                context,
-                ref,
-                actionLabel: 'sohbet başlatmak',
-              );
-              if (!emailOk || !context.mounted) return;
-              if (user.suspended) {
-                context.showError('Hesabınız askıya alındığı için sohbet açılamaz.');
-                return;
-              }
-              try {
-                final chatId = await ref.read(chatRepositoryProvider).startChat(
-                      customerUid: user.uid,
-                      customerName: user.displayName,
-                      customerPhotoUrl: user.profilePhotoUrl,
-                      artisanUid: detail.uid,
-                      artisanName: detail.displayName,
-                      artisanPhotoUrl: detail.profilePhotoUrl,
-                    );
-                if (!context.mounted) return;
-                context.push(RoutePaths.chatThread(chatId));
-              } catch (_) {
-                if (context.mounted) {
-                  context.showError(
-                      'Sohbet açılamadı. E-posta doğrulamanızı kontrol edin.');
-                }
-              }
-            },
+            onPressed: () => startChatWithArtisan(context, ref, detail),
           ),
         ),
       ),

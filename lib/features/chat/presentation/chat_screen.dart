@@ -602,13 +602,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                     ? null
                     : () => setState(() => _selectionMode = true),
               ),
-              if (isCustomer)
-                IconButton(
-                  icon: const Icon(Icons.star_outline_rounded),
-                  tooltip: 'Değerlendir',
-                  onPressed: () =>
-                      context.push(RoutePaths.review(thread.artisanUid)),
-                ),
+              // "Ustayı değerlendir" burada yok: yalnız tamamlanmış İŞ İLANI
+              // sohbetinde alt bantta / ilan detayında çıkar. Eleman arama
+              // sohbeti de customer/artisan şeması kullandığı için yıldız
+              // her sohbette gereksiz yere görünüyordu.
               if (user != null && thread != null)
                 PopupMenuButton<String>(
                   tooltip: 'Daha fazla',
@@ -1113,13 +1110,17 @@ class _Bubble extends StatelessWidget {
                   tag: 'chat-img-${message.id}',
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(14),
-                    child: SizedBox(
-                      width: 220,
-                      height: 220,
+                    // Kareye zorlamıyoruz: orijinal oran korunur (stretch yok).
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(
+                        maxWidth: 240,
+                        maxHeight: 320,
+                        minWidth: 120,
+                      ),
                       child: AppImage(
                         handle: message.imageHandle!,
-                        memCacheWidth: 440,
-                        memCacheHeight: 440,
+                        fit: BoxFit.contain,
+                        memCacheWidth: 480,
                       ),
                     ),
                   ),
@@ -1551,7 +1552,7 @@ class _EmptyChatState extends State<_EmptyChat>
 }
 
 // ---------------------------------------------------------------------------
-// Ba�l� i�: sohbet �st� tamamlama �eridi
+// Bağlı iş: sohbet üstü tamamlama şeridi
 // ---------------------------------------------------------------------------
 
 class _JobCompletionChatBar extends ConsumerWidget {
@@ -1566,16 +1567,54 @@ class _JobCompletionChatBar extends ConsumerWidget {
     final job = jobAsync.valueOrNull;
     if (job == null) return const SizedBox.shrink();
 
-    // Yaln�z ba�l� / aktif veya yeni tamamlanm�� i�lerde g�ster.
-    final show = job.status == JobStatus.workerSelected ||
-        job.status == JobStatus.inProgress ||
-        job.status == JobStatus.completed ||
-        job.status == JobStatus.disputed;
-    if (!show) return const SizedBox.shrink();
-
     final isOwner = job.customerId == myUid;
-    final copy = JobCompletionCopy.of(job, isOwner: isOwner);
     final palette = context.palette;
+
+    // 1) İş tamamlandı + müşteri → ince "değerlendir" hatırlatması.
+    //    rated / usta tarafı / eleman-only sohbet (job yok) → göstermez.
+    if (job.status == JobStatus.completed && isOwner) {
+      final artisanId = job.selectedArtisanId;
+      if (artisanId == null) return const SizedBox.shrink();
+      return Material(
+        color: palette.card,
+        elevation: 0.5,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+          child: Row(
+            children: [
+              Icon(Icons.star_outline_rounded,
+                  color: palette.warning, size: 22),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'İş tamamlandı — ustayı değerlendirin',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                ),
+              ),
+              FilledButton.tonal(
+                style: FilledButton.styleFrom(
+                  visualDensity: VisualDensity.compact,
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                ),
+                onPressed: () => context.push(
+                  RoutePaths.review(artisanId, jobId: job.jobId),
+                ),
+                child: const Text('Değerlendir'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    // 2) Yalnız yürüyen / sorunlu ilan — onay şeridi.
+    final showActive =
+        job.status.isInWork || job.status == JobStatus.disputed;
+    if (!showActive) return const SizedBox.shrink();
+
+    final copy = JobCompletionCopy.of(job, isOwner: isOwner);
 
     return Material(
       color: palette.card,
@@ -1609,36 +1648,19 @@ class _JobCompletionChatBar extends ConsumerWidget {
                     if (context.mounted) {
                       context.showSuccess(
                         isOwner
-                            ? 'Onay�n�z kaydedildi. Usta da onaylay�nca i� kapan�r.'
-                            : 'Teslim onay� kaydedildi. M��teri de onaylay�nca i� kapan�r.',
+                            ? 'Onayınız kaydedildi. Usta da onaylayınca iş kapanır.'
+                            : 'Teslim onayı kaydedildi. Müşteri de onaylayınca iş kapanır.',
                       );
                     }
                   } catch (_) {
                     if (context.mounted) {
                       context.showError(
-                          'Onay kaydedilemedi. Ba�lant�y� kontrol edip tekrar deneyin.');
+                          'Onay kaydedilemedi. Bağlantıyı kontrol edip tekrar deneyin.');
                     }
                   }
                 },
                 icon: const Icon(Icons.check_circle_outline, size: 18),
                 label: Text(copy.confirmLabel),
-              ),
-            ],
-            if (job.status == JobStatus.completed && isOwner) ...[
-              const SizedBox(height: 8),
-              FilledButton.tonalIcon(
-                style: FilledButton.styleFrom(
-                  visualDensity: VisualDensity.compact,
-                ),
-                onPressed: () {
-                  final artisanId = job.selectedArtisanId;
-                  if (artisanId == null) return;
-                  context.push(
-                    RoutePaths.review(artisanId, jobId: job.jobId),
-                  );
-                },
-                icon: const Icon(Icons.star_outline_rounded, size: 18),
-                label: const Text('Ustay� de�erlendir'),
               ),
             ],
           ],

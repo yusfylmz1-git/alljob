@@ -92,7 +92,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             : context.go(RoutePaths.home),
                       ),
                     ),
-                    const BrandMark(size: 64),
+                    const BrandMark(size: 180),
                     const SizedBox(height: 16),
                     Text(
                       'Hoş geldiniz',

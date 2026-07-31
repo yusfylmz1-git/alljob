@@ -9,6 +9,7 @@ import '../../../core/utils/validators.dart';
 import '../../../core/widgets/app_image.dart';
 import '../../../core/widgets/gradient_app_bar.dart';
 import '../../../core/widgets/responsive_center.dart';
+import '../../artisan/application/my_profile_controller.dart';
 import '../../auth/application/auth_controller.dart';
 import '../../auth/data/auth_repository.dart';
 import '../../storage/storage_repository.dart';
@@ -145,6 +146,8 @@ class _AccountProfileEditScreenState
             displayName: name,
             profilePhotoUrl: _photoUrl,
           );
+      // Usta vitrin taslağı + profil anında güncellensin (yeniden açmaya gerek yok).
+      ref.invalidate(myProfileControllerProvider);
       if (!mounted) return;
       context.showSuccess('Profil kaydedildi.');
       Navigator.of(context).pop();
@@ -201,7 +204,14 @@ class _AccountProfileEditScreenState
                           width: 104,
                           height: 104,
                           child: _photoUrl != null
-                              ? AppImage(handle: _photoUrl)
+                              ? AppImage(
+                                  handle: _photoUrl,
+                                  fit: BoxFit.cover,
+                                  width: 104,
+                                  height: 104,
+                                  memCacheWidth: 208,
+                                  memCacheHeight: 208,
+                                )
                               : Container(
                                   color: palette.primaryContainer,
                                   alignment: Alignment.center,

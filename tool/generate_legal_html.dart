@@ -81,7 +81,8 @@ body {
 }
 header { max-width: 760px; margin: 0 auto; padding: 36px 0 16px; }
 header h1 { margin: 0 0 4px; font-size: 26px; }
-header .brand { font-weight: 800; color: #e8611a; letter-spacing: .2px; }
+header .brand { font-weight: 800; color: #e8611a; letter-spacing: .2px; display:flex; align-items:center; gap:8px; }
+header .brand img { display:block; width:32px; height:32px; object-fit:contain; }
 header p { margin: 0; color: #5b6675; }
 .updated { font-size: 13px; color: #5b6675; margin-top: 6px; }
 main {
@@ -111,11 +112,13 @@ String _shell({
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>$title — $kAppBrandName</title>
+<link rel="icon" type="image/png" href="favicon.png">
+<link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
 <style>$_style</style>
 </head>
 <body>
 <header>
-  <div class="brand">$kAppBrandName</div>
+  <div class="brand"><img src="assets/logo.png" alt="" width="32" height="32"><span>$kAppBrandName</span></div>
   <h1>$title</h1>
   <p class="updated">Son güncelleme: $kLegalUpdated</p>
 </header>

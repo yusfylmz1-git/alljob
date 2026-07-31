@@ -9,10 +9,12 @@ import '../../../core/widgets/app_image.dart';
 import '../../../core/widgets/gradient_app_bar.dart';
 import '../../../core/widgets/responsive_center.dart';
 import '../../../core/widgets/status_views.dart';
+import '../../../data/models/report.dart';
 import '../../../data/models/staffing.dart';
 import '../../auth/application/auth_controller.dart';
 import '../../auth/presentation/email_verification_gate.dart';
 import '../../chat/data/chat_providers.dart';
+import '../../safety/presentation/report_sheet.dart';
 import '../data/staffing_providers.dart';
 
 /// İşveren eleman kartını inceler ve sohbet başlatır (eleman başvurmaz).
@@ -83,7 +85,7 @@ class WorkerListingDetailScreen extends ConsumerWidget {
             return const LoadingView();
           }
           final w = snap.data;
-          if (w == null || !w.openToWork) {
+          if (w == null || !w.openToWork || w.moderationHidden) {
             return const ErrorView(
               title: 'Profil yok',
               message: 'Bu eleman artık aranmıyor veya kaldırılmış.',
@@ -148,6 +150,32 @@ class WorkerListingDetailScreen extends ConsumerWidget {
                   'Not: Eleman size başvurmaz; sohbeti işveren başlatır.',
                   style: TextStyle(fontSize: 12, color: palette.inkMuted),
                 ),
+                if (!isMine) ...[
+                  const SizedBox(height: 4),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: TextButton.icon(
+                      onPressed: () {
+                        if (ref.read(currentUserProvider) == null) {
+                          context.push(RoutePaths.login);
+                          return;
+                        }
+                        showReportSheet(
+                          context,
+                          ref,
+                          target: ReportTarget.staffWorker,
+                          targetId: w.id,
+                          reportedUid: w.uid,
+                        );
+                      },
+                      icon: const Icon(Icons.flag_outlined, size: 18),
+                      label: const Text('Profili şikayet et'),
+                      style: TextButton.styleFrom(
+                        foregroundColor: palette.inkMuted,
+                      ),
+                    ),
+                  ),
+                ],
               ],
             ),
           );

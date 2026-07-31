@@ -14,9 +14,13 @@ void main() {
           first.where((n) => !n.read).map((n) => n.id).toList();
       expect(unreadIds, isNotEmpty);
 
+      final badgeBefore = await repo.watchUnreadCount('u1').first;
+      expect(badgeBefore, unreadIds.length);
+
       await repo.markRead('u1', unreadIds);
       final after = await repo.watchMyNotifications('u1').first;
       expect(after.where((n) => !n.read), isEmpty);
+      expect(await repo.watchUnreadCount('u1').first, 0);
     });
 
     test('fromMap eksik alanlara dayanıklı', () {

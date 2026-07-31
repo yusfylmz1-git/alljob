@@ -133,15 +133,7 @@ class _JobHeaderCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              if (job.isUrgent) ...[
-                const UrgentBadge(),
-                const SizedBox(width: 8),
-              ],
-              JobStatusChip(status: status),
-            ],
-          ),
+          JobStatusChip(status: status),
           const SizedBox(height: 12),
           Text(job.title,
               style: Theme.of(context)
@@ -997,7 +989,7 @@ class _AssignedCard extends ConsumerWidget {
                       onPressed: () => _busyGuard(
                           context, () => repo.markStarted(job.jobId)),
                       icon: const Icon(Icons.play_arrow_rounded, size: 18),
-                      label: const Text('İşe başlandı olarak işaretle (isteğe bağlı)'),
+                      label: const Text('İşe başladım (isteğe bağlı)'),
                     ),
                   ),
                 ],
@@ -1358,54 +1350,41 @@ Future<void> _cancelJob(BuildContext context, WidgetRef ref, Job job) async {
   }
 }
 
-/// Yaşam döngüsü adımlarını gösteren yatay stepper (#4).
+/// Yaşam döngüsü — kullanıcıya 3 evre (backend 8 durum aynı kalır).
 class _LifecycleStepper extends StatelessWidget {
   const _LifecycleStepper({required this.job});
   final Job job;
 
   static const _steps = [
-    ('Açık', JobStatus.open),
-    ('Usta Seçildi', JobStatus.workerSelected),
-    ('İş Sürüyor', JobStatus.inProgress),
-    ('Tamamlandı', JobStatus.completed),
-    ('Değerlendirildi', JobStatus.rated),
+    'Teklif',
+    'İş yürüyor',
+    'Kapandı',
   ];
-
-  int get _currentIndex {
-    return switch (job.status) {
-      JobStatus.open => 0,
-      JobStatus.workerSelected => 1,
-      JobStatus.inProgress => 2,
-      JobStatus.completed => 3,
-      JobStatus.rated => 4,
-      JobStatus.disputed => -1, // _AssignedCard disputed'ı stepper'dan önce ele alır
-      JobStatus.cancelled => -1,
-      JobStatus.expired => -1,
-    };
-  }
 
   @override
   Widget build(BuildContext context) {
-    if (_currentIndex < 0) {
-      return const _InlineNotice(
+    final current = job.status.simpleStepIndex;
+    if (current == null) {
+      // disputed / cancelled / expired — _AssignedCard veya üst chip açıklar.
+      return _InlineNotice(
         icon: Icons.info_outline,
-        text: 'İlan artık aktif değil.',
+        text: job.status.simpleLabelTR,
       );
     }
     return Row(
       children: [
         for (var i = 0; i < _steps.length; i++) ...[
           _StepDot(
-            label: _steps[i].$1,
-            done: i <= _currentIndex,
-            current: i == _currentIndex,
+            label: _steps[i],
+            done: i <= current,
+            current: i == current,
           ),
           if (i < _steps.length - 1)
             Expanded(
               child: Container(
                 height: 2,
                 margin: const EdgeInsets.only(bottom: 18),
-                color: i < _currentIndex
+                color: i < current
                     ? context.palette.primary
                     : context.palette.border,
               ),

@@ -80,6 +80,25 @@ class _StaffNeedEditScreenState extends ConsumerState<StaffNeedEditScreen> {
       return;
     }
 
+    // Açık ilan tavanı — sunucu paritesi: onStaffNeedCreated CF fazlasını
+    // siler; burada dostça engellenir. Sayım yapılamazsa (çevrimdışı vb.)
+    // engelleme sunucuya bırakılır.
+    try {
+      final mine = await ref
+          .read(staffingRepositoryProvider)
+          .watchMyNeeds(user.uid)
+          .first;
+      final openCount = mine.where((n) => n.isOpen).length;
+      if (openCount >= 5) {
+        if (mounted) {
+          context.showError(
+              'En fazla 5 açık ilanınız olabilir. Önce birini kapatın.');
+        }
+        return;
+      }
+    } catch (_) {/* sunucu tavanı devrede */}
+    if (!mounted) return;
+
     final emailOk = await ensureEmailVerified(
       context,
       ref,

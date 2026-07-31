@@ -12,12 +12,14 @@ class ArtisanSummary {
     required this.experienceYears,
     required this.averageRating,
     required this.totalReviews,
+    this.topTags = const [],
     required this.isVerified,
     this.isEmailVerified = false,
     required this.isPremium,
     required this.isAvailable,
     required this.isNewArtisan,
     this.profilePhotoUrl,
+    this.areaLabel,
   });
 
   final String uid;
@@ -27,6 +29,10 @@ class ArtisanSummary {
   final int experienceYears;
   final double averageRating;
   final int totalReviews;
+
+  /// En sık verilen olumlu değerlendirme etiketleri (en çok 3) — kart rozetleri.
+  /// Profildeki [ArtisanProfile.topTags]'ten gelir (CF besler).
+  final List<String> topTags;
   final bool isVerified;
   /// Auth e-posta doğrulama aynası (tooltip güçlendirme).
   final bool isEmailVerified;
@@ -34,6 +40,10 @@ class ArtisanSummary {
   final bool isAvailable; // canlı müsaitlik (PRD §3)
   final bool isNewArtisan; // ilk 15 gün "Yeni Usta" rozeti
   final String? profilePhotoUrl;
+
+  /// Birincil hizmet bölgesi etiketi ("İl / İlçe"). İlk serviceArea'dan gelir;
+  /// bölge tanımlı değilse null → kartta konum satırı gizlenir.
+  final String? areaLabel;
 
   /// Mavi tik açıklaması (Keşfet kartı).
   String get verifiedBadgeTooltip {

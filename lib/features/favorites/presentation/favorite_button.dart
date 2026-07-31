@@ -46,10 +46,10 @@ class FavoriteButton extends ConsumerWidget {
     if (isArtisan) return const SizedBox.shrink();
     if (user != null && user.uid == artisanUid) return const SizedBox.shrink();
 
-    final favs = user == null
-        ? const <Favorite>[]
-        : (ref.watch(favoritesProvider(user.uid)).valueOrNull ?? const []);
-    final isFav = favs.any((f) => f.artisanUid == artisanUid);
+    // Tek döküman dinle — tüm favori listesini her kartta çekme.
+    final isFav = user == null
+        ? false
+        : (ref.watch(isFavoriteProvider(artisanUid)).valueOrNull ?? false);
 
     Future<void> onTap() async {
       if (user == null) {

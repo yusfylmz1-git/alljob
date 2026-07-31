@@ -7,6 +7,7 @@ import 'package:usta_cepte/data/models/offer.dart';
 import 'package:usta_cepte/features/favorites/data/mock_favorite_repository.dart';
 import 'package:usta_cepte/features/jobs/data/mock_job_repository.dart';
 import 'package:usta_cepte/features/jobs/data/mock_offer_repository.dart';
+import 'package:usta_cepte/features/jobs/presentation/job_explore_filter.dart';
 
 Job _sampleJob({
   String customerId = 'cust_1',
@@ -14,7 +15,6 @@ Job _sampleJob({
   String province = 'Bursa',
   String district = 'Osmangazi',
   JobDuration duration = JobDuration.day3,
-  bool urgent = false,
   DateTime? createdAt,
 }) {
   final now = createdAt ?? DateTime.now();
@@ -29,7 +29,6 @@ Job _sampleJob({
     district: district,
     neighborhood: 'Dikkaldırım',
     photos: const [],
-    isUrgent: urgent,
     priceType: JobPriceType.fixed,
     budget: 5000,
     status: JobStatus.open,
@@ -72,15 +71,27 @@ Offer _sampleOffer({
 
 void main() {
   group('Model serileştirme (roundtrip)', () {
+    test('simpleLabelTR 3 evre dilini birleştirir', () {
+      expect(JobStatus.open.simpleLabelTR, 'Teklif toplanıyor');
+      expect(JobStatus.workerSelected.simpleLabelTR, 'İş yürüyor');
+      expect(JobStatus.inProgress.simpleLabelTR, 'İş yürüyor');
+      expect(JobStatus.completed.simpleLabelTR, 'Tamamlandı');
+      expect(JobStatus.rated.simpleLabelTR, 'Tamamlandı · değerlendirildi');
+      expect(JobStatus.disputed.simpleLabelTR, 'Sorun — beklemede');
+      expect(JobStatus.open.simpleStepIndex, 0);
+      expect(JobStatus.inProgress.simpleStepIndex, 1);
+      expect(JobStatus.rated.simpleStepIndex, 2);
+      expect(JobStatus.disputed.simpleStepIndex, isNull);
+    });
+
     test('Job toMap/fromMap tüm alanları korur', () {
-      final job = _sampleJob(urgent: true).copyWith();
+      final job = _sampleJob().copyWith();
       final restored = Job.fromMap('job_x', job.toMap());
       expect(restored.customerId, job.customerId);
       expect(restored.category, job.category);
       expect(restored.province, job.province);
       expect(restored.district, job.district);
       expect(restored.neighborhood, job.neighborhood);
-      expect(restored.isUrgent, isTrue);
       expect(restored.priceType, JobPriceType.fixed);
       expect(restored.budget, 5000);
       expect(restored.status, JobStatus.open);
@@ -252,18 +263,15 @@ void main() {
       expect(feed.any((j) => j.jobId == 'job_seed_1'), isTrue);
     });
 
-    test('acil ilan feed başında gelir', () async {
+    test('en yeni ilan feed başında gelir', () async {
       final db = MockDatabase();
       final jobs = MockJobRepository(db);
-      // createdAt aynı milisaniyeye denk gelirse sıralama belirsizleşir —
-      // deterministik olması için acil (en yeni) ilana açık zaman verilir.
       final now = DateTime.now();
       await jobs.createJob(_sampleJob(
           category: 'welder',
-          urgent: false,
           createdAt: now.subtract(const Duration(minutes: 1))));
-      await jobs.createJob(
-          _sampleJob(category: 'welder', urgent: true, createdAt: now));
+      final newestId = await jobs.createJob(
+          _sampleJob(category: 'welder', createdAt: now));
 
       final feed = await jobs.watchNearbyJobs(
         professionCode: 'welder',
@@ -272,7 +280,7 @@ void main() {
               province: 'Bursa', district: 'Osmangazi', neighborhood: 'Dikkaldırım'),
         ],
       ).first;
-      expect(feed.first.isUrgent, isTrue);
+      expect(feed.first.jobId, newestId);
     });
   });
 
@@ -607,6 +615,11 @@ void main() {
       final added = await favs.toggle(fav);
       expect(added, isTrue);
       expect(await favs.isFavorite(customerUid: 'c1', artisanUid: 'a1'), isTrue);
+      expect(
+          await favs
+              .watchIsFavorite(customerUid: 'c1', artisanUid: 'a1')
+              .first,
+          isTrue);
       expect((await favs.watchFavorites('c1').first).length, 1);
 
       final removed = await favs.toggle(fav);
@@ -700,6 +713,50 @@ void main() {
       db.jobs[id] = db.jobs[id]!.copyWith(status: JobStatus.cancelled);
       await repo.deleteJob(id);
       expect(db.jobs.containsKey(id), isFalse);
+    });
+  });
+
+  group('JobExploreFilter (Keşfet İlanlar)', () {
+    test('il / ilçe ve metin sorgusu daraltır', () {
+      final jobs = <Job>[
+        _sampleJob(
+          category: 'painter',
+          province: 'Bursa',
+          district: 'Osmangazi',
+        ).copyWith(title: 'Salon boya'),
+        _sampleJob(
+          category: 'plumber',
+          province: 'İstanbul',
+          district: 'Kadıköy',
+        ).copyWith(title: 'Mutfak tıkanıklık'),
+        _sampleJob(
+          category: 'painter',
+          province: 'Bursa',
+          district: 'Nilüfer',
+        ).copyWith(title: 'Balkon boyama'),
+      ];
+
+      expect(
+        const JobExploreFilter(province: 'Bursa')
+            .apply(jobs)
+            .map((j) => j.title)
+            .toList(),
+        ['Salon boya', 'Balkon boyama'],
+      );
+      expect(
+        const JobExploreFilter(province: 'Bursa', district: 'Nilüfer')
+            .apply(jobs)
+            .map((j) => j.title)
+            .toList(),
+        ['Balkon boyama'],
+      );
+      expect(
+        const JobExploreFilter(query: 'tıkan')
+            .apply(jobs)
+            .map((j) => j.title)
+            .toList(),
+        ['Mutfak tıkanıklık'],
+      );
     });
   });
 }

@@ -48,7 +48,7 @@ class _TrackingCenterScreenState extends ConsumerState<TrackingCenterScreen> {
 
     return Scaffold(
       appBar: SurfaceAppBar(
-        title: 'Takip Merkezi',
+        title: 'Ajanda',
         icon: Icons.checklist_rounded,
         subtitle: tracksAsync.valueOrNull == null
             ? null

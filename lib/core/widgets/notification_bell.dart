@@ -26,6 +26,13 @@ class NotificationBell extends ConsumerWidget {
     return IconButton(
       tooltip: 'Bildirimler',
       onPressed: () => context.push(RoutePaths.notifications),
+      visualDensity: VisualDensity.compact,
+      padding: EdgeInsets.zero,
+      constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+      style: IconButton.styleFrom(
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        padding: const EdgeInsets.all(8),
+      ),
       icon: Stack(
         clipBehavior: Clip.none,
         children: [
@@ -43,7 +50,9 @@ class NotificationBell extends ConsumerWidget {
                   border: Border.all(color: Colors.white, width: 1.2),
                 ),
                 child: Text(
-                  unread > 99 ? '99+' : '$unread',
+                  unread >= kNotificationUnreadCap
+                      ? '$kNotificationUnreadCap+'
+                      : '$unread',
                   textAlign: TextAlign.center,
                   style: const TextStyle(
                     color: Colors.white,

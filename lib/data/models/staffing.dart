@@ -35,6 +35,7 @@ class StaffWorkerListing {
     required this.openToWork,
     required this.isDaily,
     required this.updatedAt,
+    this.moderationHidden = false,
     this.photoUrl,
     this.rate,
     this.createdAt,
@@ -54,6 +55,9 @@ class StaffWorkerListing {
   final bool openToWork;
   /// true = gündelik işlere de açık (arama filtresinde "Gündelik eleman").
   final bool isDaily;
+  /// Yönetici gizlemesi (yalnız CF yazar; toMap'e BİLEREK yazılmaz —
+  /// istemci kaydı adminin gizlemesini geri açamaz). Listelerde süzülür.
+  final bool moderationHidden;
   final DateTime updatedAt;
   final DateTime? createdAt;
 
@@ -103,6 +107,7 @@ class StaffWorkerListing {
       rate: (map['rate'] as num?)?.toDouble(),
       openToWork: map['openToWork'] != false,
       isDaily: map['isDaily'] == true || legacyDaily,
+      moderationHidden: map['moderationHidden'] == true,
       updatedAt: DateTime.tryParse(map['updatedAt']?.toString() ?? '') ??
           DateTime.now(),
       createdAt: DateTime.tryParse(map['createdAt']?.toString() ?? ''),
@@ -132,6 +137,7 @@ class StaffWorkerListing {
       rate: rate ?? this.rate,
       openToWork: openToWork ?? this.openToWork,
       isDaily: isDaily ?? this.isDaily,
+      moderationHidden: moderationHidden,
       updatedAt: updatedAt ?? this.updatedAt,
       createdAt: createdAt,
     );
@@ -152,6 +158,7 @@ class StaffNeed {
     required this.isDaily,
     required this.status,
     required this.createdAt,
+    this.moderationHidden = false,
     this.employerPhotoUrl,
     this.dailyRate,
     this.workDate,
@@ -171,6 +178,8 @@ class StaffNeed {
   final DateTime? workDate;
   /// open | closed
   final String status;
+  /// Yönetici gizlemesi (yalnız CF yazar; toMap'e yazılmaz). Listede süzülür.
+  final bool moderationHidden;
   final DateTime createdAt;
 
   bool get isOpen => status == 'open';
@@ -214,6 +223,7 @@ class StaffNeed {
           ? DateTime.tryParse(map['workDate'].toString())
           : null,
       status: (map['status'] as String?) ?? 'open',
+      moderationHidden: map['moderationHidden'] == true,
       createdAt: DateTime.tryParse(map['createdAt']?.toString() ?? '') ??
           DateTime.now(),
     );

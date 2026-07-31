@@ -71,6 +71,10 @@ abstract interface class ChatRepository {
   /// [uid]'in bu sohbeti en son sildiği an; bu andan eski mesajlar ona
   /// gösterilmez. Hiç silmediyse null.
   DateTime? clearedAt({required String chatId, required String uid});
+
+  /// Denormalize okunmamış sayacı (alt bar / menü rozeti).
+  /// Thread listesini açmadan canlı dinlenir (`private/chatMeta`).
+  Stream<ChatUnreadMeta> watchUnreadMeta(String uid);
 }
 
 /// Bellek içi, gerçek-zamanlı taklit eden uygulama.
@@ -87,6 +91,24 @@ class MockChatRepository implements ChatRepository {
   final Map<String, Map<String, DateTime>> _clearedAt = {};
 
   int _seq = 0;
+
+  ChatUnreadMeta _unreadMetaFor(String uid) {
+    var customer = 0, artisan = 0;
+    for (final t in _threadsFor(uid)) {
+      final n = unreadCount(chatId: t.id, uid: uid);
+      if (n <= 0) continue;
+      if (t.artisanUid == uid) {
+        artisan += n;
+      } else {
+        customer += n;
+      }
+    }
+    return ChatUnreadMeta(
+      total: customer + artisan,
+      customer: customer,
+      artisan: artisan,
+    );
+  }
 
   static String chatIdFor(String customerUid, String artisanUid) =>
       'chat_${customerUid}__$artisanUid';
@@ -135,7 +157,13 @@ class MockChatRepository implements ChatRepository {
     // Mesaj akışını yeniden yay → gönderende okundu bilgisi tazelensin.
     final list = _messages[chatId];
     if (list != null) _ctrl(chatId).add(List.unmodifiable(list));
-    _threadsTick.add(null); // Liste rozetleri güncellensin.
+    _threadsTick.add(null); // Liste rozetleri + unreadMeta güncellensin.
+  }
+
+  @override
+  Stream<ChatUnreadMeta> watchUnreadMeta(String uid) async* {
+    yield _unreadMetaFor(uid);
+    yield* _threadsTick.stream.map((_) => _unreadMetaFor(uid));
   }
 
   @override

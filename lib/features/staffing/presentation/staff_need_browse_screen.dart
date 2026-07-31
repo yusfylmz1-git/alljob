@@ -11,10 +11,12 @@ import '../../../core/widgets/surface_app_bar.dart';
 import '../../../core/widgets/pull_to_refresh.dart';
 import '../../../core/widgets/responsive_center.dart';
 import '../../../core/widgets/status_views.dart';
+import '../../../data/models/report.dart';
 import '../../../data/models/staffing.dart';
 import '../../auth/application/auth_controller.dart';
 import '../../auth/presentation/email_verification_gate.dart';
 import '../../chat/data/chat_providers.dart';
+import '../../safety/presentation/report_sheet.dart';
 import '../data/staffing_providers.dart';
 import 'need_detailed_search_sheet.dart';
 import 'need_search_filter.dart';
@@ -101,6 +103,7 @@ class _StaffNeedBrowseScreenState extends ConsumerState<StaffNeedBrowseScreen> {
     final async = ref.watch(openStaffNeedsProvider(serverFilter));
     final palette = context.palette;
     final detailCount = _filter.activeDetailCount;
+    final me = ref.watch(currentUserProvider);
 
     return Scaffold(
       appBar: SurfaceAppBar(
@@ -273,10 +276,37 @@ class _StaffNeedBrowseScreenState extends ConsumerState<StaffNeedBrowseScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(n.title,
-                                style: const TextStyle(
-                                    fontWeight: FontWeight.w800,
-                                    fontSize: 16)),
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Expanded(
+                                  child: Text(n.title,
+                                      style: const TextStyle(
+                                          fontWeight: FontWeight.w800,
+                                          fontSize: 16)),
+                                ),
+                                if (me?.uid != n.employerUid)
+                                  IconButton(
+                                    tooltip: 'İlanı şikayet et',
+                                    visualDensity: VisualDensity.compact,
+                                    icon: Icon(Icons.flag_outlined,
+                                        size: 18, color: palette.inkFaint),
+                                    onPressed: () {
+                                      if (me == null) {
+                                        context.push(RoutePaths.login);
+                                        return;
+                                      }
+                                      showReportSheet(
+                                        context,
+                                        ref,
+                                        target: ReportTarget.staffNeed,
+                                        targetId: n.id,
+                                        reportedUid: n.employerUid,
+                                      );
+                                    },
+                                  ),
+                              ],
+                            ),
                             Text(
                               '${n.employerName} · ${n.placeLabel}',
                               style: TextStyle(

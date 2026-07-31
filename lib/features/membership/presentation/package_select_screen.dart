@@ -128,7 +128,7 @@ class _PackageSelectScreenState extends ConsumerState<PackageSelectScreen> {
                       )
                     else
                       const SizedBox(height: 12),
-                    const BrandMark(size: 56),
+                    const BrandMark(size: 148),
                     const SizedBox(height: 14),
                     Text(
                       widget.changing ? 'Planını değiştir' : 'Planını seç',

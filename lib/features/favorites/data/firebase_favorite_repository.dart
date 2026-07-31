@@ -83,4 +83,15 @@ class FirebaseFavoriteRepository implements FavoriteRepository {
         await _favorites.doc(Favorite.idFor(customerUid, artisanUid)).get();
     return snap.exists;
   }
+
+  @override
+  Stream<bool> watchIsFavorite({
+    required String customerUid,
+    required String artisanUid,
+  }) {
+    return _favorites
+        .doc(Favorite.idFor(customerUid, artisanUid))
+        .snapshots()
+        .map((s) => s.exists);
+  }
 }

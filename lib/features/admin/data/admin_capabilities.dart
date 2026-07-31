@@ -30,6 +30,8 @@ class AdminCapabilities {
     'artisans.moderate',
     'reviews.moderate',
     'stats.read',
+    'products.read',
+    'products.moderate',
   };
 
   /// Tüm bilinen yetki kodları (UI checkbox).
@@ -44,6 +46,9 @@ class AdminCapabilities {
     'artisans.moderate',
     'reviews.moderate',
     'stats.read',
+    'products.read',
+    'products.moderate',
+    'products.purge',
     'chats.read',
     'audit.read',
     'staff.manage',
@@ -62,6 +67,9 @@ class AdminCapabilities {
         'artisans.moderate' => 'Usta moderasyonu',
         'reviews.moderate' => 'Değerlendirme gizleme',
         'stats.read' => 'İstatistik',
+        'products.read' => 'Ürün okuma',
+        'products.moderate' => 'Ürün moderasyonu',
+        'products.purge' => 'Ürün kalıcı silme',
         'chats.read' => 'Sohbet kanıtı (opt-in)',
         'audit.read' => 'Denetim kaydı',
         'staff.manage' => 'Kadro / davet',

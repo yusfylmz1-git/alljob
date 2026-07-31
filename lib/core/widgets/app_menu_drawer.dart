@@ -18,6 +18,9 @@ import 'brand_mark.dart';
 /// ☰ menü düğmesi (hero başlıklarında kullanılır). Karşı moda okunmamış mesaj
 /// düştüyse üzerinde küçük kırmızı nokta gösterir — kullanıcı hangi modda
 /// olursa olsun diğer taraftaki mesajı fark eder.
+///
+/// Kompakt: varsayılan IconButton 48px padding metin satırını içeri iter;
+/// [visualDensity] + dar padding ile marka/başlık hizasına yaklaşır.
 class DrawerMenuButton extends ConsumerWidget {
   const DrawerMenuButton({super.key, this.color = Colors.white});
 
@@ -29,11 +32,18 @@ class DrawerMenuButton extends ConsumerWidget {
     return IconButton(
       tooltip: 'Menü',
       onPressed: () => Scaffold.of(context).openDrawer(),
+      visualDensity: VisualDensity.compact,
+      padding: EdgeInsets.zero,
+      constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+      style: IconButton.styleFrom(
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        padding: const EdgeInsets.all(8),
+      ),
       icon: Badge(
         isLabelVisible: crossUnread > 0,
         smallSize: 9,
         backgroundColor: context.palette.danger,
-        child: Icon(Icons.menu_rounded, color: color),
+        child: Icon(Icons.menu_rounded, color: color, size: 24),
       ),
     );
   }
@@ -146,7 +156,7 @@ class AppMenuDrawer extends ConsumerWidget {
           ),
           child: Row(
             children: [
-              const BrandMark(size: 38),
+              const BrandMark(size: 88),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
@@ -220,7 +230,7 @@ class AppMenuDrawer extends ConsumerWidget {
 
         // --- Usta modu ---
         else ...[
-          // Hizmetlerim (yakındaki işler) artık alt barda ("İşler" sekmesi).
+          // Yakındaki işler artık alt barda ("İşler" sekmesi).
           ListTile(
             leading: const Icon(Icons.work_history_outlined),
             title: const Text('İlgilendiğim işler'),
@@ -243,6 +253,14 @@ class AppMenuDrawer extends ConsumerWidget {
         ],
 
         const Divider(indent: 16, endIndent: 16),
+
+        // Usta Çantası (PRD-007) — misafir dâhil herkese açık saha hesap araçları.
+        ListTile(
+          leading: const Icon(Icons.handyman_outlined),
+          title: const Text('Usta Çantası'),
+          subtitle: const Text('Ölçüm, maliyet ve teklif araçları'),
+          onTap: () => _open(context, RoutePaths.toolkit),
+        ),
 
         ListTile(
           leading: const Icon(Icons.help_outline_rounded),

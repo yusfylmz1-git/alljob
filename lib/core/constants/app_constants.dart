@@ -26,6 +26,10 @@ class AppConstants {
   // Sohbet mesajı metin tavanı (firestore.rules ile hizalı).
   static const int maxMessageLength = 4000;
 
+  /// Sohbet ekranında canlı dinlenen en fazla mesaj (en yeniler).
+  /// Limitsiz snapshots uzun thread'lerde okuma + RAM şişiriyordu.
+  static const int chatMessagesFetchCap = 120;
+
   /// İki metin/foto mesajı arası minimum süre (istemci spam koruması).
   static const Duration minMessageInterval = Duration(milliseconds: 1200);
 
@@ -63,6 +67,19 @@ class AppConstants {
   // ilan çekilir. Süresi dolan/coğrafi elenen ilanlar için bir miktar pay bırakır.
   static const int openJobsFetchCap = 60;
   static const int nearbyJobsFetchCap = 100;
+
+  // Keşfet Ürünler (PRD-006)
+  static const bool kProductsEnabled = true;
+  static const bool kAdminProductModerationEnabled = true;
+  static const int maxProductPhotos = 8;
+  static const int productTitleMin = 3;
+  static const int productTitleMax = 80;
+  static const int productDescMin = 10;
+  static const int productDescMax = 2000;
+  static const int maxProductTags = 8;
+  static const int maxActiveProductsPerOwner = 50;
+  static const int productDiscoverFetchCap = 60;
+  static const int productSoftDeleteDays = 30;
 
   // Usta aramasında sunucudan çekilecek en fazla profil (istemci filtre/sıralama
   // öncesi tavan). Müsaitlik hesaplanmış alan olduğundan sıralama istemcide;

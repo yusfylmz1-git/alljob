@@ -187,14 +187,20 @@ class AdminBroadcastRepository {
     bool sendPush = true,
     String? profession,
     String? province,
+    String? targetUid,
+    String? targetEmail,
   }) =>
       {
         'title': title,
         'body': body,
         'audience': audience,
         'sendPush': sendPush,
-        if (profession != null && profession.isNotEmpty) 'profession': profession,
+        if (profession != null && profession.isNotEmpty)
+          'profession': profession,
         if (province != null && province.isNotEmpty) 'province': province,
+        if (targetUid != null && targetUid.isNotEmpty) 'targetUid': targetUid,
+        if (targetEmail != null && targetEmail.isNotEmpty)
+          'targetEmail': targetEmail,
       };
 
   /// Anında gönder.
@@ -205,6 +211,8 @@ class AdminBroadcastRepository {
     bool sendPush = true,
     String? profession,
     String? province,
+    String? targetUid,
+    String? targetEmail,
   }) async {
     final res = await _functions
         .httpsCallable('adminBroadcastNotification')
@@ -215,6 +223,8 @@ class AdminBroadcastRepository {
           sendPush: sendPush,
           profession: profession,
           province: province,
+          targetUid: targetUid,
+          targetEmail: targetEmail,
         ));
     final data = res.data;
     if (data is Map) return Map<String, dynamic>.from(data);
@@ -230,6 +240,8 @@ class AdminBroadcastRepository {
     bool sendPush = true,
     String? profession,
     String? province,
+    String? targetUid,
+    String? targetEmail,
   }) async {
     final res = await _functions
         .httpsCallable('adminScheduleCampaign')
@@ -241,6 +253,8 @@ class AdminBroadcastRepository {
         sendPush: sendPush,
         profession: profession,
         province: province,
+        targetUid: targetUid,
+        targetEmail: targetEmail,
       ),
       'scheduledAt': scheduledAt.toUtc().toIso8601String(),
     });

@@ -6,6 +6,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 
 import '../../../core/theme/app_palette.dart';
+import '../../../core/utils/app_datetime_pickers.dart';
 import '../../../core/utils/snackbar_helper.dart';
 import '../../../core/widgets/app_button.dart';
 import '../../../core/widgets/gradient_app_bar.dart';
@@ -150,20 +151,13 @@ class _TrackEditScreenState extends ConsumerState<TrackEditScreen> {
   Future<void> _pickReminder() async {
     final now = DateTime.now();
     final base = _reminderAt ?? now.add(const Duration(hours: 1));
-    final date = await showDatePicker(
-      context: context,
-      initialDate: base.isBefore(now) ? now : base,
+    final picked = await AppDateTimePickers.pickDateTime(
+      context,
+      initial: base.isBefore(now) ? now : base,
       firstDate: now.subtract(const Duration(days: 1)),
       lastDate: DateTime(now.year + 5),
     );
-    if (date == null || !mounted) return;
-    final time = await showTimePicker(
-      context: context,
-      initialTime: TimeOfDay.fromDateTime(base),
-    );
-    if (time == null || !mounted) return;
-    final picked =
-        DateTime(date.year, date.month, date.day, time.hour, time.minute);
+    if (picked == null || !mounted) return;
     // İlk kez hatırlatma kurulurken bildirim iznini iste (reddedilse de kayıt
     // olur; yalnız bildirim düşmez).
     await ref.read(trackNotificationServiceProvider).ensurePermission();

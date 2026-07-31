@@ -94,10 +94,17 @@ class AuthController extends AsyncNotifier<void> {
   }
 
   /// Müşteri Modu ⇄ Usta Modu geçişi.
+  ///
+  /// Global [AsyncLoading] KULLANILMAZ: login/e-posta doğrulama ile aynı
+  /// bayrak sekmeleri 10–30 sn kilitleyebiliyordu. Repo optimistic yazar;
+  /// hata olursa false döner (UI mesaj gösterir).
   Future<bool> setActiveMode(UserRole mode) async {
-    state = const AsyncLoading();
-    state = await AsyncValue.guard(() => _repo.setActiveMode(mode));
-    return !state.hasError;
+    try {
+      await _repo.setActiveMode(mode);
+      return true;
+    } catch (_) {
+      return false;
+    }
   }
 
   Future<bool> sendPasswordReset(String email) async {

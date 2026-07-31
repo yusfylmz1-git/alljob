@@ -4,13 +4,13 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/router/route_paths.dart';
 import '../../../core/theme/app_palette.dart';
-import '../../../core/theme/app_theme.dart';
 import '../../../core/widgets/app_image.dart';
-import '../../../core/widgets/surface_app_bar.dart';
+import '../../../core/widgets/premium_surface_card.dart';
 import '../../../core/widgets/pull_to_refresh.dart';
 import '../../../core/widgets/responsive_center.dart';
 import '../../../core/widgets/skeleton.dart';
 import '../../../core/widgets/status_views.dart';
+import '../../../core/widgets/surface_app_bar.dart';
 import '../../../data/models/favorite.dart';
 import '../../auth/application/auth_controller.dart';
 import '../data/favorite_providers.dart';
@@ -79,68 +79,63 @@ class _FavoriteTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final palette = context.palette;
-    return Material(
-      color: palette.card,
-      borderRadius: BorderRadius.circular(16),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(16),
-        onTap: () => context.push(RoutePaths.artisanProfile(fav.artisanUid)),
-        child: Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: palette.border),
-            boxShadow: AppTheme.softShadow,
-          ),
-          child: Row(
-            children: [
-              CircleAvatar(
-                radius: 26,
-                backgroundColor: palette.primaryContainer,
-                child: ClipOval(
-                  child: SizedBox(
+    return PremiumSurfaceCard(
+      onTap: () => context.push(RoutePaths.artisanProfile(fav.artisanUid)),
+      padding: const EdgeInsets.all(12),
+      borderRadius: 16,
+      child: Row(
+        children: [
+          Container(
+            width: 52,
+            height: 52,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(color: palette.hairline),
+              color: palette.primaryContainer,
+            ),
+            clipBehavior: Clip.antiAlias,
+            child: fav.photoUrl != null
+                ? AppImage(
+                    handle: fav.photoUrl,
+                    fit: BoxFit.cover,
                     width: 52,
                     height: 52,
-                    child: fav.photoUrl != null
-                        ? AppImage(handle: fav.photoUrl)
-                        : Icon(Icons.person,
-                            color: palette.onPrimaryContainer),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                    memCacheWidth: 104,
+                    memCacheHeight: 104,
+                  )
+                : Icon(Icons.person, color: palette.onPrimaryContainer),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(fav.artisanName,
+                    style: Theme.of(context)
+                        .textTheme
+                        .titleSmall
+                        ?.copyWith(fontWeight: FontWeight.w800)),
+                const SizedBox(height: 2),
+                Text(fav.professionNameTR,
+                    style: Theme.of(context)
+                        .textTheme
+                        .bodySmall
+                        ?.copyWith(color: palette.inkMuted)),
+                const SizedBox(height: 4),
+                Row(
                   children: [
-                    Text(fav.artisanName,
-                        style: Theme.of(context)
-                            .textTheme
-                            .titleSmall
-                            ?.copyWith(fontWeight: FontWeight.w700)),
-                    const SizedBox(height: 2),
-                    Text(fav.professionNameTR,
-                        style: Theme.of(context)
-                            .textTheme
-                            .bodySmall
-                            ?.copyWith(color: palette.inkMuted)),
-                    const SizedBox(height: 4),
-                    Row(
-                      children: [
-                        Icon(Icons.star_rounded,
-                            size: 15, color: palette.star),
-                        const SizedBox(width: 2),
-                        Text('${fav.rating.toStringAsFixed(1)} (${fav.totalReviews})',
-                            style: Theme.of(context).textTheme.bodySmall),
-                      ],
-                    ),
+                    Icon(Icons.star_rounded, size: 15, color: palette.star),
+                    const SizedBox(width: 2),
+                    Text(
+                        '${fav.rating.toStringAsFixed(1)} (${fav.totalReviews})',
+                        style: Theme.of(context).textTheme.bodySmall),
                   ],
                 ),
-              ),
-              Icon(Icons.chevron_right, color: palette.inkFaint),
-            ],
+              ],
+            ),
           ),
-        ),
+          Icon(Icons.chevron_right, color: palette.inkFaint),
+        ],
       ),
     );
   }

@@ -217,6 +217,35 @@ class MyProfileController extends AsyncNotifier<MyProfileDraft> {
     return save();
   }
 
+  /// Doğrulanmış telefonun profilde herkese açık gösterilmesini açar/kapatır
+  /// ve hemen kaydeder. [publicPhone] E.164 numara (yalnız açılırken gerekli).
+  /// Telefon doğrulanmamışsa çağıran taraf bu seçeneği hiç göstermemelidir.
+  Future<bool> setPhoneVisibility({
+    required bool show,
+    String? publicPhone,
+  }) async {
+    final current = state.valueOrNull;
+    if (current == null) return false;
+    // Taslağı iyimser güncelle (UI anında yansısın).
+    _update((d) => d.copyWith(
+          profile: d.profile.copyWith(
+            showPhoneOnProfile: show,
+            publicPhone: show ? publicPhone : null,
+            clearPublicPhone: !show,
+          ),
+        ));
+    final result = await AsyncValue.guard(() async {
+      await ref.read(myProfileRepositoryProvider).setPhoneVisibility(
+            uid: current.profile.uid,
+            showOnProfile: show,
+            publicPhone: publicPhone,
+          );
+      return state.valueOrNull!;
+    });
+    if (result.hasError) return false;
+    return true;
+  }
+
   // NOT — Premium (PRD §6): `isPremium/premiumExpiresAt` İSTEMCİDEN YAZILAMAZ
   // (firestore.rules + repo'lar alanları yazımdan çıkarır). Beta süresince
   // premium özellikleri `hasPremiumAccess` ile herkese açık; gerçek satın

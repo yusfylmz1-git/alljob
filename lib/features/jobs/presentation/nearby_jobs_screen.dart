@@ -32,8 +32,8 @@ class NearbyJobsScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: const SurfaceAppBar(
-        title: 'Hizmetlerim',
-        subtitle: 'Yakınındaki iş ilanları',
+        title: 'İşler',
+        subtitle: 'Yakınındaki açık ilanlar',
         icon: Icons.handyman_outlined,
       ),
       drawer: const AppMenuDrawer(),

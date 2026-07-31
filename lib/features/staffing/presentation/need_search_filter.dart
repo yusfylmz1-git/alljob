@@ -1,3 +1,4 @@
+import '../../../core/utils/search_fold.dart';
 import '../../../data/models/staffing.dart';
 
 /// Eleman ilanı (ihtiyaç) arama filtresi.
@@ -43,10 +44,13 @@ class NeedSearchFilter {
     );
   }
 
+  // foldTrSearch: Türkçe harf sadeleştirme (İ/ı→i, ş→s…) — düz toLowerCase
+  // 'İ'yi birleşik noktalı 'i̇' yaptığından "İnşaat" kaydı "insaat" hatta
+  // "inşaat" sorgusuyla eşleşmiyordu.
   static bool matchesQuery(StaffNeed n, String rawQuery) {
-    final q = rawQuery.trim().toLowerCase();
+    final q = foldTrSearch(rawQuery.trim());
     if (q.isEmpty) return true;
-    final hay = [
+    final hay = foldTrSearch([
       n.title,
       n.detail,
       n.employerName,
@@ -55,7 +59,7 @@ class NeedSearchFilter {
       n.rateLabel,
       '${n.neededCount}',
       if (n.isDaily) 'gündelik günlük',
-    ].join(' ').toLowerCase();
+    ].join(' '));
     final parts = q.split(RegExp(r'\s+')).where((p) => p.isNotEmpty);
     for (final p in parts) {
       if (!hay.contains(p)) return false;
@@ -67,7 +71,7 @@ class NeedSearchFilter {
     return list.where((n) {
       if (district != null &&
           district!.isNotEmpty &&
-          n.district.toLowerCase() != district!.toLowerCase()) {
+          foldTrSearch(n.district) != foldTrSearch(district!)) {
         return false;
       }
       if (dailyOnly && !n.isDaily) return false;

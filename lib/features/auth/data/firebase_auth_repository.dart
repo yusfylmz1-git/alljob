@@ -37,6 +37,11 @@ class FirebaseAuthRepository implements AuthRepository {
   /// aynı kullanıcı için Firestore dinleyicisini yeniden kurmayız.
   String? _attachedUid;
 
+  /// Optimistic mod geçişi: Firestore yazısı / snapshot gecikince UI geri
+  /// zıplamasın diye canlı dinleyicide bu değer öncelikli uygulanır.
+  /// Yazı başarılı + sunucu aynı moda gelince veya hata rollback'te temizlenir.
+  UserRole? _pendingActiveMode;
+
   /// Ağ / DNS asılı kalırsa splash sonsuza kilitlenmesin.
   static const _networkTimeout = Duration(seconds: 8);
 
@@ -107,6 +112,15 @@ class FirebaseAuthRepository implements AuthRepository {
           } else {
             user = await _loadOrCreate(fbUser);
           }
+          // Optimistic mod: sunucu henüz eski moda dönüyorsa UI'yi ezme.
+          final pendingMode = _pendingActiveMode;
+          if (pendingMode != null) {
+            if (user.activeMode == pendingMode) {
+              _pendingActiveMode = null;
+            } else {
+              user = user.copyWith(activeMode: pendingMode);
+            }
+          }
           // Askıya alınırsa claim jetonunu tazele (rules isSuspended).
           if (user.suspended && !wasSuspended) {
             try {
@@ -145,6 +159,7 @@ class FirebaseAuthRepository implements AuthRepository {
             await _userDocSub?.cancel();
             _userDocSub = null;
             _attachedUid = null;
+            _pendingActiveMode = null;
             _cached = null;
             if (!ctrl.isClosed) ctrl.add(null);
             return;
@@ -163,6 +178,7 @@ class FirebaseAuthRepository implements AuthRepository {
         await _userDocSub?.cancel();
         _userDocSub = null;
         _attachedUid = null;
+        _pendingActiveMode = null;
       },
     );
     return ctrl.stream;
@@ -393,14 +409,34 @@ class FirebaseAuthRepository implements AuthRepository {
     if (mode == UserRole.artisan && !user.hasArtisanProfile) {
       throw AuthException.noArtisanProfile;
     }
+    if (user.activeMode == mode) return user;
+
+    final previous = user;
     final updated = user.copyWith(activeMode: mode);
-    await _userDoc(user.uid).set({
-      'activeMode': mode.apiValue,
-      'role': mode.apiValue,
-    }, SetOptions(merge: true));
+
+    // Optimistic: sekmeler / menü anında yeni moda geçsin; ağ cevabını bekleme.
+    _pendingActiveMode = mode;
     _cached = updated;
     _manualUpdates.add(updated);
-    return updated;
+
+    try {
+      await _userDoc(user.uid)
+          .set({
+            'activeMode': mode.apiValue,
+            'role': mode.apiValue,
+          }, SetOptions(merge: true))
+          .timeout(_networkTimeout);
+      // Snapshot sunucuyu yakalayana kadar _pendingActiveMode kalabilir.
+      return updated;
+    } catch (_) {
+      // Yazı başarısız / zaman aşımı → eski moda dön.
+      if (_pendingActiveMode == mode) _pendingActiveMode = null;
+      _cached = previous;
+      _manualUpdates.add(previous);
+      throw const AuthException(
+        'Mod kaydedilemedi. Bağlantınızı kontrol edip tekrar deneyin.',
+      );
+    }
   }
 
   @override
@@ -512,10 +548,14 @@ class FirebaseAuthRepository implements AuthRepository {
       }
       final cached = _cached;
       if (cached != null) {
-        _cached = cached.copyWith(
+        final updated = cached.copyWith(
           displayName: name ?? cached.displayName,
           profilePhotoUrl: profilePhotoUrl ?? cached.profilePhotoUrl,
         );
+        _cached = updated;
+        // UI anında yenilensin (snapshot gecikse bile); aksi halde profil
+        // foto/ad kaydı uygulama yeniden açılana kadar eski kalıyordu.
+        _manualUpdates.add(updated);
       }
     }
   }

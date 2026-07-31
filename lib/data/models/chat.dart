@@ -68,3 +68,48 @@ class ChatThread {
   String? otherPhoto(String myUid) =>
       myUid == customerUid ? artisanPhotoUrl : customerPhotoUrl;
 }
+
+/// Denormalize sohbet okunmamış sayacı (`users/{uid}/private/chatMeta`).
+/// Alt bar / menü rozeti tüm thread listesini dinlemeden bu dökümanı izler.
+class ChatUnreadMeta {
+  const ChatUnreadMeta({
+    this.total = 0,
+    this.customer = 0,
+    this.artisan = 0,
+  });
+
+  static const zero = ChatUnreadMeta();
+
+  /// Toplam okunmamış (müşteri + usta tarafı).
+  final int total;
+
+  /// Kullanıcının müşteri olduğu sohbetlerdeki okunmamış.
+  final int customer;
+
+  /// Kullanıcının usta olduğu sohbetlerdeki okunmamış.
+  final int artisan;
+
+  factory ChatUnreadMeta.fromMap(Map<String, dynamic>? map) {
+    if (map == null) return zero;
+    int i(String k) {
+      final v = map[k];
+      if (v is int) return v < 0 ? 0 : v;
+      if (v is num) return v.toInt().clamp(0, 1 << 30);
+      return 0;
+    }
+
+    final customer = i('unreadCustomer');
+    final artisan = i('unreadArtisan');
+    final totalRaw = i('unreadTotal');
+    // Tutarlılık: taraflar toplamı varsa onu tercih et.
+    final sides = customer + artisan;
+    final total = sides > 0 ? sides : totalRaw;
+    return ChatUnreadMeta(total: total, customer: customer, artisan: artisan);
+  }
+
+  Map<String, dynamic> toMap() => {
+        'unreadTotal': total,
+        'unreadCustomer': customer,
+        'unreadArtisan': artisan,
+      };
+}

@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:flutter/painting.dart' show Color;
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:timezone/data/latest_all.dart' as tzdata;
@@ -66,7 +67,8 @@ class LocalTrackNotificationService implements TrackNotificationService {
       // saat dilimini almak için flutter_timezone eklenmeli.
       tz.setLocalLocation(tz.getLocation('Europe/Istanbul'));
 
-      const android = AndroidInitializationSettings('@mipmap/ic_launcher');
+      // Status bar: monokrom; largeIcon renkli logo (drawable).
+      const android = AndroidInitializationSettings('@drawable/ic_stat_notification');
       const ios = DarwinInitializationSettings(
         requestAlertPermission: false,
         requestBadgePermission: false,
@@ -75,6 +77,17 @@ class LocalTrackNotificationService implements TrackNotificationService {
       await _plugin.initialize(
         settings: const InitializationSettings(android: android, iOS: ios),
         onDidReceiveNotificationResponse: _onTap,
+      );
+      // FCM ile aynı kanal (yüksek öncelik duyurular / iş / sohbet).
+      final androidPlugin = _plugin.resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin>();
+      await androidPlugin?.createNotificationChannel(
+        const AndroidNotificationChannel(
+          'high_importance_channel',
+          'Önemli bildirimler',
+          description: 'Sohbet, iş güncellemeleri ve duyurular',
+          importance: Importance.high,
+        ),
       );
       _inited = true;
     } catch (e) {
@@ -138,6 +151,8 @@ class LocalTrackNotificationService implements TrackNotificationService {
             channelDescription: _channelDesc,
             importance: Importance.high,
             priority: Priority.high,
+            icon: '@drawable/ic_stat_notification',
+            color: Color(0xFFE8611A),
           ),
           iOS: DarwinNotificationDetails(),
         ),

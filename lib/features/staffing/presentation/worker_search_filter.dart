@@ -1,3 +1,4 @@
+import '../../../core/utils/search_fold.dart';
 import '../../../data/models/staffing.dart';
 
 /// Eleman arama filtresi.
@@ -51,10 +52,13 @@ class WorkerSearchFilter {
     );
   }
 
+  // foldTrSearch: Türkçe harf sadeleştirme (İ/ı→i, ş→s…) — düz toLowerCase
+  // 'İ'yi birleşik noktalı 'i̇' yaptığından "İnşaat" kaydı "insaat" hatta
+  // "inşaat" sorgusuyla eşleşmiyordu.
   static bool matchesQuery(StaffWorkerListing w, String rawQuery) {
-    final q = rawQuery.trim().toLowerCase();
+    final q = foldTrSearch(rawQuery.trim());
     if (q.isEmpty) return true;
-    final hay = [
+    final hay = foldTrSearch([
       w.title,
       w.professionLabel,
       w.about,
@@ -63,7 +67,7 @@ class WorkerSearchFilter {
       w.district,
       w.rateLabel,
       if (w.isDaily) 'gündelik günlük',
-    ].join(' ').toLowerCase();
+    ].join(' '));
     final parts = q.split(RegExp(r'\s+')).where((p) => p.isNotEmpty);
     for (final p in parts) {
       if (!hay.contains(p)) return false;
@@ -75,7 +79,7 @@ class WorkerSearchFilter {
     return list.where((w) {
       if (district != null &&
           district!.isNotEmpty &&
-          w.district.toLowerCase() != district!.toLowerCase()) {
+          foldTrSearch(w.district) != foldTrSearch(district!)) {
         return false;
       }
       if (rateType != null && w.rateType != rateType) return false;

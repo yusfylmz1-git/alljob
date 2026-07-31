@@ -56,4 +56,14 @@ class MockFavoriteRepository implements FavoriteRepository {
   }) async {
     return _db.favorites.containsKey(Favorite.idFor(customerUid, artisanUid));
   }
+
+  @override
+  Stream<bool> watchIsFavorite({
+    required String customerUid,
+    required String artisanUid,
+  }) async* {
+    final id = Favorite.idFor(customerUid, artisanUid);
+    yield _db.favorites.containsKey(id);
+    yield* _db.changes.map((_) => _db.favorites.containsKey(id));
+  }
 }

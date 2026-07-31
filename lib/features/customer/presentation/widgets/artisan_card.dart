@@ -2,13 +2,14 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_palette.dart';
-import '../../../../core/theme/app_theme.dart';
 import '../../../../core/widgets/app_image.dart';
+import '../../../../core/widgets/premium_surface_card.dart';
 import '../../../artisan/data/artisan_repository.dart';
 
-/// Keşif ızgarasındaki usta kartı — kompakt kare / dikey tile.
-/// Yan yana 2+ sütun (ekran genişliğine göre); avatar üstte, özet altta.
-/// Favori kalbi kartta YOK (usta profil sayfasında).
+/// Keşif ızgarasındaki usta kartı — kompakt dikey tile, premium cam hissi.
+///
+/// Not: Gerçek [BackdropFilter] kullanılmaz (yüzlerce kartta kaydırma bozulur);
+/// yarı saydam dolgu + kenar + üst ışıltı ile “glass” illüzyonu verilir.
 class ArtisanCard extends StatelessWidget {
   const ArtisanCard({super.key, required this.artisan, required this.onTap});
 
@@ -20,113 +21,118 @@ class ArtisanCard extends StatelessWidget {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
     final palette = context.palette;
+    final isDark = theme.brightness == Brightness.dark;
 
     final rating = artisan.totalReviews == 0
         ? 'Yeni'
         : '★ ${artisan.averageRating.toStringAsFixed(1)}';
 
-    return Material(
-      color: palette.card,
-      borderRadius: BorderRadius.circular(14),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(14),
-        hoverColor: scheme.primary.withValues(alpha: 0.03),
-        child: Ink(
-          decoration: BoxDecoration(
-            color: palette.card,
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: palette.hairline),
-            boxShadow: AppTheme.softShadow,
-          ),
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(8, 10, 8, 8),
-            child: Column(
-              children: [
-                Expanded(
-                  flex: 5,
-                  child: Center(
-                    child: _RingedAvatar(artisan: artisan),
-                  ),
+    // Müsait: yeşil kenar; aksi halde varsayılan cam kenar. "Pro" yazısı yok.
+    final accent = artisan.isAvailable
+        ? palette.success.withValues(alpha: isDark ? 0.28 : 0.18)
+        : null;
+
+    return PremiumSurfaceCard(
+      onTap: onTap,
+      padding: const EdgeInsets.fromLTRB(10, 10, 10, 8),
+      accentBorder: accent,
+      accentWidth: artisan.isAvailable ? 1.15 : 1,
+      child: Column(
+        children: [
+          Expanded(
+            flex: 6,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(4, 2, 4, 2),
+              child: Center(
+                child: AspectRatio(
+                  aspectRatio: 1,
+                  child: _RingedAvatar(artisan: artisan),
                 ),
-                const SizedBox(height: 6),
-                // Ad + rozetler
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Flexible(
-                      child: Text(
-                        artisan.displayName,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        textAlign: TextAlign.center,
-                        style: theme.textTheme.labelLarge?.copyWith(
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: -0.2,
-                          height: 1.15,
-                        ),
-                      ),
-                    ),
-                    if (artisan.isVerified) ...[
-                      const SizedBox(width: 2),
-                      Tooltip(
-                        message: artisan.verifiedBadgeTooltip,
-                        child: Icon(Icons.verified,
-                            size: 13, color: palette.verified),
-                      ),
-                    ],
-                    if (artisan.isPremium) ...[
-                      const SizedBox(width: 2),
-                      Icon(Icons.workspace_premium,
-                          size: 13, color: palette.premium),
-                    ],
-                  ],
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  artisan.professionNameTR,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  textAlign: TextAlign.center,
-                  style: theme.textTheme.labelSmall?.copyWith(
-                    color: scheme.onSurfaceVariant,
-                    height: 1.15,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                // Puan · deneyim
-                Text(
-                  [
-                    rating,
-                    if (artisan.experienceYears > 0)
-                      '${artisan.experienceYears}y',
-                  ].join(' · '),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  textAlign: TextAlign.center,
-                  style: theme.textTheme.labelSmall?.copyWith(
-                    color: scheme.onSurfaceVariant,
-                    fontWeight: FontWeight.w600,
-                    fontSize: 11,
-                    height: 1.1,
-                  ),
-                ),
-                const SizedBox(height: 5),
-                _StatusChip(
-                  isAvailable: artisan.isAvailable,
-                  isNew: artisan.isNewArtisan,
-                ),
-              ],
+              ),
             ),
           ),
-        ),
+          const SizedBox(height: 6),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Flexible(
+                child: Text(
+                  artisan.displayName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  style: theme.textTheme.labelLarge?.copyWith(
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -0.25,
+                    height: 1.15,
+                    color: palette.ink,
+                  ),
+                ),
+              ),
+              if (artisan.isVerified) ...[
+                const SizedBox(width: 3),
+                Tooltip(
+                  message: artisan.verifiedBadgeTooltip,
+                  child: Icon(Icons.verified,
+                      size: 14, color: palette.verified),
+                ),
+              ],
+            ],
+          ),
+          const SizedBox(height: 2),
+          Text(
+            artisan.professionNameTR,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.center,
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: palette.inkMuted,
+              fontWeight: FontWeight.w600,
+              height: 1.15,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Container(
+            padding:
+                const EdgeInsets.symmetric(horizontal: 8, vertical: 2.5),
+            decoration: BoxDecoration(
+              color: scheme.surfaceContainerHighest
+                  .withValues(alpha: isDark ? 0.35 : 0.55),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color: palette.hairline.withValues(alpha: 0.8),
+              ),
+            ),
+            child: Text(
+              [
+                rating,
+                if (artisan.experienceYears > 0)
+                  '${artisan.experienceYears}y',
+              ].join(' · '),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+              style: theme.textTheme.labelSmall?.copyWith(
+                color: palette.inkMuted,
+                fontWeight: FontWeight.w700,
+                fontSize: 10.5,
+                height: 1.1,
+              ),
+            ),
+          ),
+          const SizedBox(height: 4),
+          _StatusChip(
+            isAvailable: artisan.isAvailable,
+            isNew: artisan.isNewArtisan,
+          ),
+        ],
       ),
     );
   }
 }
 
-/// Müsaitlik halkalı yuvarlak avatar; fotoğraf yoksa gradyan + baş harfler.
+/// Müsaitlik halkalı **büyük daire** avatar — foto neredeyse tüm alanı doldurur.
+/// Üst: [AspectRatio] 1:1. Gölge dışarı taşmasın diye kart [clipBehavior] kullanır.
 class _RingedAvatar extends StatelessWidget {
   const _RingedAvatar({required this.artisan});
   final ArtisanSummary artisan;
@@ -134,33 +140,44 @@ class _RingedAvatar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final palette = context.palette;
+
+    // İnce halka → foto daha büyük; dış gölge yok (taşma).
+    const ring = 2.5;
+    const gap = 1.5;
+
     return LayoutBuilder(
       builder: (context, constraints) {
-        // Hücreye sığacak en büyük avatar (kare tile için).
-        final side = (constraints.biggest.shortestSide).clamp(40.0, 72.0);
-        final ring = side < 52 ? 2.0 : 2.5;
-        final gap = side < 52 ? 1.5 : 2.0;
-        final diameter = side - (ring + gap) * 2;
+        final side = constraints.biggest.shortestSide;
+        if (side <= 0 || !side.isFinite) return const SizedBox.shrink();
 
-        return Container(
+        return SizedBox(
           width: side,
           height: side,
-          padding: EdgeInsets.all(ring),
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            gradient: artisan.isAvailable ? AppColors.availableRing : null,
-            color: artisan.isAvailable ? null : scheme.outlineVariant,
-          ),
-          child: Container(
-            padding: EdgeInsets.all(gap),
+          child: DecoratedBox(
             decoration: BoxDecoration(
-              color: context.palette.card,
               shape: BoxShape.circle,
+              gradient: artisan.isAvailable ? AppColors.availableRing : null,
+              color: artisan.isAvailable ? null : scheme.outlineVariant,
             ),
-            child: _AvatarContent(
-              initials: _initials(artisan.displayName),
-              photoUrl: artisan.profilePhotoUrl,
-              diameter: diameter,
+            child: Padding(
+              padding: const EdgeInsets.all(ring),
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  color: palette.card,
+                  shape: BoxShape.circle,
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(gap),
+                  // ClipOval + Stack.expand: foto çerçeveyi tam doldurur.
+                  child: ClipOval(
+                    child: _AvatarFill(
+                      initials: _initials(artisan.displayName),
+                      photoUrl: artisan.profilePhotoUrl,
+                    ),
+                  ),
+                ),
+              ),
             ),
           ),
         );
@@ -179,59 +196,52 @@ class _RingedAvatar extends StatelessWidget {
   }
 }
 
-class _AvatarContent extends StatelessWidget {
-  const _AvatarContent({
-    required this.initials,
-    required this.diameter,
-    this.photoUrl,
-  });
+/// Parent ClipOval içinde tüm alanı kaplar (BoxFit.cover).
+class _AvatarFill extends StatelessWidget {
+  const _AvatarFill({required this.initials, this.photoUrl});
 
   final String initials;
-  final double diameter;
   final String? photoUrl;
 
   @override
   Widget build(BuildContext context) {
-    final fontSize = (diameter * 0.36).clamp(12.0, 22.0);
-    final letter = Container(
-      width: diameter,
-      height: diameter,
-      decoration: const BoxDecoration(
-        gradient: AppColors.brandGradient,
-        shape: BoxShape.circle,
-      ),
-      alignment: Alignment.center,
-      child: Text(
-        initials,
-        style: TextStyle(
-          fontSize: fontSize,
-          fontWeight: FontWeight.w700,
-          color: Colors.white,
-          letterSpacing: 0.4,
+    final letter = DecoratedBox(
+      decoration: const BoxDecoration(gradient: AppColors.brandGradient),
+      child: Center(
+        child: Text(
+          initials,
+          style: const TextStyle(
+            fontSize: 22,
+            fontWeight: FontWeight.w700,
+            color: Colors.white,
+            letterSpacing: 0.4,
+          ),
         ),
       ),
     );
+
     final url = photoUrl?.trim();
-    if (url == null || url.isEmpty) return letter;
-    final cache = (diameter * 2).round().clamp(64, 160);
-    return ClipOval(
-      child: SizedBox(
-        width: diameter,
-        height: diameter,
-        child: AppImage(
-          handle: url,
-          width: diameter,
-          height: diameter,
-          memCacheWidth: cache,
-          memCacheHeight: cache,
-          placeholder: letter,
-        ),
+    if (url == null || url.isEmpty) {
+      return SizedBox.expand(child: letter);
+    }
+
+    final dpr = MediaQuery.devicePixelRatioOf(context);
+    // ~96 logical * dpr — keskin ama aşırı decode yok.
+    final cache = (96 * dpr).round().clamp(96, 256);
+
+    return SizedBox.expand(
+      child: AppImage(
+        handle: url,
+        fit: BoxFit.cover,
+        memCacheWidth: cache,
+        memCacheHeight: cache,
+        placeholder: letter,
       ),
     );
   }
 }
 
-/// Kompakt durum etiketi (kare kart altına sığar).
+/// Cam hissi durum etiketi.
 class _StatusChip extends StatelessWidget {
   const _StatusChip({required this.isAvailable, required this.isNew});
   final bool isAvailable;
@@ -266,31 +276,42 @@ class _StatusChip extends StatelessWidget {
     }
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3.5),
       decoration: BoxDecoration(
-        color: surface,
+        color: surface.withValues(alpha: 0.92),
         borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color.withValues(alpha: 0.18)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           if (showDot)
             Container(
-              width: 5,
-              height: 5,
-              decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+              width: 5.5,
+              height: 5.5,
+              decoration: BoxDecoration(
+                color: color,
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: color.withValues(alpha: 0.45),
+                    blurRadius: 4,
+                  ),
+                ],
+              ),
             )
           else if (icon != null)
-            Icon(icon, size: 10, color: color),
+            Icon(icon, size: 11, color: color),
           const SizedBox(width: 4),
           Text(
             label,
             maxLines: 1,
             style: theme.textTheme.labelSmall?.copyWith(
               color: color,
-              fontWeight: FontWeight.w700,
+              fontWeight: FontWeight.w800,
               fontSize: 10,
               height: 1.1,
+              letterSpacing: 0.15,
             ),
           ),
         ],

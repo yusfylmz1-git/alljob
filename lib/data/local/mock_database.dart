@@ -7,6 +7,7 @@ import '../models/favorite.dart';
 import '../models/geo_models.dart';
 import '../models/job.dart';
 import '../models/offer.dart';
+import '../models/product.dart';
 import '../models/review.dart';
 
 /// Meslek/kategori kodu → Türkçe ad. professions.json ile senkron tut.
@@ -180,6 +181,7 @@ class MockDatabase {
   final Map<String, Job> jobs = {};
   final Map<String, Offer> offers = {};
   final Map<String, Favorite> favorites = {};
+  final Map<String, Product> products = {};
 
   /// jobs/offers/favorites değiştiğinde tetiklenir → mock repo'lar akışlarını
   /// yeniden yayar (Firestore snapshot dinleyicisinin bellek içi taklidi).
@@ -227,6 +229,7 @@ class MockDatabase {
             p.totalReviews > 0 ? totalRatingSum / p.totalReviews : 0,
         totalReviews: p.totalReviews,
         totalRatingSum: totalRatingSum,
+        topTags: _computeTopTags(rec.reviews),
       );
       return false;
     }
@@ -238,8 +241,24 @@ class MockDatabase {
       averageRating: totalRatingSum / totalReviews,
       totalReviews: totalReviews,
       totalRatingSum: totalRatingSum,
+      topTags: _computeTopTags(rec.reviews),
     );
     return true;
+  }
+
+  /// Bir ustanın tüm değerlendirmelerinden en sık 3 OLUMLU etiketi türetir
+  /// (CF `onReviewWritten` → topTags paritesi). Olumsuz etiketler sayılmaz.
+  List<String> _computeTopTags(Iterable<Review> reviews) {
+    final counts = <String, int>{};
+    for (final r in reviews) {
+      for (final t in r.tags) {
+        if (ReviewTags.isNegative(t)) continue;
+        counts[t] = (counts[t] ?? 0) + 1;
+      }
+    }
+    final sorted = counts.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+    return [for (final e in sorted.take(3)) e.key];
   }
 
   /// İş `completed` olduğunda usta sayacını artırır (CF `onJobWritten` paritesi).
@@ -390,6 +409,11 @@ class MockDatabase {
       averageRating: rating,
       totalReviews: reviewCount,
       totalRatingSum: (rating * reviewCount).round(),
+      // Demo: puanı iyi + yorumu olan ustalarda kart rozetleri dolu görünsün.
+      // Gerçekte CF (onReviewWritten) besler; burada deterministik üretilir.
+      topTags: (reviewCount > 0 && rating >= 3.8)
+          ? _demoTopTags(index)
+          : const [],
       isPremium: isPremium,
       premiumExpiresAt:
           isPremium ? DateTime.now().add(const Duration(days: 20)) : null,
@@ -405,6 +429,18 @@ class MockDatabase {
       profile: profile,
       reviews: _buildReviews(uid, min(reviewCount, 5), rnd),
     );
+  }
+
+  /// Demo için deterministik "en sık etiketler" (2-3 olumlu). Gerçekte CF
+  /// tagCounts'tan türetir; burada [index]'e göre sabit bir seçim yapılır ki
+  /// her açılışta aynı usta aynı rozetleri göstersin.
+  List<String> _demoTopTags(int index) {
+    const pos = ReviewTags.positive;
+    final count = 2 + (index % 2); // 2 veya 3 etiket
+    final start = index % pos.length;
+    return [
+      for (var i = 0; i < count; i++) pos[(start + i) % pos.length],
+    ];
   }
 
   /// Usta feed'i boş görünmesin diye birkaç örnek açık ilan. Demo müşterisi
@@ -425,7 +461,6 @@ class MockDatabase {
         neighborhood: 'Dikkaldırım',
         createdAgo: const Duration(hours: 3),
         duration: JobDuration.day3,
-        isUrgent: false,
         priceType: JobPriceType.fixed,
         budget: 5000,
         offerCount: 0,
@@ -441,7 +476,6 @@ class MockDatabase {
         neighborhood: 'Dikkaldırım',
         createdAgo: const Duration(minutes: 20),
         duration: JobDuration.day1,
-        isUrgent: true,
         priceType: JobPriceType.inspection,
         budget: null,
         offerCount: 0,
@@ -456,7 +490,6 @@ class MockDatabase {
         neighborhood: 'Caferağa',
         createdAgo: const Duration(days: 1),
         duration: JobDuration.day7,
-        isUrgent: false,
         priceType: JobPriceType.fixed,
         budget: 1200,
         offerCount: 0,
@@ -480,7 +513,6 @@ class MockDatabase {
     required String? neighborhood,
     required Duration createdAgo,
     required JobDuration duration,
-    required bool isUrgent,
     required JobPriceType priceType,
     required double? budget,
     required int offerCount,
@@ -497,7 +529,6 @@ class MockDatabase {
       district: district,
       neighborhood: neighborhood,
       photos: const [],
-      isUrgent: isUrgent,
       priceType: priceType,
       budget: budget,
       status: JobStatus.open,

@@ -94,6 +94,7 @@ enum JobStatus {
       this == JobStatus.inProgress ||
       this == JobStatus.completed;
 
+  /// Teknik / admin / debug için ayrıntılı etiket (backend adımları).
   String get labelTR => switch (this) {
         JobStatus.open => 'Açık',
         JobStatus.workerSelected => 'Usta Seçildi',
@@ -104,6 +105,43 @@ enum JobStatus {
         JobStatus.cancelled => 'İptal Edildi',
         JobStatus.expired => 'Süresi Doldu',
       };
+
+  /// Kullanıcıya sade dil: 3 ana evre + istisnalar.
+  /// Backend enum değişmez; yalnız UI metni birleşir.
+  ///
+  /// 1. Teklif toplanıyor (`open`)
+  /// 2. İş yürüyor (`workerSelected` + `inProgress`)
+  /// 3. Kapandı (`completed` / `rated`)
+  /// + Sorun / İptal / Süre doldu
+  String get simpleLabelTR => switch (this) {
+        JobStatus.open => 'Teklif toplanıyor',
+        JobStatus.workerSelected || JobStatus.inProgress => 'İş yürüyor',
+        JobStatus.completed => 'Tamamlandı',
+        JobStatus.rated => 'Tamamlandı · değerlendirildi',
+        JobStatus.disputed => 'Sorun — beklemede',
+        JobStatus.cancelled => 'İptal edildi',
+        JobStatus.expired => 'Süresi doldu',
+      };
+
+  /// Sade stepper indeksi: 0 teklif · 1 yürüyor · 2 kapandı.
+  /// `null` = stepper yok (sorun / iptal / süre).
+  int? get simpleStepIndex => switch (this) {
+        JobStatus.open => 0,
+        JobStatus.workerSelected || JobStatus.inProgress => 1,
+        JobStatus.completed || JobStatus.rated => 2,
+        JobStatus.disputed ||
+        JobStatus.cancelled ||
+        JobStatus.expired =>
+          null,
+      };
+
+  /// İş fiilen yürüyor mu? (usta seçili veya başladı)
+  bool get isInWork =>
+      this == JobStatus.workerSelected || this == JobStatus.inProgress;
+
+  /// İş kapanmış sayılır mı? (başarılı tamamlanma)
+  bool get isClosedHappy =>
+      this == JobStatus.completed || this == JobStatus.rated;
 }
 
 /// Sorunu bildiren taraf.
@@ -182,7 +220,6 @@ class Job {
     required this.province,
     required this.district,
     required this.photos,
-    required this.isUrgent,
     required this.priceType,
     required this.status,
     required this.offerCount,
@@ -220,7 +257,6 @@ class Job {
   final String? neighborhood;
 
   final List<String> photos; // image handle (max AppConstants.maxJobPhotos)
-  final bool isUrgent; // 🚨 acil (#urgent)
 
   final JobPriceType priceType;
   final double? budget; // müşteri fiyat beklentisi (opsiyonel, #8)
@@ -297,7 +333,6 @@ class Job {
     String? district,
     String? neighborhood,
     List<String>? photos,
-    bool? isUrgent,
     JobPriceType? priceType,
     double? budget,
     JobStatus? status,
@@ -329,7 +364,6 @@ class Job {
       district: district ?? this.district,
       neighborhood: neighborhood ?? this.neighborhood,
       photos: photos ?? this.photos,
-      isUrgent: isUrgent ?? this.isUrgent,
       priceType: priceType ?? this.priceType,
       budget: budget ?? this.budget,
       status: status ?? this.status,
@@ -367,7 +401,6 @@ class Job {
         'district': district,
         'neighborhood': neighborhood,
         'photos': photos,
-        'isUrgent': isUrgent,
         'priceType': priceType.apiValue,
         'budget': budget,
         'status': status.apiValue,
@@ -399,7 +432,6 @@ class Job {
       district: (map['district'] as String?) ?? '',
       neighborhood: map['neighborhood'] as String?,
       photos: ((map['photos'] as List?) ?? []).map((e) => e.toString()).toList(),
-      isUrgent: (map['isUrgent'] as bool?) ?? false,
       priceType: JobPriceType.fromString(map['priceType'] as String?),
       budget: (map['budget'] as num?)?.toDouble(),
       status: JobStatus.fromString(map['status'] as String?),

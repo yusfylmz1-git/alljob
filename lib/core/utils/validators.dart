@@ -105,6 +105,44 @@ class Validators {
     return null;
   }
 
+  /// TR yazımlı tutarı sayıya çevirir: "1.500" → 1500, "1.500,50" → 1500.5,
+  /// "1500.50" → 1500.5, "₺ 2.000" → 2000. Ayrıştırılamazsa null.
+  ///
+  /// Kural: virgül ve nokta birlikteyse SONDAKİ ayraç ondalıktır; yalnız
+  /// virgül varsa ondalıktır; yalnız nokta varsa ardından tam 3 hane
+  /// geliyorsa (veya birden çok nokta varsa) binlik sayılır ("1.500" = 1500),
+  /// aksi halde ondalıktır ("10.5" = 10.5).
+  static double? parseTrAmount(String? value) {
+    var v = (value ?? '').trim();
+    if (v.isEmpty) return null;
+    v = v.replaceAll(RegExp(r'[^\d.,]'), '');
+    if (v.isEmpty) return null;
+    final lastComma = v.lastIndexOf(',');
+    final lastDot = v.lastIndexOf('.');
+    String decimalSep = '';
+    if (lastComma >= 0 && lastDot >= 0) {
+      decimalSep = lastComma > lastDot ? ',' : '.';
+    } else if (lastComma >= 0) {
+      decimalSep = ',';
+    } else if (lastDot >= 0) {
+      final digitsAfter = v.length - lastDot - 1;
+      final multipleDots = '.'.allMatches(v).length > 1;
+      decimalSep = (digitsAfter == 3 || multipleDots) ? '' : '.';
+    }
+    String digitsOnly(String s) => s.replaceAll(RegExp(r'[.,]'), '');
+    String normalized;
+    if (decimalSep.isEmpty) {
+      normalized = digitsOnly(v);
+    } else {
+      final sepIndex = decimalSep == ',' ? lastComma : lastDot;
+      final intPart = digitsOnly(v.substring(0, sepIndex));
+      final fracPart = digitsOnly(v.substring(sepIndex + 1));
+      normalized = fracPart.isEmpty ? intPart : '$intPart.$fracPart';
+    }
+    if (normalized.isEmpty || normalized == '.') return null;
+    return double.tryParse(normalized);
+  }
+
   /// Pozitif tam sayı (örn. deneyim yılı).
   static String? positiveInt(String? value,
       {String field = 'Değer', int max = 80}) {
@@ -142,7 +180,7 @@ class Validators {
   }
 
   /// Serbest metin (ilan, sohbet, hakkımda):
-  /// kontrol karakteri yok + uzunluk + aşırı sembol engeli.
+  /// önce temizle (yapıştırma gizli karakterleri), sonra uzunluk/sembol kontrolü.
   static String? freeText(
     String? value, {
     required int max,
@@ -150,25 +188,27 @@ class Validators {
     int min = 0,
     bool required = false,
   }) {
-    final raw = value ?? '';
-    if (_controlChars.hasMatch(raw)) {
-      return '$field geçersiz karakter içeriyor';
-    }
-    final v = sanitizeFreeText(raw);
+    // Gizli/kontrol karakterlerini REDDETMEK yerine temizle — WhatsApp/not
+    // yapıştırması sık "geçersiz karakter" üretiyordu.
+    final v = sanitizeFreeText(value);
     if (v.isEmpty) {
       return required || min > 0 ? '$field boş bırakılamaz' : null;
     }
-    if (v.length < min) return '$field en az $min karakter olmalı';
-    if (v.length > max) return '$field en fazla $max karakter olabilir';
-    if (_longSymbolRun.hasMatch(v)) {
-      return '$field aşırı özel karakter içeriyor';
+    if (v.length < min) {
+      return '$field en az $min karakter olmalı (şu an ${v.length})';
     }
-    // Uzun metinde harf oranı çok düşükse (sembol/sayı spam) reddet.
-    if (v.length >= 10) {
-      final letters = _letterPattern.allMatches(v).length;
-      if (letters / v.length < 0.2) {
-        return '$field anlamlı metin içermeli';
-      }
+    if (v.length > max) {
+      return '$field en fazla $max karakter olabilir (şu an ${v.length})';
+    }
+    if (_longSymbolRun.hasMatch(v)) {
+      return '$field içinde art arda çok fazla özel karakter var '
+          '(…… / **** gibi). Metni sadeleştirin.';
+    }
+    // Sayı/ölçü ağırlıklı ilan metinleri (m², 3+1) harf oranını düşürür;
+    // mutlak harf eşiği: en az 4 harf (spam/sadece rakam engeli).
+    final letters = _letterPattern.allMatches(v).length;
+    if (v.length >= 10 && letters < 4) {
+      return '$field anlamlı bir cümle içermeli (sadece rakam/sembol olamaz)';
     }
     return null;
   }

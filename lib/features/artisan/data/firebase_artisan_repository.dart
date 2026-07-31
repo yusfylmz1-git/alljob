@@ -203,11 +203,15 @@ class _Rec {
         experienceYears: profile.experienceYears,
         averageRating: profile.averageRating,
         totalReviews: profile.totalReviews,
+        topTags: profile.topTags,
         isVerified: profile.showVerifiedBadge,
         isEmailVerified: profile.emailVerified,
         isPremium: profile.isPremium,
         isAvailable: profile.isAvailable,
         isNewArtisan: profile.isNewArtisan,
         profilePhotoUrl: profilePhotoUrl,
+        areaLabel: profile.serviceAreas.isNotEmpty
+            ? profile.serviceAreas.first.labelTR
+            : null,
       );
 }

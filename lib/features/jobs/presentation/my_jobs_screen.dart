@@ -293,10 +293,6 @@ class _JobCard extends StatelessWidget {
             children: [
               Row(
                 children: [
-                  if (job.isUrgent) ...[
-                    const UrgentBadge(compact: true),
-                    const SizedBox(width: 8),
-                  ],
                   Expanded(
                     child: Text(
                       job.title,
@@ -325,10 +321,25 @@ class _JobCard extends StatelessWidget {
                 children: [
                   if (status == JobStatus.open || status == JobStatus.expired)
                     OfferCountBadge(count: job.offerCount)
+                  else if (status == JobStatus.completed)
+                    _InfoChip(
+                      icon: Icons.star_outline_rounded,
+                      label: 'Değerlendir',
+                    )
+                  else if (status == JobStatus.rated)
+                    _InfoChip(
+                      icon: Icons.verified_outlined,
+                      label: 'Değerlendirildi',
+                    )
+                  else if (status.isInWork || status == JobStatus.disputed)
+                    _InfoChip(
+                      icon: Icons.handyman_outlined,
+                      label: status.simpleLabelTR,
+                    )
                   else
                     _InfoChip(
                       icon: Icons.person_outline,
-                      label: 'Usta seçildi',
+                      label: status.simpleLabelTR,
                     ),
                   const Spacer(),
                   Icon(Icons.chevron_right, color: palette.inkFaint),

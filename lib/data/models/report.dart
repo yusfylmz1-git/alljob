@@ -7,7 +7,12 @@ library;
 enum ReportTarget {
   message('message'),
   job('job'),
-  user('user');
+  user('user'),
+  // Eleman modülü (UGC): "iş arıyorum" kartı ve işveren eleman ilanı.
+  staffWorker('staffWorker'),
+  staffNeed('staffNeed'),
+  // Keşfet Ürünler (PRD-006).
+  product('product');
 
   const ReportTarget(this.apiValue);
   final String apiValue;

@@ -7,8 +7,24 @@ class RoutePaths {
   // İlk açılış tanıtımı (yalnızca bir kez, oturum yokken).
   static const String onboarding = '/onboarding';
 
-  // Herkese açık keşif (misafir + müşteri) — uygulamanın ana ekranı.
+  // Ana Sayfa (platform dashboard) — misafir + üye. Splash/login/onboarding
+  // sonrası buraya gelinir. İstatistik, öne çıkanlar, hızlı erişim, duyuru.
   static const String home = '/';
+
+  // Keşfet (usta/iş/ürün/eleman arama ızgarası) — eski ana ekran.
+  // Ana Sayfa eklenince '/' Ana Sayfa'ya, keşif buraya taşındı.
+  static const String explore = '/explore';
+
+  /// Keşfet'i belirli bir sekmeyle açar (Ana Sayfa "Tümünü Gör" bağlantıları).
+  /// [tab]: artisans | jobs | products | staff. Geçersiz/boş değer yok sayılır
+  /// (Keşfet role göre varsayılan sekmeye düşer). [prof] verilirse (yalnız
+  /// artisans sekmesi için anlamlı) Ustalar o meslek koduyla filtreli açılır.
+  static String exploreTab(String tab, {String? prof}) {
+    final p = (prof == null || prof.isEmpty)
+        ? ''
+        : '&prof=${Uri.encodeComponent(prof)}';
+    return '$explore?tab=$tab$p';
+  }
 
   // Kimlik doğrulama (yalnız Google; register → login)
   static const String login = '/login';
@@ -86,6 +102,16 @@ class RoutePaths {
   /// Herkese açık usta profil sayfası yolu.
   static String artisanProfile(String uid) => '/artisan/$uid';
 
+  /// Bir ustanın/satıcının herkese açık ürünleri (profil "Dükkan" → Tümünü Gör).
+  static String artisanProducts(String uid) => '/artisan/$uid/products';
+
+  // Keşfet Ürünler (PRD-006) — /products/new ve /products/mine, :id'den önce.
+  static const String productsBase = '/products';
+  static const String productNew = '/products/new';
+  static const String myProducts = '/products/mine';
+  static String productDetail(String id) => '/products/$id';
+  static String productEdit(String id) => '/products/$id/edit';
+
   // Eleman (işveren arar / iş arayan müsait görünür — başvuru formu yok).
   static const String staffing = '/staffing';
   static const String staffMyWorker = '/staffing/me';
@@ -104,4 +130,21 @@ class RoutePaths {
   static const String trackingBackup = '/tracking/backup';
   static String trackDetail(String id) => '/tracking/$id';
   static String trackEdit(String id) => '/tracking/$id/edit';
+
+  // Usta Çantası (PRD-007) — saha hesap + AR ölçüm araç seti.
+  // Misafir dâhil herkese açık (needsLogin listesine EKLENMEZ); yerel-öncelikli,
+  // Firebase yok. Alt path'ler faz faz açılır (Faz B: area/paint/tile, ...).
+  static const String toolkit = '/toolkit';
+  static const String toolkitArea = '/toolkit/area';
+  static const String toolkitPaint = '/toolkit/paint';
+  static const String toolkitTile = '/toolkit/tile';
+  static const String toolkitCost = '/toolkit/cost';
+  static const String toolkitProfit = '/toolkit/profit';
+  static const String toolkitQuote = '/toolkit/quote';
+  static const String toolkitUnits = '/toolkit/units';
+  static const String toolkitDuration = '/toolkit/duration';
+  static const String toolkitAr = '/toolkit/ar';
+
+  /// Yönlendirmeli ölçüm & malzeme hesabı: malzeme → ölç → sorular → sonuç.
+  static const String toolkitMeasure = '/toolkit/measure';
 }

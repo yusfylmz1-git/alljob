@@ -5,7 +5,7 @@ import 'package:usta_cepte/app.dart';
 import 'package:usta_cepte/core/router/app_router.dart';
 import 'package:usta_cepte/core/router/route_paths.dart';
 import 'package:usta_cepte/features/auth/application/auth_controller.dart';
-import 'package:usta_cepte/features/customer/presentation/customer_dashboard_screen.dart';
+import 'package:usta_cepte/features/home/presentation/home_screen.dart';
 import 'package:usta_cepte/features/profile/presentation/profile_screen.dart';
 
 import 'helpers/mock_backend.dart';
@@ -26,10 +26,10 @@ void main() {
       ),
     );
 
-    // Splash çözülür → misafir keşif ekranı (misafir-önce akış, Oturum 17).
+    // Splash çözülür → misafir Ana Sayfa dashboard'u (misafir-önce akış).
     await tester.pump();
     await tester.pump(const Duration(seconds: 1));
-    expect(find.byType(CustomerDashboardScreen), findsOneWidget);
+    expect(find.byType(HomeScreen), findsOneWidget);
 
     // Usta olarak giriş yap. login() içindeki gecikmeleri pump ile ilerlet
     // (await etmeden — aksi halde test saatinin zamanlayıcısı beklenir).

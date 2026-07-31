@@ -41,7 +41,6 @@ class _CreateJobScreenState extends ConsumerState<CreateJobScreen> {
   Province? _province;
   District? _district;
   final List<String> _photos = [];
-  bool _isUrgent = false;
   JobDuration _duration = JobDuration.day3;
   bool _submitting = false;
 
@@ -139,7 +138,6 @@ class _CreateJobScreenState extends ConsumerState<CreateJobScreen> {
       province: _province!.name,
       district: _district!.name,
       photos: List.of(_photos),
-      isUrgent: _isUrgent,
       priceType: JobPriceType.inspection,
       budget: null,
       status: JobStatus.open,
@@ -324,22 +322,22 @@ class _CreateJobScreenState extends ConsumerState<CreateJobScreen> {
                 title: 'Detaylar',
                 subtitle: 'İyi anlatılan iş, doğru ustayı bulur',
                 children: [
-                  _Label('Açıklama'),
+                  _Label('Açıklama (isteğe bağlı)'),
                   TextFormField(
                     controller: _descController,
                     maxLines: 4,
                     maxLength: AppConstants.maxJobDescriptionLength,
                     textCapitalization: TextCapitalization.sentences,
                     decoration: const InputDecoration(
-                      hintText: 'İşi mümkün olduğunca ayrıntılı anlatın.',
+                      hintText: 'İsterseniz işi biraz daha anlatın.',
                       alignLabelWithHint: true,
                     ),
                     validator: (v) => Validators.freeText(
                       v,
-                      min: 10,
+                      min: 0,
                       max: AppConstants.maxJobDescriptionLength,
                       field: 'Açıklama',
-                      required: true,
+                      required: false,
                     ),
                   ),
                   const SizedBox(height: 4),
@@ -372,12 +370,6 @@ class _CreateJobScreenState extends ConsumerState<CreateJobScreen> {
                 step: 4,
                 title: 'Yayın Ayarları',
                 children: [
-                  // Acil (#urgent)
-                  _UrgentToggle(
-                    value: _isUrgent,
-                    onChanged: (v) => setState(() => _isUrgent = v),
-                  ),
-                  const SizedBox(height: 14),
                   _Label('İlan Süresi'),
                   SizedBox(
                     width: double.infinity,
@@ -501,39 +493,6 @@ class _SectionCard extends StatelessWidget {
           const SizedBox(height: 14),
           ...children,
         ],
-      ),
-    );
-  }
-}
-
-class _UrgentToggle extends StatelessWidget {
-  const _UrgentToggle({required this.value, required this.onChanged});
-  final bool value;
-  final ValueChanged<bool> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    final palette = context.palette;
-    return Container(
-      decoration: BoxDecoration(
-        color: value ? palette.danger.withValues(alpha: 0.08) : null,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: value
-              ? palette.danger
-              : Theme.of(context).colorScheme.outlineVariant,
-        ),
-      ),
-      child: SwitchListTile(
-        value: value,
-        onChanged: onChanged,
-        activeThumbColor: palette.danger,
-        secondary: Icon(Icons.warning_amber_rounded,
-            color: value
-                ? palette.danger
-                : Theme.of(context).colorScheme.onSurfaceVariant),
-        title: const Text('Acil İş'),
-        subtitle: const Text('Ustaların panelinde 🚨 kırmızı olarak öne çıkar.'),
       ),
     );
   }

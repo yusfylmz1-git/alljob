@@ -17,4 +17,10 @@ abstract interface class FavoriteRepository {
     required String customerUid,
     required String artisanUid,
   });
+
+  /// Tek döküman canlı dinleme (kalp butonu). Tüm favori listesini çekmez.
+  Stream<bool> watchIsFavorite({
+    required String customerUid,
+    required String artisanUid,
+  });
 }

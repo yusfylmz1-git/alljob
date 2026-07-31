@@ -25,9 +25,11 @@ class FirebaseStaffingRepository implements StaffingRepository {
       q = q.where('province', isEqualTo: province);
     }
     // isDaily sunucu filtresi composite index ister; istemcide süzülür.
+    // moderationHidden: admin gizlemesi listede görünmez (jobs paritesi).
     return q.limit(100).snapshots().map((s) {
       var list = s.docs
           .map((d) => StaffWorkerListing.fromMap(d.id, d.data()))
+          .where((w) => !w.moderationHidden)
           .toList();
       if (dailyOnly == true) {
         list = list.where((w) => w.isDaily).toList();
@@ -75,7 +77,10 @@ class FirebaseStaffingRepository implements StaffingRepository {
       q = q.where('province', isEqualTo: province);
     }
     return q.limit(100).snapshots().map((s) {
-      var list = s.docs.map((d) => StaffNeed.fromMap(d.id, d.data())).toList();
+      var list = s.docs
+          .map((d) => StaffNeed.fromMap(d.id, d.data()))
+          .where((n) => !n.moderationHidden)
+          .toList();
       if (dailyOnly == true) {
         list = list.where((n) => n.isDaily).toList();
       }

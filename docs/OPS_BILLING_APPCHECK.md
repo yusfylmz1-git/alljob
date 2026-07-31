@@ -52,8 +52,11 @@ Yeniden ENFORCE: reCAPTCHA web key + admin `activate` sonrası
 
 ### Debug Android
 1. `flutter run` (debug) → logcat’te `DebugAppCheckProvider` token  
-2. Console → App Check → Android → Manage debug tokens → ekle  
-3. Yoksa debug cihazda Firestore/Storage permission-denied
+2. Console → App Check → **Ustasından Android** (`com.ustasindan.app`) → Manage debug tokens → ekle  
+3. Yoksa debug cihazda Firestore/Storage permission-denied  
+4. **Paket adı değişince** eski `ustacepte` token’ı **geçmez** — yeni token şart  
+5. **`Too many attempts`:** token reddi throttle. **30–60 dk bekle**, hot restart spam’ini kes, token’ı Console’a ekle, uygulamayı **tam kapat/aç**. Acil geliştirme:  
+   `flutter run --dart-define=SKIP_APP_CHECK=true` (yalnız debug; CF `enforceAppCheck` callable’lar yine token ister)
 
 ### Auth enforce (ileride)
 reCAPTCHA + debug token oturunca Identity Toolkit da ENFORCED yapılabilir.

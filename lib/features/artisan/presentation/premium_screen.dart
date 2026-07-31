@@ -30,7 +30,7 @@ class PremiumScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: const GradientAppBar(
-        title: 'Pro Üyelik',
+        title: 'Üyelik',
         icon: Icons.workspace_premium_outlined,
       ),
       body: ResponsiveCenter(
@@ -46,7 +46,7 @@ class PremiumScreen extends ConsumerWidget {
               ),
               child: Column(
                 children: [
-                  const BrandMark(size: 44),
+                  const BrandMark(size: 120),
                   const SizedBox(height: 14),
                   Text(
                     '${AppConstants.appName} Pro',

@@ -324,7 +324,7 @@ class _AdminPlatformScreenState extends ConsumerState<AdminPlatformScreen> {
                 ),
                 _sectionTitle(context, 'Uygulama içi duyuru'),
                 Text(
-                  'Keşfet üstünde bant olarak görünür (tüketici uygulaması).',
+                  'Bildirimler ekranının en üstünde sabit bant olarak görünür.',
                   style: TextStyle(color: palette.inkMuted, fontSize: 13),
                 ),
                 SwitchListTile(

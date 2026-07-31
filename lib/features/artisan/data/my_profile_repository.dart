@@ -23,6 +23,13 @@ abstract interface class MyProfileRepository {
   /// Telefon doğrulaması sonrası ustanın "mavi tik"ini (isVerified) açar.
   /// Yalnızca profil dökümanı zaten varsa yazar (müşteri için no-op).
   Future<void> markVerified(String uid);
+
+  /// Vitrinde telefon görünürlüğü (rıza). Profil yoksa no-op.
+  Future<void> setPhoneVisibility({
+    required String uid,
+    required bool showOnProfile,
+    String? publicPhone,
+  });
 }
 
 /// Ortak [MockDatabase] üzerinden çalışan uygulama.
@@ -73,6 +80,28 @@ class MockMyProfileRepository implements MyProfileRepository {
       displayName: existing.displayName,
       profilePhotoUrl: existing.profilePhotoUrl,
       profile: existing.profile.copyWith(isVerified: true),
+    );
+  }
+
+  @override
+  Future<void> setPhoneVisibility({
+    required String uid,
+    required bool showOnProfile,
+    String? publicPhone,
+  }) async {
+    await Future.delayed(const Duration(milliseconds: 150));
+    final db = _ref.read(mockDatabaseProvider);
+    final existing = db.artisans[uid];
+    if (existing == null) return;
+    db.upsertArtisan(
+      uid: uid,
+      displayName: existing.displayName,
+      profilePhotoUrl: existing.profilePhotoUrl,
+      profile: existing.profile.copyWith(
+        showPhoneOnProfile: showOnProfile,
+        publicPhone: showOnProfile ? publicPhone : null,
+        clearPublicPhone: !showOnProfile,
+      ),
     );
   }
 }

@@ -193,6 +193,12 @@ void main() {
       // Müşteri modundayken çapraz rozet usta tarafını gösterir; okununca söner.
       chat.markRead(chatId: asArtisan, uid: 'dual');
       expect(chat.unreadCount(chatId: asArtisan, uid: 'dual'), 0);
+
+      // Denormalize meta (alt bar): thread listesi dinlemeden taraf sayıları.
+      final meta = await chat.watchUnreadMeta('dual').first;
+      expect(meta.customer, 1);
+      expect(meta.artisan, 0);
+      expect(meta.total, 1);
     });
   });
 }

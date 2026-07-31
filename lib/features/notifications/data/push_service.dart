@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/config/backend_config.dart';
@@ -60,6 +61,11 @@ class PushService {
       final settings = await _messaging.requestPermission();
       if (settings.authorizationStatus == AuthorizationStatus.denied) {
         return; // kullanıcı reddetti
+      }
+
+      // Android 8+: FCM kanalı önceden tanımlı olmalı (manifest channel_id).
+      if (!kIsWeb) {
+        await _ensureAndroidPushChannel();
       }
 
       _wireHandlers();
@@ -133,6 +139,25 @@ class PushService {
     } catch (_) {
       // Eski kurallar / yok alan — private push yine yazıldı.
       await _stripPublicToken(uid, token);
+    }
+  }
+
+  /// FCM `high_importance_channel` + monokrom varsayılan ikon (Manifest).
+  Future<void> _ensureAndroidPushChannel() async {
+    try {
+      final plugin = FlutterLocalNotificationsPlugin();
+      final android = plugin.resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin>();
+      await android?.createNotificationChannel(
+        const AndroidNotificationChannel(
+          'high_importance_channel',
+          'Önemli bildirimler',
+          description: 'Sohbet, iş güncellemeleri ve duyurular',
+          importance: Importance.high,
+        ),
+      );
+    } catch (e) {
+      debugPrint('Push kanal oluşturma: $e');
     }
   }
 

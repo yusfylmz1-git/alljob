@@ -91,6 +91,7 @@ class FirebaseMyProfileRepository implements MyProfileRepository {
       ..remove('averageRating')
       ..remove('totalReviews')
       ..remove('totalRatingSum')
+      ..remove('topTags') // CF (onReviewWritten) yazar; istemci yazamaz.
       ..remove('completedJobs')
       ..remove('isPremium')
       ..remove('premiumExpiresAt')
@@ -114,5 +115,19 @@ class FirebaseMyProfileRepository implements MyProfileRepository {
     final snap = await _profileDoc(uid).get();
     if (!snap.exists) return;
     await _profileDoc(uid).set({'isVerified': true}, SetOptions(merge: true));
+  }
+
+  @override
+  Future<void> setPhoneVisibility({
+    required String uid,
+    required bool showOnProfile,
+    String? publicPhone,
+  }) async {
+    final snap = await _profileDoc(uid).get();
+    if (!snap.exists) return;
+    await _profileDoc(uid).set({
+      'showPhoneOnProfile': showOnProfile,
+      'publicPhone': showOnProfile ? publicPhone : null,
+    }, SetOptions(merge: true));
   }
 }

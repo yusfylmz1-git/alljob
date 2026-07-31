@@ -1,4 +1,5 @@
-﻿import 'package:flutter/material.dart';
+﻿import 'package:cloud_functions/cloud_functions.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -15,8 +16,14 @@ import '../../legal/legal_docs.dart';
 import '../help_faq.dart';
 
 /// Yardım / SSS + destek talebi (girişli) + e-posta.
+///
+/// [initialSubject]/[initialBody] destek formunu önceden doldurur (ErrorView
+/// "Sorunu bildir" → `/help?konu=...&detay=...`); doluysa sayfa forma kayar.
 class HelpScreen extends ConsumerStatefulWidget {
-  const HelpScreen({super.key});
+  const HelpScreen({super.key, this.initialSubject, this.initialBody});
+
+  final String? initialSubject;
+  final String? initialBody;
 
   @override
   ConsumerState<HelpScreen> createState() => _HelpScreenState();
@@ -26,12 +33,34 @@ class _HelpScreenState extends ConsumerState<HelpScreen> {
   String _category = kFaqCategories.first;
   final _subject = TextEditingController();
   final _body = TextEditingController();
+  final _scroll = ScrollController();
   bool _sending = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final s = widget.initialSubject?.trim() ?? '';
+    final b = widget.initialBody?.trim() ?? '';
+    if (s.isNotEmpty) _subject.text = s;
+    if (b.isNotEmpty) _body.text = b;
+    if (s.isNotEmpty || b.isNotEmpty) {
+      // Hata bildirimiyle gelindi: SSS'yi geçip doğrudan formu göster.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || !_scroll.hasClients) return;
+        _scroll.animateTo(
+          _scroll.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 400),
+          curve: Curves.easeOutCubic,
+        );
+      });
+    }
+  }
 
   @override
   void dispose() {
     _subject.dispose();
     _body.dispose();
+    _scroll.dispose();
     super.dispose();
   }
 
@@ -55,6 +84,17 @@ class _HelpScreenState extends ConsumerState<HelpScreen> {
       _subject.clear();
       _body.clear();
       context.showSuccess('Talebiniz alındı. Bildirimlerden takip edebilirsiniz.');
+    } on FirebaseFunctionsException catch (e) {
+      // Sunucunun kullanıcıya dönük mesajları (hız sınırı / doğrulama) aynen
+      // gösterilir; diğer kodlarda genel metin.
+      if (!mounted) return;
+      final msg = e.message ?? '';
+      final friendly = (e.code == 'resource-exhausted' ||
+              e.code == 'invalid-argument') &&
+          msg.isNotEmpty;
+      context.showError(friendly
+          ? msg
+          : 'Gönderilemedi. Bağlantı veya oturumu kontrol edin.');
     } catch (_) {
       if (!mounted) return;
       context.showError('Gönderilemedi. Bağlantı veya oturumu kontrol edin.');
@@ -79,6 +119,7 @@ class _HelpScreenState extends ConsumerState<HelpScreen> {
       body: ResponsiveCenter(
         maxWidth: 720,
         child: ListView(
+          controller: _scroll,
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
           children: [
             Text(

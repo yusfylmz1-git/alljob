@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:usta_cepte/data/models/report.dart';
 import 'package:usta_cepte/data/models/staffing.dart';
 import 'package:usta_cepte/features/staffing/data/staffing_repository.dart';
 import 'package:usta_cepte/features/staffing/presentation/need_search_filter.dart';
@@ -46,6 +47,55 @@ void main() {
       });
       expect(w.isDaily, isTrue);
     });
+
+    test('moderationHidden: fromMap okur; toMap ASLA yazmaz (unhide koruması)',
+        () {
+      final hidden = StaffWorkerListing.fromMap('worker_x', {
+        'uid': 'x',
+        'displayName': 'V',
+        'title': 't',
+        'about': 'about text enough',
+        'professionLabel': 'p',
+        'province': 'Bursa',
+        'district': 'Nilüfer',
+        'rateType': 'negotiable',
+        'openToWork': true,
+        'moderationHidden': true,
+        'updatedAt': DateTime.now().toIso8601String(),
+      });
+      expect(hidden.moderationHidden, isTrue);
+      // İstemci kaydı (merge) adminin gizlemesini geri açamamalı — alan
+      // toMap'e hiç yazılmaz; kural da diff'te değişikliği reddeder.
+      expect(hidden.toMap().containsKey('moderationHidden'), isFalse);
+
+      final need = StaffNeed.fromMap('n1', {
+        'employerUid': 'e1',
+        'employerName': 'Firma',
+        'title': 'Boyacı lazım',
+        'detail': 'Daire boyası.',
+        'province': 'Ankara',
+        'district': 'Çankaya',
+        'neededCount': 1,
+        'isDaily': false,
+        'status': 'open',
+        'moderationHidden': true,
+        'createdAt': DateTime.now().toIso8601String(),
+      });
+      expect(need.moderationHidden, isTrue);
+      expect(need.toMap().containsKey('moderationHidden'), isFalse);
+    });
+
+    test('şikayet hedef türleri: staffWorker/staffNeed docId formatı', () {
+      expect(
+        reportDocId(
+          target: ReportTarget.staffWorker,
+          targetId: 'worker_u1',
+          reporterUid: 'r1',
+        ),
+        'staffWorker_worker_u1__r1',
+      );
+      expect(ReportTarget.staffNeed.apiValue, 'staffNeed');
+    });
   });
 
   group('WorkerSearchFilter', () {
@@ -77,6 +127,37 @@ void main() {
       expect(daily.applyClientFilters(list).length, 1);
       expect(WorkerSearchFilter.matchesQuery(list.first, 'boya nilüfer'), isTrue);
     });
+
+    test('Türkçe harf sadeleştirme: İ/ı/ş kayıtları düz yazımla bulunur', () {
+      final now = DateTime.now();
+      final w = StaffWorkerListing(
+        id: 'worker_tr',
+        uid: 'tr',
+        displayName: 'Şükrü',
+        title: 'İnşaat boyacısı',
+        about: 'İç cephe boyası yaparım.',
+        professionLabel: 'Boyacı',
+        province: 'İstanbul',
+        district: 'Şişli',
+        rateType: StaffRateType.negotiable,
+        openToWork: true,
+        isDaily: false,
+        updatedAt: now,
+      );
+      // toLowerCase 'İ'yi birleşik noktalı 'i̇' yaptığından bunlar ESKİDEN
+      // eşleşmiyordu (foldTrSearch regresyonu).
+      expect(WorkerSearchFilter.matchesQuery(w, 'insaat'), isTrue);
+      expect(WorkerSearchFilter.matchesQuery(w, 'İnşaat'), isTrue);
+      expect(WorkerSearchFilter.matchesQuery(w, 'istanbul sisli'), isTrue);
+      expect(WorkerSearchFilter.matchesQuery(w, 'sukru'), isTrue);
+      expect(WorkerSearchFilter.matchesQuery(w, 'marangoz'), isFalse);
+      // İlçe eşitliği de sadeleştirilmiş karşılaştırır.
+      expect(
+        const WorkerSearchFilter(district: 'sisli')
+            .applyClientFilters([w]).length,
+        1,
+      );
+    });
   });
 
   group('NeedSearchFilter', () {
@@ -99,6 +180,8 @@ void main() {
         const NeedSearchFilter(dailyOnly: true).applyClientFilters([n]).length,
         1,
       );
+      // Türkçe sadeleştirme: Çankaya → cankaya (foldTrSearch regresyonu).
+      expect(NeedSearchFilter.matchesQuery(n, 'cankaya'), isTrue);
     });
   });
 

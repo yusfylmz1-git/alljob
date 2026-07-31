@@ -87,11 +87,15 @@ class MockArtisanRepository implements ArtisanRepository {
         experienceYears: r.profile.experienceYears,
         averageRating: r.profile.averageRating,
         totalReviews: r.profile.totalReviews,
+        topTags: r.profile.topTags,
         isVerified: r.profile.showVerifiedBadge,
         isEmailVerified: r.profile.emailVerified,
         isPremium: r.profile.isPremium,
         isAvailable: r.profile.isAvailable,
         isNewArtisan: r.profile.isNewArtisan,
         profilePhotoUrl: r.profilePhotoUrl,
+        areaLabel: r.profile.serviceAreas.isNotEmpty
+            ? r.profile.serviceAreas.first.labelTR
+            : null,
       );
 }
