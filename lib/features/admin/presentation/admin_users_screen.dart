@@ -11,6 +11,7 @@ import '../../../data/models/app_user.dart';
 import '../data/admin_export_util.dart';
 import '../data/admin_providers.dart';
 import '../data/admin_user_repository.dart';
+import 'admin_user_overview.dart';
 import 'paged_footer.dart';
 
 /// Yönetici kullanıcı yönetimi: arama + sayfalı dizin (PR2) + bulk/export (PR14).
@@ -721,6 +722,8 @@ class _UserActionSheetState extends ConsumerState<_UserActionSheet> {
                   ),
               ],
               _buildRoleSection(context),
+              // 360° özet + dahili notlar (moderasyon kararı öncesi bağlam).
+              AdminUserOverview(uid: u.uid),
             ],
           ),
         ),

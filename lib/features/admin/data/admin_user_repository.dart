@@ -95,6 +95,87 @@ abstract interface class AdminUserRepository {
 
   /// CSV dışa aktarım denetim kaydı (satır verisi sunucuya gitmez).
   Future<void> logExport({required String kind, required int rowCount});
+
+  /// 360° kullanıcı özeti: kimlik + aktivite sayaçları + usta durumu.
+  /// Moderasyon kararı öncesi "bu kullanıcı kim, ne yapmış" sorusunu yanıtlar.
+  Future<AdminUserSummary> summary(String uid);
+
+  /// Dahili admin notu ekler (kullanıcı GÖREMEZ). Notlar silinmez.
+  Future<void> addNote(String uid, String note);
+
+  /// Kullanıcının dahili admin notları (yeniden eskiye).
+  Future<List<AdminUserNote>> notes(String uid, {int limit = 30});
+}
+
+/// 360° kullanıcı özeti (sunucudaki `adminUserSummary` karşılığı).
+class AdminUserSummary {
+  const AdminUserSummary({
+    required this.uid,
+    this.displayName,
+    this.createdAt,
+    this.suspended = false,
+    this.phoneVerified = false,
+    this.hasArtisanProfile = false,
+    this.artisan,
+    this.counts = const {},
+  });
+
+  final String uid;
+  final String? displayName;
+  final DateTime? createdAt;
+  final bool suspended;
+  final bool phoneVerified;
+  final bool hasArtisanProfile;
+
+  /// Usta profili varsa premium/onay/puan alanları; yoksa null.
+  final Map<String, dynamic>? artisan;
+
+  /// Sayaçlar: jobsCreated, jobsActive, offersMade, reportsAgainst,
+  /// reportsBy, reviewsReceived, products. Sayım yapılamadıysa değer null.
+  final Map<String, int?> counts;
+
+  factory AdminUserSummary.fromMap(Map<String, dynamic> m) {
+    final rawCounts = (m['counts'] as Map?)?.cast<String, dynamic>() ?? {};
+    return AdminUserSummary(
+      uid: (m['uid'] ?? '') as String,
+      displayName: m['displayName'] as String?,
+      createdAt: m['createdAt'] == null
+          ? null
+          : DateTime.tryParse(m['createdAt'].toString()),
+      suspended: m['suspended'] == true,
+      phoneVerified: m['phoneVerified'] == true,
+      hasArtisanProfile: m['hasArtisanProfile'] == true,
+      artisan: (m['artisan'] as Map?)?.cast<String, dynamic>(),
+      counts: {
+        for (final e in rawCounts.entries)
+          e.key: (e.value as num?)?.toInt(),
+      },
+    );
+  }
+}
+
+/// Dahili admin notu.
+class AdminUserNote {
+  const AdminUserNote({
+    required this.id,
+    required this.note,
+    this.actorUid,
+    this.createdAt,
+  });
+
+  final String id;
+  final String note;
+  final String? actorUid;
+  final DateTime? createdAt;
+
+  factory AdminUserNote.fromMap(Map<String, dynamic> m) => AdminUserNote(
+        id: (m['id'] ?? '') as String,
+        note: (m['note'] ?? '') as String,
+        actorUid: m['actorUid'] as String?,
+        createdAt: m['createdAt'] == null
+            ? null
+            : DateTime.tryParse(m['createdAt'].toString()),
+      );
 }
 
 /// [AdminUserRepository.bulkSuspend] tek satır sonucu.
@@ -316,6 +397,35 @@ class FirebaseAdminUserRepository implements AdminUserRepository {
       'rowCount': rowCount,
     });
   }
+
+  @override
+  Future<AdminUserSummary> summary(String uid) async {
+    final res = await _functions
+        .httpsCallable('adminUserSummary')
+        .call<Object?>({'uid': uid});
+    final m = (res.data as Map?)?.cast<String, dynamic>() ?? const {};
+    return AdminUserSummary.fromMap(m);
+  }
+
+  @override
+  Future<void> addNote(String uid, String note) async {
+    await _functions
+        .httpsCallable('adminAddUserNote')
+        .call<Object?>({'uid': uid, 'note': note});
+  }
+
+  @override
+  Future<List<AdminUserNote>> notes(String uid, {int limit = 30}) async {
+    final res = await _functions
+        .httpsCallable('adminListUserNotes')
+        .call<Object?>({'uid': uid, 'limit': limit});
+    final m = (res.data as Map?)?.cast<String, dynamic>() ?? const {};
+    final items = (m['items'] as List?) ?? const [];
+    return items
+        .map((e) =>
+            AdminUserNote.fromMap((e as Map).cast<String, dynamic>()))
+        .toList();
+  }
 }
 
 /// Bellek-içi repo (testler ve Firebase'siz geliştirme). CF etkisini taklit
@@ -473,6 +583,54 @@ class MockAdminUserRepository implements AdminUserRepository {
     required int rowCount,
   }) async {
     exportLogs.add((kind: kind, rowCount: rowCount));
+  }
+
+  /// Dahili admin notları (sunucudaki `adminUserNotes` karşılığı).
+  final Map<String, List<AdminUserNote>> _notes = {};
+
+  @override
+  Future<AdminUserSummary> summary(String uid) async {
+    final u = _users[uid];
+    return AdminUserSummary(
+      uid: uid,
+      displayName: u?.displayName,
+      createdAt: u?.createdAt,
+      suspended: u?.suspended ?? false,
+      phoneVerified: u?.phoneVerified ?? false,
+      hasArtisanProfile: u?.hasArtisanProfile ?? false,
+      counts: const {
+        'jobsCreated': 0,
+        'jobsActive': 0,
+        'offersMade': 0,
+        'reportsAgainst': 0,
+        'reportsBy': 0,
+        'reviewsReceived': 0,
+        'products': 0,
+      },
+    );
+  }
+
+  @override
+  Future<void> addNote(String uid, String note) async {
+    // Sunucu doğrulamasının aynısı (mock ile CF ayrışmasın).
+    final text = note.trim();
+    if (text.length < 2) throw ArgumentError('Not boş olamaz.');
+    if (text.length > 2000) throw ArgumentError('Not çok uzun.');
+    (_notes[uid] ??= []).insert(
+      0,
+      AdminUserNote(
+        id: 'note_${_notes[uid]?.length ?? 0}',
+        note: text,
+        actorUid: 'admin_mock',
+        createdAt: DateTime.now(),
+      ),
+    );
+  }
+
+  @override
+  Future<List<AdminUserNote>> notes(String uid, {int limit = 30}) async {
+    final list = _notes[uid] ?? const <AdminUserNote>[];
+    return list.take(limit).toList();
   }
 
   /// Test seed: kullanıcı ekler/günceller.

@@ -797,6 +797,12 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // adminUserNotes — dahili moderasyon notları. KULLANICI GÖREMEZ (hakkında
+    // yazılanları okuyamamalı); adminler yalnız CF üzerinden okur/yazar.
+    match /adminUserNotes/{noteId} {
+      allow read, write: if false;
+    }
+
     // supportTickets — kullanıcı destek talepleri.
     // Create/update: CF (createSupportTicket / adminUpdateSupportTicket).
     // Okuma: admin veya kendi talebi. İstemci yazamaz (sahte durum yok).

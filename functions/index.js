@@ -2150,6 +2150,171 @@ exports.adminLookupUser = onCall(
     },
 );
 
+/**
+ * 360 derece kullanici ozeti: kimlik + aktivite sayaclari + acik kayitlar.
+ *
+ * Destek/moderasyon karari verirken adminin "bu kullanici kim, ne yapmis"
+ * sorusunu tek cagrida yanitlar. Sayimlar aggregate count() ile yapilir
+ * (dokuman okumaz -> ucuz ve indekssiz).
+ *
+ * PII sinirlidir: telefon/mesaj icerigi DONMEZ. Sohbet icerigi ayri bir
+ * yetkiye (chats.read + adminGetChatTranscript) baglidir.
+ */
+exports.adminUserSummary = onCall(
+    {region: REGION},
+    async (request) => {
+      const auth = request.auth;
+      await assertCap(auth, "users.read");
+      const {uid} = request.data || {};
+      if (typeof uid !== "string" || !uid.trim()) {
+        throw new HttpsError("invalid-argument", "uid gerekli.");
+      }
+      const target = uid.trim();
+
+      // Sayim yardimcisi: hata olursa null (panel yine acilsin).
+      const countOf = async (query) => {
+        try {
+          const agg = await query.count().get();
+          return agg.data().count;
+        } catch (e) {
+          logger.warn(`adminUserSummary count: ${e}`);
+          return null;
+        }
+      };
+
+      const jobs = db.collection("jobs");
+      const reports = db.collection("reports");
+      const [
+        jobsCreated,
+        jobsActive,
+        offersMade,
+        reportsAgainst,
+        reportsBy,
+        reviewsReceived,
+        products,
+      ] = await Promise.all([
+        countOf(jobs.where("customerId", "==", target)),
+        countOf(jobs.where("customerId", "==", target)
+            .where("status", "==", "open")),
+        // offers KOK koleksiyondur ve alan adi artisanId'dir.
+        countOf(db.collection("offers").where("artisanId", "==", target)),
+        countOf(reports.where("reportedUid", "==", target)),
+        countOf(reports.where("reporterUid", "==", target)),
+        // reviews KOK koleksiyon; alan adi artisanUID (buyuk harfli sonek).
+        countOf(db.collection("reviews").where("artisanUID", "==", target)),
+        countOf(db.collection("products").where("ownerUid", "==", target)),
+      ]);
+
+      const [userSnap, artisanSnap] = await Promise.all([
+        db.collection("users").doc(target).get(),
+        db.collection("artisanProfiles").doc(target).get(),
+      ]);
+      const pub = userSnap.exists ? (userSnap.data() || {}) : {};
+      const art = artisanSnap.exists ? (artisanSnap.data() || {}) : null;
+
+      return {
+        uid: target,
+        exists: userSnap.exists,
+        displayName: pub.displayName || null,
+        createdAt: pub.createdAt || null,
+        suspended: pub.suspended === true,
+        phoneVerified: pub.phoneVerified === true,
+        hasArtisanProfile: pub.hasArtisanProfile === true,
+        artisan: art ? {
+          isPremium: art.isPremium === true,
+          premiumExpiresAt: art.premiumExpiresAt ?
+            art.premiumExpiresAt.toDate().toISOString() : null,
+          premiumProductId: art.premiumProductId || null,
+          adminVerified: art.adminVerified === true,
+          isVerified: art.isVerified === true,
+          moderationHidden: art.moderationHidden === true,
+          averageRating: art.averageRating || 0,
+          totalReviews: art.totalReviews || 0,
+          completedJobs: art.completedJobs || 0,
+        } : null,
+        counts: {
+          jobsCreated,
+          jobsActive,
+          offersMade,
+          reportsAgainst,
+          reportsBy,
+          reviewsReceived,
+          products,
+        },
+      };
+    },
+);
+
+/**
+ * Dahili admin notu ekler (yalniz adminler gorur; kullaniciya gosterilmez).
+ * Ornek: "02.08.2026 - kullanici arandi, sertifika orijinalini mail atacak".
+ *
+ * Notlar SILINMEZ (append-only): destek gecmisi butunlugu icin.
+ */
+exports.adminAddUserNote = onCall(
+    {region: REGION},
+    async (request) => {
+      const auth = request.auth;
+      await assertCap(auth, "users.read");
+      const {uid, note} = request.data || {};
+      if (typeof uid !== "string" || !uid.trim()) {
+        throw new HttpsError("invalid-argument", "uid gerekli.");
+      }
+      const text = String(note || "").trim();
+      if (text.length < 2) {
+        throw new HttpsError("invalid-argument", "Not bos olamaz.");
+      }
+      if (text.length > 2000) {
+        throw new HttpsError("invalid-argument", "Not cok uzun (max 2000).");
+      }
+      const ref = await db.collection("adminUserNotes").add({
+        uid: uid.trim(),
+        note: text,
+        actorUid: auth.uid,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+      await writeAuditLog({
+        actorUid: auth.uid,
+        action: "add_user_note",
+        targetType: "user",
+        targetId: uid.trim(),
+        after: {noteId: ref.id},
+      });
+      return {ok: true, id: ref.id};
+    },
+);
+
+/** Kullanicinin dahili admin notlari (yeniden eskiye). */
+exports.adminListUserNotes = onCall(
+    {region: REGION},
+    async (request) => {
+      const auth = request.auth;
+      await assertCap(auth, "users.read");
+      const {uid, limit} = request.data || {};
+      if (typeof uid !== "string" || !uid.trim()) {
+        throw new HttpsError("invalid-argument", "uid gerekli.");
+      }
+      const cap = Math.min(Math.max(Number(limit) || 30, 1), 100);
+      const snap = await db.collection("adminUserNotes")
+          .where("uid", "==", uid.trim())
+          .orderBy("createdAt", "desc")
+          .limit(cap)
+          .get();
+      return {
+        items: snap.docs.map((d) => {
+          const v = d.data() || {};
+          return {
+            id: d.id,
+            note: v.note || "",
+            actorUid: v.actorUid || null,
+            createdAt: v.createdAt ?
+              v.createdAt.toDate().toISOString() : null,
+          };
+        }),
+      };
+    },
+);
+
 // Zorlama modeli SUNUCUDADIR: `suspended:true` custom claim → Firestore
 // kuralları yeni iş/teklif/mesaj/değerlendirme oluşturmayı reddeder (bkz.
 // firestore.rules isSuspended()). Ek olarak `users/{uid}.suspended` (bool)

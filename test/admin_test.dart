@@ -644,6 +644,24 @@ void main() {
       );
     });
 
+    test('dahili admin notu eklenir ve yeniden eskiye listelenir', () async {
+      final repo = MockAdminUserRepository();
+      await repo.addNote('u1', 'Kullanıcı arandı, belge gönderecek.');
+      await repo.addNote('u1', 'Belge geldi, onaylandı.');
+
+      final notes = await repo.notes('u1');
+      expect(notes.length, 2);
+      expect(notes.first.note, 'Belge geldi, onaylandı.',
+          reason: 'en yeni not üstte olmalı');
+      // Başka kullanıcının notlarına karışmamalı.
+      expect(await repo.notes('u2'), isEmpty);
+    });
+
+    test('boş not reddedilir', () {
+      final repo = MockAdminUserRepository();
+      expect(() => repo.addNote('u1', ' '), throwsArgumentError);
+    });
+
     test('finance.manage varsayılan moderatörde YOK', () {
       final mod = AdminCapabilities.fromRoster(
         isSuperAdmin: false,
