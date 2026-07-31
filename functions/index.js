@@ -3701,7 +3701,7 @@ exports.verifyMembershipPurchase = onCall(
 );
 
 // ---------------------------------------------------------------------------
-// Ke�fet �r�nler (PRD-006) � publish / content requeue / moderate / cascade
+// Kesfet urunler (PRD-006) - publish / content requeue / moderate / cascade
 // ---------------------------------------------------------------------------
 
 function recomputeModerationHidden(d) {
@@ -3710,14 +3710,25 @@ function recomputeModerationHidden(d) {
     d.hiddenByArtisanHide === true;
 }
 
+/**
+ * Türkçe arama katlaması — `lib/core/utils/search_fold.dart` ile AYNI
+ * eşlemeyi yapar (istemci ve sunucu aynı `titleFold` değerini üretmeli).
+ *
+ * DİKKAT: bu dosya bir kez yanlış kodlamayla kaydedilince buradaki eşlemeler
+ * bozulmuş (hepsi U+FFFD olmuş) ve katlama sessizce çalışmaz hâle gelmişti.
+ * Dosyayı UTF-8 dışında bir kodlamayla kaydeden düzenleyicilerden kaçının;
+ * değişiklik sonrası bu fonksiyonu "İnşaat" → "insaat" ile doğrulayın.
+ * @param {string} s Katlanacak metin.
+ * @return {string} Aramaya hazır sadeleştirilmiş metin.
+ */
 function foldTrSearchJs(s) {
   return String(s || "")
-      .replace(/�/g, "i").replace(/I/g, "i").replace(/�/g, "i")
-      .replace(/�/g, "s").replace(/�/g, "s")
-      .replace(/�/g, "g").replace(/�/g, "g")
-      .replace(/�/g, "u").replace(/�/g, "u")
-      .replace(/�/g, "o").replace(/�/g, "o")
-      .replace(/�/g, "c").replace(/�/g, "c")
+      .replace(/İ/g, "i").replace(/I/g, "i").replace(/ı/g, "i")
+      .replace(/Ş/g, "s").replace(/ş/g, "s")
+      .replace(/Ğ/g, "g").replace(/ğ/g, "g")
+      .replace(/Ü/g, "u").replace(/ü/g, "u")
+      .replace(/Ö/g, "o").replace(/ö/g, "o")
+      .replace(/Ç/g, "c").replace(/ç/g, "c")
       .toLowerCase();
 }
 
@@ -3725,8 +3736,8 @@ const PRODUCT_CONTACT_RE =
   /(@[A-Za-z0-9._]{3,})|(\+?\d[\d\s\-()]{8,}\d)|([A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,})|(whatsapp|telegram|instagram|http:\/\/|https:\/\/|www\.)/i;
 
 /**
- * Usta �r�n�n� yay�nlar (draft/pending � active|pending_review).
- * Hide bit'lerini TEM�ZLEMEZ (K33 recompute).
+ * Usta urununu yayinlar (draft/pending -> active|pending_review).
+ * Hide bit'lerini TEMIZLEMEZ (K33 recompute).
  */
 exports.publishProduct = onCall(
     CONSUMER_CALL_OPTS,
@@ -3736,7 +3747,7 @@ exports.publishProduct = onCall(
         throw new HttpsError("unauthenticated", "Oturum gerekli.");
       }
       if (auth.token.suspended === true) {
-        throw new HttpsError("permission-denied", "Hesap ask�da.");
+        throw new HttpsError("permission-denied", "Hesap askida.");
       }
       const productId = (request.data && request.data.productId) || "";
       if (typeof productId !== "string" || !productId.trim()) {
@@ -3745,16 +3756,16 @@ exports.publishProduct = onCall(
       const ref = db.collection("products").doc(productId.trim());
       const snap = await ref.get();
       if (!snap.exists) {
-        throw new HttpsError("not-found", "�r�n bulunamad�.");
+        throw new HttpsError("not-found", "Urun bulunamadi.");
       }
       const d = snap.data() || {};
       if (d.ownerUid !== auth.uid) {
-        throw new HttpsError("permission-denied", "Bu �r�n size ait de�il.");
+        throw new HttpsError("permission-denied", "Bu urun size ait degil.");
       }
       if (d.status !== "draft" && d.status !== "pending_review") {
         throw new HttpsError(
             "failed-precondition",
-            "Yaln�z taslak veya incelemedeki �r�n yay�nlanabilir.",
+            "Yalniz taslak veya incelemedeki urun yayinlanabilir.",
         );
       }
       const title = String(d.title || "").trim();
@@ -3768,7 +3779,7 @@ exports.publishProduct = onCall(
           !province) {
         throw new HttpsError(
             "failed-precondition",
-            "Yay�n i�in zorunlu alanlar eksik veya ge�ersiz.",
+            "Yayin icin zorunlu alanlar eksik veya gecersiz.",
         );
       }
       if (d.priceType !== "negotiable") {
@@ -3776,7 +3787,7 @@ exports.publishProduct = onCall(
         if (!(amt > 0)) {
           throw new HttpsError(
               "failed-precondition",
-              "Sabit/ba�lang�� fiyat� gerekli.",
+              "Sabit/baslangic fiyati gerekli.",
           );
         }
       }
@@ -3793,13 +3804,13 @@ exports.publishProduct = onCall(
         if (lastMs && Date.now() - lastMs < 30 * 1000) {
           throw new HttpsError(
               "resource-exhausted",
-              "�ok s�k yay�n denemesi. Biraz sonra tekrar deneyin.",
+              "Cok sik yayin denemesi. Biraz sonra tekrar deneyin.",
           );
         }
         if (dayCount >= 10) {
           throw new HttpsError(
               "resource-exhausted",
-              "G�nl�k �r�n yay�n limitine ula�t�n�z (10). Yar�n tekrar deneyin.",
+              "Gunluk urun yayin limitine ulastiniz (10). Yarin tekrar deneyin.",
           );
         }
         tx.set(rlRef, {
@@ -3818,7 +3829,7 @@ exports.publishProduct = onCall(
       if (activeQ.size >= 50 && d.status === "draft") {
         throw new HttpsError(
             "failed-precondition",
-            "En fazla 50 aktif/duraklat�lm�� �r�n tutabilirsiniz.",
+            "En fazla 50 aktif/duraklatilmis urun tutabilirsiniz.",
         );
       }
 
@@ -3863,7 +3874,7 @@ exports.publishProduct = onCall(
 );
 
 /**
- * Yay�ndaki �r�n i�eri�ini g�nceller � her zaman pending_review (K4/K33).
+ * Yayindaki urun icerigini gunceller - her zaman pending_review (K4/K33).
  */
 exports.updateProductContent = onCall(
     CONSUMER_CALL_OPTS,
@@ -3873,7 +3884,7 @@ exports.updateProductContent = onCall(
         throw new HttpsError("unauthenticated", "Oturum gerekli.");
       }
       if (auth.token.suspended === true) {
-        throw new HttpsError("permission-denied", "Hesap ask�da.");
+        throw new HttpsError("permission-denied", "Hesap askida.");
       }
       const data = request.data || {};
       const productId = data.productId;
@@ -3887,21 +3898,21 @@ exports.updateProductContent = onCall(
       if (title.length < 3 || title.length > 80 ||
           description.length < 10 || description.length > 2000 ||
           !categoryCode || photos.length < 1 || photos.length > 8) {
-        throw new HttpsError("invalid-argument", "��erik alanlar� ge�ersiz.");
+        throw new HttpsError("invalid-argument", "Icerik alanlari gecersiz.");
       }
       const ref = db.collection("products").doc(productId.trim());
       const snap = await ref.get();
       if (!snap.exists) {
-        throw new HttpsError("not-found", "�r�n bulunamad�.");
+        throw new HttpsError("not-found", "Urun bulunamadi.");
       }
       const d = snap.data() || {};
       if (d.ownerUid !== auth.uid) {
-        throw new HttpsError("permission-denied", "Bu �r�n size ait de�il.");
+        throw new HttpsError("permission-denied", "Bu urun size ait degil.");
       }
       if (d.status === "draft" || d.status === "removed") {
         throw new HttpsError(
             "failed-precondition",
-            "Taslak i�eri�i do�rudan kaydedin; kald�r�lm�� �r�n d�zenlenemez.",
+            "Taslak icerigi dogrudan kaydedin; kaldirilmis urun duzenlenemez.",
         );
       }
       const bits = {
@@ -3925,7 +3936,7 @@ exports.updateProductContent = onCall(
 );
 
 /**
- * Admin �r�n moderasyonu.
+ * Admin urun moderasyonu.
  */
 exports.adminModerateProduct = onCall(
     {region: REGION},
@@ -3943,7 +3954,7 @@ exports.adminModerateProduct = onCall(
         "hide", "unhide", "approve", "reject", "force_remove", "hard_purge",
       ];
       if (!allowed.includes(decision)) {
-        throw new HttpsError("invalid-argument", "Ge�ersiz karar.");
+        throw new HttpsError("invalid-argument", "Gecersiz karar.");
       }
       if (decision === "hard_purge") {
         if (auth && auth.token.role === "superadmin") {
@@ -3958,7 +3969,7 @@ exports.adminModerateProduct = onCall(
       const ref = db.collection("products").doc(productId.trim());
       const snap = await ref.get();
       if (!snap.exists) {
-        throw new HttpsError("not-found", "�r�n bulunamad�.");
+        throw new HttpsError("not-found", "Urun bulunamadi.");
       }
       const d = snap.data() || {};
       const now = new Date().toISOString();
@@ -4025,10 +4036,10 @@ exports.adminModerateProduct = onCall(
       if ((decision === "reject" || decision === "force_remove") &&
           d.ownerUid) {
         const t = decision === "reject" ?
-          "�r�n yay�n� reddedildi" : "�r�n kald�r�ld�";
+          "Urun yayini reddedildi" : "Urun kaldirildi";
         const b = decision === "reject" ?
-          `"${d.title || "�r�n"}" tasla�a al�nd�. D�zenleyip yeniden yay�nlay�n.` :
-          `"${d.title || "�r�n"}" y�netim taraf�ndan kald�r�ld�.`;
+          `"${d.title || "Urun"}" taslaga alindi. Duzenleyip yeniden yayinlayin.` :
+          `"${d.title || "Urun"}" yonetim tarafindan kaldirildi.`;
         try {
           await saveNotification(d.ownerUid, `product_${productId.trim()}`, {
             type: "product",
@@ -4061,7 +4072,7 @@ exports.adminModerateProduct = onCall(
 );
 
 /**
- * Ask�ya alma / usta gizleme cascade � �r�n hide bits.
+ * Askiya alma / usta gizleme cascade - urun hide bits.
  */
 async function cascadeProductsHideBits(ownerUid, bitField, value) {
   const qs = await db.collection("products")
