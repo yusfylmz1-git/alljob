@@ -22,6 +22,50 @@
           }
         },
         {
+          "client_id": "839781526307-goifc0s6hcipvj3i4i3j3805652dn33c.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.ustacepte.usta_cepte",
+            "certificate_hash": "997acb235f5f0c7884e1a703b13c5521a5005887"
+          }
+        },
+        {
+          "client_id": "839781526307-igop85vu9fqtrsvs5o853hp5alekulqb.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCJsp6zfD5YD-pFHHIkKRHQfne_Pu0FC1s"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "839781526307-igop85vu9fqtrsvs5o853hp5alekulqb.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "839781526307-29ltrp37h0acp3rjr5thgnircbgqtgl2.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.ustacepte.ustaCepte"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:839781526307:android:53a729b742c6a8439aba96",
+        "android_client_info": {
+          "package_name": "com.ustasindan.app"
+        }
+      },
+      "oauth_client": [
+        {
           "client_id": "839781526307-igop85vu9fqtrsvs5o853hp5alekulqb.apps.googleusercontent.com",
           "client_type": 3
         }

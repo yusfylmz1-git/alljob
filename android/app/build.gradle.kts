@@ -1,3 +1,6 @@
+import java.io.FileInputStream
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     // START: FlutterFire Configuration
@@ -9,8 +12,19 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
+// Play yükleme anahtarı: android/key.properties VARSA release gerçek anahtarla
+// imzalanır; yoksa debug'a düşer (keystore kurulana dek `flutter run --release`
+// çalışsın). key.properties + *.jks gitignore'da — repoya asla girmez.
+// Kurulum adımları: ILERLEME_NOTLARI.md Oturum 64.
+val keystoreProperties = Properties()
+val keystorePropertiesFile = rootProject.file("key.properties")
+val hasReleaseKeystore = keystorePropertiesFile.exists()
+if (hasReleaseKeystore) {
+    FileInputStream(keystorePropertiesFile).use { keystoreProperties.load(it) }
+}
+
 android {
-    namespace = "com.ustacepte.usta_cepte"
+    namespace = "com.ustasindan.app"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -27,21 +41,40 @@ android {
     }
 
     defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "com.ustacepte.usta_cepte"
+        // Play Store'daki KALICI kimlik — ilk yüklemeden sonra ASLA değişemez.
+        // Marka "Ustasından" olduğundan yayın ÖNCESİ com.ustasindan.app yapıldı
+        // (eski: com.ustacepte.usta_cepte; Firebase'de yeni Android app kaydı).
+        applicationId = "com.ustasindan.app"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
-        minSdk = flutter.minSdkVersion
+        // ARCore (Usta Çantası AR ölçüm, PRD-007 Faz D) min SDK 24 ister;
+        // Flutter varsayılanı (21) altında kalmasın diye alt sınır sabitlendi.
+        minSdk = maxOf(flutter.minSdkVersion, 24)
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
     }
 
+    signingConfigs {
+        if (hasReleaseKeystore) {
+            create("release") {
+                keyAlias = keystoreProperties["keyAlias"] as String
+                keyPassword = keystoreProperties["keyPassword"] as String
+                storeFile = file(keystoreProperties["storeFile"] as String)
+                storePassword = keystoreProperties["storePassword"] as String
+            }
+        }
+    }
+
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            // key.properties yoksa debug imza (yalnız yerel deneme).
+            // Play'e YÜKLEME için keystore şart — debug imzalı AAB reddedilir.
+            signingConfig = if (hasReleaseKeystore) {
+                signingConfigs.getByName("release")
+            } else {
+                signingConfigs.getByName("debug")
+            }
         }
     }
 }

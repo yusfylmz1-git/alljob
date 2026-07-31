@@ -1,4 +1,4 @@
-package com.ustacepte.usta_cepte
+package com.ustasindan.app
 
 import io.flutter.embedding.android.FlutterActivity
 

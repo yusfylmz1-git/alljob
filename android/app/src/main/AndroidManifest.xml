@@ -7,9 +7,12 @@
     <uses-permission android:name="android.permission.VIBRATE"/>
     <!-- Takip Merkezi Faz 3: ses notu kaydı (record paketi). -->
     <uses-permission android:name="android.permission.RECORD_AUDIO"/>
-    <!-- Profil / iş fotoğrafı: kamera ile çek (image_picker). -->
+    <!-- Kamera: profil/iş fotoğrafı (image_picker) + Usta Çantası AR ölçüm
+         (PRD-007 Faz D, ARCore). required="false": AR/kamera olmayan cihazlar
+         da uygulamayı kurabilir (AR ekranı desteksizde elle ölçüme düşer). -->
     <uses-permission android:name="android.permission.CAMERA"/>
     <uses-feature android:name="android.hardware.camera" android:required="false"/>
+    <uses-feature android:name="android.hardware.camera.ar" android:required="false"/>
     <application
         android:label="Ustasından"
         android:name="${applicationName}"
@@ -56,6 +59,25 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
+
+        <!-- ARCore (Usta Çantası AR ölçüm). "optional": ARCore desteklemeyen
+             cihazlar da uygulamayı kurabilir; AR ekranı desteği runtime'da
+             kontrol edip yoksa elle ölçüme yönlendirir. -->
+        <meta-data
+            android:name="com.google.ar.core"
+            android:value="optional" />
+
+        <!-- FCM sistem bildirimleri: monokrom küçük ikon + marka rengi.
+             (Renkli logo large icon istemci/FCM image ile; status bar tek renk.) -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_icon"
+            android:resource="@drawable/ic_stat_notification" />
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_color"
+            android:resource="@color/notification_color" />
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_channel_id"
+            android:value="high_importance_channel" />
     </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and

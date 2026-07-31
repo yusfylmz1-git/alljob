@@ -58,7 +58,9 @@ class DefaultFirebaseOptions {
 
   static const FirebaseOptions android = FirebaseOptions(
     apiKey: 'AIzaSyCJsp6zfD5YD-pFHHIkKRHQfne_Pu0FC1s',
-    appId: '1:839781526307:android:b73835fe450e77df9aba96',
+    // Paket adı com.ustasindan.app'e taşındı (2026-07-18, yayın öncesi) —
+    // Firebase'de YENİ Android app kaydı; eski ustacepte kaydı kullanılmıyor.
+    appId: '1:839781526307:android:53a729b742c6a8439aba96',
     messagingSenderId: '839781526307',
     projectId: 'alljob1',
     storageBucket: 'alljob1.firebasestorage.app',

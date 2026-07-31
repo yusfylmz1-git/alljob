@@ -46,7 +46,7 @@
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
 	<key>NSCameraUsageDescription</key>
-	<string>Profil ve iş fotoğraflarınızı çekmek için kamera erişimi gerekir.</string>
+	<string>Profil ve iş fotoğraflarınızı çekmek ve Usta Çantası ile AR ölçüm yapmak için kamera erişimi gerekir.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Profil ve iş fotoğraflarınızı seçmek için galeri erişimi gerekir.</string>
 	<key>NSMicrophoneUsageDescription</key>
