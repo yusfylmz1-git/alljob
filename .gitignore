@@ -43,6 +43,9 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+# Gradle build çıktısı (Flutter root'a taşır) — asla commit'lenmez.
+/android/build/
+/android/.gradle/
 
 # Cloud Functions (Node) — bağımlılıklar commit'lenmez
 functions/node_modules/
@@ -58,3 +61,9 @@ ui-debug.log
 # Ortam / gizli
 *.env
 .env.local
+
+# Deploy/build komut çıktıları (yerel kayıt, repoya girmez)
+/deploy_*.txt
+/tool/last_*.txt
+/tool/_kprof.txt
+console.log(e
