@@ -18,6 +18,17 @@ final chatRepositoryProvider = Provider<ChatRepository>((ref) {
 /// Oturum açmış kullanıcının sohbet listesi (canlı).
 /// Yalnız Mesajlar ekranı (ve listeye bağlı UI) dinler — alt bar rozeti
 /// [chatUnreadMetaProvider] kullanır; tüm thread snapshot'ı global tutulmaz.
+/// Tek bir sohbeti CANLI izler (yoksa null).
+///
+/// `getThread` yalnız bellek önbelleğine bakar ve sohbet listesi hiç
+/// açılmadıysa boş döner; bu provider doğrudan dokümanı dinler. İlan
+/// detayından/bildirimden gelen derin bağlantılarda tek güvenilir kaynak.
+final chatThreadProvider =
+    StreamProvider.family<ChatThread?, String>((ref, chatId) {
+  if (chatId.isEmpty) return Stream.value(null);
+  return ref.watch(chatRepositoryProvider).watchThread(chatId);
+});
+
 final myThreadsProvider = StreamProvider.autoDispose<List<ChatThread>>((ref) {
   final user = ref.watch(currentUserProvider);
   if (user == null) return const Stream.empty();

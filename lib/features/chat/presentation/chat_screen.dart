@@ -497,7 +497,16 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   @override
   Widget build(BuildContext context) {
     final user = ref.watch(currentUserProvider);
-    final thread = ref.read(chatRepositoryProvider).getThread(widget.chatId);
+    // Sohbet CANLI izlenir. Eskiden `ref.read` + `getThread` ile yalnız BELLEK
+    // önbelleğinden okunuyordu; sohbet listesine hiç girilmeden (bildirim
+    // derin bağlantısı, ilan detayından geçiş, uygulama yeniden başlatma)
+    // gelindiğinde `thread` null kalıyordu. Sonuçları: "Bu Ustayı Seç" şeridi
+    // hiç görünmüyordu ve kilitli sohbette giriş kutusu açık kalıp mesaj
+    // sunucuda reddediliyordu. Ayrıca `customerStarted`/`lockedAt` sunucuda
+    // değişince ekran kendiliğinden tazelenmiyordu.
+    final threadAsync = ref.watch(chatThreadProvider(widget.chatId));
+    final thread = threadAsync.valueOrNull;
+    final threadLoading = threadAsync.isLoading;
     final messagesAsync = ref.watch(messagesProvider(widget.chatId));
     final title = (user != null && thread != null)
         ? thread.otherName(user.uid)
@@ -921,6 +930,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               // içindir.
               if (user != null && thread != null && !thread.canSend(user.uid))
                 _BlockedComposerNotice(thread: thread, myUid: user.uid)
+              else if (thread == null && !threadLoading)
+                // Sohbet dokümanı YOK: yazmak sunucuda zaten reddedilir.
+                // Kutuyu açık bırakmak kullanıcıya boşuna yazdırıp
+                // "gönderilemedi" dedirtiyordu.
+                const _MissingChatNotice()
               else
                 _InputBar(
                   controller: _controller,
@@ -1072,6 +1086,41 @@ class _SystemMessageStrip extends StatelessWidget {
                   fontWeight: FontWeight.w600,
                   height: 1.35,
                 ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Sohbet dokümanı bulunamadığında giriş kutusunun yerine geçen şerit.
+class _MissingChatNotice extends StatelessWidget {
+  const _MissingChatNotice();
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    return Material(
+      color: palette.card,
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+          child: Row(
+            children: [
+              Icon(Icons.info_outline, size: 18, color: palette.inkMuted),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'Bu sohbet açılamadı. Listeye dönüp tekrar deneyin.',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: palette.inkMuted,
+                        fontWeight: FontWeight.w600,
+                        height: 1.3,
+                      ),
+                ),
+              ),
+            ],
           ),
         ),
       ),

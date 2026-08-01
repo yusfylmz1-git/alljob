@@ -2,6 +2,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/constants/app_constants.dart';
 import '../../../core/router/route_paths.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_palette.dart';
@@ -142,8 +143,12 @@ class _MyJobsScreenState extends ConsumerState<MyJobsScreen> {
                   final open = jobs
                       .where((j) => j.effectiveStatus == JobStatus.open)
                       .length;
+                  // Açık ilan KOTASI burada görünür: kullanıcı limite
+                  // çarpmadan önce kaç hakkı kaldığını bilsin (aksi halde
+                  // yayınlama anında anlamsız bir ret alıyordu).
                   return open > 0
-                      ? '$open açık · ${jobs.length} ilan'
+                      ? '$open/${AppConstants.maxOpenJobs} açık · '
+                          '${jobs.length} ilan'
                       : '${jobs.length} ilan';
                 }(),
                 icon: Icons.campaign_outlined,

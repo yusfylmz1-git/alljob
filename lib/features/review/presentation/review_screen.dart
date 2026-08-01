@@ -2,17 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../core/constants/app_constants.dart';
 import '../../../core/theme/app_palette.dart';
 import '../../../core/utils/snackbar_helper.dart';
 import '../../../core/widgets/app_button.dart';
 import '../../../core/widgets/responsive_center.dart';
-import '../../../data/models/chat.dart' show ChatThread;
 import '../../../data/models/job.dart';
 import '../../../data/models/review.dart';
 import '../../artisan/data/artisan_providers.dart';
 import '../../auth/application/auth_controller.dart';
-import '../../chat/data/chat_providers.dart';
 import '../../chat/data/firebase_chat_repository.dart';
 import '../../jobs/data/job_providers.dart';
 import '../data/review_repository.dart';
@@ -56,13 +53,13 @@ class _ReviewScreenState extends ConsumerState<ReviewScreen> {
         jobId: widget.jobId,
       );
 
-  /// Sohbetin müşteri tarafı. Usta değerlendiriyorsa ilandan okunur.
-  String? _customerUid() {
-    final me = ref.read(currentUserProvider)?.uid;
-    if (me == null) return null;
-    if (!_iAmArtisan) return me;
-    return ref.read(jobProvider(widget.jobId ?? '')).valueOrNull?.customerId;
-  }
+  /// Sohbetin müşteri tarafı — İLANDAN okunur (tek kaynak).
+  ///
+  /// Eskiden usta tarafında `ref.read` ile okunuyordu ve stream ilk değerini
+  /// yaymadan çağrıldığı için null dönüyordu; ekran "önce sohbet gerekiyor"
+  /// deyip kullanıcıyı geri çeviriyordu. Artık `build` içinde `watch` edilen
+  /// ilandan geçiliyor, yarış yok.
+  String? _customerUidFrom(Job? job) => job?.customerId;
 
   void _toggle(String tag) => setState(() {
         if (!_tags.remove(tag)) _tags.add(tag);
@@ -70,65 +67,35 @@ class _ReviewScreenState extends ConsumerState<ReviewScreen> {
 
   bool _sending = false;
 
-  /// Müşteri bu ustayı daha önce değerlendirmişse true: form önceki puan ve
-  /// etiketlerle ön-dolu gelir, gönderim mevcut kaydı GÜNCELLER.
+  /// Bu taraf daha önce değerlendirdiyse true: form ön-dolu gelir ve gönderim
+  /// mevcut kaydı GÜNCELLER.
   bool _isUpdate = false;
-
-  /// Sohbet SUNUCUDAN okunur — bu ekrana ilan detayından/bildirimden doğrudan
-  /// gelinebiliyor ve o durumda sohbet listesi hiç çalışmamış olur. Bellek
-  /// haritasına bakan `hasChatBetween`/`getThread` o hâlde yanlışlıkla
-  /// "sohbet yok" diyordu ve değerlendirme ekranı hiç açılmıyordu.
-  ChatThread? _thread;
-  bool _threadLoading = true;
 
   @override
   void initState() {
     super.initState();
     _loadExisting();
-    _loadThread();
   }
 
-  Future<void> _loadThread() async {
-    final customerUid = _customerUid();
-    if (customerUid == null) {
-      // Usta tarafında ilan henüz yüklenmemiş olabilir; bir kare bekleyip
-      // tekrar dene (jobProvider akışı gelsin).
-      await Future<void>.delayed(const Duration(milliseconds: 300));
-      if (!mounted) return;
-      final retry = _customerUid();
-      if (retry == null) {
-        setState(() => _threadLoading = false);
-        return;
-      }
-      return _fetchThreadFor(retry);
-    }
-    return _fetchThreadFor(customerUid);
-  }
-
-  Future<void> _fetchThreadFor(String customerUid) async {
-    final t = await ref
-        .read(chatRepositoryProvider)
-        .fetchThread(_chatIdFor(customerUid: customerUid));
-    if (!mounted) return;
-    setState(() {
-      _thread = t;
-      _threadLoading = false;
-    });
-  }
-
+  /// Mevcut değerlendirmeyi yükler (ön-dolgu).
+  ///
+  /// İlanı `future` ile BEKLER — `valueOrNull` ile okumak stream'in ilk
+  /// değerinden önce null döndürüyordu ve "daha önce değerlendirmiştim" hâli
+  /// kaçıyordu.
   Future<void> _loadExisting() async {
-    final user = ref.read(currentUserProvider);
-    if (user == null) return;
+    if (widget.jobId == null) return;
     try {
-      final customerUid = _customerUid();
-      if (customerUid == null) return;
+      final job = await ref.read(jobProvider(widget.jobId!).future);
+      final customerUid = _customerUidFrom(job);
+      if (customerUid == null || !mounted) return;
       final existing = await ref.read(reviewRepositoryProvider).getMyReview(
             customerUid: customerUid,
             artisanUid: widget.artisanUid,
             chatId: _chatIdFor(customerUid: customerUid),
             direction: _direction,
           );
-      if (existing == null || !mounted) return;
+      if (!mounted) return;
+      if (existing == null) return;
       setState(() {
         _isUpdate = true;
         _rating = existing.rating;
@@ -149,12 +116,18 @@ class _ReviewScreenState extends ConsumerState<ReviewScreen> {
 
     setState(() => _sending = true);
     try {
-      final customerUid = _customerUid();
+      // İlanı BEKLE: müşteri uid'i tek kaynak olarak ilandan gelir.
+      final job = widget.jobId == null
+          ? null
+          : await ref.read(jobProvider(widget.jobId!).future);
+      final customerUid = _customerUidFrom(job);
       if (customerUid == null) {
+        if (!mounted) return;
         setState(() => _sending = false);
         context.showError('Değerlendirme başlatılamadı, tekrar deneyin.');
         return;
       }
+      if (!mounted) return;
       await ref.read(reviewRepositoryProvider).addReview(
             artisanUid: widget.artisanUid,
             customerUid: customerUid,
@@ -196,70 +169,35 @@ class _ReviewScreenState extends ConsumerState<ReviewScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final user = ref.watch(currentUserProvider);
-    // Sohbet var mı? (PRD §5) — SUNUCUDAN okunan thread belirleyicidir.
-    final hasChat = _thread != null;
 
-    // H6: tamamlanmış iş VEYA sohbet yaşı ≥ 24s.
+    // TEK KOŞUL: iş tamamlandıysa iki taraf da değerlendirir.
+    //
+    // Önceden üç ayrı async kontrol vardı (sohbet var mı + 24 saat sohbet yaşı
+    // + mevcut kayıt) ve her biri kendi yarış durumunu üretiyordu; sonuç
+    // kullanıcının çıkışsız "Önce sohbet gerekiyor" ekranında kalmasıydı.
+    // İlan zaten canlı izleniyor, ek kaynağa gerek yok.
     final jobAsync =
         widget.jobId != null ? ref.watch(jobProvider(widget.jobId!)) : null;
     final job = jobAsync?.valueOrNull;
-    // Tamamlanmış işte İKİ TARAF da değerlendirir: müşteri ustayı, usta
-    // müşteriyi. Kilit kontrolü bu yüzden "ben bu işin taraflarından biriyim"
-    // şeklinde olmalı — yalnız `customerId == user.uid` bakılsaydı usta hiçbir
-    // zaman değerlendirme yapamazdı.
-    final jobUnlocks = job != null &&
-        user != null &&
-        (job.customerId == user.uid || job.selectedArtisanId == user.uid) &&
-        job.selectedArtisanId == widget.artisanUid &&
-        (job.status == JobStatus.completed || job.status == JobStatus.rated);
 
-    final thread = _thread;
-    final chatAgeOk = thread != null &&
-        DateTime.now().difference(thread.openedAt) >=
-            AppConstants.reviewUnlockDuration;
-    // Güncelleme (mevcut review) kilitsiz; yeni create kilitli.
-    final unlocked = _isUpdate || jobUnlocks || chatAgeOk;
-
-    // Sohbet sunucudan gelene kadar "sohbet yok" deme — aksi halde ekran bir
-    // an yanlış boş durumu gösterip kullanıcıyı geri çeviriyordu.
-    if (_threadLoading) {
+    // İlan yüklenene kadar karar verme.
+    if (widget.jobId != null && (jobAsync?.isLoading ?? false)) {
       return Scaffold(
         appBar: AppBar(title: const Text('Değerlendir')),
         body: const Center(child: CircularProgressIndicator()),
       );
     }
 
-    if (!hasChat) {
-      return Scaffold(
-        appBar: AppBar(title: const Text('Değerlendir')),
-        body: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(32),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.forum_outlined,
-                    size: 56, color: theme.colorScheme.onSurfaceVariant),
-                const SizedBox(height: 16),
-                Text('Önce sohbet gerekiyor',
-                    style: theme.textTheme.titleMedium),
-                const SizedBox(height: 8),
-                Text(
-                  'Bir ustayı değerlendirebilmek için önce onunla sohbet '
-                  'başlatmış olmanız gerekir.',
-                  textAlign: TextAlign.center,
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant),
-                ),
-              ],
-            ),
-          ),
-        ),
-      );
-    }
+    final iAmParty = job != null &&
+        user != null &&
+        (job.customerId == user.uid || job.selectedArtisanId == user.uid);
+    final jobDone = job != null &&
+        (job.status == JobStatus.completed || job.status == JobStatus.rated);
+    // Güncelleme (mevcut kayıt) her zaman açık — puanını düzeltebilmeli.
+    final unlocked = _isUpdate ||
+        (iAmParty && jobDone && job.selectedArtisanId == widget.artisanUid);
 
     if (!unlocked) {
-      final hours = AppConstants.reviewUnlockDuration.inHours;
       return Scaffold(
         appBar: AppBar(title: const Text('Değerlendir')),
         body: Center(
@@ -271,15 +209,23 @@ class _ReviewScreenState extends ConsumerState<ReviewScreen> {
                 Icon(Icons.schedule,
                     size: 56, color: theme.colorScheme.onSurfaceVariant),
                 const SizedBox(height: 16),
-                Text('Değerlendirme henüz açılamadı',
+                Text('Değerlendirme henüz açılmadı',
                     style: theme.textTheme.titleMedium),
                 const SizedBox(height: 8),
                 Text(
-                  'Sohbet başladıktan en az $hours saat sonra veya iş '
-                  'tamamlandıktan sonra değerlendirme yapabilirsiniz.',
+                  'İş tamamlandıktan sonra siz ve karşı taraf birbirinizi '
+                  'değerlendirebilirsiniz.',
                   textAlign: TextAlign.center,
                   style: theme.textTheme.bodyMedium?.copyWith(
                       color: theme.colorScheme.onSurfaceVariant),
+                ),
+                const SizedBox(height: 20),
+                // Çıkışsız ekran bırakma: kullanıcı buradan dönebilsin.
+                FilledButton.tonal(
+                  onPressed: () {
+                    if (context.canPop()) context.pop();
+                  },
+                  child: const Text('Geri dön'),
                 ),
               ],
             ),

@@ -175,11 +175,35 @@ class _CreateJobScreenState extends ConsumerState<CreateJobScreen> {
       final msg = e.toString();
       if (msg.contains('permission-denied') ||
           msg.contains('PERMISSION_DENIED')) {
-        context.showError(
-          'İlan yayınlanamadı. Olası nedenler: e-posta doğrulanmamış, '
-          'hesap askıda veya güvenlik (App Check) jetonu eksik. '
-          'Profil → E-posta doğrula; debug build ise App Check token ekleyin.',
-        );
+        // Firestore tüm ret sebeplerini tek `permission-denied` olarak döner;
+        // en sık sebep AÇIK İLAN LİMİTİ. Açık ilan sayısını sayıp gerçek
+        // nedeni söyleriz — aksi halde e-postası doğrulanmış kullanıcıya
+        // "e-posta doğrula" denip sonsuz döngüye sokuluyordu.
+        final uid = ref.read(currentUserProvider)?.uid;
+        var openCount = 0;
+        if (uid != null) {
+          try {
+            final jobs = await ref.read(jobRepositoryProvider)
+                .watchMyJobs(uid)
+                .first;
+            openCount = jobs
+                .where((j) => j.effectiveStatus == JobStatus.open)
+                .length;
+          } catch (_) {/* sayamadıysak genel mesaja düş */}
+        }
+        if (!mounted) return;
+        if (openCount >= AppConstants.maxOpenJobs) {
+          context.showError(
+            'Aynı anda en fazla ${AppConstants.maxOpenJobs} açık ilanınız '
+            'olabilir. Yeni ilan için mevcut ilanlarınızdan birini kapatın '
+            'veya silin.',
+          );
+        } else {
+          context.showError(
+            'İlan yayınlanamadı. E-posta doğrulamanızı kontrol edin '
+            '(Profil → E-posta doğrula); sorun sürerse tekrar deneyin.',
+          );
+        }
       } else {
         context.showError('İlan yayınlanamadı, tekrar deneyin.');
       }

@@ -256,28 +256,31 @@ class FirebaseChatRepository implements ChatRepository {
       return;
     }
 
-    // chatId'den uid türetilebiliyorsa iskelet oluşturmayı dene.
-    // NOT: parse başarısızsa hiçbir şey yazılmaz ve hata da görünmez —
-    // kimlik biçimi değişirse (ilan bazlı 3 parça) burası ilk kırılacak yerdir.
-    final parts = _uidsFromChatId(chatId);
-    if (parts != null) {
-      await _ensureChatDoc(
-        id: chatId,
-        customerUid: parts.$1,
-        customerName: 'Müşteri',
-        customerPhotoUrl: null,
-        artisanUid: parts.$2,
-        artisanName: 'Usta',
-        artisanPhotoUrl: null,
-        // İskelette başlık bilinmez; kimlikten yalnız ilan numarası çıkar.
-        jobId: _jobIdFromChatId(chatId),
-        now: DateTime.now(),
-      );
-    }
+    // Sunucudaki dokümanı oku (bellek boşsa buradan dolar).
+    //
+    // ÖNEMLİ: doküman YOKSA artık iskelet YAZILMIYOR. Eskiden burada
+    // `customerName: 'Müşteri'` / `artisanName: 'Usta'` sabitleriyle gerçek
+    // doküman yaratılıyordu; `chatUpdateKeysOk` ad alanlarını update'e
+    // kapattığı için bu adlar BİR DAHA DÜZELTİLEMİYORDU (kalıcı veri
+    // bozulması). Sohbeti yalnız gerçek adları bilen taraf açar: müşteri
+    // `startChat` ile.
+    await fetchThread(chatId);
   }
 
   @override
   ChatThread? getThread(String chatId) => _threads[chatId];
+
+  @override
+  Stream<ChatThread?> watchThread(String chatId) {
+    if (chatId.isEmpty) return Stream.value(null);
+    return _chats.doc(chatId).snapshots().map((snap) {
+      final data = snap.data();
+      if (!snap.exists || data == null) return null;
+      final t = _threadFromDoc(chatId, data);
+      _threads[chatId] = t; // önbelleği tazele (getThread çağrıları bulsun)
+      return t;
+    });
+  }
 
   @override
   Future<ChatThread?> fetchThread(String chatId) async {

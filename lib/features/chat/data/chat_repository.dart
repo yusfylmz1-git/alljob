@@ -36,6 +36,14 @@ abstract interface class ChatRepository {
   /// ve [getThread]/[hasChatBetween] yanlışlıkla "sohbet yok" der.
   Future<ChatThread?> fetchThread(String chatId);
 
+  /// Tek sohbeti CANLI izler (yoksa null yayar).
+  ///
+  /// [getThread]'in reaktif karşılığı: `customerStarted` / `lockedAt` gibi
+  /// alanlar sunucuda değişince ekran kendiliğinden tazelenir. Sohbet ekranı
+  /// ve ilan detayı bunu kullanır — bellek önbelleğine güvenmek, listeye hiç
+  /// girilmeyen akışlarda sessizce yanlış durum gösteriyordu.
+  Stream<ChatThread?> watchThread(String chatId);
+
   /// Sohbeti [uid] için okundu işaretler (o ana kadarki mesajlar).
   void markRead({required String chatId, required String uid});
 
@@ -202,6 +210,12 @@ class MockChatRepository implements ChatRepository {
 
   @override
   Future<ChatThread?> fetchThread(String chatId) async => _threads[chatId];
+
+  @override
+  Stream<ChatThread?> watchThread(String chatId) async* {
+    yield _threads[chatId];
+    yield* _threadsTick.stream.map((_) => _threads[chatId]);
+  }
 
   @override
   void markRead({required String chatId, required String uid}) {

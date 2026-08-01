@@ -18,6 +18,17 @@ class AppConstants {
   static const int artisanPageSize = 20;
 
   // İş ilanı (jobs) — çift taraflı pazaryeri
+  /// Aynı anda AÇIK tutulabilecek ilan sayısı.
+  ///
+  /// `firestore.rules` → `openJobQuotaOk()` ve `functions/index.js` →
+  /// `MAX_OPEN_JOBS` ile AYNI olmalı. Yayınlanan her ilan eşleşen tüm ustalara
+  /// bildirim gönderdiği için limitsiz kullanıcı platform çapında spam
+  /// üretebiliyordu.
+  static const int maxOpenJobs = 5;
+
+  /// Günlük ilan hakkı — sunucuda (`onJobCreated`) uygulanır.
+  static const int maxJobsPerDay = 10;
+
   static const int maxJobPhotos = 5; // ilan başına en fazla fotoğraf (#9)
   static const int maxJobTitleLength = 80;
   static const int maxJobDescriptionLength = 600;

@@ -327,7 +327,13 @@ class Job {
 
   /// İlan silinebilir mi? Bir ustaya bağlanmamış (open/expired/cancelled)
   /// ilanlar silinebilir; aktif/tamamlanmış işler kayıt olarak kalır.
-  bool get canDelete => !status.isAssigned;
+  ///
+  /// `selectedArtisanId` kontrolü ŞART: iptal edilen ilanda durum `cancelled`
+  /// olduğu için `isAssigned` false döner, ama usta ataması hâlâ duruyorsa iş
+  /// gerçekten yaşanmıştır — silinirse ustanın kaydı (ve anlaşmazlık kanıtı)
+  /// kaybolur.
+  bool get canDelete =>
+      !status.isAssigned && (selectedArtisanId ?? '').isEmpty;
 
   /// Açık ilan süresi dolmuş mu? (okuma anında `expired` gibi gösterilir).
   bool isExpiredAt(DateTime now) =>

@@ -70,6 +70,23 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen>
     super.dispose();
   }
 
+  /// Bir sekmede okunmamış mesajı olan SOHBET sayısı.
+  ///
+  /// `unreadCount` sohbet başına en fazla 1 döndürüyor (son mesaj benden değil
+  /// ve görülmemişse) — yani rozet "kaç sohbette yeni mesaj var" demektir,
+  /// toplam mesaj sayısı değil. Arşivlenenler sayılmaz.
+  int _unreadIn(WidgetRef ref, {required _ChatScope scope}) {
+    final me = ref.read(currentUserProvider)?.uid;
+    final threads = ref.watch(myThreadsProvider).valueOrNull;
+    if (me == null || threads == null) return 0;
+    final repo = ref.read(chatRepositoryProvider);
+    return threads
+        .where((t) => (scope == _ChatScope.ilan) == t.isJobChat)
+        .where((t) => !t.isArchivedFor(me))
+        .where((t) => repo.unreadCount(chatId: t.id, uid: me) > 0)
+        .length;
+  }
+
   void _exitSelection() => setState(() {
         _selectionMode = false;
         _selected.clear();
@@ -268,11 +285,18 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen>
               title: 'Mesajlar',
               icon: Icons.chat_bubble_outline_rounded,
               // İş konuşmaları ürün/eleman sohbetleriyle karışmasın.
+              // Rozetler: hangi sekmede okunmamış var, sekmeye girmeden görünür.
               bottom: TabBar(
                 controller: _tabs,
-                tabs: const [
-                  Tab(text: 'İlan Mesajları'),
-                  Tab(text: 'Genel'),
+                tabs: [
+                  _ScopeTab(
+                    label: 'İlan Mesajları',
+                    unread: _unreadIn(ref, scope: _ChatScope.ilan),
+                  ),
+                  _ScopeTab(
+                    label: 'Genel',
+                    unread: _unreadIn(ref, scope: _ChatScope.genel),
+                  ),
                 ],
               ),
               actions: [
@@ -760,6 +784,52 @@ class _Empty extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// Sekme başlığı + okunmamış rozeti.
+///
+/// [unread] = o sekmede okunmamış mesajı olan SOHBET sayısı (mesaj adedi
+/// değil — `unreadCount` sohbet başına en fazla 1 döndürür).
+class _ScopeTab extends StatelessWidget {
+  const _ScopeTab({required this.label, required this.unread});
+
+  final String label;
+  final int unread;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    return Tab(
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Flexible(child: Text(label, overflow: TextOverflow.ellipsis)),
+          if (unread > 0) ...[
+            const SizedBox(width: 6),
+            Container(
+              constraints: const BoxConstraints(minWidth: 18),
+              height: 18,
+              padding: const EdgeInsets.symmetric(horizontal: 5),
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: palette.danger,
+                borderRadius: BorderRadius.circular(9),
+              ),
+              child: Text(
+                unread > 9 ? '9+' : '$unread',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ),
+          ],
+        ],
       ),
     );
   }

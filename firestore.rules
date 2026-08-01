@@ -490,24 +490,24 @@ service cloud.firestore {
       function reviewChatId() {
         return isA2C() ? reviewId.split('__a2c')[0] : reviewId;
       }
-      // H6: sohbet en az 24s önce açılmış VEYA tamamlanmış iş (jobId) var.
-      function reviewChatDoc() {
-        return get(/databases/$(database)/documents/chats/$(reviewChatId())).data;
-      }
-      function reviewUnlockedByChatAge() {
-        let chat = reviewChatDoc();
-        let created = chat.get('createdAt', chat.get('updatedAt', request.time));
-        return request.time >= created + duration.value(24, 'h');
-      }
       // Tamamlanmış iş: iki yön için de aynı iş dokümanı doğrulanır, yalnız
       // "yazan taraf" farklıdır (c2a → müşteri, a2c → seçilen usta).
-      function reviewUnlockedByCompletedJob() {
+      //
+      // ⚠️ `let` bağlaması `return` DEĞERLENDİRİLMEDEN ÖNCE çalışır. `get()`
+      // burada `let` ile alınırsa, jobId eksik/geçersizken kural motoru
+      // HATAYA DÜŞER ve `is string` / `exists` korumaları hiç devreye girmez
+      // → tamamlanmış işte bile create reddedilirdi. Bu yüzden `get()` doğrudan
+      // koşul zincirinin İÇİNDE, guard'lardan SONRA çağrılıyor.
+      function reviewJobOk() {
         let job = get(/databases/$(database)/documents/jobs/$(request.resource.data.jobId)).data;
-        return request.resource.data.jobId is string
-          && exists(/databases/$(database)/documents/jobs/$(request.resource.data.jobId))
-          && job.customerId == request.resource.data.customerUID
+        return job.customerId == request.resource.data.customerUID
           && job.selectedArtisanId == request.resource.data.artisanUID
           && job.status in ['completed', 'rated'];
+      }
+      function reviewUnlockedByCompletedJob() {
+        return request.resource.data.get('jobId', null) is string
+          && exists(/databases/$(database)/documents/jobs/$(request.resource.data.jobId))
+          && reviewJobOk();
       }
       // Yazan taraf, yöne göre doğru kişi mi?
       function reviewAuthorOk() {
@@ -533,7 +533,10 @@ service cloud.firestore {
         && request.resource.data.rating is int
         && request.resource.data.rating >= 1
         && request.resource.data.rating <= 5
-        && (reviewUnlockedByChatAge() || reviewUnlockedByCompletedJob());
+        // TEK KOŞUL: iş tamamlanmış olmalı. "24 saat sohbet yaşı" yolu
+        // KALDIRILDI — istemci de artık yalnız tamamlanmış işte değerlendirme
+        // açıyor, iki tarafta da tek ve anlaşılır bir kural olsun.
+        && reviewUnlockedByCompletedJob();
       // Güncelleme: YALNIZ değerlendirmeyi YAZAN taraf (yöne göre müşteri ya
       // da usta); kimlik alanları (customerUID/artisanUID/chatId/direction)
       // değiştirilemez, puan yine 1..5 int.
@@ -746,8 +749,12 @@ service cloud.firestore {
       // Sahip, ustaya BAĞLANMAMIŞ ilanı silebilir (open=açık/süresi dolmuş,
       // cancelled=iptal). Aktif/tamamlanmış işler kayıt olarak kalır.
       // Bağlı teklifleri `onJobWritten` CF temizler.
+      // `selectedArtisanId` kontrolü ŞART: iptal edilen ilanda durum
+      // `cancelled` olur ama usta ataması durursa iş gerçekten yaşanmıştır;
+      // silinirse ustanın kaydı ve anlaşmazlık kanıtı kaybolur.
       allow delete: if isJobOwner()
-        && resource.data.status in ['open', 'cancelled'];
+        && resource.data.status in ['open', 'cancelled']
+        && resource.data.get('selectedArtisanId', null) == null;
     }
 
     // offers — ilanlara verilen teklifler. Döküman ID'si = jobId__artisanId

@@ -791,6 +791,96 @@ class _OfferCard extends ConsumerWidget {
   }
 }
 
+/// Usta tarafı: bildirim gönderildikten sonraki eylem satırı.
+///
+/// İletişimi MÜŞTERİ başlatır (§2). Bu yüzden "Sohbete Git" düğmesi ancak
+/// müşteri ilk mesajı yazdıysa görünür; öncesinde ne olacağını anlatan bir
+/// bilgi satırı durur. Böylece usta kilitli boş sohbete düşmez ve müşterinin
+/// listesinde hiç açılmamış sohbetler birikmez.
+class _ArtisanChatAccess extends ConsumerWidget {
+  const _ArtisanChatAccess({
+    required this.job,
+    required this.artisanUid,
+    required this.onOpenChat,
+    required this.onWithdraw,
+  });
+
+  final Job job;
+  final String artisanUid;
+  final VoidCallback onOpenChat;
+  final VoidCallback onWithdraw;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final palette = context.palette;
+    final chatId = artisanUid.isEmpty
+        ? ''
+        : FirebaseChatRepository.chatIdFor(
+            job.customerId,
+            artisanUid,
+            jobId: job.jobId,
+          );
+    final thread = ref.watch(chatThreadProvider(chatId)).valueOrNull;
+    // Müşteri yazmadıysa (veya sohbet hiç yoksa) sohbete giriş kapalı.
+    final canOpen = thread != null && thread.customerStarted;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (!canOpen)
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              color: palette.infoSurface,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.hourglass_empty_rounded,
+                    size: 18, color: palette.info),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Müşteri size yazdığında sohbet burada açılacak.',
+                    style: Theme.of(context)
+                        .textTheme
+                        .bodySmall
+                        ?.copyWith(color: palette.ink, height: 1.3),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        if (canOpen)
+          Row(
+            children: [
+              Expanded(
+                child: FilledButton.icon(
+                  onPressed: onOpenChat,
+                  icon: const Icon(Icons.chat_bubble_outline),
+                  label: const Text('Sohbete Git'),
+                ),
+              ),
+              const SizedBox(width: 10),
+              TextButton(
+                onPressed: onWithdraw,
+                child: const Text('Geri Çek'),
+              ),
+            ],
+          )
+        else
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton(
+              onPressed: onWithdraw,
+              child: const Text('Geri Çek'),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
 /// İlgilenen usta kartındaki sohbet özeti.
 ///
 /// Sohbet ilan bazlı olduğundan (`chat_{müşteri}__{usta}__{jobId}`) bu ilana
@@ -812,9 +902,11 @@ class _OfferChatPreview extends ConsumerWidget {
       offer.artisanId,
       jobId: jobId,
     );
-    // Liste akışını izle: yeni mesaj gelince kart kendiliğinden tazelensin.
-    final threads = ref.watch(myThreadsProvider).valueOrNull;
-    final thread = threads?.where((t) => t.id == chatId).firstOrNull;
+    // Sohbeti DOĞRUDAN izle. Eskiden `myThreadsProvider` (autoDispose)
+    // okunuyordu; o akış yalnız Mesajlar ekranı dinlediği için burada soğuk
+    // başlıyor ve ilk karede null dönüyordu → yazışma olsa bile "henüz
+    // mesajlaşmadınız" yazıyordu.
+    final thread = ref.watch(chatThreadProvider(chatId)).valueOrNull;
     final palette = context.palette;
     final theme = Theme.of(context);
 
@@ -837,9 +929,17 @@ class _OfferChatPreview extends ConsumerWidget {
       );
     }
 
-    final unread =
-        ref.read(chatRepositoryProvider).unreadCount(chatId: chatId, uid: me);
     final mine = thread.lastMessageSenderUid == me;
+    // Okunmamış: son mesaj karşı taraftan ve benim son okumamdan sonraysa.
+    // `unreadCount` bellek önbelleğine bağlı olduğundan (sohbet listesi hiç
+    // açılmadıysa 0 döner) burada thread'den doğrudan hesaplanır.
+    final lastRead = ref
+        .read(chatRepositoryProvider)
+        .lastReadBy(chatId: chatId, uid: me);
+    final unread = !mine &&
+            (lastRead == null || thread.updatedAt.isAfter(lastRead))
+        ? 1
+        : 0;
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
@@ -1798,8 +1898,8 @@ class _ArtisanOfferSection extends ConsumerWidget {
           Text(
             existing != null
                 ? 'Müşteriye bildirim gönderildi. İlanında "İlgilenen Ustalar" '
-                    'listesinde görünüyorsunuz; sizi seçerse sohbet açılacak.'
-                : 'İlgilendiğinizi müşteriye bildirin; sizi seçerse işi '
+                    'listesinde görünüyorsunuz. İletişimi müşteri başlatır.'
+                : 'İlgilendiğinizi müşteriye bildirin; size yazarsa işi '
                     'konuşmaya başlarsınız.',
             style: Theme.of(context)
                 .textTheme
@@ -1808,25 +1908,18 @@ class _ArtisanOfferSection extends ConsumerWidget {
           ),
           const SizedBox(height: 12),
           // Bildirim gönderildikten sonra birincil eylem YOK: sıra müşteride.
-          // "Sohbete Git" yine de durur — müşteri sohbeti başlattıysa ustanın
-          // ilan sayfasından dönüş yolu kapanmasın.
+          //
+          // "Sohbete Git" YALNIZ müşteri yazdıysa görünür. Aksi halde usta
+          // düğmeye basıp BOŞ bir sohbet dokümanı yaratıyordu: kendisi kilitli
+          // boş ekranda kalıyor, müşterinin listesi de hiç açmadığı sohbetlerle
+          // doluyordu (birden çok usta bildirim gönderince liste çöplüğe
+          // dönüyordu). İletişimi müşteri başlatır — düğme de o zaman gelir.
           if (existing != null)
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton.icon(
-                    // Tekrar teklif yazma — yalnız sohbeti aç.
-                    onPressed: () => _openChat(context, ref),
-                    icon: const Icon(Icons.chat_bubble_outline),
-                    label: const Text('Sohbete Git'),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                TextButton(
-                  onPressed: () => _withdraw(context, ref),
-                  child: const Text('Geri Çek'),
-                ),
-              ],
+            _ArtisanChatAccess(
+              job: job,
+              artisanUid: user?.uid ?? '',
+              onOpenChat: () => _openChat(context, ref),
+              onWithdraw: () => _withdraw(context, ref),
             )
           else
             SizedBox(
