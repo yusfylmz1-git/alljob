@@ -184,6 +184,91 @@ void main() {
     });
   });
 
+  group('Mesaj moderasyonu (şikayet → kaldırma)', () {
+    test('targetId biçimi: chatId ve msgId alt çizgi içerse de çözülür', () {
+      // Gerçek sohbet kimlikleri `chat_{uid}__{uid}` kalıbında → split('_')
+      // ile ayrıştırmak mesaj kimliğini BOZARDI.
+      const chatId = 'chat_cust1__art2';
+      const msgId = 'msg_abc_123';
+      final targetId =
+          messageReportTargetId(chatId: chatId, messageId: msgId);
+      expect(targetId, 'chat_cust1__art2_msg_abc_123');
+      expect(
+        messageIdFromReportTarget(chatId: chatId, targetId: targetId),
+        msgId,
+      );
+    });
+
+    test('başka sohbetin targetId\'si çözülmez (yönetici rastgele mesaj '
+        'kaldıramaz)', () {
+      final targetId = messageReportTargetId(
+        chatId: 'chat_A__B',
+        messageId: 'm1',
+      );
+      // Sunucu chatId'yi şikayet kaydından alır; uyuşmazsa null → CF reddeder.
+      expect(
+        messageIdFromReportTarget(chatId: 'chat_X__Y', targetId: targetId),
+        isNull,
+      );
+    });
+
+    test('bozuk/eksik girdi null döner', () {
+      expect(
+        messageIdFromReportTarget(chatId: '', targetId: 'a_b'),
+        isNull,
+      );
+      expect(
+        messageIdFromReportTarget(chatId: 'c1', targetId: ''),
+        isNull,
+      );
+      // Yalnız önek var, mesaj kimliği boş.
+      expect(
+        messageIdFromReportTarget(chatId: 'c1', targetId: 'c1_'),
+        isNull,
+      );
+    });
+
+    test('moderateMessage kaldırır ve geri alır', () async {
+      final repo = MockAdminReportRepository([
+        _r('rep1', ReportStatus.open, DateTime(2026, 1, 1)),
+      ]);
+      addTearDown(repo.dispose);
+
+      await repo.moderateMessage(reportId: 'rep1', hidden: true);
+      expect(repo.hiddenMessageReports, contains('rep1'));
+
+      await repo.moderateMessage(reportId: 'rep1', hidden: false);
+      expect(repo.hiddenMessageReports, isEmpty);
+    });
+
+    test('denetim kaydı: mesaj işlemleri Şikayet kategorisine düşer', () {
+      final entries = [
+        AuditEntry(
+          id: 'a1',
+          actorUid: 'admin1',
+          action: 'hide_message',
+          targetType: 'message',
+          targetId: 'chat1/msg1',
+          createdAt: DateTime(2026, 1, 1),
+        ),
+        AuditEntry(
+          id: 'a2',
+          actorUid: 'admin1',
+          action: 'unhide_message',
+          targetType: 'message',
+          targetId: 'chat1/msg1',
+          createdAt: DateTime(2026, 1, 2),
+        ),
+      ];
+      final filtered =
+          filterAudit(entries, category: AuditCategory.reports);
+      expect(filtered.length, 2);
+      // Ham action değil okunabilir etiket gösterilmeli.
+      expect(entries[0].actionLabelTR, 'Mesaj kaldırıldı');
+      expect(entries[1].actionLabelTR, 'Mesaj kaldırma geri alındı');
+    });
+  });
+
   group('MockAdminDisputeRepository (hakemlik)', () {
     test('watchDisputes yalnız disputed işleri en yeni bildirilen üstte verir',
         () async {

@@ -216,6 +216,9 @@ class FirebaseChatRepository implements ChatRepository {
                 text: d.data()['text'] as String?,
                 imageHandle: d.data()['imageHandle'] as String?,
                 deleted: (d.data()['deleted'] as bool?) ?? false,
+                // Yalnız CF yazar; eksik alan = görünür (eski mesajlar).
+                moderationHidden:
+                    d.data()['moderationHidden'] == true,
                 createdAt: (d.data()['createdAt'] as Timestamp?)?.toDate() ??
                     DateTime.now(),
               ))

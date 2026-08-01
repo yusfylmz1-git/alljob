@@ -6,6 +6,63 @@ import 'package:cloud_functions/cloud_functions.dart';
 import '../../../data/models/report.dart';
 import 'admin_report.dart';
 
+/// Transcript'teki tek mesaj (yalnız moderasyon görünümü).
+class TranscriptMessage {
+  const TranscriptMessage({
+    required this.id,
+    required this.senderUid,
+    required this.text,
+    required this.deleted,
+    required this.moderationHidden,
+    required this.createdAt,
+  });
+
+  final String id;
+  final String senderUid;
+
+  /// Gönderen KENDİ sildiyse null (içerik sunucuda da verilmez).
+  final String? text;
+
+  /// Gönderenin yumuşak silmesi.
+  final bool deleted;
+
+  /// Yönetici kaldırdı. Moderatöre metin YİNE gösterilir (kararı denetleyen
+  /// kişi neyi kaldırdığını görebilmeli) — yalnız rozetle işaretlenir.
+  final bool moderationHidden;
+
+  final String createdAt;
+
+  factory TranscriptMessage.fromMap(Map<String, dynamic> m) =>
+      TranscriptMessage(
+        id: (m['id'] ?? '').toString(),
+        senderUid: (m['senderUid'] ?? '').toString(),
+        text: m['text'] as String?,
+        deleted: m['deleted'] == true,
+        moderationHidden: m['moderationHidden'] == true,
+        createdAt: (m['createdAt'] ?? '').toString(),
+      );
+}
+
+/// `adminGetChatTranscript` yanıtı: mesajlar + uid→ad çözümü + şikayet edilen
+/// mesajın kimliği (moderatör onu 100 mesaj içinde aramasın).
+class ChatTranscript {
+  const ChatTranscript({
+    this.messages = const [],
+    this.names = const {},
+    this.reportedMessageId,
+  });
+
+  final List<TranscriptMessage> messages;
+
+  /// uid → görünen ad. Eksik uid için UI uid'in kısaltmasını gösterir.
+  final Map<String, String> names;
+
+  /// Şikayet edilen mesajın kimliği; bilinmiyorsa null.
+  final String? reportedMessageId;
+
+  bool get isEmpty => messages.isEmpty;
+}
+
 /// Yönetici şikayet kuyruğu soyutlaması. Kayıtları YALNIZCA `admin:true`
 /// claim'i olan kullanıcı okuyabilir/güncelleyebilir (Firestore kuralı).
 abstract interface class AdminReportRepository {
@@ -36,7 +93,7 @@ abstract interface class AdminReportRepository {
   });
 
   /// Bağlamlı sohbet transcript (reportId + chatId zorunlu).
-  Future<List<Map<String, dynamic>>> fetchChatTranscript({
+  Future<ChatTranscript> fetchChatTranscript({
     required String reportId,
     required String chatId,
     int limit = 100,
@@ -49,6 +106,14 @@ abstract interface class AdminReportRepository {
     required String targetId,
     required bool hide,
     String? note,
+  });
+
+  /// Şikayet edilen sohbet mesajını kaldırır / geri alır
+  /// (`adminModerateMessage` CF). Hedef mesaj SUNUCUDA şikayet kaydından
+  /// türetilir — istemci chatId/msgId göndermez (rastgele mesaj gizlenemez).
+  Future<void> moderateMessage({
+    required String reportId,
+    required bool hidden,
   });
 }
 
@@ -131,7 +196,7 @@ class FirebaseAdminReportRepository implements AdminReportRepository {
   }
 
   @override
-  Future<List<Map<String, dynamic>>> fetchChatTranscript({
+  Future<ChatTranscript> fetchChatTranscript({
     required String reportId,
     required String chatId,
     int limit = 100,
@@ -144,12 +209,22 @@ class FirebaseAdminReportRepository implements AdminReportRepository {
           'limit': limit,
         });
     final data = res.data;
-    if (data is Map && data['messages'] is List) {
-      return (data['messages'] as List)
-          .map((e) => Map<String, dynamic>.from(e as Map))
-          .toList();
+    if (data is! Map || data['messages'] is! List) return const ChatTranscript();
+    final names = <String, String>{};
+    final rawNames = data['names'];
+    if (rawNames is Map) {
+      rawNames.forEach((k, v) {
+        if (v is String && v.trim().isNotEmpty) names['$k'] = v.trim();
+      });
     }
-    return const [];
+    return ChatTranscript(
+      messages: (data['messages'] as List)
+          .whereType<Map>()
+          .map((e) => TranscriptMessage.fromMap(Map<String, dynamic>.from(e)))
+          .toList(growable: false),
+      names: names,
+      reportedMessageId: data['reportedMessageId'] as String?,
+    );
   }
 
   @override
@@ -164,6 +239,18 @@ class FirebaseAdminReportRepository implements AdminReportRepository {
       'targetId': targetId,
       'decision': hide ? 'hide' : 'unhide',
       if (note != null && note.trim().isNotEmpty) 'note': note.trim(),
+    });
+  }
+
+  @override
+  Future<void> moderateMessage({
+    required String reportId,
+    required bool hidden,
+  }) async {
+    // chatId/msgId GÖNDERİLMEZ: sunucu şikayet kaydından türetir.
+    await _functions.httpsCallable('adminModerateMessage').call<Object?>({
+      'reportId': reportId,
+      'hidden': hidden,
     });
   }
 }
@@ -269,11 +356,11 @@ class MockAdminReportRepository implements AdminReportRepository {
   }
 
   @override
-  Future<List<Map<String, dynamic>>> fetchChatTranscript({
+  Future<ChatTranscript> fetchChatTranscript({
     required String reportId,
     required String chatId,
     int limit = 100,
-  }) async => const [];
+  }) async => const ChatTranscript();
 
   /// Gizlenen hedefler (test doğrulaması için).
   final Set<String> hiddenTargets = {};
@@ -290,6 +377,21 @@ class MockAdminReportRepository implements AdminReportRepository {
       hiddenTargets.add(key);
     } else {
       hiddenTargets.remove(key);
+    }
+  }
+
+  /// Kaldırılan mesajların şikayet kimlikleri (test doğrulaması için).
+  final Set<String> hiddenMessageReports = {};
+
+  @override
+  Future<void> moderateMessage({
+    required String reportId,
+    required bool hidden,
+  }) async {
+    if (hidden) {
+      hiddenMessageReports.add(reportId);
+    } else {
+      hiddenMessageReports.remove(reportId);
     }
   }
 

@@ -382,6 +382,10 @@ service cloud.firestore {
         }
 
         // Metin boyutu (spam / maliyet) — foto yalnız imageHandle ile.
+        // `moderationHidden` / `moderatedBy` / `moderatedAt` bilerek YOK:
+        // yalnız CF (adminModerateMessage) yazar. hasOnly listesinde
+        // olmadığından istemci bunları oluşturma anında da ekleyemez
+        // (kendini "kaldırılmamış" ilan edemez).
         function messagePayloadOk() {
           let t = request.resource.data.get('text', null);
           return (t == null || (t is string && t.size() <= 4000))
@@ -405,8 +409,13 @@ service cloud.firestore {
         // Yumuşak silme: YALNIZ gönderen, YALNIZ `deleted=true` + içerik
         // alanlarının kaldırılması şeklinde güncelleyebilir (mesaj içeriği
         // değiştirilemez, başkasının mesajı silinemez, silme geri alınamaz).
+        // affectedKeys hasOnly → `moderationHidden` istemciden DEĞİŞTİRİLEMEZ
+        // (yönetici kararı geri alınamaz). Ayrıca yönetici kaldırdıysa
+        // gönderen üstüne "silindi" yazıp etiketi değiştiremesin diye
+        // kaldırılmış mesajda güncelleme tamamen kapalı.
         allow update: if isSignedIn()
           && resource.data.senderUid == request.auth.uid
+          && resource.data.get('moderationHidden', false) != true
           && request.resource.data.deleted == true
           && request.resource.data.diff(resource.data).affectedKeys()
               .hasOnly(['deleted', 'text', 'imageHandle'])
@@ -749,9 +758,12 @@ service cloud.firestore {
 
       allow create: if isSignedIn() && !isSuspended() && reportOk()
         // Yönetici alanları istemciden seed edilemez.
+        // evidence*: yalnız adminModerateMessage CF yazar — şikayetçi sahte
+        // "kaldırılan mesaj" kanıtı uyduramaz.
         && !request.resource.data.keys().hasAny(
             ['resolvedBy', 'resolvedAt', 'resolutionNote',
-             'assignedTo', 'assignedAt']);
+             'assignedTo', 'assignedAt',
+             'evidenceText', 'evidenceHasImage', 'evidenceCapturedAt']);
       // Tekrar şikayet: yalnız HÂLÂ open kayıtlarda (çözülmüş kuyruk
       // üzerine set ile status=open yazılamaz — S-REPORT-1).
       allow update: if isSignedIn()
@@ -762,9 +774,12 @@ service cloud.firestore {
         && request.resource.data.targetType == resource.data.targetType
         && request.resource.data.targetId == resource.data.targetId
         && request.resource.data.reporterUid == resource.data.reporterUid
+        // evidence*: yalnız adminModerateMessage CF yazar — şikayetçi sahte
+        // "kaldırılan mesaj" kanıtı uyduramaz.
         && !request.resource.data.keys().hasAny(
             ['resolvedBy', 'resolvedAt', 'resolutionNote',
-             'assignedTo', 'assignedAt']);
+             'assignedTo', 'assignedAt',
+             'evidenceText', 'evidenceHasImage', 'evidenceCapturedAt']);
       // Okuma yalnız yöneticiye (admin kuyruğu); silme kapalı.
       allow read: if isAdmin();
       allow delete: if false;

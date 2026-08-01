@@ -341,6 +341,8 @@ class _AuditCard extends StatelessWidget {
     'claim_report' => Icons.pan_tool_alt_outlined,
     'release_report' => Icons.free_cancellation_outlined,
     'resolve_dispute' => Icons.gavel_outlined,
+    'hide_message' => Icons.speaker_notes_off_outlined,
+    'unhide_message' => Icons.undo_rounded,
     _ => Icons.bolt_outlined,
   };
 

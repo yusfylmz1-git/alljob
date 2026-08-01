@@ -315,9 +315,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
   /// Mesaja uzun basınca: kopyala (metin) / sil (kendi) / şikayet (karşı taraf).
   Future<void> _showMessageActions(ChatMessage msg, bool isMine) async {
-    final canCopy = !msg.deleted && (msg.text?.isNotEmpty ?? false);
-    final canDelete = isMine && !msg.deleted;
-    final canReport = !isMine && !msg.deleted; // UGC politikası
+    // Kaldırılan mesajın içeriği YOK: kopyalanamaz, tekrar şikayet edilemez.
+    // Silme de anlamsız (gönderen yönetici kararını geri alamaz).
+    final canCopy = !msg.isRedacted && (msg.text?.isNotEmpty ?? false);
+    final canDelete = isMine && !msg.isRedacted;
+    final canReport = !isMine && !msg.isRedacted; // UGC politikası
     if (!canCopy && !canDelete && !canReport) return;
 
     final action = await showModalBottomSheet<String>(
@@ -365,7 +367,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         context,
         ref,
         target: ReportTarget.message,
-        targetId: '${widget.chatId}_${msg.id}',
+        // Biçim tek kaynaktan: sunucu (adminModerateMessage) bu önekten
+        // mesaj kimliğini geri çıkarır.
+        targetId: messageReportTargetId(
+          chatId: widget.chatId,
+          messageId: msg.id,
+        ),
         reportedUid: msg.senderUid,
         chatId: widget.chatId,
       );
@@ -549,7 +556,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             for (final m in visibleOf(
               messagesAsync.valueOrNull ?? const <ChatMessage>[],
             ))
-              if (m.senderUid == user.uid && !m.deleted) m.id,
+              if (m.senderUid == user.uid && !m.isRedacted) m.id,
           ];
 
     final appBar = _selectionMode
@@ -794,8 +801,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                                 msg.createdAt,
                                 messages[j + 1].createdAt,
                               );
-                          // Seçim modunda seçilebilirlik: kendi, silinmemiş mesaj.
-                          final selectable = isMine && !msg.deleted;
+                          // Seçim modunda seçilebilirlik: kendi, içeriği duran
+                          // mesaj (yönetici kaldırdıysa da seçilemez).
+                          final selectable = isMine && !msg.isRedacted;
                           final isNew = !_seenMessageIds.contains(msg.id);
                           if (isNew) {
                             // Sonraki frame'de "görüldü" — yeniden animasyon yok.
@@ -1141,22 +1149,31 @@ class _Bubble extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.end,
           mainAxisSize: MainAxisSize.min,
           children: [
-            if (message.deleted)
+            // Silinen VEYA yönetici tarafından kaldırılan mesaj: içerik yerine
+            // açıklama. Metin ayrışır — karşı taraf yönetici kaldırmasını
+            // "gönderen sildi" sanmasın.
+            if (message.isRedacted)
               Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Icon(
-                    Icons.block,
+                    message.moderationHidden
+                        ? Icons.gavel_rounded
+                        : Icons.block,
                     size: 14,
                     color: fg.withValues(alpha: 0.55),
                   ),
                   const SizedBox(width: 5),
-                  Text(
-                    'Bu mesaj silindi',
-                    style: TextStyle(
-                      color: fg.withValues(alpha: 0.55),
-                      fontStyle: FontStyle.italic,
-                      fontSize: 13.5,
+                  // Flexible: "yönetici tarafından kaldırıldı" metni
+                  // "silindi"den uzun; dar balonda taşmasın.
+                  Flexible(
+                    child: Text(
+                      message.redactedLabel!,
+                      style: TextStyle(
+                        color: fg.withValues(alpha: 0.55),
+                        fontStyle: FontStyle.italic,
+                        fontSize: 13.5,
+                      ),
                     ),
                   ),
                 ],
@@ -1184,7 +1201,7 @@ class _Bubble extends StatelessWidget {
                   ),
                 ),
               ),
-            if (!message.deleted &&
+            if (!message.isRedacted &&
                 message.text != null &&
                 message.text!.isNotEmpty)
               Padding(
@@ -1207,7 +1224,7 @@ class _Bubble extends StatelessWidget {
                       color: fg.withValues(alpha: isMine ? 0.78 : 0.55),
                     ),
                   ),
-                  if (isMine && !message.deleted) ...[
+                  if (isMine && !message.isRedacted) ...[
                     const SizedBox(width: 4),
                     Icon(
                       isRead ? Icons.done_all_rounded : Icons.done_rounded,

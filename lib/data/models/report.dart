@@ -40,3 +40,29 @@ String reportDocId({
   required String reporterUid,
 }) =>
     '${target.apiValue}_${targetId}__$reporterUid';
+
+/// Mesaj şikayetinde `targetId` biçimi: `${chatId}_${msgId}`
+/// (bkz. chat_screen.dart mesaj şikayeti akışı).
+String messageReportTargetId({
+  required String chatId,
+  required String messageId,
+}) =>
+    '${chatId}_$messageId';
+
+/// [messageReportTargetId] biçiminden mesaj kimliğini çıkarır.
+///
+/// `split('_')` KULLANILMAZ: hem chatId hem msgId alt çizgi içerebilir
+/// (chat id'leri `chat_{uid}__{uid}` kalıbında) — önek soyulur.
+/// Biçim uymuyorsa null (çağıran reddetmeli).
+///
+/// CF paritesi: functions/index.js `adminModerateMessage`.
+String? messageIdFromReportTarget({
+  required String chatId,
+  required String targetId,
+}) {
+  if (chatId.isEmpty || targetId.isEmpty) return null;
+  final prefix = '${chatId}_';
+  if (!targetId.startsWith(prefix)) return null;
+  final id = targetId.substring(prefix.length);
+  return id.isEmpty ? null : id;
+}

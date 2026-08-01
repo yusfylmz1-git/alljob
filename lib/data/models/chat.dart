@@ -8,6 +8,7 @@ class ChatMessage {
     this.text,
     this.imageHandle,
     this.deleted = false,
+    this.moderationHidden = false,
   });
 
   final String id;
@@ -21,10 +22,31 @@ class ChatMessage {
   /// "Bu mesaj silindi" gösterilir (WhatsApp modeli).
   final bool deleted;
 
-  bool get hasImage => imageHandle != null && !deleted;
+  /// Yönetici şikayet üzerine mesajı kaldırdı. [deleted]'DAN AYRIDIR:
+  /// gönderenin kendi silmesi değildir, iki tarafta da farklı metin görünür
+  /// ve gönderen bunu geri alamaz. Yalnız CF (`adminModerateMessage`) yazar;
+  /// eksik alan = görünür (eski mesajlarla uyum).
+  final bool moderationHidden;
+
+  /// İçerik gösterilmeli mi? Silinmiş VEYA yönetici tarafından kaldırılmışsa
+  /// metin/foto GÖSTERİLMEZ — tek kapı, her iki durumu da kapsar.
+  bool get isRedacted => deleted || moderationHidden;
+
+  bool get hasImage => imageHandle != null && !isRedacted;
 
   /// Sohbet listesi önizlemesinde silinen mesaj için gösterilen metin.
   static const deletedPreview = 'Bu mesaj silindi';
+
+  /// Yönetici kaldırdığında gösterilen metin (kullanıcı silmesinden AYRI:
+  /// karşı taraf "gönderen sildi" sanmasın).
+  static const moderatedPreview = 'Bu mesaj yönetici tarafından kaldırıldı';
+
+  /// Mesajın yerinde gösterilecek açıklama; içerik görünüyorsa null.
+  String? get redactedLabel => moderationHidden
+      ? moderatedPreview
+      : deleted
+          ? deletedPreview
+          : null;
 }
 
 /// İki kullanıcı (müşteri + usta) arasındaki sohbet başlığı/özeti.

@@ -47,6 +47,8 @@ class AuditEntry {
     'set_artisan_flags' => 'Usta bayrakları',
     'hide_review' => 'Değerlendirme gizleme',
     'get_chat_transcript' => 'Sohbet kanıtı okundu',
+    'hide_message' => 'Mesaj kaldırıldı',
+    'unhide_message' => 'Mesaj kaldırma geri alındı',
     'suspend_user' => 'Kullanıcı askıya alındı',
     'unsuspend_user' => 'Askı kaldırıldı',
     'resolve_report' => 'Şikayet karara bağlandı',
@@ -109,6 +111,9 @@ enum AuditCategory {
       'resolve_report',
       'claim_report',
       'release_report',
+      // Mesaj moderasyonu her zaman bir şikayetten doğar → bu kategoride.
+      'hide_message',
+      'unhide_message',
     }.contains(e.action),
     AuditCategory.disputes => e.action == 'resolve_dispute',
   };

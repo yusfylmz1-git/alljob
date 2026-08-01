@@ -41,6 +41,9 @@ class Report {
     this.resolvedBy,
     this.resolvedAt,
     this.assignedTo,
+    this.evidenceText,
+    this.evidenceHasImage = false,
+    this.evidenceCapturedAt,
   });
 
   final String id;
@@ -63,6 +66,14 @@ class Report {
   /// kişi aynı kaydı işlemesin). Yalnız `adminAssignReport` CF yazar; karara
   /// bağlanınca temizlenir. Null = kimse üstlenmemiş.
   final String? assignedTo;
+
+  /// Mesaj kaldırılırken saklanan KANIT: sohbet veya mesaj sonradan silinse
+  /// de kararın gerekçesi durur. Yalnız `adminModerateMessage` CF yazar ve
+  /// yalnız İLK kaldırmada doldurulur (geri al → tekrar kaldır akışında ilk
+  /// kanıt korunur). Null = henüz kaldırma yapılmamış.
+  final String? evidenceText;
+  final bool evidenceHasImage;
+  final DateTime? evidenceCapturedAt;
 
   static ReportTarget _target(String? v) => ReportTarget.values.firstWhere(
     (e) => e.apiValue == v,
@@ -94,5 +105,9 @@ class Report {
     resolvedBy: m['resolvedBy'] as String?,
     resolvedAt: m['resolvedAt'] == null ? null : _date(m['resolvedAt']),
     assignedTo: m['assignedTo'] as String?,
+    evidenceText: m['evidenceText'] as String?,
+    evidenceHasImage: m['evidenceHasImage'] == true,
+    evidenceCapturedAt:
+        m['evidenceCapturedAt'] == null ? null : _date(m['evidenceCapturedAt']),
   );
 }

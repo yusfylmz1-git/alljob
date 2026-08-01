@@ -2132,6 +2132,106 @@ exports.adminAssignReport = onCall(
     },
 );
 
+/**
+ * Sikayet edilen bir SOHBET MESAJINI yonetici kaldirir / geri alir.
+ *
+ * Neden CF: `chats/{id}/messages/{id}` kuralinda update YALNIZ gonderenin
+ * kendi yumusak silmesine acik. Yoneticiye kural uzerinden yazma yetkisi
+ * verilseydi her admin her sohbete yazabilirdi; burada hedef SIKAYET
+ * KAYDINDAN turetilir → yonetici rastgele mesaj gizleyemez.
+ *
+ * Hedef turetme: rapor targetType == "message" olmali. Istemci
+ * `${chatId}_${msgId}` yaziyor (chat_screen.dart); chatId rapordaki chatId
+ * alanindan alinir, msgId targetId'nin "chatId_" onekinden SONRASIDIR.
+ * (msgId'de "_" bulunabilecegi icin split degil, prefix soyma kullanilir.)
+ *
+ * `deleted` alanina DOKUNULMAZ: kullanicinin kendi silmesi ile yonetici
+ * kaldirmasi ayri kavramlar (istemci ikisine farkli metin gosterir).
+ */
+exports.adminModerateMessage = onCall(
+    {region: REGION},
+    async (request) => {
+      const auth = request.auth;
+      await assertCap(auth, "reports.manage");
+      const {reportId, hidden} = request.data || {};
+      if (typeof reportId !== "string" || !reportId.trim() ||
+          typeof hidden !== "boolean") {
+        throw new HttpsError(
+            "invalid-argument", "reportId ve hidden zorunlu.");
+      }
+
+      const repRef = db.collection("reports").doc(reportId.trim());
+      const repSnap = await repRef.get();
+      if (!repSnap.exists) {
+        throw new HttpsError("not-found", "Sikayet bulunamadi.");
+      }
+      const rep = repSnap.data() || {};
+      if ((rep.targetType || "") !== "message") {
+        throw new HttpsError(
+            "failed-precondition", "Bu sikayet bir mesaji hedeflemiyor.");
+      }
+
+      const chatId = typeof rep.chatId === "string" ? rep.chatId.trim() : "";
+      const targetId = typeof rep.targetId === "string" ? rep.targetId : "";
+      if (!chatId || !targetId) {
+        throw new HttpsError(
+            "failed-precondition", "Sikayette sohbet/mesaj baglami yok.");
+      }
+      const prefix = `${chatId}_`;
+      if (!targetId.startsWith(prefix)) {
+        throw new HttpsError(
+            "failed-precondition", "Mesaj kimligi sohbetle uyusmuyor.");
+      }
+      const msgId = targetId.slice(prefix.length);
+      if (!msgId) {
+        throw new HttpsError("failed-precondition", "Mesaj kimligi bos.");
+      }
+
+      const msgRef = db.collection("chats").doc(chatId)
+          .collection("messages").doc(msgId);
+      const msgSnap = await msgRef.get();
+      if (!msgSnap.exists) {
+        throw new HttpsError("not-found", "Mesaj bulunamadi (silinmis olabilir).");
+      }
+      const msg = msgSnap.data() || {};
+
+      // Kanit sakla: sohbet/mesaj sonradan silinse de karar gerekcesi dursun.
+      // Yalniz ILK gizlemede yazilir (geri al → tekrar gizle akisinda ilk
+      // kanit korunur; ustune yazilirsa metin bosalmis olabilirdi).
+      const repUpdate = {};
+      if (hidden && !rep.evidenceText && !rep.evidenceCapturedAt) {
+        repUpdate.evidenceText = typeof msg.text === "string" ?
+          msg.text.slice(0, 4000) : null;
+        repUpdate.evidenceHasImage = !!msg.imageHandle;
+        repUpdate.evidenceCapturedAt = new Date().toISOString();
+      }
+
+      const batch = db.batch();
+      batch.update(msgRef, {
+        moderationHidden: hidden,
+        moderatedBy: hidden ? auth.uid : admin.firestore.FieldValue.delete(),
+        moderatedAt: hidden ?
+          new Date().toISOString() :
+          admin.firestore.FieldValue.delete(),
+      });
+      if (Object.keys(repUpdate).length > 0) batch.update(repRef, repUpdate);
+      await writeAuditLog({
+        actorUid: auth.uid,
+        action: hidden ? "hide_message" : "unhide_message",
+        targetType: "message",
+        targetId: `${chatId}/${msgId}`,
+        before: {moderationHidden: msg.moderationHidden === true},
+        after: {moderationHidden: hidden},
+      }, batch);
+      await batch.commit();
+
+      logger.info(
+          `message ${chatId}/${msgId} moderationHidden=${hidden} ` +
+          `(admin ${auth.uid})`);
+      return {ok: true};
+    },
+);
+
 // Yönetici bir anlaşmazlığı (disputed iş) hakemlikle karara bağlar. İki güvenli
 // karar (puan/completedJobs muhasebesini bozmadan):
 //  - cancel  → iş 'cancelled' (anlaşmazlık haklı; kimse puanlanmaz).
@@ -2960,17 +3060,49 @@ exports.adminGetChatTranscript = onCall(
           .orderBy("createdAt", "asc")
           .limit(lim)
           .get();
+      // Sikayet edilen mesajin kimligi: moderator hangi mesajin bildirildigini
+      // 100 mesaj arasinda gozle aramasin (targetId = `${chatId}_${msgId}`).
+      let reportedMsgId = null;
+      if (tt === "message" && typeof rep.targetId === "string") {
+        const pfx = `${wantChat}_`;
+        if (rep.targetId.startsWith(pfx)) {
+          reportedMsgId = rep.targetId.slice(pfx.length) || null;
+        }
+      }
+
       const messages = msgSnap.docs.map((d) => {
         const m = d.data() || {};
+        // Kullanicinin KENDI sildigi icerik gosterilmez (mevcut davranis).
+        // Yoneticinin kaldirdigi mesaj ise moderatore GORUNUR kalir: karari
+        // veren/denetleyen kisi neyi kaldirdigini gorebilmeli.
+        const userDeleted = m.deleted === true;
         return {
           id: d.id,
           senderUid: m.senderUid || null,
-          text: m.deleted === true ? null : (m.text || null),
-          imageHandle: m.deleted === true ? null : (m.imageHandle || null),
-          deleted: m.deleted === true,
+          text: userDeleted ? null : (m.text || null),
+          imageHandle: userDeleted ? null : (m.imageHandle || null),
+          deleted: userDeleted,
+          moderationHidden: m.moderationHidden === true,
           createdAt: m.createdAt || null,
         };
       });
+
+      // uid → gorunen ad. Sohbetteki taraf sayisi 2 oldugundan tek batch yeter.
+      const uids = [...new Set(
+          messages.map((m) => m.senderUid).filter((u) => typeof u === "string"),
+      )].slice(0, 10);
+      const names = {};
+      if (uids.length > 0) {
+        const userSnaps = await db.getAll(
+            ...uids.map((u) => db.collection("users").doc(u)),
+        );
+        userSnaps.forEach((s) => {
+          if (s.exists) {
+            const dn = (s.data() || {}).displayName;
+            if (typeof dn === "string" && dn.trim()) names[s.id] = dn.trim();
+          }
+        });
+      }
 
       await writeAuditLog({
         actorUid: auth.uid,
@@ -2979,7 +3111,13 @@ exports.adminGetChatTranscript = onCall(
         targetId: wantChat,
         after: {reportId: reportId.trim(), messageCount: messages.length},
       });
-      return {messages, chatId: wantChat, reportId: reportId.trim()};
+      return {
+        messages,
+        names,
+        reportedMessageId: reportedMsgId,
+        chatId: wantChat,
+        reportId: reportId.trim(),
+      };
     },
 );
 

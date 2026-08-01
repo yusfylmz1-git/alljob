@@ -10,6 +10,7 @@ import '../../../data/models/report.dart';
 import '../../auth/application/auth_controller.dart';
 import '../data/admin_providers.dart';
 import '../data/admin_report.dart';
+import '../data/admin_report_repository.dart' show ChatTranscript;
 import '../data/paged_queue.dart';
 import 'admin_users_screen.dart';
 import 'paged_footer.dart';
@@ -321,6 +322,165 @@ class _AssignBadge extends StatelessWidget {
   }
 }
 
+/// Sohbet kanıtı listesi. Şikayet edilen mesaj VURGULANIR (moderatör 100
+/// mesaj içinde gözle aramasın); gönderen uid yerine görünen ad yazılır.
+class _TranscriptList extends StatefulWidget {
+  const _TranscriptList({required this.transcript});
+
+  final ChatTranscript transcript;
+
+  @override
+  State<_TranscriptList> createState() => _TranscriptListState();
+}
+
+class _TranscriptListState extends State<_TranscriptList> {
+  final _controller = ScrollController();
+
+  @override
+  void initState() {
+    super.initState();
+    // Şikayet edilen mesaja kaydır: uzun sohbette elle aramak gerekmesin.
+    final idx = widget.transcript.messages.indexWhere(
+      (m) => m.id == widget.transcript.reportedMessageId,
+    );
+    if (idx >= 0) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!_controller.hasClients) return;
+        // Sabit satır yüksekliği varsaymak yerine oransal konum: liste
+        // yüksekliği bilinmediğinden yaklaşık kaydırma yeterli.
+        final target = (idx / widget.transcript.messages.length) *
+            _controller.position.maxScrollExtent;
+        _controller.jumpTo(target.clamp(
+          0.0,
+          _controller.position.maxScrollExtent,
+        ));
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  /// uid → görünen ad; bilinmiyorsa uid'in ilk 6 hanesi (ham uid duvarı olmasın).
+  String _name(String uid) {
+    final n = widget.transcript.names[uid];
+    if (n != null && n.isNotEmpty) return n;
+    if (uid.isEmpty) return 'Bilinmiyor';
+    return uid.length <= 6 ? uid : '${uid.substring(0, 6)}…';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final palette = context.palette;
+    final t = widget.transcript;
+
+    return ListView.builder(
+      controller: _controller,
+      itemCount: t.messages.length,
+      itemBuilder: (_, i) {
+        final m = t.messages[i];
+        final isReported = m.id == t.reportedMessageId;
+        final text = m.deleted
+            ? '(gönderen sildi)'
+            : (m.text?.isNotEmpty == true ? m.text! : '(metin yok)');
+
+        return Container(
+          margin: const EdgeInsets.only(bottom: 6),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          decoration: BoxDecoration(
+            color: isReported
+                ? palette.warningSurface
+                : palette.surfaceMuted,
+            borderRadius: BorderRadius.circular(10),
+            border: isReported
+                ? Border.all(color: palette.warning, width: 1.5)
+                : null,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  if (isReported) ...[
+                    Icon(Icons.flag_rounded,
+                        size: 14, color: palette.warning),
+                    const SizedBox(width: 4),
+                    Text(
+                      'ŞİKAYET EDİLEN',
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: palette.warning,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 9.5,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                  ],
+                  Flexible(
+                    child: Text(
+                      _name(m.senderUid),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.labelMedium
+                          ?.copyWith(fontWeight: FontWeight.w800),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    _shortTime(m.createdAt),
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: palette.inkMuted,
+                      fontSize: 9.5,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 3),
+              Text(
+                text,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  fontStyle: m.deleted ? FontStyle.italic : null,
+                  color: m.deleted ? palette.inkMuted : null,
+                ),
+              ),
+              // Zaten kaldırılmış mesaj: yönetici tekrar kaldırmaya çalışmasın.
+              if (m.moderationHidden) ...[
+                const SizedBox(height: 4),
+                Row(
+                  children: [
+                    Icon(Icons.gavel_rounded, size: 12, color: palette.danger),
+                    const SizedBox(width: 4),
+                    Text(
+                      'Yönetici kaldırdı (kullanıcılara görünmüyor)',
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: palette.danger,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 9.5,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  /// ISO/Timestamp metninden "gg.aa ss:dd" — tam tarih kartı şişiriyordu.
+  static String _shortTime(String raw) {
+    final d = DateTime.tryParse(raw);
+    if (d == null) return '';
+    final l = d.toLocal();
+    String p(int v) => v.toString().padLeft(2, '0');
+    return '${p(l.day)}.${p(l.month)} ${p(l.hour)}:${p(l.minute)}';
+  }
+}
+
 class _TargetBadge extends StatelessWidget {
   const _TargetBadge({required this.target});
   final ReportTarget target;
@@ -498,6 +658,54 @@ class _ReportDetailSheetState extends ConsumerState<_ReportDetailSheet> {
     }
   }
 
+  /// Şikayet edilen mesajı kaldır / geri al (adminModerateMessage CF).
+  /// Hedef mesaj SUNUCUDA şikayet kaydından türetilir. Sheet kapanmaz —
+  /// yönetici ardından şikayeti karara bağlayabilir.
+  Future<void> _moderateMessage(bool hidden) async {
+    if (hidden) {
+      final ok = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Mesaj kaldırılsın mı?'),
+          content: const Text(
+            'Mesaj her iki tarafta da "yönetici tarafından kaldırıldı" '
+            'olarak görünecek ve gönderen bunu geri alamaz.\n\n'
+            'Mesaj metni kanıt olarak şikayet kaydına yazılır.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('İptal'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Kaldır'),
+            ),
+          ],
+        ),
+      );
+      if (ok != true || !mounted) return;
+    }
+    setState(() => _busy = true);
+    try {
+      await ref
+          .read(adminReportRepositoryProvider)
+          .moderateMessage(reportId: widget.report.id, hidden: hidden);
+      if (!mounted) return;
+      setState(() => _busy = false);
+      context.showSuccess(
+        hidden ? 'Mesaj kaldırıldı.' : 'Mesaj geri yüklendi.',
+      );
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _busy = false);
+      context.showError(
+        'İşlem başarısız oldu. Yetkinizi ve mesajın hâlâ var olduğunu '
+        'kontrol edin.',
+      );
+    }
+  }
+
   Future<void> _openTranscript() async {
     final r = widget.report;
     final chatId = r.chatId;
@@ -507,7 +715,7 @@ class _ReportDetailSheetState extends ConsumerState<_ReportDetailSheet> {
     }
     setState(() => _busy = true);
     try {
-      final msgs = await ref
+      final transcript = await ref
           .read(adminReportRepositoryProvider)
           .fetchChatTranscript(reportId: r.id, chatId: chatId);
       if (!mounted) return;
@@ -517,27 +725,11 @@ class _ReportDetailSheetState extends ConsumerState<_ReportDetailSheet> {
         builder: (ctx) => AlertDialog(
           title: const Text('Sohbet kanıtı'),
           content: SizedBox(
-            width: 420,
-            height: 360,
-            child: msgs.isEmpty
+            width: 460,
+            height: 400,
+            child: transcript.isEmpty
                 ? const Text('Mesaj yok veya yetki yok (chats.read).')
-                : ListView.builder(
-                    itemCount: msgs.length,
-                    itemBuilder: (_, i) {
-                      final m = msgs[i];
-                      final text = m['deleted'] == true
-                          ? '(silinmiş)'
-                          : (m['text']?.toString() ?? '');
-                      return ListTile(
-                        dense: true,
-                        title: Text(text),
-                        subtitle: Text(
-                          '${m['senderUid'] ?? "?"} · ${m['createdAt'] ?? ""}',
-                          style: const TextStyle(fontSize: 10),
-                        ),
-                      );
-                    },
-                  ),
+                : _TranscriptList(transcript: transcript),
           ),
           actions: [
             TextButton(
@@ -599,6 +791,20 @@ class _ReportDetailSheetState extends ConsumerState<_ReportDetailSheet> {
               const SizedBox(height: 12),
               if (r.note != null && r.note!.isNotEmpty)
                 _InfoBlock(label: 'Şikayet notu', value: r.note!),
+              // Kaldırma anında saklanan kanıt: sohbet/mesaj sonradan silinse
+              // de kararın gerekçesi burada durur.
+              if (r.evidenceCapturedAt != null)
+                _InfoBlock(
+                  label: 'Kaldırılan mesaj (kanıt · '
+                      '${_formatDate(r.evidenceCapturedAt!)})',
+                  value: [
+                    if (r.evidenceText?.isNotEmpty == true) r.evidenceText!,
+                    if (r.evidenceHasImage) '[fotoğraf ekliydi]',
+                    if ((r.evidenceText?.isEmpty ?? true) &&
+                        !r.evidenceHasImage)
+                      '(metin yoktu)',
+                  ].join('\n'),
+                ),
               _InfoBlock(label: 'Şikayet eden (uid)', value: r.reporterUid),
               _InfoBlock(label: 'Şikayet edilen (uid)', value: r.reportedUid),
               _InfoBlock(label: 'Hedef kimliği', value: r.targetId),
@@ -670,6 +876,27 @@ class _ReportDetailSheetState extends ConsumerState<_ReportDetailSheet> {
                       onPressed: _busy ? null : () => _moderateStaffing(false),
                       icon: const Icon(Icons.visibility_outlined, size: 18),
                       label: const Text('Gizlemeyi kaldır'),
+                    ),
+                  ],
+                ),
+              ],
+              // Mesaj şikayeti: içeriği sohbetten kaldır / geri al. Hedef
+              // mesajı sunucu şikayet kaydından türetir.
+              if (r.target == ReportTarget.message) ...[
+                const SizedBox(height: 4),
+                Wrap(
+                  spacing: 10,
+                  runSpacing: 10,
+                  children: [
+                    OutlinedButton.icon(
+                      onPressed: _busy ? null : () => _moderateMessage(true),
+                      icon: const Icon(Icons.gavel_rounded, size: 18),
+                      label: const Text('Mesajı kaldır'),
+                    ),
+                    OutlinedButton.icon(
+                      onPressed: _busy ? null : () => _moderateMessage(false),
+                      icon: const Icon(Icons.undo_rounded, size: 18),
+                      label: const Text('Kaldırmayı geri al'),
                     ),
                   ],
                 ),
