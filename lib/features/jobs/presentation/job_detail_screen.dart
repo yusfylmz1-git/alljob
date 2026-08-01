@@ -22,6 +22,7 @@ import '../../auth/application/auth_controller.dart';
 import '../../auth/presentation/email_verification_gate.dart';
 import '../../chat/data/chat_providers.dart';
 import '../../safety/presentation/report_sheet.dart';
+import '../application/select_artisan.dart';
 import '../data/job_providers.dart';
 import 'job_completion.dart';
 import 'widgets/job_widgets.dart';
@@ -344,46 +345,18 @@ class _OwnerOffersSection extends ConsumerWidget {
   const _OwnerOffersSection({required this.job});
   final Job job;
 
+  /// Seçim mantığı `selectArtisanForJob`'da ortak: sohbet ekranındaki "Ustayı
+  /// Seç" şeridi de aynı fonksiyonu çağırır, davranış birebir aynı kalsın.
   Future<void> _selectOffer(
       BuildContext context, WidgetRef ref, Offer offer) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Ustayı seç'),
-        content: Text(
-            '${offer.artisanName} ustasını bu iş için seçmek istiyor musunuz? '
-            'Bu işlem ilanı kapatır ve diğer ustalar bilgilendirilir.'),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Vazgeç')),
-          FilledButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Ustayı Seç')),
-        ],
-      ),
+    await selectArtisanForJob(
+      context,
+      ref,
+      job: job,
+      artisanId: offer.artisanId,
+      artisanName: offer.artisanName,
+      artisanPhotoUrl: offer.artisanPhotoUrl,
     );
-    if (confirmed != true) return;
-
-    final String chatId;
-    try {
-      chatId = await _chatIdFor(ref, offer);
-      await ref.read(jobRepositoryProvider).selectOffer(
-            jobId: job.jobId,
-            offerId: offer.offerId,
-            artisanId: offer.artisanId,
-            customerId: job.customerId,
-            chatId: chatId,
-          );
-    } catch (_) {
-      if (context.mounted) {
-        context.showError('Usta seçilemedi, lütfen tekrar deneyin.');
-      }
-      return;
-    }
-    if (!context.mounted) return;
-    context.showSuccess('Usta seçildi.');
-    context.push(RoutePaths.chatThread(chatId));
   }
 
   /// Bu ustayla sohbeti hazırlar (döküman yazılana kadar bekler).
@@ -1496,8 +1469,12 @@ class _ArtisanOfferSection extends ConsumerWidget {
     }
   }
 
-  /// İlk iletişim: ilgi kaydı + sohbet aç (idempotent — mevcut ilgiyi bozmaz).
-  Future<void> _contact(BuildContext context, WidgetRef ref) async {
+  /// Usta: ilanla ilgilendiğini müşteriye BİLDİRİR (idempotent).
+  ///
+  /// Sohbet AÇILMAZ ve usta sohbete atılmaz — kurgu böyle: usta yalnız haber
+  /// verir, sohbeti müşteri "Ustayı Seç" ile başlatır. İlgi kaydı yazılınca
+  /// `onOfferWritten` CF müşteriye bildirim + push yollar.
+  Future<void> _notifyInterest(BuildContext context, WidgetRef ref) async {
     final user = ref.read(currentUserProvider);
     final draft = ref.read(myProfileControllerProvider).valueOrNull;
     if (user == null || draft == null) {
@@ -1525,7 +1502,7 @@ class _ArtisanOfferSection extends ConsumerWidget {
     final emailOk = await ensureEmailVerified(
       context,
       ref,
-      actionLabel: 'ilan üzerinden iletişime geçmek',
+      actionLabel: 'ilan sahibine bildirim göndermek',
     );
     if (!emailOk || !context.mounted) return;
 
@@ -1563,26 +1540,26 @@ class _ArtisanOfferSection extends ConsumerWidget {
       // Idempotent: yoksa create, withdrawn→pending, zaten aktifse no-op.
       await offerRepo.submitOffer(interest);
       if (existing == null) await AppAnalytics.sendOffer();
-      final chatId = await ref.read(chatRepositoryProvider).startChat(
-            customerUid: job.customerId,
-            customerName: job.customerName,
-            customerPhotoUrl: job.customerPhotoUrl,
-            artisanUid: user.uid,
-            artisanName: draft.displayName,
-            artisanPhotoUrl: draft.profilePhotoUrl,
-          );
       if (!context.mounted) return;
-      context.push(RoutePaths.chatThread(chatId));
+      // ÖNEMLİ: aktif ilgide `submitOffer` HİÇBİR ŞEY yazmaz → CF tetiklenmez
+      // → bildirim de gitmez. "Gönderildi" demek yanıltıcı olurdu; mevcut
+      // kayıtta ayrı mesaj verilir. (`myOfferFor` withdrawn'ı null döndürür,
+      // yani geri çekilip yeniden bildirmek gerçek bir gönderimdir.)
+      if (existing == null) {
+        context.showSuccess('Bildirim gönderildi. Müşteri ilanında sizi görecek.');
+      } else {
+        context.showInfo('Zaten bu ilanla ilgilendiğinizi bildirdiniz.');
+      }
     } catch (e) {
       if (!context.mounted) return;
       final s = e.toString();
       if (s.contains('permission-denied') || s.contains('PERMISSION_DENIED')) {
         context.showError(
-            'İletişim başlatılamadı: e-posta doğrulaması, profil eşleşmesi '
+            'Bildirim gönderilemedi: e-posta doğrulaması, profil eşleşmesi '
             '(meslek/bölge kayıtlı mı?) veya oturum yetkisi. '
             'Profili kaydedip tekrar deneyin.');
       } else {
-        context.showError('İletişim başlatılamadı, tekrar deneyin.');
+        context.showError('Bildirim gönderilemedi, tekrar deneyin.');
       }
     }
   }
@@ -1621,7 +1598,7 @@ class _ArtisanOfferSection extends ConsumerWidget {
       );
     }
 
-    // H3: eşleşmeyen ustaya "İletişime Geç" gösterme.
+    // H3: eşleşmeyen ustaya "Bildirim Gönder" gösterme.
     final matches = profile != null &&
         profile.professionCodes.isNotEmpty &&
         profile.serviceAreas.isNotEmpty &&
@@ -1636,21 +1613,21 @@ class _ArtisanOfferSection extends ConsumerWidget {
       return _NoticeCard(
         icon: Icons.location_off_outlined,
         text: incomplete
-            ? 'İletişime geçmek için profilinizde en az bir meslek ve '
+            ? 'Bildirim göndermek için profilinizde en az bir meslek ve '
                 'hizmet bölgesi tanımlayın.'
             : 'Bu ilan meslek veya hizmet bölgenizle eşleşmiyor. '
                 'Yalnızca uyumlu ilanlara teklif verebilirsiniz.',
       );
     }
 
-    // Zaten iletişime geçildiyse: sohbete git / geri çek.
-    // Stream yüklenirken "İletişime Geç" göstermek mevcut teklife full set
+    // Zaten bildirildiyse: sohbete git / geri çek.
+    // Stream yüklenirken "Bildirim Gönder" göstermek mevcut teklife full set
     // yarışına yol açıyordu → loading ayrımı.
     final myOffersAsync = ref.watch(myOffersProvider(user?.uid ?? ''));
     if (myOffersAsync.isLoading) {
       return const Padding(
         padding: EdgeInsets.symmetric(vertical: 24),
-        child: LoadingView(compact: true, label: 'İletişim durumu…'),
+        child: LoadingView(compact: true, label: 'İlgi durumu…'),
       );
     }
     Offer? existing;
@@ -1675,7 +1652,10 @@ class _ArtisanOfferSection extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(existing != null ? 'İletişimdesiniz' : 'Bu işle ilgileniyor musunuz?',
+          Text(
+              existing != null
+                  ? 'Bildiriminiz gönderildi'
+                  : 'Bu işle ilgileniyor musunuz?',
               style: Theme.of(context)
                   .textTheme
                   .titleMedium
@@ -1683,21 +1663,24 @@ class _ArtisanOfferSection extends ConsumerWidget {
           const SizedBox(height: 6),
           Text(
             existing != null
-                ? 'Müşteriyle sohbet başlattınız. Ayrıntıları sohbet üzerinden '
-                    'konuşabilirsiniz.'
-                : 'Müşteriyle doğrudan sohbet başlatın; işi ve fiyatı birlikte '
-                    'konuşun.',
+                ? 'Müşteriye bildirim gönderildi. İlanında "İlgilenen Ustalar" '
+                    'listesinde görünüyorsunuz; sizi seçerse sohbet açılacak.'
+                : 'İlgilendiğinizi müşteriye bildirin; sizi seçerse işi '
+                    'konuşmaya başlarsınız.',
             style: Theme.of(context)
                 .textTheme
                 .bodyMedium
                 ?.copyWith(color: context.palette.inkMuted),
           ),
           const SizedBox(height: 12),
+          // Bildirim gönderildikten sonra birincil eylem YOK: sıra müşteride.
+          // "Sohbete Git" yine de durur — müşteri sohbeti başlattıysa ustanın
+          // ilan sayfasından dönüş yolu kapanmasın.
           if (existing != null)
             Row(
               children: [
                 Expanded(
-                  child: FilledButton.icon(
+                  child: OutlinedButton.icon(
                     // Tekrar teklif yazma — yalnız sohbeti aç.
                     onPressed: () => _openChat(context, ref),
                     icon: const Icon(Icons.chat_bubble_outline),
@@ -1705,7 +1688,7 @@ class _ArtisanOfferSection extends ConsumerWidget {
                   ),
                 ),
                 const SizedBox(width: 10),
-                OutlinedButton(
+                TextButton(
                   onPressed: () => _withdraw(context, ref),
                   child: const Text('Geri Çek'),
                 ),
@@ -1715,9 +1698,9 @@ class _ArtisanOfferSection extends ConsumerWidget {
             SizedBox(
               width: double.infinity,
               child: FilledButton.icon(
-                onPressed: () => _contact(context, ref),
-                icon: const Icon(Icons.chat_bubble_outline),
-                label: const Text('İletişime Geç'),
+                onPressed: () => _notifyInterest(context, ref),
+                icon: const Icon(Icons.notifications_active_outlined),
+                label: const Text('Bildirim Gönder'),
               ),
             ),
         ],

@@ -19,6 +19,7 @@ import '../../../data/models/chat.dart';
 import '../../../data/models/job.dart';
 import '../../../data/models/report.dart';
 import '../../auth/application/auth_controller.dart';
+import '../../jobs/application/select_artisan.dart';
 import '../../jobs/data/job_providers.dart';
 import '../../jobs/presentation/job_completion.dart';
 import '../../safety/data/safety_providers.dart';
@@ -703,6 +704,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             // Bağlı iş varsa tamamlama durumu + hızlı onay (P0).
             if (user != null)
               _JobCompletionChatBar(chatId: widget.chatId, myUid: user.uid),
+            // Henüz usta seçilmemiş AÇIK ilanlar → "Bu İş İçin Seç" (yalnız
+            // müşteri görür).
+            if (user != null && thread != null)
+              _JobSelectChatBar(thread: thread, myUid: user.uid),
             Expanded(
               child: messagesAsync.when(
                 loading: () => const LoadingView(label: 'Sohbet yükleniyor…'),
@@ -1787,6 +1792,141 @@ class _JobCompletionChatBar extends ConsumerWidget {
                 label: Text(copy.confirmLabel),
               ),
             ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Sohbetten usta seçimi: bu çift arasındaki AÇIK ilanlar + "Bu İş İçin Seç".
+///
+/// NEDEN LİSTE: `chatId` `chatIdFor(müşteri, usta)` ile üretilir, ilandan
+/// TÜREMEZ — aynı çift bütün ilanlarında tek sohbeti paylaşır. Dolayısıyla
+/// sohbette hangi işin konuşulduğu belirsizdir; iş başlığı yazılmadan seçim
+/// yaptırmak yanlış ilanı kapatma riski taşır.
+///
+/// [_JobCompletionChatBar]'dan AYRI: o şerit `jobs.chatId` üzerinden çalışır ve
+/// bu alan yalnız `selectOffer` sırasında yazıldığı için seçim ÖNCESİ açık
+/// ilanları göremez.
+class _JobSelectChatBar extends ConsumerStatefulWidget {
+  const _JobSelectChatBar({required this.thread, required this.myUid});
+
+  final ChatThread thread;
+  final String myUid;
+
+  @override
+  ConsumerState<_JobSelectChatBar> createState() => _JobSelectChatBarState();
+}
+
+class _JobSelectChatBarState extends ConsumerState<_JobSelectChatBar> {
+  /// Çift dokunuş kilidi: iki ilan aynı anda seçilirse ikisi de aynı chatId'yi
+  /// yazar ve `watchJobByChatId` (limit 1) hangisini döndüreceği belirsizleşir.
+  bool _busy = false;
+
+  Future<void> _select(Job job) async {
+    if (_busy) return;
+    setState(() => _busy = true);
+    try {
+      await selectArtisanForJob(
+        context,
+        ref,
+        job: job,
+        artisanId: widget.thread.artisanUid,
+        artisanName: widget.thread.artisanName,
+        artisanPhotoUrl: widget.thread.artisanPhotoUrl,
+        // Zaten sohbetteyiz; aynı sohbeti üstüne push etmek geri tuşunu bozar.
+        openChatAfter: false,
+      );
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final thread = widget.thread;
+    // Yalnız ilan sahibi seçer. Erken çıkış aynı zamanda ustanın cihazında
+    // müşterinin ilan listesine gereksiz abonelik açılmasını da engeller.
+    if (thread.customerUid != widget.myUid) return const SizedBox.shrink();
+
+    // Bu sohbete bağlı iş varsa yaşam döngüsü başlamıştır → seçim şeridi
+    // kapanır ve sahne _JobCompletionChatBar'a kalır (iki şerit üst üste
+    // binmesin).
+    final linked = ref.watch(jobByChatIdProvider(thread.id)).valueOrNull;
+    if (linked != null && linked.status.isAssigned) {
+      return const SizedBox.shrink();
+    }
+
+    final jobs = ref.watch(selectableJobsForChatProvider(
+      (customerId: thread.customerUid, artisanId: thread.artisanUid),
+    ));
+    if (jobs.isEmpty) return const SizedBox.shrink();
+
+    final palette = context.palette;
+    final theme = Theme.of(context);
+
+    return Material(
+      color: palette.card,
+      elevation: 0.5,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.work_outline, size: 20, color: palette.primary),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    jobs.length == 1
+                        ? 'Bu ustayı işiniz için seçin'
+                        : 'Bu ustayı bir işinize atayın',
+                    style: theme.textTheme.bodyMedium
+                        ?.copyWith(fontWeight: FontWeight.w700),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            // 3'ten fazla ilanda şerit ekranı kaplamasın.
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: 156),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    for (final job in jobs)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 4),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                job.title,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: theme.textTheme.bodyMedium,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            FilledButton.tonal(
+                              style: FilledButton.styleFrom(
+                                visualDensity: VisualDensity.compact,
+                                padding:
+                                    const EdgeInsets.symmetric(horizontal: 12),
+                              ),
+                              onPressed: _busy ? null : () => _select(job),
+                              child: const Text('Bu İş İçin Seç'),
+                            ),
+                          ],
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
           ],
         ),
       ),

@@ -5,6 +5,8 @@ import 'package:sepette_hizmet/data/models/geo_models.dart';
 import 'package:sepette_hizmet/data/models/job.dart';
 import 'package:sepette_hizmet/data/models/offer.dart';
 import 'package:sepette_hizmet/features/favorites/data/mock_favorite_repository.dart';
+import 'package:sepette_hizmet/features/jobs/application/select_artisan.dart'
+    show selectableJobsFrom;
 import 'package:sepette_hizmet/features/jobs/data/mock_job_repository.dart';
 import 'package:sepette_hizmet/features/jobs/data/mock_offer_repository.dart';
 import 'package:sepette_hizmet/features/jobs/presentation/job_explore_filter.dart';
@@ -814,6 +816,137 @@ void main() {
             .toList(),
         ['Mutfak tıkanıklık'],
       );
+    });
+  });
+
+  // Sohbet ilandan türemez (`chatIdFor(müşteri, usta)`), yani aynı çift tüm
+  // ilanlarında tek sohbeti paylaşır. Sohbet üstündeki "Ustayı Seç" şeridi bu
+  // yüzden kesişimle çalışır: müşterinin AÇIK ilanları ∩ ustanın BEKLEYEN
+  // ilgileri.
+  group('Sohbet üstü ilan seçimi (çift bazlı)', () {
+    test('iki açık ilana aynı usta ilgi → ikisi de listelenir', () async {
+      final db = MockDatabase();
+      final jobs = MockJobRepository(db);
+      final offers = MockOfferRepository(db);
+
+      final job1 = await jobs.createJob(_sampleJob());
+      final job2 = await jobs.createJob(_sampleJob());
+      await offers.submitOffer(_sampleOffer(jobId: job1, artisanId: 'art_1'));
+      await offers.submitOffer(_sampleOffer(jobId: job2, artisanId: 'art_1'));
+
+      final myJobs = await jobs.watchMyJobs('cust_1').first;
+      final fromArtisan = await offers
+          .watchOffersFromArtisan(customerId: 'cust_1', artisanId: 'art_1')
+          .first;
+
+      expect(selectableJobsFrom(myJobs, fromArtisan).length, 2);
+    });
+
+    test('ilgi geri çekilince ilan listeden düşer', () async {
+      final db = MockDatabase();
+      final jobs = MockJobRepository(db);
+      final offers = MockOfferRepository(db);
+
+      final job1 = await jobs.createJob(_sampleJob());
+      final job2 = await jobs.createJob(_sampleJob());
+      await offers.submitOffer(_sampleOffer(jobId: job1, artisanId: 'art_1'));
+      await offers.submitOffer(_sampleOffer(jobId: job2, artisanId: 'art_1'));
+
+      await offers.withdrawOffer(jobId: job1, artisanUid: 'art_1');
+
+      final myJobs = await jobs.watchMyJobs('cust_1').first;
+      final fromArtisan = await offers
+          .watchOffersFromArtisan(customerId: 'cust_1', artisanId: 'art_1')
+          .first;
+
+      final selectable = selectableJobsFrom(myJobs, fromArtisan);
+      expect(selectable.map((j) => j.jobId).toList(), [job2]);
+    });
+
+    test('usta seçilen ilan düşer, diğeri kalır', () async {
+      final db = MockDatabase();
+      final jobs = MockJobRepository(db);
+      final offers = MockOfferRepository(db);
+
+      final job1 = await jobs.createJob(_sampleJob());
+      final job2 = await jobs.createJob(_sampleJob());
+      await offers.submitOffer(_sampleOffer(jobId: job1, artisanId: 'art_1'));
+      await offers.submitOffer(_sampleOffer(jobId: job2, artisanId: 'art_1'));
+
+      await jobs.selectOffer(
+        jobId: job1,
+        offerId: Offer.idFor(job1, 'art_1'),
+        artisanId: 'art_1',
+        customerId: 'cust_1',
+        chatId: 'chat_cust_1__art_1',
+      );
+
+      final myJobs = await jobs.watchMyJobs('cust_1').first;
+      final fromArtisan = await offers
+          .watchOffersFromArtisan(customerId: 'cust_1', artisanId: 'art_1')
+          .first;
+
+      // job1 artık open değil; teklifi de accepted olduğu için kesişimde yok.
+      expect(selectableJobsFrom(myJobs, fromArtisan).map((j) => j.jobId).toList(),
+          [job2]);
+    });
+
+    test('başka ustanın ilgisi bu sohbete sızmaz', () async {
+      final db = MockDatabase();
+      final jobs = MockJobRepository(db);
+      final offers = MockOfferRepository(db);
+
+      final job1 = await jobs.createJob(_sampleJob());
+      final job2 = await jobs.createJob(_sampleJob());
+      await offers.submitOffer(_sampleOffer(jobId: job1, artisanId: 'art_1'));
+      await offers.submitOffer(_sampleOffer(jobId: job2, artisanId: 'art_2'));
+
+      final myJobs = await jobs.watchMyJobs('cust_1').first;
+      final fromArtisan = await offers
+          .watchOffersFromArtisan(customerId: 'cust_1', artisanId: 'art_1')
+          .first;
+
+      expect(selectableJobsFrom(myJobs, fromArtisan).map((j) => j.jobId).toList(),
+          [job1]);
+    });
+
+    test('başka müşterinin ilanı sızmaz (customerId filtresi)', () async {
+      final db = MockDatabase();
+      final jobs = MockJobRepository(db);
+      final offers = MockOfferRepository(db);
+
+      final mine = await jobs.createJob(_sampleJob());
+      final other = await jobs.createJob(_sampleJob(customerId: 'cust_2'));
+      await offers.submitOffer(_sampleOffer(jobId: mine, artisanId: 'art_1'));
+      await offers.submitOffer(_sampleOffer(
+          jobId: other, artisanId: 'art_1', customerId: 'cust_2'));
+
+      final fromArtisan = await offers
+          .watchOffersFromArtisan(customerId: 'cust_1', artisanId: 'art_1')
+          .first;
+
+      expect(fromArtisan.length, 1);
+      expect(fromArtisan.first.jobId, mine);
+    });
+
+    test('süresi dolmuş ilan listelenmez (effectiveStatus)', () async {
+      final db = MockDatabase();
+      final jobs = MockJobRepository(db);
+      final offers = MockOfferRepository(db);
+
+      // Süresi dolmuş ilan: status alanı hâlâ `open` yazar ama kural
+      // open → workerSelected geçişini reddeder.
+      final stale = await jobs.createJob(_sampleJob(
+        createdAt: DateTime.now().subtract(const Duration(days: 30)),
+      ));
+      await offers.submitOffer(_sampleOffer(jobId: stale, artisanId: 'art_1'));
+
+      final myJobs = await jobs.watchMyJobs('cust_1').first;
+      final fromArtisan = await offers
+          .watchOffersFromArtisan(customerId: 'cust_1', artisanId: 'art_1')
+          .first;
+
+      expect(selectableJobsFrom(myJobs, fromArtisan), isEmpty);
     });
   });
 }

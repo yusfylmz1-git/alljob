@@ -67,6 +67,26 @@ class MockOfferRepository implements OfferRepository {
   }
 
   @override
+  Stream<List<Offer>> watchOffersFromArtisan({
+    required String customerId,
+    required String artisanId,
+  }) async* {
+    yield _fromArtisan(customerId, artisanId);
+    yield* _db.changes.map((_) => _fromArtisan(customerId, artisanId));
+  }
+
+  List<Offer> _fromArtisan(String customerId, String artisanId) {
+    final list = _db.offers.values
+        .where((o) =>
+            o.customerId == customerId && // Firebase davranışıyla aynı
+            o.artisanId == artisanId &&
+            o.status == OfferStatus.pending)
+        .toList()
+      ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    return list;
+  }
+
+  @override
   Future<Offer?> myOfferFor({
     required String jobId,
     required String artisanUid,

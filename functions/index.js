@@ -585,6 +585,11 @@ exports.onReviewWritten = onDocumentWritten(
  * ilgili ilanın `offerCount` alanını, çekilmemiş (withdrawn olmayan) teklif
  * sayısına göre YENİDEN HESAPLAR. Böylece sayaç her zaman tutarlıdır ve
  * istemcinin yazmasına gerek kalmaz.
+ *
+ * AYRICA: usta ilgisini bildirdiğinde (→ pending) MÜŞTERİYE haber verir.
+ * Önceden istemci ustayı doğrudan sohbete atıyordu; artık usta yalnız bildirim
+ * gönderiyor (bkz. `job_detail_screen.dart` `_notifyInterest`) — müşteri bu
+ * bildirimi görmezse ilgiden hiç haberi olmaz.
  */
 exports.onOfferWritten = onDocumentWritten(
     {document: "offers/{offerId}", region: REGION},
@@ -612,6 +617,40 @@ exports.onOfferWritten = onDocumentWritten(
         // İlan silinmiş/yoksa güncelleme atlanır (zararsız).
         logger.warn(`offerCount update skipped for ${jobId}: ${e}`);
       }
+
+      // --- Müşteriye "usta ilgileniyor" bildirimi ---
+      // YALNIZ ilginin doğduğu an: yok→pending veya withdrawn→pending.
+      // pending→pending istemcide zaten no-op'tur (submitOffer aktif kayda
+      // yazmaz) → tetiklenmez; →withdrawn/accepted/rejected de bildirim değil.
+      const beforeStatus = (before && before.status) || null;
+      const afterStatus = (after && after.status) || null;
+      const becamePending =
+        afterStatus === "pending" && beforeStatus !== "pending";
+      if (!becamePending) return;
+      // Kendi ilanına ilgi (rules + matchesArtisan zaten engeller) — sessiz geç.
+      if (!after.customerId || after.artisanId === after.customerId) return;
+
+      // ÖNEMLİ — docId `offer_{offerId}` (= offer_{jobId}__{artisanId}):
+      // `job_{jobId}` KULLANILAMAZ, o kimlik "usta seçildi" bildirimine ait
+      // (onJobWritten) ve farklı ustaların ilgileri birbirini ezerdi. Bu
+      // biçimde usta başına ilan başına TEK satır olur; aynı usta geri çekip
+      // yeniden bildirirse satır tazelenir (bildirim yığılmaz).
+      const jobTitle = after.jobTitle || "ilanınız";
+      const artisanName = after.artisanName || "Bir usta";
+      const nTitle = "🔔 Bir usta işinizle ilgileniyor";
+      const nBody =
+        `${artisanName}, "${jobTitle}" ilanınız için sizinle çalışmak ` +
+        "istiyor. İlan sayfasından ustayı inceleyip seçebilirsiniz.";
+      // `chatId` YAZILMAZ: müşteri ilan detayına gitmeli (İlgilenen Ustalar
+      // listesi orada; sohbeti "Ustayı Seç" ile kendisi başlatır).
+      await saveNotification(after.customerId, `offer_${event.params.offerId}`, {
+        type: "job",
+        title: nTitle,
+        body: nBody,
+        jobId,
+      });
+      await sendPushToUid(after.customerId, nTitle, nBody,
+          {type: "job", jobId});
     },
 );
 
