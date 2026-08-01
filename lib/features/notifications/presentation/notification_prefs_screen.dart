@@ -5,6 +5,7 @@ import '../../../core/theme/app_palette.dart';
 import '../../../core/utils/snackbar_helper.dart';
 import '../../auth/application/auth_controller.dart';
 import '../data/notification_prefs.dart';
+import '../data/push_service.dart' show pushServiceProvider;
 
 /// Profil → Bildirim tercihleri. Yalnız cihaz push'unu yönetir.
 class NotificationPrefsScreen extends ConsumerWidget {
@@ -40,6 +41,8 @@ class NotificationPrefsScreen extends ConsumerWidget {
               style: theme.textTheme.bodySmall
                   ?.copyWith(color: palette.inkMuted),
             ),
+            const SizedBox(height: 12),
+            const _PushDiagnosticsCard(),
             const SizedBox(height: 16),
             Card(
               margin: EdgeInsets.zero,
@@ -108,5 +111,93 @@ class NotificationPrefsScreen extends ConsumerWidget {
         context.showError('Kaydedilemedi, tekrar deneyin.');
       }
     }
+  }
+}
+
+/// Push tanılama kartı.
+///
+/// Sistem bildirimi gelmiyorsa sebebi kullanıcıya SÖYLER. Önceden token kaydı
+/// başarısız olduğunda hata sessizce yutuluyordu: uygulama içi bildirimler
+/// (Admin SDK ile yazılır, cihaz token'ı gerekmez) çalışmaya devam ettiği için
+/// sorun görünmez kalıyordu. En sık neden Android 13+ bildirim izninin kapalı
+/// olması.
+class _PushDiagnosticsCard extends ConsumerStatefulWidget {
+  const _PushDiagnosticsCard();
+
+  @override
+  ConsumerState<_PushDiagnosticsCard> createState() =>
+      _PushDiagnosticsCardState();
+}
+
+class _PushDiagnosticsCardState extends ConsumerState<_PushDiagnosticsCard> {
+  bool _busy = false;
+
+  Future<void> _retry() async {
+    setState(() => _busy = true);
+    try {
+      await ref.read(pushServiceProvider).retry();
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+    if (!mounted) return;
+    final ok = ref.read(pushServiceProvider).isRegistered;
+    if (ok) {
+      context.showSuccess('Cihaz bildirimlere kaydedildi.');
+    } else {
+      context.showError('Hâlâ kaydedilemedi. Bildirim iznini kontrol edin.');
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final push = ref.read(pushServiceProvider);
+    final ok = push.isRegistered;
+    final palette = context.palette;
+    final theme = Theme.of(context);
+
+    return Card(
+      margin: EdgeInsets.zero,
+      color: ok ? palette.successSurface : palette.warningSurface,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(
+              ok ? Icons.check_circle_outline : Icons.error_outline,
+              size: 20,
+              color: ok ? palette.success : palette.warning,
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    push.diagnosticsTR,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: palette.ink,
+                      fontWeight: FontWeight.w600,
+                      height: 1.3,
+                    ),
+                  ),
+                  if (!ok) ...[
+                    const SizedBox(height: 6),
+                    TextButton(
+                      style: TextButton.styleFrom(
+                        visualDensity: VisualDensity.compact,
+                        padding: EdgeInsets.zero,
+                      ),
+                      onPressed: _busy ? null : _retry,
+                      child: Text(_busy ? 'Deneniyor…' : 'Yeniden dene'),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }

@@ -17,6 +17,7 @@ class SurfaceAppBar extends StatelessWidget implements PreferredSizeWidget {
     this.subtitle,
     this.actions,
     this.icon,
+    this.bottom,
   });
 
   final String title;
@@ -24,8 +25,14 @@ class SurfaceAppBar extends StatelessWidget implements PreferredSizeWidget {
   final List<Widget>? actions;
   final IconData? icon;
 
+  /// Başlığın altına eklenen bant (genelde [TabBar]). Yüksekliği
+  /// [preferredSize]'a eklenir.
+  final PreferredSizeWidget? bottom;
+
   @override
-  Size get preferredSize => Size.fromHeight(subtitle == null ? 58 : 72);
+  Size get preferredSize => Size.fromHeight(
+        (subtitle == null ? 58 : 72) + (bottom?.preferredSize.height ?? 0),
+      );
 
   @override
   Widget build(BuildContext context) {
@@ -43,7 +50,9 @@ class SurfaceAppBar extends StatelessWidget implements PreferredSizeWidget {
           isDark ? SystemUiOverlayStyle.light : SystemUiOverlayStyle.dark,
       iconTheme: IconThemeData(color: palette.ink),
       actionsIconTheme: IconThemeData(color: palette.ink),
-      toolbarHeight: preferredSize.height,
+      // `bottom` yüksekliği preferredSize'a dahil; toolbar yalnız başlık payı.
+      toolbarHeight: subtitle == null ? 58 : 72,
+      bottom: bottom,
       titleSpacing: 4,
       // leading: dokunulmaz (drawer / geri).
       flexibleSpace: DecoratedBox(

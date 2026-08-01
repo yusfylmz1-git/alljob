@@ -10,9 +10,8 @@ import '../../../auth/application/auth_controller.dart';
 
 /// Ana Sayfa üst aksiyon bloğu: büyük "Usta Bul" davet kartı + altında iki
 /// ikincil aksiyon kutusu (İş İlanı Ver / Ürünleri Keşfet). Etiketler role
-/// göre değişir: müşteri "Usta Bul + İş İlanı Ver", usta "İş Bul" görür. Alt
-/// barın yerine
-/// geçmez; ana sayfanın birincil giriş noktasıdır.
+/// göre değişir: müşteri "Usta Bul + İş İlanı Ver", usta "İş İlanları" görür.
+/// Alt barın yerine geçmez; ana sayfanın birincil giriş noktasıdır.
 class HomeQuickAccess extends ConsumerWidget {
   const HomeQuickAccess({super.key});
 
@@ -27,7 +26,7 @@ class HomeQuickAccess extends ConsumerWidget {
         ? _HeroCta(
             title: 'Sana uygun işi bul.',
             subtitle: 'Yakınındaki iş ilanları,\nhemen teklif ver.',
-            ctaLabel: 'İş Bul',
+            ctaLabel: 'İş İlanları',
             icon: Icons.campaign_rounded,
             onTap: () => context.go(RoutePaths.exploreTab('jobs')),
           )

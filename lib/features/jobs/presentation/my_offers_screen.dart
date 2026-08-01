@@ -14,19 +14,33 @@ import '../../../data/models/offer.dart';
 import '../../auth/application/auth_controller.dart';
 import '../data/job_providers.dart';
 
-/// Usta: ilgilendiğim / teklif verdiğim işler.
+/// Usta: ilgilendiğim / teklif verdiğim işler — TAM EKRAN sarmalayıcı.
+///
+/// Asıl liste [MyOffersBody]'de; "İşler" sekmesi (NearbyJobsScreen) onu
+/// doğrudan gömer. Bu ekran eski `/panel/offers` bağlantıları için durur.
 class MyOffersScreen extends ConsumerWidget {
   const MyOffersScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final user = ref.watch(currentUserProvider);
-    return Scaffold(
-      appBar: const SurfaceAppBar(
+    return const Scaffold(
+      appBar: SurfaceAppBar(
         title: 'İlgilendiğim işler',
         icon: Icons.work_history_outlined,
       ),
-      body: user == null
+      body: MyOffersBody(),
+    );
+  }
+}
+
+/// "İlgilendiğim işler" listesi — Scaffold'suz, sekme içinde de kullanılır.
+class MyOffersBody extends ConsumerWidget {
+  const MyOffersBody({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final user = ref.watch(currentUserProvider);
+    return user == null
           ? const Center(child: Text('Oturum bulunamadı.'))
           : ref.watch(myOffersProvider(user.uid)).when(
                 loading: () => const SkeletonList(),
@@ -68,8 +82,7 @@ class MyOffersScreen extends ConsumerWidget {
                     ),
                   );
                 },
-              ),
-    );
+              );
   }
 }
 

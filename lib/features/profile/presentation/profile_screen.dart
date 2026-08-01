@@ -444,17 +444,12 @@ class _ArtisanHome extends ConsumerWidget {
               icon: Icons.work_outline,
               iconColor: context.palette.info,
               iconSurface: context.palette.infoSurface,
-              title: 'Yakındaki işler',
-              subtitle: 'Meslek ve bölgene uygun',
+              // "İlgilendiğim işler" BURADAN KALKTI: iş akışının parçası
+              // olduğu için alt bardaki "İşler" sekmesine taşındı (orada
+              // "Yakınımdaki" ile yan yana iki sekme).
+              title: 'İşler',
+              subtitle: 'Yakınındakiler ve ilgilendiklerin',
               onTap: () => context.push(RoutePaths.panelJobs),
-            ),
-            _MenuRow(
-              icon: Icons.work_history_outlined,
-              iconColor: context.palette.primary,
-              iconSurface: context.palette.primaryContainer,
-              title: 'İlgilendiğim işler',
-              subtitle: 'Başvuru ve yürüyenler',
-              onTap: () => context.push(RoutePaths.panelOffers),
             ),
           ],
         ),

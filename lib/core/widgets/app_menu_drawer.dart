@@ -230,12 +230,8 @@ class AppMenuDrawer extends ConsumerWidget {
 
         // --- Usta modu ---
         else ...[
-          // Yakındaki işler artık alt barda ("İşler" sekmesi).
-          ListTile(
-            leading: const Icon(Icons.work_history_outlined),
-            title: const Text('İlgilendiğim işler'),
-            onTap: () => _open(context, RoutePaths.panelOffers),
-          ),
+          // Yakındaki işler VE İlgilendiğim işler artık alt bardaki "İşler"
+          // sekmesinde (iki sekme yan yana) — menüde tekrar edilmiyor.
           ListTile(
             leading: const Icon(Icons.notifications_none_rounded),
             title: const Text('Bildirimler'),

@@ -19,11 +19,48 @@ import '../../artisan/presentation/widgets/shop_completion_banner.dart';
 import '../../auth/application/auth_controller.dart';
 import '../../membership/membership_access.dart';
 import '../data/job_providers.dart';
+import 'my_offers_screen.dart' show MyOffersBody;
 import 'widgets/job_widgets.dart';
 
-/// Usta: Yakınımdaki İş İlanları — meslek + hizmet bölgesi eşleşen açık ilanlar.
+/// Usta "İşler" sekmesi — İKİ SEKME:
+///   1. Yakınımdaki İlanlar: meslek + hizmet bölgesi eşleşen açık ilanlar
+///   2. İlgilendiğim İşler: bildirim gönderdiğim ilanlar (eski konumu profil
+///      menüsüydü; iş akışının parçası olduğu için buraya taşındı)
 class NearbyJobsScreen extends ConsumerWidget {
   const NearbyJobsScreen({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return DefaultTabController(
+      length: 2,
+      child: Scaffold(
+        appBar: const SurfaceAppBar(
+          title: 'İşler',
+          subtitle: 'Yakınındaki açık ilanlar',
+          icon: Icons.handyman_outlined,
+          bottom: TabBar(
+            tabs: [
+              Tab(text: 'Yakınımdaki'),
+              Tab(text: 'İlgilendiğim'),
+            ],
+          ),
+        ),
+        drawer: const AppMenuDrawer(),
+        bottomNavigationBar: const MainBottomBar(current: MainTab.work),
+        body: const TabBarView(
+          children: [
+            _NearbyTab(),
+            MyOffersBody(),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// "Yakınımdaki" sekmesinin gövdesi (eski ekranın tamamı).
+class _NearbyTab extends ConsumerWidget {
+  const _NearbyTab();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -31,39 +68,30 @@ class NearbyJobsScreen extends ConsumerWidget {
     final profileAsync = ref.watch(myProfileControllerProvider);
     final hasAccess = ref.watch(artisanProAccessProvider);
 
-    return Scaffold(
-      appBar: const SurfaceAppBar(
-        title: 'İşler',
-        subtitle: 'Yakınındaki açık ilanlar',
-        icon: Icons.handyman_outlined,
+    return profileAsync.when(
+      loading: () => const SkeletonList(),
+      error: (_, _) => ErrorView(
+        message:
+            'Profil yüklenemedi. Bağlantınızı kontrol edip tekrar deneyin.',
+        onRetry: () => ref.invalidate(myProfileControllerProvider),
       ),
-      drawer: const AppMenuDrawer(),
-      bottomNavigationBar: const MainBottomBar(current: MainTab.work),
-      body: profileAsync.when(
-        loading: () => const SkeletonList(),
-        error: (_, _) => ErrorView(
-          message:
-              'Profil yüklenemedi. Bağlantınızı kontrol edip tekrar deneyin.',
-          onRetry: () => ref.invalidate(myProfileControllerProvider),
-        ),
-        data: (draft) {
-          if (!hasAccess) return const _PlanLockedNotice();
+      data: (draft) {
+        if (!hasAccess) return const _PlanLockedNotice();
 
-          final completion = user == null
-              ? null
-              : ShopCompletion.from(user: user, draft: draft);
+        final completion = user == null
+            ? null
+            : ShopCompletion.from(user: user, draft: draft);
 
-          if (completion != null && !completion.canMatchJobs) {
-            return _ProfileIncompleteNotice(completion: completion);
-          }
-          if (!draft.profile.isAvailable) {
-            return const _NotAvailableNotice();
-          }
+        if (completion != null && !completion.canMatchJobs) {
+          return _ProfileIncompleteNotice(completion: completion);
+        }
+        if (!draft.profile.isAvailable) {
+          return const _NotAvailableNotice();
+        }
 
-          // İlan listesi ayrı widget — nested .when + çift watch ANR riskini azaltır.
-          return _NearbyJobsBody(completion: completion);
-        },
-      ),
+        // İlan listesi ayrı widget — nested .when + çift watch ANR riskini azaltır.
+        return _NearbyJobsBody(completion: completion);
+      },
     );
   }
 }

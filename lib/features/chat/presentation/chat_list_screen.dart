@@ -35,11 +35,40 @@ class ChatListScreen extends ConsumerStatefulWidget {
 /// Mesajlar listesinin görünüm kipi.
 enum _ChatFilter { tumu, okunmamis, arsiv }
 
-class _ChatListScreenState extends ConsumerState<ChatListScreen> {
+/// Üst sekme: ilan sohbetleri mi, genel sohbetler mi?
+///
+/// Sohbet artık ilan bazlı (`chat_{müşteri}__{usta}__{jobId}`); bir müşterinin
+/// aynı ustayla birden çok işi olabiliyor. İş konuşmaları ürün/eleman
+/// sohbetleriyle karışmasın diye liste iki eksende ayrılır. [_ChatFilter]
+/// (tümü/okunmamış/arşiv) bu eksenin İÇİNDE çalışır.
+enum _ChatScope { ilan, genel }
+
+class _ChatListScreenState extends ConsumerState<ChatListScreen>
+    with SingleTickerProviderStateMixin {
   String _query = '';
   bool _selectionMode = false;
   final Set<String> _selected = {};
   _ChatFilter _filter = _ChatFilter.tumu;
+  _ChatScope _scope = _ChatScope.ilan;
+  late final TabController _tabs = TabController(length: 2, vsync: this)
+    ..addListener(() {
+      if (_tabs.indexIsChanging) return;
+      final next = _tabs.index == 0 ? _ChatScope.ilan : _ChatScope.genel;
+      if (next == _scope) return;
+      // Sekme değişince seçim modu kapanır: seçili sohbetler diğer sekmede
+      // görünmüyor olabilir, "3 seçildi" yazıp boş liste göstermek yanıltıcı.
+      setState(() {
+        _scope = next;
+        _selectionMode = false;
+        _selected.clear();
+      });
+    });
+
+  @override
+  void dispose() {
+    _tabs.dispose();
+    super.dispose();
+  }
 
   void _exitSelection() => setState(() {
         _selectionMode = false;
@@ -238,6 +267,14 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
           : SurfaceAppBar(
               title: 'Mesajlar',
               icon: Icons.chat_bubble_outline_rounded,
+              // İş konuşmaları ürün/eleman sohbetleriyle karışmasın.
+              bottom: TabBar(
+                controller: _tabs,
+                tabs: const [
+                  Tab(text: 'İlan Mesajları'),
+                  Tab(text: 'Genel'),
+                ],
+              ),
               actions: [
                 // Pasif (gri) ikon gradyan üzerinde kötü durur — sohbet
                 // yokken çöp kutusu hiç gösterilmez.
@@ -288,19 +325,24 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
           final repo = ref.watch(chatRepositoryProvider);
           final q = foldTrSearch(_query);
 
+          // Önce KAPSAM: ilan sohbetleri / genel sohbetler ayrı listelerdir.
+          final scoped = threads
+              .where((t) => (_scope == _ChatScope.ilan) == t.isJobChat)
+              .toList();
+
           // Arşiv sekmesi yalnız arşivlenenleri; diğer sekmeler arşivi GİZLER.
           final archivedCount =
-              threads.where((t) => t.isArchivedFor(user.uid)).length;
-          Iterable<ChatThread> pool = threads;
+              scoped.where((t) => t.isArchivedFor(user.uid)).length;
+          Iterable<ChatThread> pool = scoped;
           switch (_filter) {
             case _ChatFilter.tumu:
-              pool = threads.where((t) => !t.isArchivedFor(user.uid));
+              pool = scoped.where((t) => !t.isArchivedFor(user.uid));
             case _ChatFilter.okunmamis:
-              pool = threads.where((t) =>
+              pool = scoped.where((t) =>
                   !t.isArchivedFor(user.uid) &&
                   repo.unreadCount(chatId: t.id, uid: user.uid) > 0);
             case _ChatFilter.arsiv:
-              pool = threads.where((t) => t.isArchivedFor(user.uid));
+              pool = scoped.where((t) => t.isArchivedFor(user.uid));
           }
 
           // Arama: karşı taraf adı + son mesaj önizlemesi (Türkçe uyumlu fold).
@@ -394,7 +436,11 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
                                   _ChatFilter.okunmamis =>
                                     'Okunmamış mesaj yok.',
                                   _ChatFilter.arsiv => 'Arşiv boş.',
-                                  _ChatFilter.tumu => 'Eşleşen sohbet yok.',
+                                  _ChatFilter.tumu =>
+                                    _scope == _ChatScope.ilan
+                                        ? 'Henüz ilan mesajınız yok. İlan '
+                                            'detayından ustalarla yazışın.'
+                                        : 'Eşleşen sohbet yok.',
                                 },
                                 style: Theme.of(context)
                                     .textTheme

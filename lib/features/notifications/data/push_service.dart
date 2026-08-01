@@ -59,8 +59,14 @@ class PushService {
     _uid = uid;
     try {
       final settings = await _messaging.requestPermission();
+      _lastStatus = settings.authorizationStatus;
       if (settings.authorizationStatus == AuthorizationStatus.denied) {
-        return; // kullanıcı reddetti
+        // Android 13+/iOS: izin reddedilirse token HİÇ yazılmaz ve sistem
+        // bildirimi hiç düşmez. Durum burada saklanır; kullanıcı Ayarlar'dan
+        // izni açtığında `retry()` ile yeniden denenebilir.
+        _lastError = 'İzin reddedildi (${settings.authorizationStatus.name})';
+        debugPrint('Push: izin reddedildi — token yazılmadı.');
+        return;
       }
 
       // Android 8+: FCM kanalı önceden tanımlı olmalı (manifest channel_id).
@@ -71,15 +77,61 @@ class PushService {
       _wireHandlers();
 
       final token = await _getToken();
-      if (token != null) await _saveToken(uid, token);
+      if (token == null) {
+        _lastError = 'FCM token alınamadı (getToken null döndü)';
+        debugPrint('Push: token alınamadı.');
+        return;
+      }
+      await _saveToken(uid, token);
+      _lastToken = token;
+      _lastError = null;
+      debugPrint('Push: token kaydedildi (${token.substring(0, 12)}…).');
 
       _tokenRefreshSub ??= _messaging.onTokenRefresh.listen((t) {
         final u = _uid;
         if (u != null) _saveToken(u, t);
       });
     } catch (e) {
+      // ÖNEMLİ: burası eskiden hatayı SESSİZCE yutuyordu. Token yazımı App
+      // Check reddi / kural hatası / ağ yüzünden düşerse uygulama "çalışıyor"
+      // görünür ama `fcmTokens` boş kalır ve sistem push'u HİÇ gelmez —
+      // in-app bildirimler Admin SDK ile yazıldığı için çalışmaya devam eder,
+      // bu da sorunu görünmez kılar. Artık durum saklanıyor (Ayarlar'da
+      // "Bildirim tanılama" ile görülebilir).
+      _lastError = e.toString();
       debugPrint('PushService.registerFor hatası: $e');
     }
+  }
+
+  /// Son kayıt denemesinin sonucu — Ayarlar'daki tanılama satırı okur.
+  AuthorizationStatus? _lastStatus;
+  String? _lastError;
+  String? _lastToken;
+
+  /// Push kaydı başarılı mı? (token yazıldıysa true)
+  bool get isRegistered => _lastToken != null && _lastError == null;
+
+  /// Tanılama özeti — kullanıcıya/loga gösterilecek tek satır.
+  String get diagnosticsTR {
+    if (_lastToken != null && _lastError == null) {
+      return 'Bildirimler açık (cihaz kayıtlı).';
+    }
+    if (_lastStatus == AuthorizationStatus.denied) {
+      return 'Bildirim izni kapalı. Ayarlar → Uygulamalar → Sepette Hizmet → '
+          'Bildirimler bölümünden açın, sonra "Yeniden dene"ye basın.';
+    }
+    if (_lastError != null) {
+      return 'Cihaz bildirimlere kaydedilemedi: $_lastError';
+    }
+    return 'Bildirim durumu bilinmiyor.';
+  }
+
+  /// İzin sonradan açıldıysa kaydı yeniden dener.
+  Future<void> retry() async {
+    final u = _uid;
+    if (u == null) return;
+    _lastError = null;
+    await registerFor(u);
   }
 
   /// Çıkışta çağrılır: bu cihazın token'ını kullanıcının dizisinden çıkarır

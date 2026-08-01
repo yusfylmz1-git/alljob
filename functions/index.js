@@ -367,7 +367,14 @@ async function removeInvalidFcmTokens(uid, invalid, sourceHint) {
  */
 async function sendPushToUid(uid, title, body, data) {
   const {tokens, source, snap} = await getFcmTokens(uid);
-  if (tokens.length === 0) return;
+  // Token yoksa SESSİZCE çıkmak teşhisi imkânsız kılıyordu: uygulama içi
+  // bildirim (Admin SDK) çalışırken sistem push'u hiç gelmez ve logda tek
+  // satır iz kalmazdı. Sebep genelde istemcide token yazımının düşmesidir
+  // (izin reddi / App Check / kural) — bkz. PushService.registerFor.
+  if (tokens.length === 0) {
+    logger.warn(`Push skip ${uid}: cihaz token'ı YOK (fcmTokens boş)`);
+    return;
+  }
 
   const category = pushCategoryFromData(data || {});
   if (!(await isPushCategoryAllowed(uid, category, snap))) {
