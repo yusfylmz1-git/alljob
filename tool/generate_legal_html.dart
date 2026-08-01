@@ -7,7 +7,7 @@
 // Çıktı: hosting/{slug}.html (+ index.html). Üretilen dosyalar commit'lenir.
 import 'dart:io';
 
-import 'package:usta_cepte/features/legal/legal_docs.dart';
+import 'package:sepette_hizmet/features/legal/legal_docs.dart';
 
 void main() {
   final outDir = Directory('hosting');

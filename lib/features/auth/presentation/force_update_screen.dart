@@ -11,7 +11,10 @@ import '../../../core/theme/app_palette.dart';
 class ForceUpdateScreen extends ConsumerWidget {
   const ForceUpdateScreen({super.key});
 
-  static const playStorePackageId = 'com.ustacepte.usta_cepte';
+  /// Play mağaza bağlantısı — android/app/build.gradle.kts `applicationId`
+  /// ile AYNI olmak ZORUNDA. Uyuşmazsa "Güncelle" düğmesi var olmayan bir
+  /// mağaza sayfasına gider (kullanıcı güncellenemez halde kilitli kalır).
+  static const playStorePackageId = 'com.sepettehizmet.app';
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {

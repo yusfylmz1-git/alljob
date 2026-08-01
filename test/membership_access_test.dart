@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:usta_cepte/features/membership/membership_access.dart';
-import 'package:usta_cepte/features/membership/membership_package.dart';
+import 'package:sepette_hizmet/features/membership/membership_access.dart';
+import 'package:sepette_hizmet/features/membership/membership_package.dart';
 
 void main() {
   group('artisanProUnlocked', () {

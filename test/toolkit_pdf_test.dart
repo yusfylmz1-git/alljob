@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
-import 'package:usta_cepte/features/toolkit/application/toolkit_cost.dart';
-import 'package:usta_cepte/features/toolkit/application/toolkit_pdf.dart';
+import 'package:sepette_hizmet/features/toolkit/application/toolkit_cost.dart';
+import 'package:sepette_hizmet/features/toolkit/application/toolkit_pdf.dart';
 
 /// Teklif PDF üretimi: Türkçe karakter + font gömme çökmeden geçerli bir PDF
 /// bayt dizisi üretmeli. (Görsel doğrulama manuel; burada üretim + imza kontrolü.)

@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:usta_cepte/core/config/app_version.dart';
+import 'package:sepette_hizmet/core/config/app_version.dart';
 
 void main() {
   group('compareVersions', () {

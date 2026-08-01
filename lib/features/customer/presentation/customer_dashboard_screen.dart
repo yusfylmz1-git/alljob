@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import 'package:usta_cepte/core/constants/app_constants.dart'
+import 'package:sepette_hizmet/core/constants/app_constants.dart'
     show AppConstants;
 
 import '../../../core/router/route_paths.dart';

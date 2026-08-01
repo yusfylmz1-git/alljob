@@ -24,7 +24,7 @@ if (hasReleaseKeystore) {
 }
 
 android {
-    namespace = "com.ustasindan.app"
+    namespace = "com.sepettehizmet.app"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -42,9 +42,11 @@ android {
 
     defaultConfig {
         // Play Store'daki KALICI kimlik — ilk yüklemeden sonra ASLA değişemez.
-        // Marka "Ustasından" olduğundan yayın ÖNCESİ com.ustasindan.app yapıldı
-        // (eski: com.ustacepte.usta_cepte; Firebase'de yeni Android app kaydı).
-        applicationId = "com.ustasindan.app"
+        // Marka "Sepette Hizmet" olduğundan yayın ÖNCESİ güncellendi
+        // (önceki: com.ustasindan.app, ondan önce: com.ustacepte.usta_cepte).
+        // Her değişiklik Firebase'de YENİ Android app kaydı + yeni
+        // google-services.json ister.
+        applicationId = "com.sepettehizmet.app"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         // ARCore (Usta Çantası AR ölçüm, PRD-007 Faz D) min SDK 24 ister;

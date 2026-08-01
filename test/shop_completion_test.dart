@@ -1,10 +1,10 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:usta_cepte/data/models/app_user.dart';
-import 'package:usta_cepte/data/models/artisan_profile.dart';
-import 'package:usta_cepte/data/models/availability.dart';
-import 'package:usta_cepte/data/models/geo_models.dart';
-import 'package:usta_cepte/features/artisan/application/my_profile_controller.dart';
-import 'package:usta_cepte/features/artisan/data/shop_completion.dart';
+import 'package:sepette_hizmet/data/models/app_user.dart';
+import 'package:sepette_hizmet/data/models/artisan_profile.dart';
+import 'package:sepette_hizmet/data/models/availability.dart';
+import 'package:sepette_hizmet/data/models/geo_models.dart';
+import 'package:sepette_hizmet/features/artisan/application/my_profile_controller.dart';
+import 'package:sepette_hizmet/features/artisan/data/shop_completion.dart';
 
 void main() {
   final user = AppUser(

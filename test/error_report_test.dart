@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:usta_cepte/core/widgets/status_views.dart';
-import 'package:usta_cepte/features/help/presentation/help_screen.dart';
+import 'package:sepette_hizmet/core/widgets/status_views.dart';
+import 'package:sepette_hizmet/features/help/presentation/help_screen.dart';
 
 import 'helpers/mock_backend.dart';
 

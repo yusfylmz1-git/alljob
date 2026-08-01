@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:usta_cepte/data/local/mock_database.dart';
-import 'package:usta_cepte/data/models/chat.dart';
-import 'package:usta_cepte/features/chat/data/chat_repository.dart';
+import 'package:sepette_hizmet/data/local/mock_database.dart';
+import 'package:sepette_hizmet/data/models/chat.dart';
+import 'package:sepette_hizmet/features/chat/data/chat_repository.dart';
 
 void main() {
   group('MockChatRepository', () {

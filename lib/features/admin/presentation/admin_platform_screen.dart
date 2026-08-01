@@ -226,7 +226,7 @@ class _AdminPlatformScreenState extends ConsumerState<AdminPlatformScreen> {
                   enabled: can && !_busy,
                   decoration: const InputDecoration(
                     labelText: 'Uygulama adı',
-                    hintText: 'Ustasından',
+                    hintText: 'Sepette Hizmet',
                   ),
                 ),
                 const SizedBox(height: 10),

@@ -4,7 +4,7 @@ class AppConstants {
   AppConstants._();
 
   /// Kullanıcıya görünen marka adı (launcher, splash, drawer, yasal metinler).
-  static const String appName = 'Ustasından';
+  static const String appName = 'Sepette Hizmet';
   static const String appSlogan = 'Bölgenizdeki en iyi ustalar cebinizde';
 
   // Form / içerik limitleri

@@ -1,4 +1,4 @@
-package com.ustasindan.app
+package com.sepettehizmet.app
 
 import io.flutter.embedding.android.FlutterActivity
 

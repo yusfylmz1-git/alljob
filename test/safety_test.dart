@@ -1,8 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:usta_cepte/data/models/blocked_user.dart';
-import 'package:usta_cepte/data/models/report.dart';
-import 'package:usta_cepte/features/safety/data/block_repository.dart';
-import 'package:usta_cepte/features/safety/data/report_repository.dart';
+import 'package:sepette_hizmet/data/models/blocked_user.dart';
+import 'package:sepette_hizmet/data/models/report.dart';
+import 'package:sepette_hizmet/features/safety/data/block_repository.dart';
+import 'package:sepette_hizmet/features/safety/data/report_repository.dart';
 
 void main() {
   group('MockBlockRepository (engelleme)', () {

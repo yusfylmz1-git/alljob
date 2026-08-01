@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:usta_cepte/core/theme/app_theme.dart';
-import 'package:usta_cepte/data/models/app_user.dart';
-import 'package:usta_cepte/features/auth/application/auth_controller.dart';
-import 'package:usta_cepte/features/jobs/presentation/create_job_screen.dart';
+import 'package:sepette_hizmet/core/theme/app_theme.dart';
+import 'package:sepette_hizmet/data/models/app_user.dart';
+import 'package:sepette_hizmet/features/auth/application/auth_controller.dart';
+import 'package:sepette_hizmet/features/jobs/presentation/create_job_screen.dart';
 
 import 'helpers/mock_backend.dart';
 

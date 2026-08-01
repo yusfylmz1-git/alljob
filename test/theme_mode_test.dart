@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:usta_cepte/core/theme/accent_options.dart';
-import 'package:usta_cepte/core/theme/accent_state.dart';
-import 'package:usta_cepte/core/theme/app_palette.dart';
-import 'package:usta_cepte/core/theme/app_theme.dart';
-import 'package:usta_cepte/core/theme/theme_mode_state.dart';
+import 'package:sepette_hizmet/core/theme/accent_options.dart';
+import 'package:sepette_hizmet/core/theme/accent_state.dart';
+import 'package:sepette_hizmet/core/theme/app_palette.dart';
+import 'package:sepette_hizmet/core/theme/app_theme.dart';
+import 'package:sepette_hizmet/core/theme/theme_mode_state.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();

@@ -9,7 +9,7 @@ import '../../../../core/widgets/app_image.dart';
 import '../../../products/data/product_providers.dart';
 import 'home_featured.dart' show oneChikanUstalarProvider;
 
-/// Ana Sayfa "🔥 Bugün Ustasından'da" — platformun canlı vitrini. Yatay kayan
+/// Ana Sayfa "🔥 Bugün Sepette Hizmet'te" — platformun canlı vitrini. Yatay kayan
 /// büyük keşif kartları: en çok görüntülenen ürün, haftanın ustası (en yüksek
 /// puanlı) ve son sistem duyurusu. Her kart bağımsız beslenir; verisi yoksa o
 /// kart atlanır, hiçbiri yoksa başlık dâhil tüm bölüm gizlenir.
@@ -69,7 +69,7 @@ class HomeDiscover extends ConsumerWidget {
           etiket: 'Son Duyuru',
           icon: Icons.campaign_rounded,
           accent: palette.info,
-          baslik: (cfg.announcementTitle ?? 'Ustasından Duyurusu').trim(),
+          baslik: (cfg.announcementTitle ?? 'Sepette Hizmet Duyurusu').trim(),
           altBilgi: (cfg.announcementBody ?? '').trim(),
           photo: null,
           onTap: null,
@@ -86,7 +86,7 @@ class HomeDiscover extends ConsumerWidget {
             const Text('🔥 ', style: TextStyle(fontSize: 18)),
             Expanded(
               child: Text(
-                'Bugün Ustasından\'da',
+                'Bugün Sepette Hizmet\'da',
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: theme.textTheme.titleMedium?.copyWith(

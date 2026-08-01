@@ -1,12 +1,12 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:usta_cepte/data/models/app_user.dart';
-import 'package:usta_cepte/data/models/artisan_profile.dart';
-import 'package:usta_cepte/data/models/geo_models.dart';
-import 'package:usta_cepte/data/models/user_role.dart';
-import 'package:usta_cepte/features/artisan/application/my_profile_controller.dart';
-import 'package:usta_cepte/features/artisan/data/my_profile_repository.dart';
-import 'package:usta_cepte/features/auth/application/auth_controller.dart';
+import 'package:sepette_hizmet/data/models/app_user.dart';
+import 'package:sepette_hizmet/data/models/artisan_profile.dart';
+import 'package:sepette_hizmet/data/models/geo_models.dart';
+import 'package:sepette_hizmet/data/models/user_role.dart';
+import 'package:sepette_hizmet/features/artisan/application/my_profile_controller.dart';
+import 'package:sepette_hizmet/features/artisan/data/my_profile_repository.dart';
+import 'package:sepette_hizmet/features/auth/application/auth_controller.dart';
 
 import 'helpers/mock_backend.dart';
 

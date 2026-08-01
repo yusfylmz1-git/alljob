@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:usta_cepte/core/utils/contact_masker.dart';
+import 'package:sepette_hizmet/core/utils/contact_masker.dart';
 
 void main() {
   group('ContactMasker (PRD §5)', () {

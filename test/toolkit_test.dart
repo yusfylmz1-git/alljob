@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:usta_cepte/core/theme/app_theme.dart';
-import 'package:usta_cepte/features/toolkit/application/toolkit_calculators.dart';
-import 'package:usta_cepte/features/toolkit/application/toolkit_cost.dart';
-import 'package:usta_cepte/features/toolkit/application/toolkit_models.dart';
-import 'package:usta_cepte/features/toolkit/presentation/toolkit_hub_screen.dart';
+import 'package:sepette_hizmet/core/theme/app_theme.dart';
+import 'package:sepette_hizmet/features/toolkit/application/toolkit_calculators.dart';
+import 'package:sepette_hizmet/features/toolkit/application/toolkit_cost.dart';
+import 'package:sepette_hizmet/features/toolkit/application/toolkit_models.dart';
+import 'package:sepette_hizmet/features/toolkit/presentation/toolkit_hub_screen.dart';
 
 /// Usta Çantası (PRD-007 Faz A) testleri:
 /// - Hub ekranı misafir için (provider/backend olmadan) exception'sız açılır.

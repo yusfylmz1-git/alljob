@@ -1,12 +1,12 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
-import 'package:usta_cepte/app.dart';
-import 'package:usta_cepte/core/router/app_router.dart';
-import 'package:usta_cepte/core/router/route_paths.dart';
-import 'package:usta_cepte/features/auth/application/auth_controller.dart';
-import 'package:usta_cepte/features/home/presentation/home_screen.dart';
-import 'package:usta_cepte/features/profile/presentation/profile_screen.dart';
+import 'package:sepette_hizmet/app.dart';
+import 'package:sepette_hizmet/core/router/app_router.dart';
+import 'package:sepette_hizmet/core/router/route_paths.dart';
+import 'package:sepette_hizmet/features/auth/application/auth_controller.dart';
+import 'package:sepette_hizmet/features/home/presentation/home_screen.dart';
+import 'package:sepette_hizmet/features/profile/presentation/profile_screen.dart';
 
 import 'helpers/mock_backend.dart';
 

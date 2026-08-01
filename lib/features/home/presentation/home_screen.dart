@@ -20,8 +20,8 @@ import 'widgets/home_quick_support.dart';
 import 'widgets/home_stats.dart';
 import 'widgets/home_tools.dart';
 
-/// Ana Sayfa — Ustasından'ın canlı vitrini. Uygulamaya giren önce burayı
-/// görür: sade karşılama + 3 ana aksiyon + "Bugün Ustasından'da" keşif
+/// Ana Sayfa — Sepette Hizmet'in canlı vitrini. Uygulamaya giren önce burayı
+/// görür: sade karşılama + 3 ana aksiyon + "Bugün Sepette Hizmet'te" keşif
 /// kartları + öne çıkan ustalar + minimal istatistik. Aşağı çekince
 /// veriye bağlı bölümler tazelenir.
 ///
@@ -116,7 +116,7 @@ class HomeScreen extends ConsumerWidget {
       gap,
       const HomeQuickSupport(), // ⚡ Hemen Lazım
       gap,
-      const HomeDiscover(), // 🔥 Bugün Ustasından'da
+      const HomeDiscover(), // 🔥 Bugün Sepette Hizmet'te
       gap,
       const HomeFeatured(), // ⭐ Öne Çıkan Ustalar (+ürün/iş)
       gap,

@@ -1,9 +1,9 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:usta_cepte/data/local/mock_database.dart';
-import 'package:usta_cepte/data/models/artisan_profile.dart';
-import 'package:usta_cepte/data/models/geo_models.dart';
-import 'package:usta_cepte/features/artisan/data/artisan_repository.dart';
-import 'package:usta_cepte/features/artisan/data/mock_artisan_repository.dart';
+import 'package:sepette_hizmet/data/local/mock_database.dart';
+import 'package:sepette_hizmet/data/models/artisan_profile.dart';
+import 'package:sepette_hizmet/data/models/geo_models.dart';
+import 'package:sepette_hizmet/features/artisan/data/artisan_repository.dart';
+import 'package:sepette_hizmet/features/artisan/data/mock_artisan_repository.dart';
 
 void main() {
   // Mahalle filtresi kaldırıldı — bölge filtresi il+ilçe düzeyindedir.

@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
-import 'package:usta_cepte/core/theme/app_theme.dart';
-import 'package:usta_cepte/features/home/presentation/home_screen.dart';
+import 'package:sepette_hizmet/core/theme/app_theme.dart';
+import 'package:sepette_hizmet/features/home/presentation/home_screen.dart';
 
 import 'helpers/mock_backend.dart';
 

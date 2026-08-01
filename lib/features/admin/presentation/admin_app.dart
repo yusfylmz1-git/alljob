@@ -35,7 +35,7 @@ class AdminApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return MaterialApp(
-      title: 'Ustasından — Yönetim',
+      title: 'Sepette Hizmet — Yönetim',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light(),
       darkTheme: AppTheme.dark(),
@@ -236,7 +236,7 @@ class _AdminHomeScreenState extends ConsumerState<_AdminHomeScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              'Ustasından Ops',
+              'Sepette Hizmet Ops',
               style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800),
             ),
             Text(
@@ -455,7 +455,7 @@ class _AdminSideRail extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'Ustasından',
+                            'Sepette Hizmet',
                             style: TextStyle(
                               color: Colors.white,
                               fontWeight: FontWeight.w800,
@@ -831,7 +831,7 @@ class _AdminLoginScreenState extends ConsumerState<_AdminLoginScreen> {
                     BrandMark(size: 72),
                     SizedBox(height: 20),
                     Text(
-                      'Ustasından\nOps Console',
+                      'Sepette Hizmet\nOps Console',
                       style: TextStyle(
                         color: Colors.white,
                         fontSize: 32,

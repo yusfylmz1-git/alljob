@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:usta_cepte/data/models/social_links.dart';
-import 'package:usta_cepte/features/chat/data/chat_repository.dart';
+import 'package:sepette_hizmet/data/models/social_links.dart';
+import 'package:sepette_hizmet/features/chat/data/chat_repository.dart';
 
 /// Mesajlar ekranının profesyonel liste davranışları: arşivleme, sabitleme,
 /// okundu tiki verisi. Ayrıca profil sosyal bağlantı normalizasyonu.

@@ -25,6 +25,32 @@
 
 **Tarih:** 2026-08-01
 
+**Oturum 78 (2026-08-01): PAKET YÜKSELTMESİ + PROJE ADI "SEPETTE HİZMET". 306/306 test, analyze 0. ✅ Functions CANLIDA. ⚠️ ANDROID BUILD FIREBASE KAYDI BEKLİYOR.**
+
+### A) firebase-functions 7 + firebase-admin 14 (CANLIDA ✅)
+- **Deploy uyarısı kapandı.** Ama iş göründüğünden büyüktü: **firebase-admin v14 eski namespace API'sini TAMAMEN KALDIRMIŞ** → `admin.firestore` / `admin.auth` / `admin.storage` / `admin.messaging` = `undefined`. **71 çağrı noktası** modüler alt yollara çevrildi (`getFirestore()`, `FieldValue`, `getAuth()`, `getStorage()`, `getMessaging()`).
+- **İki ayrı v7 kırılması:** (1) `logger` artık kök export'ta değil → `firebase-functions/logger`. (2) **`require("firebase-functions/v2")` TÜM v2 ağacını çeker**; içindeki database sağlayıcısı `@firebase/app` peer'ini ister, npm bunu kurmaz ve **cold start'ta patlar**. `setGlobalOptions` zaten `firebase-functions/v2/options` altında → yalnız o alt yol alındı.
+- **⚠️ DERS — `node --check` YETMEZ:** yalnız söz dizimine bakar. İlk denemede `node --check` GEÇTİ ama `require('./index.js')` patlıyordu; deploy edilseydi **51 fonksiyonun tamamı cold start'ta düşerdi**. Doğrulama yöntemi: gerçek `require()` + export sayımı (51). Deploy önce TEK fonksiyonla (canary) yapıldı → revizyon ACTIVE + "STARTUP TCP probe succeeded" → sonra tamamı. Son 200 log satırında `Cannot find module` / `is not a function` YOK.
+
+### B) Proje adı: "Ustasından" → **"Sepette Hizmet"**
+- **Üç katman ayrı ayrı ele alındı:** (1) marka adı 60 yerde (lib/web/hosting/manifest/AndroidManifest/Info.plist), (2) Dart paketi `usta_cepte` → `sepette_hizmet` (174 import / 35 dosya + pubspec + .iml), (3) paket kimliği `com.ustasindan.app` → **`com.sepettehizmet.app`** (Android namespace + applicationId + **MainActivity.kt dizin yolu taşındı** + iOS pbxproj 6 yer).
+- **iOS tutarsızlığı düzeltildi:** iOS bundle `com.ustacepte.ustaCepte` idi (Android'den FARKLI, iki isim öncesinden kalma) → artık Android ile aynı.
+- **TÜRKÇE EK UYUMU:** toplu değiştirme "Sepette Hizmet'ın / 'da" gibi bozuk ekler üretti ("Hizmet" ince ünlü + sert ünsüz) → `'te` / `'in` / `'ten` olarak düzeltildi.
+- **🔴 BULUNAN GERÇEK BUG:** `force_update_screen.dart` Play mağaza kimliğini `com.ustacepte.usta_cepte` tutuyordu — **zaten mevcut applicationId ile uyuşmuyordu**. Zorunlu güncelleme ekranındaki "Güncelle" düğmesi VAR OLMAYAN mağaza sayfasına gidiyordu → kullanıcı güncellenemez halde kilitli kalırdı. Düzeltildi + "applicationId ile AYNI olmak zorunda" uyarısı eklendi.
+- **⚠️ BİLEREK DEĞİŞTİRİLMEYENLER (koda gerekçe yazıldı):** (a) `_dbName = 'usta_cepte_tracking.db'` — cihazdaki SQLite DOSYA ADI; değişirse mevcut kullanıcıların **tüm Takip Merkezi kayıtları kaybolmuş görünür**. (b) Play ürün kimlikleri (`usta_cepte_pro_monthly`) — Console'da oluşturulduktan sonra ASLA değişmez, kullanıcıya görünmez; Console'da henüz oluşturulmadıysa yenilemek serbest (billing_config.dart'ta not var).
+- **DERLEME DOĞRULANDI:** `flutter build apk --debug` önce `google-services.json`'da yeni paket olmadığı için düştü (BEKLENEN). Geçici bir istemci girdisiyle tekrar denendi → **`√ Built app-debug.apk`** (yani namespace + MainActivity taşıma + pbxproj değişikliklerinin hepsi doğru). Geçici girdi **GERİ ALINDI** — sahte kimlik commit'lenmedi.
+
+### ⚠️ SİZİN YAPMANIZ GEREKENLER (Firebase Console — ben yapamam)
+1. **Android:** Yeni app kaydı `com.sepettehizmet.app` (+ SHA-1/SHA-256) → `google-services.json` indir → `android/app/` içine koy.
+2. **iOS:** Yeni app kaydı `com.sepettehizmet.app` → `GoogleService-Info.plist` indir.
+3. `flutterfire configure` çalıştır → `lib/firebase_options.dart` içindeki **appId'ler otomatik yenilenir** (şu an ESKİ kayıtların appId'si duruyor, dosyada ⚠️ notu var).
+4. **App Check debug token** yeniden kaydedilmeli (paket adı değişti → eski token geçmez).
+5. Bunlar bitmeden `flutter build apk` **çalışmaz** (google-services.json paket eşleşmesi).
+
+**SIRADAKİ:** Firebase kayıtları → APK derle → cihaz testi (Hemen Lazım + mesaj moderasyonu + yeni isim) → Play Console ilk yükleme. Açık kalanlar: dinamik meslek yönetimi, admin rehber/SSS bloğu, AR cihaz testi.
+
+--- (önceki oturumlar) ---
+
 **Oturum 77 (2026-08-01): MESAJ MODERASYONU (Trust & Safety zinciri tamamlandı). 306/306 test, analyze 0. ✅ HER ŞEY CANLIDA (rules + 1 yeni CF + 1 güncel CF + admin hosting).**
 - **⚠️ ÖNCE KOD TABANI TARANDI — NOT ESKİMİŞTİ:** Oturum 75 "bayraklı mesaj kuyruğu YOK" diyordu. Gerçekte mesaj şikayeti **uçtan uca ZATEN VARDI**: `ReportTarget.message` tanımlı, sohbette basılı tut → şikayet et bağlı (`chat_screen.dart`), `reports` kuyruğu + admin ekranı + `adminGetChatTranscript` (rate limit 20/saat + audit log) çalışıyordu. Körlemesine yazılsaydı **ikinci bir kuyruk** kurulacaktı. Yalnız 3 gerçek boşluk dolduruldu.
 - **(1) MESAJ KALDIRMA — EN KRİTİK BOŞLUK (`adminModerateMessage`, YENİ CF):** Şikayet doğrulansa bile taciz/dolandırıcılık mesajı sohbette KALIYORDU; moderatörün tek seçeneği kullanıcıyı askıya almaktı (orantısız). Artık moderatör mesajı kaldırabiliyor. **GÜVENLİK: hedef mesaj SUNUCUDA şikayet kaydından türetilir** — istemci chatId/msgId GÖNDERMEZ, yoksa yetkili bir moderatör herhangi bir sohbetteki herhangi bir mesajı gizleyebilirdi. Kural tarafı da kapalı: `messages` update yalnız gönderenin yumuşak silmesine açık, `moderationHidden` hasOnly listesinde YOK.

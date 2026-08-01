@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:usta_cepte/features/help/help_faq.dart';
+import 'package:sepette_hizmet/features/help/help_faq.dart';
 
 void main() {
   test('SSS kategorileri ve içerik dolu', () {

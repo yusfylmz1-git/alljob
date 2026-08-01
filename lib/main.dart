@@ -48,7 +48,7 @@ Future<void> main() async {
     );
     // App Check: isteklerin GERÇEK uygulamadan geldiğini kanıtlar.
     // Debug: Debug sağlayıcı — logcat'teki token Console'a eklenmeli
-    // (paket adı değişince ESKİ token geçmez: com.ustasindan.app).
+    // (paket adı değişince ESKİ token geçmez: com.sepettehizmet.app).
     // "Too many attempts": token reddi/throttle — 30–60 dk bekle + debug
     // token kaydet; sürekli hot restart throttle'ı kötüleştirir.
     // SKIP_APP_CHECK=true (yalnız debug): activate atlanır (acil geliştirme).

@@ -166,7 +166,7 @@ Future<List<int>> teklifPdfOlustur(
             pw.Divider(color: PdfColors.grey300),
             pw.Text(
               'Bu teklif tahminidir; kesin fiyat yerinde görüldükten sonra '
-              'netleşir. Ustasından ile oluşturulmuştur.',
+              'netleşir. Sepette Hizmet ile oluşturulmuştur.',
               style:
                   const pw.TextStyle(fontSize: 8, color: PdfColors.grey600),
             ),

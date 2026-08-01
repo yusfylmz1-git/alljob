@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:usta_cepte/features/auth/data/mock_auth_repository.dart';
-import 'package:usta_cepte/features/auth/data/phone_verification_repository.dart';
+import 'package:sepette_hizmet/features/auth/data/mock_auth_repository.dart';
+import 'package:sepette_hizmet/features/auth/data/phone_verification_repository.dart';
 
 void main() {
   group('MockPhoneVerificationRepository', () {

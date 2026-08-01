@@ -1,13 +1,13 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:usta_cepte/data/local/mock_database.dart';
-import 'package:usta_cepte/data/models/favorite.dart';
-import 'package:usta_cepte/data/models/geo_models.dart';
-import 'package:usta_cepte/data/models/job.dart';
-import 'package:usta_cepte/data/models/offer.dart';
-import 'package:usta_cepte/features/favorites/data/mock_favorite_repository.dart';
-import 'package:usta_cepte/features/jobs/data/mock_job_repository.dart';
-import 'package:usta_cepte/features/jobs/data/mock_offer_repository.dart';
-import 'package:usta_cepte/features/jobs/presentation/job_explore_filter.dart';
+import 'package:sepette_hizmet/data/local/mock_database.dart';
+import 'package:sepette_hizmet/data/models/favorite.dart';
+import 'package:sepette_hizmet/data/models/geo_models.dart';
+import 'package:sepette_hizmet/data/models/job.dart';
+import 'package:sepette_hizmet/data/models/offer.dart';
+import 'package:sepette_hizmet/features/favorites/data/mock_favorite_repository.dart';
+import 'package:sepette_hizmet/features/jobs/data/mock_job_repository.dart';
+import 'package:sepette_hizmet/features/jobs/data/mock_offer_repository.dart';
+import 'package:sepette_hizmet/features/jobs/presentation/job_explore_filter.dart';
 
 Job _sampleJob({
   String customerId = 'cust_1',

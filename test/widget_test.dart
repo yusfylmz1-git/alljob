@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:usta_cepte/core/utils/validators.dart';
+import 'package:sepette_hizmet/core/utils/validators.dart';
 
 void main() {
   group('Validators', () {

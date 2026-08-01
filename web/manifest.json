@@ -1,11 +1,11 @@
 {
-    "name": "Ustasından Yönetim",
+    "name": "Sepette Hizmet Yönetim",
     "short_name": "Ops",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0F172A",
     "theme_color": "#0F172A",
-    "description": "Ustasından yönetim paneli",
+    "description": "Sepette Hizmet yönetim paneli",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

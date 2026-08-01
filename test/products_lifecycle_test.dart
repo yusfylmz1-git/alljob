@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:usta_cepte/core/utils/validators.dart';
-import 'package:usta_cepte/data/models/product.dart';
+import 'package:sepette_hizmet/core/utils/validators.dart';
+import 'package:sepette_hizmet/data/models/product.dart';
 
 void main() {
   group('parseTrAmount (ürün fiyatı TR yazımı)', () {

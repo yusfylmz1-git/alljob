@@ -1,9 +1,9 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:usta_cepte/data/models/app_user.dart';
-import 'package:usta_cepte/data/models/user_role.dart';
-import 'package:usta_cepte/features/auth/data/auth_repository.dart';
-import 'package:usta_cepte/features/auth/data/mock_auth_repository.dart';
-import 'package:usta_cepte/features/chat/data/chat_repository.dart';
+import 'package:sepette_hizmet/data/models/app_user.dart';
+import 'package:sepette_hizmet/data/models/user_role.dart';
+import 'package:sepette_hizmet/features/auth/data/auth_repository.dart';
+import 'package:sepette_hizmet/features/auth/data/mock_auth_repository.dart';
+import 'package:sepette_hizmet/features/chat/data/chat_repository.dart';
 
 void main() {
   group('Tek hesap, çift rol (AppUser)', () {

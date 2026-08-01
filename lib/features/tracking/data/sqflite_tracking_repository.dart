@@ -20,6 +20,10 @@ import 'tracking_repository.dart';
 class SqfliteTrackingRepository implements TrackingRepository {
   SqfliteTrackingRepository();
 
+  /// ⚠️ DEĞİŞTİRME — marka adı değişse bile eski adıyla kalır.
+  /// Bu, cihazdaki SQLite DOSYA ADIdır. Yeniden adlandırılırsa uygulama
+  /// boş bir veritabanı açar ve mevcut kullanıcıların TÜM Takip Merkezi
+  /// kayıtları kaybolmuş görünür (dosya diskte durur ama okunmaz).
   static const _dbName = 'usta_cepte_tracking.db';
   static const _table = 'track_items';
 

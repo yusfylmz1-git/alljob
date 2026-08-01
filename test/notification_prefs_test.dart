@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:usta_cepte/features/notifications/data/notification_prefs.dart';
+import 'package:sepette_hizmet/features/notifications/data/notification_prefs.dart';
 
 void main() {
   group('NotificationPrefs.fromMap', () {

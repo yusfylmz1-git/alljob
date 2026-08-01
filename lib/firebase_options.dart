@@ -58,8 +58,11 @@ class DefaultFirebaseOptions {
 
   static const FirebaseOptions android = FirebaseOptions(
     apiKey: 'AIzaSyCJsp6zfD5YD-pFHHIkKRHQfne_Pu0FC1s',
-    // Paket adı com.ustasindan.app'e taşındı (2026-07-18, yayın öncesi) —
-    // Firebase'de YENİ Android app kaydı; eski ustacepte kaydı kullanılmıyor.
+    // ⚠️ GÜNCELLENMESİ GEREKİYOR: paket adı com.sepettehizmet.app'e taşındı
+    // (2026-08-01, yayın öncesi). Aşağıdaki appId hâlâ ESKİ com.ustasindan.app
+    // kaydınındır. Firebase Console'da yeni Android app kaydı açılıp
+    // google-services.json indirilince buradaki appId de onunla değiştirilmeli
+    // (flutterfire configure bunu otomatik yapar).
     appId: '1:839781526307:android:53a729b742c6a8439aba96',
     messagingSenderId: '839781526307',
     projectId: 'alljob1',
@@ -72,6 +75,9 @@ class DefaultFirebaseOptions {
     messagingSenderId: '839781526307',
     projectId: 'alljob1',
     storageBucket: 'alljob1.firebasestorage.app',
-    iosBundleId: 'com.ustacepte.ustaCepte',
+    // ⚠️ appId hâlâ ESKİ iOS kaydınındır (com.ustacepte.ustaCepte).
+    // Xcode projesi com.sepettehizmet.app'e taşındı; Console'da yeni iOS app
+    // kaydı açılıp GoogleService-Info.plist indirilince appId de yenilenmeli.
+    iosBundleId: 'com.sepettehizmet.app',
   );
 }

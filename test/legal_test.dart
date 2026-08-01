@@ -4,14 +4,14 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:usta_cepte/app.dart';
-import 'package:usta_cepte/core/router/app_router.dart';
-import 'package:usta_cepte/core/router/route_paths.dart';
-import 'package:usta_cepte/features/auth/application/auth_controller.dart';
-import 'package:usta_cepte/features/auth/presentation/login_screen.dart';
-import 'package:usta_cepte/features/auth/presentation/register_screen.dart';
-import 'package:usta_cepte/features/legal/legal_docs.dart';
-import 'package:usta_cepte/features/legal/presentation/legal_screen.dart';
+import 'package:sepette_hizmet/app.dart';
+import 'package:sepette_hizmet/core/router/app_router.dart';
+import 'package:sepette_hizmet/core/router/route_paths.dart';
+import 'package:sepette_hizmet/features/auth/application/auth_controller.dart';
+import 'package:sepette_hizmet/features/auth/presentation/login_screen.dart';
+import 'package:sepette_hizmet/features/auth/presentation/register_screen.dart';
+import 'package:sepette_hizmet/features/legal/legal_docs.dart';
+import 'package:sepette_hizmet/features/legal/presentation/legal_screen.dart';
 
 import 'helpers/mock_backend.dart';
 

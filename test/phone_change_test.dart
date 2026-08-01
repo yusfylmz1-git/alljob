@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:usta_cepte/core/utils/phone_format.dart';
-import 'package:usta_cepte/data/models/artisan_profile.dart';
+import 'package:sepette_hizmet/core/utils/phone_format.dart';
+import 'package:sepette_hizmet/data/models/artisan_profile.dart';
 
 /// Telefon numarası değiştirme davranışları.
 ///
