@@ -21,12 +21,27 @@ const {
 } = require("firebase-functions/v2/firestore");
 const {onCall, HttpsError} = require("firebase-functions/v2/https");
 const {onSchedule} = require("firebase-functions/v2/scheduler");
-const {setGlobalOptions} = require("firebase-functions/v2");
-const {logger} = require("firebase-functions");
-const admin = require("firebase-admin");
+// DIKKAT: "firebase-functions/v2" (kok) import'u TUM v2 agacini ceker; icinde
+// database saglayicisi @firebase/app peer'ini ister ve cozulemeyip cold start'ta
+// patlar. setGlobalOptions zaten kendi alt yolunda -> yalniz onu al.
+const {setGlobalOptions} = require("firebase-functions/v2/options");
+// firebase-functions v7: logger artik kok export'ta DEGIL, kendi alt yolunda.
+const logger = require("firebase-functions/logger");
+// firebase-admin v14: eski namespace API'si (admin.firestore / admin.auth)
+// KALDIRILDI; modul alt yollari kullanilir.
+const {initializeApp} = require("firebase-admin/app");
+const {
+  getFirestore,
+  FieldValue,
+  FieldPath,
+  Timestamp,
+} = require("firebase-admin/firestore");
+const {getAuth} = require("firebase-admin/auth");
+const {getStorage} = require("firebase-admin/storage");
+const {getMessaging} = require("firebase-admin/messaging");
 
-admin.initializeApp();
-const db = admin.firestore();
+initializeApp();
+const db = getFirestore();
 
 // Maliyet emniyeti: istismar/sonsuz döngü durumunda fonksiyonlar sınırsız
 // ölçeklenmesin (Gen2 varsayılan tavanı 100 örnek). Bu ölçekte 10 örnek
@@ -237,7 +252,7 @@ async function applyStatsDelta(delta) {
   const patch = {};
   for (const [k, v] of Object.entries(delta)) {
     if (typeof v === "number" && v !== 0) {
-      patch[k] = admin.firestore.FieldValue.increment(v);
+      patch[k] = FieldValue.increment(v);
     }
   }
   if (Object.keys(patch).length === 0) return;
@@ -255,7 +270,7 @@ async function bumpDaily(field, n = 1) {
   const day = istanbulDayKey();
   await db.collection("adminStats").doc("daily").collection("days").doc(day)
       .set({
-        [field]: admin.firestore.FieldValue.increment(n),
+        [field]: FieldValue.increment(n),
         day,
         updatedAt: new Date().toISOString(),
       }, {merge: true});
@@ -327,7 +342,7 @@ function pushCategoryFromData(data) {
 
 async function removeInvalidFcmTokens(uid, invalid, sourceHint) {
   if (!invalid || invalid.length === 0) return;
-  const remove = admin.firestore.FieldValue.arrayRemove(...invalid);
+  const remove = FieldValue.arrayRemove(...invalid);
   try {
     await db.collection("users").doc(uid)
         .collection("private").doc("push")
@@ -372,7 +387,7 @@ async function sendPushToUid(uid, title, body, data) {
   // Android: monokrom status bar ikonu + marka rengi (large/image yok — sade).
   let resp;
   try {
-    resp = await admin.messaging().sendEachForMulticast({
+    resp = await getMessaging().sendEachForMulticast({
       tokens,
       notification: {title, body},
       data: fcmData,
@@ -428,7 +443,7 @@ async function saveNotification(uid, docId, notif) {
           ...notif,
           read: false,
           createdAt: new Date().toISOString(),
-          expireAt: admin.firestore.Timestamp.fromMillis(
+          expireAt: Timestamp.fromMillis(
               Date.now() + NOTIFICATION_TTL_DAYS * 24 * 3600 * 1000),
         });
   } catch (e) {
@@ -463,13 +478,13 @@ async function bumpChatUnreadMeta(recipientUid, chat) {
 
   const asArtisan = recipientUid === chat.artisanUid;
   const patch = {
-    unreadTotal: admin.firestore.FieldValue.increment(1),
-    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    unreadTotal: FieldValue.increment(1),
+    updatedAt: FieldValue.serverTimestamp(),
   };
   if (asArtisan) {
-    patch.unreadArtisan = admin.firestore.FieldValue.increment(1);
+    patch.unreadArtisan = FieldValue.increment(1);
   } else {
-    patch.unreadCustomer = admin.firestore.FieldValue.increment(1);
+    patch.unreadCustomer = FieldValue.increment(1);
   }
   try {
     await db.collection("users").doc(recipientUid)
@@ -758,7 +773,7 @@ exports.onJobCreated = onDocumentCreated(
 
       // Uygulama içi bildirim merkezi: eşleşen HER ustaya kayıt (push'tan
       // bağımsız). 500 işlem/batch sınırına karşı parçalı yazım.
-      const expireAt = admin.firestore.Timestamp.fromMillis(
+      const expireAt = Timestamp.fromMillis(
           Date.now() + NOTIFICATION_TTL_DAYS * 24 * 3600 * 1000);
       const nowIso = new Date().toISOString();
       for (let i = 0; i < recipientUids.length; i += 450) {
@@ -817,7 +832,7 @@ exports.onJobCreated = onDocumentCreated(
         const chunk = tokens.slice(i, i + 500);
         let resp;
         try {
-          resp = await admin.messaging().sendEachForMulticast({
+          resp = await getMessaging().sendEachForMulticast({
             tokens: chunk,
             notification: {title, body},
             data: {type: "job", jobId},
@@ -915,7 +930,7 @@ exports.onJobWritten = onDocumentWritten(
           await db.collection("artisanProfiles")
               .doc(after.selectedArtisanId)
               .update({
-                completedJobs: admin.firestore.FieldValue.increment(1),
+                completedJobs: FieldValue.increment(1),
               });
           logger.info(`completedJobs +1 for ${after.selectedArtisanId}`);
         } catch (e) {
@@ -1057,7 +1072,7 @@ exports.autoCompleteJobs = onSchedule(
         if (!(active && oneSided)) {
           // İptal edilmiş/tamamlanmış vb. — bayat son tarihi temizle.
           await d.ref.update({
-            autoCompleteAt: admin.firestore.FieldValue.delete(),
+            autoCompleteAt: FieldValue.delete(),
           });
           continue;
         }
@@ -1067,8 +1082,8 @@ exports.autoCompleteJobs = onSchedule(
           customerConfirmedDone: true,
           artisanConfirmedDone: true,
           autoCompletedBySystem: true, // denetim izi
-          autoCompleteAt: admin.firestore.FieldValue.delete(),
-          autoCompleteRemindedAt: admin.firestore.FieldValue.delete(),
+          autoCompleteAt: FieldValue.delete(),
+          autoCompleteRemindedAt: FieldValue.delete(),
         });
         completed += 1;
 
@@ -1281,11 +1296,11 @@ exports.deleteAccount = onCall(
         writer.update(d.ref, asCustomer ?
           {
             customerName: DELETED_USER_NAME,
-            customerPhotoURL: admin.firestore.FieldValue.delete(),
+            customerPhotoURL: FieldValue.delete(),
           } :
           {
             artisanName: DELETED_USER_NAME,
-            artisanPhotoURL: admin.firestore.FieldValue.delete(),
+            artisanPhotoURL: FieldValue.delete(),
           });
       });
       await writer.close();
@@ -1295,7 +1310,7 @@ exports.deleteAccount = onCall(
       await db.collection("artisanProfiles").doc(uid).delete();
 
       // 7) Storage: kullanıcının tüm klasörleri.
-      const bucket = admin.storage().bucket();
+      const bucket = getStorage().bucket();
       for (const folder of STORAGE_FOLDERS) {
         try {
           await bucket.deleteFiles({prefix: `${folder}/${uid}/`});
@@ -1305,7 +1320,7 @@ exports.deleteAccount = onCall(
       }
 
       // 8) En son Auth kaydı — buraya kadar geldiyse veri temizlendi.
-      await admin.auth().deleteUser(uid);
+      await getAuth().deleteUser(uid);
       try {
         await applyStatsDelta({usersTotal: -1});
       } catch (e) {
@@ -1375,9 +1390,9 @@ exports.onArtisanProfileWritten = onDocumentWritten(
         if (a.certificateStatus === nextStatus) return;
         await event.data.after.ref.set({
           certificateStatus: nextStatus,
-          certificateNote: admin.firestore.FieldValue.delete(),
+          certificateNote: FieldValue.delete(),
           certificateUpdatedAt:
-            admin.firestore.FieldValue.serverTimestamp(),
+            FieldValue.serverTimestamp(),
         }, {merge: true});
       } catch (e) {
         logger.warn(`certificate status reset: ${e}`);
@@ -1434,9 +1449,9 @@ exports.adminReviewCertificates = onCall(
       await ref.set({
         certificateStatus: approve ? "approved" : "rejected",
         certificateNote: approve ?
-          admin.firestore.FieldValue.delete() : reason,
+          FieldValue.delete() : reason,
         certificateReviewedBy: auth.uid,
-        certificateUpdatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        certificateUpdatedAt: FieldValue.serverTimestamp(),
       }, {merge: true});
 
       // Ustaya bildir: sonucu ogrenmeli (ozellikle red gerekcesini).
@@ -1574,7 +1589,7 @@ exports.adminRebuildStats = onCall(
       // users
       let lastUser = null;
       for (;;) {
-        let q = db.collection("users").orderBy(admin.firestore.FieldPath.documentId())
+        let q = db.collection("users").orderBy(FieldPath.documentId())
             .limit(400);
         if (lastUser) q = q.startAfter(lastUser);
         const snap = await q.get();
@@ -1591,7 +1606,7 @@ exports.adminRebuildStats = onCall(
       let lastArt = null;
       for (;;) {
         let q = db.collection("artisanProfiles")
-            .orderBy(admin.firestore.FieldPath.documentId()).limit(400);
+            .orderBy(FieldPath.documentId()).limit(400);
         if (lastArt) q = q.startAfter(lastArt);
         const snap = await q.get();
         if (snap.empty) break;
@@ -1604,7 +1619,7 @@ exports.adminRebuildStats = onCall(
       let lastProd = null;
       for (;;) {
         let q = db.collection("products")
-            .orderBy(admin.firestore.FieldPath.documentId()).limit(400);
+            .orderBy(FieldPath.documentId()).limit(400);
         if (lastProd) q = q.startAfter(lastProd);
         const snap = await q.get();
         if (snap.empty) break;
@@ -1619,7 +1634,7 @@ exports.adminRebuildStats = onCall(
       let lastJob = null;
       for (;;) {
         let q = db.collection("jobs")
-            .orderBy(admin.firestore.FieldPath.documentId()).limit(400);
+            .orderBy(FieldPath.documentId()).limit(400);
         if (lastJob) q = q.startAfter(lastJob);
         const snap = await q.get();
         if (snap.empty) break;
@@ -1637,7 +1652,7 @@ exports.adminRebuildStats = onCall(
       let lastRep = null;
       for (;;) {
         let q = db.collection("reports")
-            .orderBy(admin.firestore.FieldPath.documentId()).limit(400);
+            .orderBy(FieldPath.documentId()).limit(400);
         if (lastRep) q = q.startAfter(lastRep);
         const snap = await q.get();
         if (snap.empty) break;
@@ -1682,9 +1697,9 @@ exports.claimAdminAccess = onCall(
             "permission-denied", "Bu hesap yönetici olamaz.");
       }
       // Claim MERGE — suspended vb. korunur (K19/K20).
-      const userRec = await admin.auth().getUser(auth.uid);
+      const userRec = await getAuth().getUser(auth.uid);
       const prev = userRec.customClaims || {};
-      await admin.auth().setCustomUserClaims(auth.uid, {
+      await getAuth().setCustomUserClaims(auth.uid, {
         ...prev,
         admin: true,
         role: "superadmin",
@@ -1733,7 +1748,7 @@ exports.adminSetRole = onCall(
 
       let target;
       try {
-        target = await admin.auth().getUser(uid);
+        target = await getAuth().getUser(uid);
       } catch (e) {
         throw new HttpsError("not-found", "Kullanıcı bulunamadı.");
       }
@@ -1748,7 +1763,7 @@ exports.adminSetRole = onCall(
         newClaims.admin = true;
         newClaims.role = role;
       }
-      await admin.auth().setCustomUserClaims(uid, newClaims);
+      await getAuth().setCustomUserClaims(uid, newClaims);
 
       const rosterRef = db.collection("adminRoles").doc(uid);
       if (role === "none") {
@@ -1773,7 +1788,7 @@ exports.adminSetRole = onCall(
       }
 
       try {
-        await admin.auth().revokeRefreshTokens(uid);
+        await getAuth().revokeRefreshTokens(uid);
       } catch (e) {
         logger.warn(`revokeRefreshTokens skipped for ${uid}: ${e}`);
       }
@@ -1974,9 +1989,9 @@ exports.adminAcceptInvite = onCall(
         throw new HttpsError("failed-precondition", "Davetin süresi dolmuş.");
       }
 
-      const userRec = await admin.auth().getUser(auth.uid);
+      const userRec = await getAuth().getUser(auth.uid);
       const prev = userRec.customClaims || {};
-      await admin.auth().setCustomUserClaims(auth.uid, {
+      await getAuth().setCustomUserClaims(auth.uid, {
         ...prev,
         admin: true,
         role: "moderator",
@@ -2001,7 +2016,7 @@ exports.adminAcceptInvite = onCall(
       });
 
       try {
-        await admin.auth().revokeRefreshTokens(auth.uid);
+        await getAuth().revokeRefreshTokens(auth.uid);
       } catch (e) {
         logger.warn(`revokeRefreshTokens invite accept: ${e}`);
       }
@@ -2069,8 +2084,8 @@ exports.adminResolveReport = onCall(
       }
       // Karara bağlanınca atama düşer (iş bitti; kimin çözdüğü resolvedBy'da).
       if (before.assignedTo) {
-        update.assignedTo = admin.firestore.FieldValue.delete();
-        update.assignedAt = admin.firestore.FieldValue.delete();
+        update.assignedTo = FieldValue.delete();
+        update.assignedAt = FieldValue.delete();
       }
       const batch = db.batch();
       batch.update(ref, update);
@@ -2110,8 +2125,8 @@ exports.adminAssignReport = onCall(
       const update = assign ?
         {assignedTo: auth.uid, assignedAt: new Date().toISOString()} :
         {
-          assignedTo: admin.firestore.FieldValue.delete(),
-          assignedAt: admin.firestore.FieldValue.delete(),
+          assignedTo: FieldValue.delete(),
+          assignedAt: FieldValue.delete(),
         };
 
       const batch = db.batch();
@@ -2209,10 +2224,10 @@ exports.adminModerateMessage = onCall(
       const batch = db.batch();
       batch.update(msgRef, {
         moderationHidden: hidden,
-        moderatedBy: hidden ? auth.uid : admin.firestore.FieldValue.delete(),
+        moderatedBy: hidden ? auth.uid : FieldValue.delete(),
         moderatedAt: hidden ?
           new Date().toISOString() :
-          admin.firestore.FieldValue.delete(),
+          FieldValue.delete(),
       });
       if (Object.keys(repUpdate).length > 0) batch.update(repRef, repUpdate);
       await writeAuditLog({
@@ -2263,7 +2278,7 @@ exports.adminResolveDispute = onCall(
             "failed-precondition", "İlan anlaşmazlık durumunda değil.");
       }
 
-      const del = admin.firestore.FieldValue.delete();
+      const del = FieldValue.delete();
       const restored = job.statusBeforeDispute || "inProgress";
       const newStatus = decision === "cancel" ? "cancelled" : restored;
       const update = {
@@ -2337,9 +2352,9 @@ exports.adminLookupUser = onCall(
       let record;
       try {
         if (typeof uid === "string" && uid.trim()) {
-          record = await admin.auth().getUser(uid.trim());
+          record = await getAuth().getUser(uid.trim());
         } else if (typeof email === "string" && email.trim()) {
-          record = await admin.auth().getUserByEmail(normalizeEmail(email));
+          record = await getAuth().getUserByEmail(normalizeEmail(email));
         } else {
           throw new HttpsError("invalid-argument", "uid veya email gerekli.");
         }
@@ -2484,7 +2499,7 @@ exports.adminAddUserNote = onCall(
         uid: uid.trim(),
         note: text,
         actorUid: auth.uid,
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        createdAt: FieldValue.serverTimestamp(),
       });
       await writeAuditLog({
         actorUid: auth.uid,
@@ -2553,7 +2568,7 @@ exports.adminSetUserSuspended = onCall(
 
       let target;
       try {
-        target = await admin.auth().getUser(uid);
+        target = await getAuth().getUser(uid);
       } catch (e) {
         throw new HttpsError("not-found", "Kullanıcı bulunamadı.");
       }
@@ -2570,10 +2585,10 @@ exports.adminSetUserSuspended = onCall(
       } else {
         delete newClaims.suspended;
       }
-      await admin.auth().setCustomUserClaims(uid, newClaims);
+      await getAuth().setCustomUserClaims(uid, newClaims);
 
       // Herkese açık `users` dökümanına YALNIZ bool ayna (+ zaman); neden yok.
-      const del = admin.firestore.FieldValue.delete();
+      const del = FieldValue.delete();
       await db.collection("users").doc(uid).set(
           suspended ?
             {suspended: true, suspendedAt: new Date().toISOString()} :
@@ -2583,7 +2598,7 @@ exports.adminSetUserSuspended = onCall(
       // Askıya alırken oturumları geçersiz kıl (claim kesin yansısın).
       if (suspended) {
         try {
-          await admin.auth().revokeRefreshTokens(uid);
+          await getAuth().revokeRefreshTokens(uid);
         } catch (e) {
           logger.warn(`revokeRefreshTokens skipped for ${uid}: ${e}`);
         }
@@ -2896,8 +2911,8 @@ exports.adminGrantPremium = onCall(
         // kayit kalsin; alan silinirse "hic premium olmamis" gibi gorunur).
         patch = {
           isPremium: false,
-          premiumExpiresAt: admin.firestore.Timestamp.fromDate(new Date()),
-          premiumUpdatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          premiumExpiresAt: Timestamp.fromDate(new Date()),
+          premiumUpdatedAt: FieldValue.serverTimestamp(),
         };
       } else {
         const d = Number(days);
@@ -2917,9 +2932,9 @@ exports.adminGrantPremium = onCall(
         expiresAtIso = expiry.toISOString();
         patch = {
           isPremium: true,
-          premiumExpiresAt: admin.firestore.Timestamp.fromDate(expiry),
+          premiumExpiresAt: Timestamp.fromDate(expiry),
           premiumProductId: "manual_admin_grant",
-          premiumUpdatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          premiumUpdatedAt: FieldValue.serverTimestamp(),
         };
       }
 
@@ -2933,7 +2948,7 @@ exports.adminGrantPremium = onCall(
         days: revoke === true ? null : Number(days),
         reason: note,
         expiresAt: expiresAtIso,
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        createdAt: FieldValue.serverTimestamp(),
       });
 
       await writeAuditLog({
@@ -3281,7 +3296,7 @@ async function resolveBroadcastUids(
     }
     if (emailRaw) {
       try {
-        const user = await admin.auth().getUserByEmail(emailRaw.toLowerCase());
+        const user = await getAuth().getUserByEmail(emailRaw.toLowerCase());
         return [user.uid];
       } catch (e) {
         throw new HttpsError(
@@ -3831,7 +3846,7 @@ exports.adminBulkSuspend = onCall(
         try {
           let target;
           try {
-            target = await admin.auth().getUser(uid);
+            target = await getAuth().getUser(uid);
           } catch (e) {
             results.push({uid, ok: false, error: "not-found"});
             continue;
@@ -3847,9 +3862,9 @@ exports.adminBulkSuspend = onCall(
           } else {
             delete newClaims.suspended;
           }
-          await admin.auth().setCustomUserClaims(uid, newClaims);
+          await getAuth().setCustomUserClaims(uid, newClaims);
 
-          const del = admin.firestore.FieldValue.delete();
+          const del = FieldValue.delete();
           await db.collection("users").doc(uid).set(
               suspended ?
                 {suspended: true, suspendedAt: new Date().toISOString()} :
@@ -3858,7 +3873,7 @@ exports.adminBulkSuspend = onCall(
 
           if (suspended) {
             try {
-              await admin.auth().revokeRefreshTokens(uid);
+              await getAuth().revokeRefreshTokens(uid);
             } catch (e) {
               logger.warn(`bulk revokeRefreshTokens ${uid}: ${e}`);
             }
@@ -4115,9 +4130,9 @@ async function grantArtisanPremium(uid, {
 
   const premiumPatch = {
     isPremium: true,
-    premiumExpiresAt: admin.firestore.Timestamp.fromDate(expiresAt),
+    premiumExpiresAt: Timestamp.fromDate(expiresAt),
     premiumProductId: productId,
-    premiumUpdatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    premiumUpdatedAt: FieldValue.serverTimestamp(),
   };
 
   // Profil yoksa bile merge ile açılabilir; müsaitlik alanlarına dokunma.
@@ -4132,9 +4147,9 @@ async function grantArtisanPremium(uid, {
     // Yenileme / RTDN için token saklanır (yalnız Admin SDK okur).
     purchaseToken: String(purchaseToken),
     playState: playState || null,
-    expiresAt: admin.firestore.Timestamp.fromDate(expiresAt),
+    expiresAt: Timestamp.fromDate(expiresAt),
     packageName: PLAY_PACKAGE_NAME,
-    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    updatedAt: FieldValue.serverTimestamp(),
   }, {merge: true});
 }
 
@@ -4191,9 +4206,9 @@ exports.verifyMembershipPurchase = onCall(
           await db.collection("artisanProfiles").doc(auth.uid).set({
             isPremium: false,
             premiumExpiresAt: verified.expiry
-              ? admin.firestore.Timestamp.fromDate(verified.expiry)
-              : admin.firestore.FieldValue.delete(),
-            premiumUpdatedAt: admin.firestore.FieldValue.serverTimestamp(),
+              ? Timestamp.fromDate(verified.expiry)
+              : FieldValue.delete(),
+            premiumUpdatedAt: FieldValue.serverTimestamp(),
           }, {merge: true});
         }
         throw new HttpsError(
@@ -4510,7 +4525,7 @@ exports.adminModerateProduct = onCall(
 
       if (decision === "hard_purge") {
         try {
-          const bucket = admin.storage().bucket();
+          const bucket = getStorage().bucket();
           await bucket.deleteFiles({
             prefix: `product/${d.ownerUid}/${productId.trim()}`,
           });
@@ -4545,7 +4560,7 @@ exports.adminModerateProduct = onCall(
       } else if (decision === "approve") {
         if (d.status === "pending_review") patch.status = "active";
         if (!d.publishedAt) patch.publishedAt = now;
-        patch.moderationNote = admin.firestore.FieldValue.delete();
+        patch.moderationNote = FieldValue.delete();
       } else if (decision === "reject") {
         patch.status = "draft";
         if (note) patch.moderationNote = note.slice(0, 300);
@@ -4696,7 +4711,7 @@ exports.purgeRemovedProducts = onSchedule(
         const d = doc.data() || {};
         try {
           if (d.ownerUid) {
-            const bucket = admin.storage().bucket();
+            const bucket = getStorage().bucket();
             await bucket.deleteFiles({
               prefix: `product/${d.ownerUid}/${doc.id}`,
             });
