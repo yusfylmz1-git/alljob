@@ -9,8 +9,11 @@ import '../../artisan/data/artisan_providers.dart';
 /// Değerlendirme yazma/okuma soyutlaması. Mock'ta [MockDatabase]'e,
 /// Firebase'de `reviews` koleksiyonuna gider.
 abstract class ReviewRepository {
-  /// Değerlendirme yazar. Aynı müşteri aynı ustayı ikinci kez
-  /// değerlendirirse MEVCUT kayıt güncellenir (yeni kayıt açılmaz).
+  /// Değerlendirme yazar. Aynı taraf aynı sohbeti ikinci kez değerlendirirse
+  /// MEVCUT kayıt güncellenir (yeni kayıt açılmaz).
+  ///
+  /// [direction] iş bitince iki tarafın da puan vermesini sağlar; doküman
+  /// kimliği yöne göre ayrışır ([ReviewDirection.docIdFor]).
   Future<void> addReview({
     required String artisanUid,
     required String customerUid,
@@ -19,14 +22,16 @@ abstract class ReviewRepository {
     required int rating,
     required List<String> tags,
     String? jobId,
+    ReviewDirection direction = ReviewDirection.customerToArtisan,
   });
 
-  /// Bu müşterinin bu ustaya daha önce verdiği değerlendirme (yoksa null) —
-  /// değerlendirme ekranı formu ön-doldurup "güncelleme" dilinde konuşur.
+  /// Bu yönde daha önce verilmiş değerlendirme (yoksa null) — form ön-doldurup
+  /// "güncelleme" dilinde konuşur.
   Future<Review?> getMyReview({
     required String customerUid,
     required String artisanUid,
     required String chatId,
+    ReviewDirection direction = ReviewDirection.customerToArtisan,
   });
 
   /// Ustanın aldığı değerlendirmeler (en yeni önce).
@@ -46,7 +51,11 @@ class MockReviewRepository implements ReviewRepository {
     required int rating,
     required List<String> tags,
     String? jobId,
+    ReviewDirection direction = ReviewDirection.customerToArtisan,
   }) async {
+    // Mock yalnız müşteri→usta yönünü tutar (usta profili vitrini). Usta→
+    // müşteri puanı CF'in yazdığı özel bir alanda yaşar, mock karşılığı yok.
+    if (direction != ReviewDirection.customerToArtisan) return;
     // İkinci değerlendirme mevcut kaydı günceller (Firestore paritesi).
     _db.addReview(
       artisanUid: artisanUid,
@@ -62,7 +71,9 @@ class MockReviewRepository implements ReviewRepository {
     required String customerUid,
     required String artisanUid,
     required String chatId,
+    ReviewDirection direction = ReviewDirection.customerToArtisan,
   }) async {
+    if (direction != ReviewDirection.customerToArtisan) return null;
     final reviews = _db.artisans[artisanUid]?.reviews ?? const <Review>[];
     return reviews.where((r) => r.customerUid == customerUid).firstOrNull;
   }
@@ -94,25 +105,30 @@ class FirebaseReviewRepository implements ReviewRepository {
     required int rating,
     required List<String> tags,
     String? jobId,
+    ReviewDirection direction = ReviewDirection.customerToArtisan,
   }) async {
+    final docId = ReviewDirection.docIdFor(chatId, direction);
     final review = Review(
-      id: chatId,
+      id: docId,
       artisanUid: artisanUid,
       customerUid: customerUid,
       customerDisplayName: customerName,
       chatId: chatId,
       rating: rating,
       tags: tags,
+      direction: direction,
       createdAt: DateTime.now(),
     );
-    // Döküman ID'si = chatId (chat_{müşteri}__{usta}): müşteri başına usta
-    // başına TEK döküman. İlk gönderim create; sonrakiler AYNI dökümanın
-    // üzerine yazar (kural yalnız rating/tags/createdAt/ad değişimine izin
-    // verir). Ortalamayı CF `onReviewWritten` delta ile işler.
+    // Döküman ID'si sohbet + YÖN: sohbet başına yön başına TEK döküman.
+    // Müşteri→usta kaydı GERİYE UYUM için düz `chatId` kimliğini korur (eski
+    // değerlendirmeler aynı yerde kalsın); usta→müşteri `__a2c` eki alır.
+    // İlk gönderim create; sonrakiler aynı dökümanın üzerine yazar (kural
+    // yalnız rating/tags/createdAt/ad değişimine izin verir).
+    // Ortalamayı CF `onReviewWritten` delta ile işler.
     // jobId: H6 tamamlanmış iş yolu (rules).
     final map = review.toMap();
     if (jobId != null && jobId.isNotEmpty) map['jobId'] = jobId;
-    await _reviews.doc(chatId).set(map);
+    await _reviews.doc(docId).set(map);
   }
 
   @override
@@ -120,9 +136,11 @@ class FirebaseReviewRepository implements ReviewRepository {
     required String customerUid,
     required String artisanUid,
     required String chatId,
+    ReviewDirection direction = ReviewDirection.customerToArtisan,
   }) async {
     // Döküman ID'si deterministik olduğundan tek get yeter (sorgu gerekmez).
-    final snap = await _reviews.doc(chatId).get();
+    final snap =
+        await _reviews.doc(ReviewDirection.docIdFor(chatId, direction)).get();
     final data = snap.data();
     if (data == null) return null;
     return Review.fromMap(snap.id, data);
@@ -136,9 +154,12 @@ class FirebaseReviewRepository implements ReviewRepository {
         .limit(50)
         .get();
     // H5: admin soft-hide — consumer listesinde gösterme.
+    // `a2c` (usta→müşteri) kayıtları da `artisanUID` taşır ama usta VİTRİNİNE
+    // ait değildir; yalnız müşteri→usta yönü listelenir.
     return snap.docs
         .where((d) => d.data()['hiddenByAdmin'] != true)
         .map((d) => Review.fromMap(d.id, d.data()))
+        .where((r) => r.direction == ReviewDirection.customerToArtisan)
         .toList();
   }
 }

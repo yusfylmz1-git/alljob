@@ -9,6 +9,7 @@ class ChatMessage {
     this.imageHandle,
     this.deleted = false,
     this.moderationHidden = false,
+    this.isSystem = false,
   });
 
   final String id;
@@ -17,6 +18,11 @@ class ChatMessage {
   final String? text;
   final String? imageHandle;
   final DateTime createdAt;
+
+  /// Sistem mesajı (yaşam döngüsü bildirimi: "Usta seçildi", "İş tamamlandı"…).
+  /// Yalnız CF yazar; balon yerine ortada ince bir şerit olarak çizilir.
+  /// Eski mesajlarda alan yoktur → varsayılan false, normal mesaj sayılır.
+  final bool isSystem;
 
   /// Gönderen mesajı sildi (yumuşak silme): içerik kaldırılır, yerinde
   /// "Bu mesaj silindi" gösterilir (WhatsApp modeli).
@@ -49,7 +55,43 @@ class ChatMessage {
           : null;
 }
 
+/// Sohbetin neden salt okunur olduğunu anlatan sebep (UI etiketi).
+enum ChatLockReason {
+  /// Müşteri bu ilan için BAŞKA bir ustayı seçti.
+  otherArtisanSelected,
+
+  /// İş tamamlandı; yaşam döngüsü kapandı.
+  completed,
+
+  /// Tamamlanmanın üzerinden 7 gün geçti — sohbet arşive alındı.
+  archived;
+
+  static ChatLockReason? fromString(String? v) => switch (v) {
+        'otherArtisanSelected' => ChatLockReason.otherArtisanSelected,
+        'completed' => ChatLockReason.completed,
+        'archived' => ChatLockReason.archived,
+        _ => null,
+      };
+
+  String get apiValue => name;
+
+  /// Kilitli sohbette giriş kutusu yerine gösterilen açıklama.
+  String get labelTR => switch (this) {
+        ChatLockReason.otherArtisanSelected =>
+          'Müşteri bu iş için başka bir usta ile anlaştı.',
+        ChatLockReason.completed =>
+          'İş tamamlandı. Bu sohbet mesajlaşmaya kapalıdır.',
+        ChatLockReason.archived =>
+          'Bu sohbet arşivlendi. Geçmişi okuyabilir, yeni mesaj yazamazsınız.',
+      };
+}
+
 /// İki kullanıcı (müşteri + usta) arasındaki sohbet başlığı/özeti.
+///
+/// İLAN BAZLI: [jobId] doluysa sohbet o ilana aittir ve kimliği
+/// `chat_{müşteri}__{usta}__{jobId}` biçimindedir. [jobId] null olan sohbetler
+/// GENEL'dir (ürün/eleman ilanı üzerinden açılanlar ve ilan bazlı şemadan önce
+/// oluşmuş kayıtlar) — kimlikleri iki parçalıdır ve çalışmaya devam eder.
 class ChatThread {
   const ChatThread({
     required this.id,
@@ -65,6 +107,11 @@ class ChatThread {
     this.lastMessageSenderUid,
     this.archivedBy = const {},
     this.pinnedBy = const {},
+    this.jobId,
+    this.jobTitle,
+    this.customerStarted = false,
+    this.lockedAt,
+    this.lockReason,
   });
 
   final String id;
@@ -91,6 +138,39 @@ class ChatThread {
   /// Sohbeti listenin başına sabitleyen kullanıcılar (kişisel).
   final Set<String> pinnedBy;
 
+  /// Bağlı ilan. Null ise GENEL sohbet (ürün/eleman ya da eski kayıt).
+  final String? jobId;
+
+  /// İlan başlığı — denormalize. Liste ve AppBar her sohbet için ayrı ilan
+  /// dokümanı okumasın diye burada tutulur.
+  final String? jobTitle;
+
+  /// Müşteri ilk mesajı yazdı mı? Usta ancak bundan sonra yazabilir
+  /// (kural tarafı da zorlar: kural motoru mesaj sayısı sorgulayamadığı için
+  /// bu bayrak DENORMALIZE tutulmak zorunda).
+  final bool customerStarted;
+
+  /// Doluysa sohbet salt okunurdur — kimse yeni mesaj yazamaz.
+  final DateTime? lockedAt;
+
+  /// Kilit sebebi (UI etiketi). [lockedAt] null iken anlamsızdır.
+  final ChatLockReason? lockReason;
+
+  /// Salt okunur mu? Kilit sebebi yazılmamış olsa da [lockedAt] belirleyicidir.
+  bool get isLocked => lockedAt != null;
+
+  /// İlana bağlı bir sohbet mi (genel sohbet değil)?
+  bool get isJobChat => (jobId ?? '').isNotEmpty;
+
+  /// [uid] şu an mesaj yazabilir mi? Kilitliyse kimse yazamaz; usta yalnız
+  /// müşteri başlattıysa yazabilir. (Sunucu kuralı da aynı mantığı uygular —
+  /// buradaki kontrol yalnız UI'ı erken kapatmak içindir.)
+  bool canSend(String uid) {
+    if (isLocked) return false;
+    if (uid == customerUid) return true;
+    return customerStarted;
+  }
+
   bool isArchivedFor(String uid) => archivedBy.contains(uid);
 
   bool isPinnedFor(String uid) => pinnedBy.contains(uid);
@@ -114,6 +194,9 @@ class ChatThread {
     String? lastMessageSenderUid,
     Set<String>? archivedBy,
     Set<String>? pinnedBy,
+    bool? customerStarted,
+    DateTime? lockedAt,
+    ChatLockReason? lockReason,
   }) =>
       ChatThread(
         id: id,
@@ -129,6 +212,11 @@ class ChatThread {
         lastMessageSenderUid: lastMessageSenderUid ?? this.lastMessageSenderUid,
         archivedBy: archivedBy ?? this.archivedBy,
         pinnedBy: pinnedBy ?? this.pinnedBy,
+        jobId: jobId,
+        jobTitle: jobTitle,
+        customerStarted: customerStarted ?? this.customerStarted,
+        lockedAt: lockedAt ?? this.lockedAt,
+        lockReason: lockReason ?? this.lockReason,
       );
 }
 

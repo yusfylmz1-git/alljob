@@ -33,6 +33,36 @@ class _ReviewScreenState extends ConsumerState<ReviewScreen> {
   int _rating = 0;
   final Set<String> _tags = {};
 
+  /// Bu ekranı açan kullanıcı USTA mı? Öyleyse değerlendirme yönü tersine
+  /// döner: usta müşteriyi puanlar (a2c).
+  bool get _iAmArtisan =>
+      ref.read(currentUserProvider)?.uid == widget.artisanUid;
+
+  ReviewDirection get _direction => _iAmArtisan
+      ? ReviewDirection.artisanToCustomer
+      : ReviewDirection.customerToArtisan;
+
+  /// Değerlendirilen sohbetin kimliği. İlan üzerinden gelindiyse İLAN BAZLI
+  /// kimlik kullanılır (`..__{jobId}`) — aynı çift her iş için ayrı puan
+  /// verebilsin. İlan yoksa eski iki parçalı (genel sohbet) kimliği.
+  ///
+  /// Kimlik HER İKİ YÖNDE de aynı: `chat_{müşteri}__{usta}[__{iş}]`. Usta
+  /// değerlendirirken müşterinin uid'i ilandan gelir.
+  String _chatIdFor({required String customerUid}) =>
+      FirebaseChatRepository.chatIdFor(
+        customerUid,
+        widget.artisanUid,
+        jobId: widget.jobId,
+      );
+
+  /// Sohbetin müşteri tarafı. Usta değerlendiriyorsa ilandan okunur.
+  String? _customerUid() {
+    final me = ref.read(currentUserProvider)?.uid;
+    if (me == null) return null;
+    if (!_iAmArtisan) return me;
+    return ref.read(jobProvider(widget.jobId ?? '')).valueOrNull?.customerId;
+  }
+
   void _toggle(String tag) => setState(() {
         if (!_tags.remove(tag)) _tags.add(tag);
       });
@@ -53,11 +83,13 @@ class _ReviewScreenState extends ConsumerState<ReviewScreen> {
     final user = ref.read(currentUserProvider);
     if (user == null) return;
     try {
+      final customerUid = _customerUid();
+      if (customerUid == null) return;
       final existing = await ref.read(reviewRepositoryProvider).getMyReview(
-            customerUid: user.uid,
+            customerUid: customerUid,
             artisanUid: widget.artisanUid,
-            chatId: FirebaseChatRepository.chatIdFor(
-                user.uid, widget.artisanUid),
+            chatId: _chatIdFor(customerUid: customerUid),
+            direction: _direction,
           );
       if (existing == null || !mounted) return;
       setState(() {
@@ -80,15 +112,23 @@ class _ReviewScreenState extends ConsumerState<ReviewScreen> {
 
     setState(() => _sending = true);
     try {
+      final customerUid = _customerUid();
+      if (customerUid == null) {
+        setState(() => _sending = false);
+        context.showError('Değerlendirme başlatılamadı, tekrar deneyin.');
+        return;
+      }
       await ref.read(reviewRepositoryProvider).addReview(
             artisanUid: widget.artisanUid,
-            customerUid: user.uid,
+            customerUid: customerUid,
+            // a2c'de "customerDisplayName" alanı YAZAN ustanın adını taşır
+            // (kayıt sahibi kim ise onun görünen adı).
             customerName: user.displayName,
-            chatId: FirebaseChatRepository.chatIdFor(
-                user.uid, widget.artisanUid),
+            chatId: _chatIdFor(customerUid: customerUid),
             rating: _rating,
             tags: _tags.toList(),
             jobId: widget.jobId,
+            direction: _direction,
           );
     } catch (_) {
       if (mounted) {
@@ -119,15 +159,16 @@ class _ReviewScreenState extends ConsumerState<ReviewScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final user = ref.watch(currentUserProvider);
-    final chatId = user == null
-        ? null
-        : FirebaseChatRepository.chatIdFor(user.uid, widget.artisanUid);
+    final customerUid = _customerUid();
+    final chatId =
+        customerUid == null ? null : _chatIdFor(customerUid: customerUid);
 
     // Sohbet var mı? (PRD §5)
-    final hasChat = user != null &&
+    final hasChat = customerUid != null &&
         ref.read(chatRepositoryProvider).hasChatBetween(
-              customerUid: user.uid,
+              customerUid: customerUid,
               artisanUid: widget.artisanUid,
+              jobId: widget.jobId,
             );
 
     // H6: tamamlanmış iş VEYA sohbet yaşı ≥ 24s.

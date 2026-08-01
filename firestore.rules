@@ -101,6 +101,10 @@ service cloud.firestore {
       // contact: telefon; push: fcmTokens[] + prefs (H2);
       // chatMeta: denormalize sohbet okunmamış sayacı (alt bar rozeti).
       // Başka docId yok (rastgele private/* şişirmesi / PII sızıntı yüzeyi kapanır).
+      // `jobStats` (açık ilan sayacı) LİSTEDE YOK: yalnız CF yazar
+      // (onJobWritten). İstemci yazabilseydi sayacı sıfırlayıp ilan limitini
+      // kendi kaldırırdı. Okuma sahibine açık — UI kalan hakkı gösterebilsin.
+      // `rating` de CF'e ait: usta→müşteri puanı (a2c) burada tutulur.
       match /private/{doc} {
         allow read: if isSelf(uid);
         allow write: if isSelf(uid) && doc in ['contact', 'push', 'chatMeta'];
@@ -269,13 +273,28 @@ service cloud.firestore {
       // Update'te yalnız sohbet meta alanları (H1). Kimlik alanları
       // (customerUid/artisanUid/participants/adlar) değişemez.
       // members: yalnız legacy heal — tam olarak iki taraf, üçüncü yok.
+      //
+      // `lockedAt` / `lockReason` / `jobId` / `jobTitle` LİSTEDE YOK: kilidi
+      // yalnız CF (Admin SDK) koyar/kaldırır — aksi halde usta kendi sohbetinin
+      // kilidini açıp başka usta seçilmiş işte mesaj yazmaya devam ederdi.
       function chatUpdateKeysOk() {
         return request.resource.data.diff(resource.data).affectedKeys()
           .hasOnly(['lastMessage', 'lastMessageSenderUid', 'updatedAt',
                     'lastRead', 'clearedAt', 'members',
-                    'archivedBy', 'pinnedBy'])
+                    'archivedBy', 'pinnedBy', 'customerStarted'])
           && personalFlagsOk('archivedBy')
-          && personalFlagsOk('pinnedBy');
+          && personalFlagsOk('pinnedBy')
+          && customerStartedOk();
+      }
+
+      // `customerStarted` yalnız MÜŞTERİ tarafından ve yalnız false→true
+      // yazılabilir. Usta bu bayrağı yazabilseydi kendi yazma iznini kendisi
+      // açardı; müşteri de geri alıp ustayı susturamaz.
+      function customerStartedOk() {
+        return !request.resource.data.diff(resource.data)
+              .affectedKeys().hasAny(['customerStarted'])
+          || (request.auth.uid == resource.data.get('customerUid', '')
+              && request.resource.data.customerStarted == true);
       }
 
       // Arşiv/sabitleme KİŞİSELDİR: kullanıcı yalnız KENDİ anahtarını
@@ -329,8 +348,14 @@ service cloud.firestore {
         && (resource == null || isMember(resource.data));
       allow list: if isMember(resource.data);
       // Create: deterministik ID + çağıran taraf + 2 kişilik members.
-      // ID formatı: chat_{customerUid}__{artisanUid} — rastgele ID / üçüncü
-      // kişiye spam sohbet açılamaz (S-CHAT-1).
+      //
+      // ID İKİ BİÇİMDEN BİRİ (S-CHAT-1 spam koruması — rastgele ID ile üçüncü
+      // kişiye sohbet açılamaz):
+      //   chat_{müşteri}__{usta}              → GENEL sohbet (ürün/eleman)
+      //   chat_{müşteri}__{usta}__{jobId}     → İLAN BAZLI sohbet
+      // İlan bazlıda taban kimlik + '__' öneki aranır; jobId'nin kendisi
+      // serbest olduğundan tam eşitlik yerine önek kontrolü yapılır. Taban
+      // kısım yine iki tarafın uid'ine çakılıdır, yani spam koruması durur.
       allow create: if isSignedIn()
         && !isSuspended()
         && isEmailVerified()
@@ -339,8 +364,13 @@ service cloud.firestore {
         && request.resource.data.customerUid != request.resource.data.artisanUid
         && (request.auth.uid == request.resource.data.customerUid
             || request.auth.uid == request.resource.data.artisanUid)
-        && chatId == 'chat_' + request.resource.data.customerUid
-            + '__' + request.resource.data.artisanUid
+        && (chatId == 'chat_' + request.resource.data.customerUid
+              + '__' + request.resource.data.artisanUid
+            || chatId.matches('^chat_' + request.resource.data.customerUid
+              + '__' + request.resource.data.artisanUid + '__.+$'))
+        // Yeni sohbet KİLİTLİ ya da "müşteri başlattı" olarak doğamaz.
+        && request.resource.data.get('customerStarted', false) == false
+        && !request.resource.data.keys().hasAny(['lockedAt', 'lockReason'])
         && request.resource.data.members is map
         && request.resource.data.members[request.resource.data.customerUid] == true
         && request.resource.data.members[request.resource.data.artisanUid] == true
@@ -386,6 +416,9 @@ service cloud.firestore {
         // yalnız CF (adminModerateMessage) yazar. hasOnly listesinde
         // olmadığından istemci bunları oluşturma anında da ekleyemez
         // (kendini "kaldırılmamış" ilan edemez).
+        // `type` allowlist'te YOK: sistem mesajını (yaşam döngüsü şeridi)
+        // yalnız CF yazar. İstemci yazabilseydi "Usta seçildi" gibi resmî
+        // görünen sahte bildirimler üretebilirdi.
         function messagePayloadOk() {
           let t = request.resource.data.get('text', null);
           return (t == null || (t is string && t.size() <= 4000))
@@ -397,13 +430,26 @@ service cloud.firestore {
                           'deleted']);
         }
 
+        // İLETİŞİMİ MÜŞTERİ BAŞLATIR: usta ilana ilgi bildirir, ilk mesajı
+        // müşteri yazar. Kural motoru "bu sohbette müşteri mesajı var mı"
+        // diye sorgulayamadığı için chat dökümanındaki `customerStarted`
+        // bayrağına bakılır (istemci ilk müşteri mesajıyla yazar; create'te
+        // false olmak zorunda).
+        function senderMayWrite() {
+          let chat = get(/databases/$(database)/documents/chats/$(chatId)).data;
+          return chat.get('lockedAt', null) == null
+            && (chat.get('customerUid', '') == request.auth.uid
+                || chat.get('customerStarted', false) == true);
+        }
+
         allow read: if memberOfChat();
         // Yalnızca gönderen kendi mesajını oluşturabilir; alıcı göndereni
-        // engellediyse oluşturamaz.
+        // engellediyse veya sohbet kilitliyse oluşturamaz.
         allow create: if isSignedIn()
           && !isSuspended()
           && request.resource.data.senderUid == request.auth.uid
           && memberOfChat()
+          && senderMayWrite()
           && !recipientBlockedSender()
           && messagePayloadOk();
         // Yumuşak silme: YALNIZ gönderen, YALNIZ `deleted=true` + içerik
@@ -434,44 +480,67 @@ service cloud.firestore {
     //  - Kendini değerlendirmek yasak; puan 1..5 tam sayı.
     // delete kapalı → `onReviewWritten` CF toplamları delta ile güvenle tutar.
     match /reviews/{reviewId} {
+      // ÇİFT YÖNLÜ: iş bitince iki taraf da puan verir.
+      //   {chatId}        → müşteri→usta (c2a; eski kayıtlarla aynı kimlik)
+      //   {chatId}__a2c   → usta→müşteri
+      // Kural chatId'yi kimlikten türetir: a2c ekini soyar.
+      function isA2C() {
+        return request.resource.data.get('direction', 'c2a') == 'a2c';
+      }
+      function reviewChatId() {
+        return isA2C() ? reviewId.split('__a2c')[0] : reviewId;
+      }
       // H6: sohbet en az 24s önce açılmış VEYA tamamlanmış iş (jobId) var.
       function reviewChatDoc() {
-        return get(/databases/$(database)/documents/chats/$(reviewId)).data;
+        return get(/databases/$(database)/documents/chats/$(reviewChatId())).data;
       }
       function reviewUnlockedByChatAge() {
         let chat = reviewChatDoc();
         let created = chat.get('createdAt', chat.get('updatedAt', request.time));
         return request.time >= created + duration.value(24, 'h');
       }
+      // Tamamlanmış iş: iki yön için de aynı iş dokümanı doğrulanır, yalnız
+      // "yazan taraf" farklıdır (c2a → müşteri, a2c → seçilen usta).
       function reviewUnlockedByCompletedJob() {
+        let job = get(/databases/$(database)/documents/jobs/$(request.resource.data.jobId)).data;
         return request.resource.data.jobId is string
           && exists(/databases/$(database)/documents/jobs/$(request.resource.data.jobId))
-          && get(/databases/$(database)/documents/jobs/$(request.resource.data.jobId)).data.customerId
-              == request.auth.uid
-          && get(/databases/$(database)/documents/jobs/$(request.resource.data.jobId)).data.selectedArtisanId
-              == request.resource.data.artisanUID
-          && get(/databases/$(database)/documents/jobs/$(request.resource.data.jobId)).data.status
-              in ['completed', 'rated'];
+          && job.customerId == request.resource.data.customerUID
+          && job.selectedArtisanId == request.resource.data.artisanUID
+          && job.status in ['completed', 'rated'];
+      }
+      // Yazan taraf, yöne göre doğru kişi mi?
+      function reviewAuthorOk() {
+        return isA2C()
+          ? request.resource.data.artisanUID == request.auth.uid
+          : request.resource.data.customerUID == request.auth.uid;
       }
       // H5: herkes okur; gizlenenler istemcide elenir (alan bazlı filter yok).
       // Admin gizleme bayrağını okuyabilir; istemci hiddenByAdmin==true olanı göstermez.
       allow read: if true;
       allow create: if isSignedIn()
         && !isSuspended()
-        && request.resource.data.customerUID == request.auth.uid
+        && request.resource.data.customerUID is string
         && request.resource.data.artisanUID is string
-        && request.resource.data.artisanUID != request.auth.uid
-        && reviewId == 'chat_' + request.auth.uid + '__'
-            + request.resource.data.artisanUID
-        && exists(/databases/$(database)/documents/chats/$(reviewId))
+        && request.resource.data.customerUID != request.resource.data.artisanUID
+        && reviewAuthorOk()
+        // Kimlik, sohbetin taraflarına ÇAKILI: rastgele kimlikle sahte
+        // değerlendirme yazılamaz. İlan bazlı sohbetlerde kimlik ilan
+        // numarasını da taşır → aynı çift her iş için ayrı puan verebilir.
+        && reviewChatId().matches('^chat_' + request.resource.data.customerUID
+            + '__' + request.resource.data.artisanUID + '($|__.*)')
+        && exists(/databases/$(database)/documents/chats/$(reviewChatId()))
         && request.resource.data.rating is int
         && request.resource.data.rating >= 1
         && request.resource.data.rating <= 5
         && (reviewUnlockedByChatAge() || reviewUnlockedByCompletedJob());
-      // Güncelleme: YALNIZ değerlendirmenin sahibi; kimlik alanları
-      // (customerUID/artisanUID/chatId) değiştirilemez, puan yine 1..5 int.
+      // Güncelleme: YALNIZ değerlendirmeyi YAZAN taraf (yöne göre müşteri ya
+      // da usta); kimlik alanları (customerUID/artisanUID/chatId/direction)
+      // değiştirilemez, puan yine 1..5 int.
       allow update: if isSignedIn()
-        && resource.data.customerUID == request.auth.uid
+        && (resource.data.get('direction', 'c2a') == 'a2c'
+            ? resource.data.artisanUID == request.auth.uid
+            : resource.data.customerUID == request.auth.uid)
         && request.resource.data.diff(resource.data).affectedKeys()
             .hasOnly(['rating', 'tags', 'createdAt', 'customerDisplayName'])
         && request.resource.data.rating is int
@@ -562,11 +631,24 @@ service cloud.firestore {
           'createdAt', 'expiresAt', 'expiresAtMs', 'moderationHidden'
         ]);
       }
+      // AÇIK İLAN LİMİTİ (5). Kural motoru count() yapamaz → sayaç
+      // `users/{uid}/private/jobStats.openCount` içinde denormalize tutulur ve
+      // yalnız CF yazar (onJobWritten). Doküman yoksa (ilk ilan) limit geçilir.
+      //
+      // Neden gerekli: yayınlanan her ilan EŞLEŞEN TÜM USTALARA bildirim
+      // gönderir; limitsiz kullanıcı platform çapında spam üretebilirdi.
+      // Günlük hak (10) CF tarafında kesilir — kural gün bilgisi tutamaz.
+      function openJobQuotaOk() {
+        let p = /databases/$(database)/documents/users/$(request.auth.uid)/private/jobStats;
+        return !exists(p) || get(p).data.get('openCount', 0) < 5;
+      }
+
       // moderationHidden yalnız false veya yok (gizleme CF); true ile create yok.
       // E-posta doğrulama zorunlu (müşteri ilan açma).
       allow create: if isSignedIn()
         && !isSuspended()
         && isEmailVerified()
+        && openJobQuotaOk()
         && jobCreateKeysOk()
         && request.resource.data.customerId == request.auth.uid
         && request.resource.data.status == 'open'
@@ -604,12 +686,28 @@ service cloud.firestore {
               && request.resource.data.selectedArtisanId is string
               && request.resource.data.selectedOfferId is string);
       }
+      // Atanan usta DEĞİŞTİRİLEMEZ. Tek istisna SEÇİM İPTALİ: müşteri
+      // workerSelected → open'a dönerken seçim alanları TEMİZLENİR (null).
+      // Yani "A ustasından B ustasına doğrudan geçiş" hâlâ yasak; iptal edip
+      // ilanı yeniden açmak gerekir (diğer ustalar da tekrar teklif verebilsin).
       function ownerNoReassignArtisan() {
         return !request.resource.data.diff(resource.data)
               .affectedKeys().hasAny(['selectedArtisanId', 'selectedOfferId', 'chatId'])
           || resource.data.get('selectedArtisanId', null) == null
           || request.resource.data.get('selectedArtisanId', null)
-              == resource.data.get('selectedArtisanId', null);
+              == resource.data.get('selectedArtisanId', null)
+          || ownerCancelSelectionOk();
+      }
+
+      // Seçim iptali: yalnız workerSelected → open, yalnız seçim alanları
+      // sıfırlanarak. İş başladıysa (inProgress), tamamlandıysa ya da şikayet
+      // açıldıysa iptal YOK — o yollar dispute/admin ile çözülür.
+      function ownerCancelSelectionOk() {
+        return resource.data.status == 'workerSelected'
+          && request.resource.data.status == 'open'
+          && request.resource.data.get('selectedArtisanId', null) == null
+          && request.resource.data.get('selectedOfferId', null) == null
+          && request.resource.data.get('chatId', null) == null;
       }
 
       allow update: if completedHasBothConfirms()
@@ -619,7 +717,11 @@ service cloud.firestore {
                     'chatId', 'customerConfirmedDone', 'cancelReason',
                     'disputedBy', 'disputeReason', 'disputeNote',
                     'disputedAt', 'statusBeforeDispute'])
-              && request.resource.data.status != 'open'
+              // 'open'a dönüş YALNIZ seçim iptalinde (workerSelected → open,
+              // seçim alanları temizlenmiş). Tamamlanmış/şikayetli iş geri
+              // açılamaz.
+              && (request.resource.data.status != 'open'
+                  || ownerCancelSelectionOk())
               && ownerSelectTransitionOk()
               && ownerNoReassignArtisan()
               && disputeOk('customer'))

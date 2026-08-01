@@ -18,7 +18,12 @@ abstract interface class ChatRepository {
 
   /// Müşteri ile usta arasında sohbet geçmişi var mı? Değerlendirme yalnızca
   /// sohbet geçmişi olan müşterilere açıktır (PRD §5, Ekran F).
-  bool hasChatBetween({required String customerUid, required String artisanUid});
+  /// [jobId] verilirse İLAN BAZLI sohbet aranır; verilmezse genel sohbet.
+  bool hasChatBetween({
+    required String customerUid,
+    required String artisanUid,
+    String? jobId,
+  });
 
   /// Sohbeti [uid] için okundu işaretler (o ana kadarki mesajlar).
   void markRead({required String chatId, required String uid});
@@ -31,6 +36,10 @@ abstract interface class ChatRepository {
 
   /// Sohbeti başlatır / var olanı hazırlar. Firestore'da döküman **hazır**
   /// olunca chatId döner. Navigasyondan önce `await` edilmeli.
+  ///
+  /// [jobId] verilirse sohbet İLAN BAZLIDIR: kimliği ilanı da içerir, yani aynı
+  /// müşteri–usta çifti her ilan için AYRI odada konuşur. Verilmezse genel
+  /// sohbet açılır (ürün/eleman akışları).
   Future<String> startChat({
     required String customerUid,
     required String customerName,
@@ -38,6 +47,8 @@ abstract interface class ChatRepository {
     required String artisanUid,
     required String artisanName,
     String? artisanPhotoUrl,
+    String? jobId,
+    String? jobTitle,
   });
 
   /// Bilinen chatId için dökümanın okunabilir olmasını bekler (liste / bildirim
@@ -129,8 +140,15 @@ class MockChatRepository implements ChatRepository {
     );
   }
 
-  static String chatIdFor(String customerUid, String artisanUid) =>
-      'chat_${customerUid}__$artisanUid';
+  /// Firebase paritesi: [jobId] doluysa ilan bazlı 3 parçalı kimlik.
+  static String chatIdFor(
+    String customerUid,
+    String artisanUid, {
+    String? jobId,
+  }) {
+    final base = 'chat_${customerUid}__$artisanUid';
+    return (jobId == null || jobId.isEmpty) ? base : '${base}__$jobId';
+  }
 
   StreamController<List<ChatMessage>> _ctrl(String chatId) =>
       _msgControllers.putIfAbsent(
@@ -167,8 +185,9 @@ class MockChatRepository implements ChatRepository {
   bool hasChatBetween({
     required String customerUid,
     required String artisanUid,
+    String? jobId,
   }) =>
-      _threads.containsKey(chatIdFor(customerUid, artisanUid));
+      _threads.containsKey(chatIdFor(customerUid, artisanUid, jobId: jobId));
 
   @override
   void markRead({required String chatId, required String uid}) {
@@ -209,8 +228,10 @@ class MockChatRepository implements ChatRepository {
     required String artisanUid,
     required String artisanName,
     String? artisanPhotoUrl,
+    String? jobId,
+    String? jobTitle,
   }) async {
-    final id = chatIdFor(customerUid, artisanUid);
+    final id = chatIdFor(customerUid, artisanUid, jobId: jobId);
     final now = DateTime.now();
     _threads.putIfAbsent(
       id,
@@ -224,6 +245,8 @@ class MockChatRepository implements ChatRepository {
         artisanPhotoUrl: artisanPhotoUrl,
         createdAt: now,
         updatedAt: now,
+        jobId: jobId,
+        jobTitle: jobTitle,
       ),
     );
     _threadsTick.add(null);
@@ -268,6 +291,9 @@ class MockChatRepository implements ChatRepository {
         archivedBy: t.archivedBy.contains(receiver)
             ? ({...t.archivedBy}..remove(receiver))
             : null,
+        // Firebase paritesi: ilk müşteri mesajı sohbeti ustaya açar.
+        customerStarted:
+            senderUid == t.customerUid ? true : t.customerStarted,
       );
       _threadsTick.add(null);
     }

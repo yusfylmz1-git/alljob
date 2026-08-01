@@ -200,7 +200,11 @@ enum JobDisputeReason {
 enum JobCancelReason {
   changedMind,
   solved,
-  wrongPost;
+  wrongPost,
+
+  /// Günlük ilan hakkı dolduğu için sunucu iptal etti (yalnız CF yazar —
+  /// istemci bu sebeple ilan iptal edemez).
+  rateLimited;
 
   String get apiValue => name;
 
@@ -216,6 +220,7 @@ enum JobCancelReason {
         JobCancelReason.changedMind => 'Vazgeçtim',
         JobCancelReason.solved => 'Sorun çözüldü',
         JobCancelReason.wrongPost => 'Yanlış ilan',
+        JobCancelReason.rateLimited => 'Günlük ilan hakkı doldu',
       };
 }
 

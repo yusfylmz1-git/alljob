@@ -22,7 +22,6 @@ import '../../auth/application/auth_controller.dart';
 import '../../auth/presentation/email_verification_gate.dart';
 import '../../chat/data/chat_providers.dart';
 import '../../safety/presentation/report_sheet.dart';
-import '../application/select_artisan.dart';
 import '../data/job_providers.dart';
 import 'job_completion.dart';
 import 'widgets/job_widgets.dart';
@@ -345,21 +344,7 @@ class _OwnerOffersSection extends ConsumerWidget {
   const _OwnerOffersSection({required this.job});
   final Job job;
 
-  /// Seçim mantığı `selectArtisanForJob`'da ortak: sohbet ekranındaki "Ustayı
-  /// Seç" şeridi de aynı fonksiyonu çağırır, davranış birebir aynı kalsın.
-  Future<void> _selectOffer(
-      BuildContext context, WidgetRef ref, Offer offer) async {
-    await selectArtisanForJob(
-      context,
-      ref,
-      job: job,
-      artisanId: offer.artisanId,
-      artisanName: offer.artisanName,
-      artisanPhotoUrl: offer.artisanPhotoUrl,
-    );
-  }
-
-  /// Bu ustayla sohbeti hazırlar (döküman yazılana kadar bekler).
+  /// Bu ustayla BU İLANA ait sohbeti hazırlar (döküman yazılana kadar bekler).
   Future<String> _chatIdFor(WidgetRef ref, Offer offer) {
     return ref.read(chatRepositoryProvider).startChat(
           customerUid: job.customerId,
@@ -368,6 +353,8 @@ class _OwnerOffersSection extends ConsumerWidget {
           artisanUid: offer.artisanId,
           artisanName: offer.artisanName,
           artisanPhotoUrl: offer.artisanPhotoUrl,
+          jobId: job.jobId,
+          jobTitle: job.title,
         );
   }
 
@@ -448,7 +435,6 @@ class _OwnerOffersSection extends ConsumerWidget {
                 for (final o in offers) ...[
                   _OfferCard(
                     offer: o,
-                    onSelect: () => _selectOffer(context, ref, o),
                     onChat: () => _openChat(context, ref, o),
                   ),
                   const SizedBox(height: 10),
@@ -690,11 +676,9 @@ class _EditJobSheetState extends State<_EditJobSheet> {
 class _OfferCard extends StatelessWidget {
   const _OfferCard({
     required this.offer,
-    required this.onSelect,
     required this.onChat,
   });
   final Offer offer;
-  final VoidCallback onSelect;
   final VoidCallback onChat;
 
   @override
@@ -781,19 +765,14 @@ class _OfferCard extends StatelessWidget {
           const Divider(height: 20),
           Row(
             children: [
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: onChat,
-                  icon: const Icon(Icons.chat_bubble_outline, size: 18),
-                  label: const Text('Sohbet'),
-                ),
-              ),
-              const SizedBox(width: 10),
+              // "Ustayı Seç" BURADA DEĞİL: seçim, ustayla konuşulan sohbetin
+              // üstünden yapılır (§3). Müşteri önce yazışsın, sonra karar
+              // versin — liste üzerinden körlemesine seçim kalktı.
               Expanded(
                 child: FilledButton.icon(
-                  onPressed: onSelect,
-                  icon: const Icon(Icons.check, size: 18),
-                  label: const Text('Ustayı Seç'),
+                  onPressed: onChat,
+                  icon: const Icon(Icons.chat_bubble_outline, size: 18),
+                  label: const Text('Mesaj Gönder'),
                 ),
               ),
             ],
@@ -843,6 +822,8 @@ Future<void> _openJobChat(BuildContext context, WidgetRef ref, Job job) async {
         artisanUid: artisanId,
         artisanName: 'Usta',
         artisanPhotoUrl: null,
+        jobId: job.jobId,
+        jobTitle: job.title,
       );
     } else {
       chatId = stored!;
@@ -871,6 +852,45 @@ class _AssignedCard extends ConsumerWidget {
       await action();
     } catch (_) {
       if (context.mounted) context.showError('İşlem başarısız, tekrar deneyin.');
+    }
+  }
+
+  /// Usta seçimini geri alır (onaylı). İlan yeniden açılır; seçilmeyen
+  /// ustaların kilitli sohbetleri CF tarafından tekrar açılır.
+  Future<void> _cancelSelection(
+      BuildContext context, WidgetRef ref, Job job) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Seçimi iptal et'),
+        content: const Text(
+            'Usta seçiminiz iptal edilecek ve ilan yeniden teklif toplamaya '
+            'açılacak. İlgilenen ustalar sizinle tekrar yazışabilir.'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Vazgeç')),
+          FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Seçimi İptal Et')),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
+
+    try {
+      await ref.read(jobRepositoryProvider).cancelSelection(
+            jobId: job.jobId,
+            customerId: job.customerId,
+          );
+      if (context.mounted) {
+        context.showSuccess('Seçim iptal edildi; ilan yeniden açıldı.');
+      }
+    } catch (_) {
+      if (context.mounted) {
+        context.showError(
+            'Seçim iptal edilemedi. İş başladıysa "Sorun Bildir" ile ilerleyin.');
+      }
     }
   }
 
@@ -953,16 +973,22 @@ class _AssignedCard extends ConsumerWidget {
                         : 'Süre doldu; iş yakında otomatik tamamlanır.',
                   ),
                 ],
-                // İşe başla — ikincil (zorunlu değil)
-                if (status == JobStatus.workerSelected) ...[
+                // "İşe başladım" KALDIRILDI: usta işi bitirince doğrudan
+                // tamamlama onayı veriyor, arada ayrı bir adım yok. Durum
+                // alanı (`inProgress`) modelde duruyor — eski kayıtlar ve
+                // yönetici ekranları kırılmasın.
+                //
+                // Yerine müşteriye SEÇİM İPTALİ: usta işi yarıda bırakırsa ya
+                // da anlaşma bozulursa ilan yeniden açılır, diğer ustaların
+                // sohbetleri tekrar aktifleşir (kilitleri CF kaldırır).
+                if (status == JobStatus.workerSelected && isOwner) ...[
                   const SizedBox(height: 8),
                   SizedBox(
                     width: double.infinity,
                     child: TextButton.icon(
-                      onPressed: () => _busyGuard(
-                          context, () => repo.markStarted(job.jobId)),
-                      icon: const Icon(Icons.play_arrow_rounded, size: 18),
-                      label: const Text('İşe başladım (isteğe bağlı)'),
+                      onPressed: () => _cancelSelection(context, ref, job),
+                      icon: const Icon(Icons.undo_rounded, size: 18),
+                      label: const Text('Usta seçimini iptal et'),
                     ),
                   ),
                 ],
@@ -1458,6 +1484,8 @@ class _ArtisanOfferSection extends ConsumerWidget {
             artisanUid: user.uid,
             artisanName: draft?.displayName ?? user.displayName,
             artisanPhotoUrl: draft?.profilePhotoUrl ?? user.profilePhotoUrl,
+            jobId: job.jobId,
+            jobTitle: job.title,
           );
       if (!context.mounted) return;
       context.push(RoutePaths.chatThread(chatId));

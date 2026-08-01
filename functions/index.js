@@ -521,6 +521,42 @@ exports.onReviewWritten = onDocumentWritten(
       const countDelta = (after ? 1 : 0) - (before ? 1 : 0);
       const sumDelta = newRating - oldRating;
 
+      // USTA → MÜŞTERİ (a2c): ayrı yol. Müşteri puanı YALNIZ USTALARA
+      // görünür (müşteri profili vitrin değil), bu yüzden herkese açık
+      // `users` dokümanına değil `users/{uid}/private/rating` altına yazılır.
+      // İstemci bu dokümana yazamaz (rules: private allowlist'inde yok).
+      const direction = (after && after.direction) ||
+        (before && before.direction) || "c2a";
+      if (direction === "a2c") {
+        const customerUid = (after && after.customerUID) ||
+          (before && before.customerUID);
+        if (!customerUid) return;
+        if (!countDelta && !sumDelta) return;
+        try {
+          await db.collection("users").doc(customerUid)
+              .collection("private").doc("rating")
+              .set({
+                totalReviews: FieldValue.increment(countDelta),
+                totalRatingSum: FieldValue.increment(sumDelta),
+                updatedAt: new Date().toISOString(),
+              }, {merge: true});
+          // Ortalama okunurken hesaplanabilir ama tek alanda tutmak istemci
+          // tarafını basitleştirir; toplamlardan türetilir.
+          const snap = await db.collection("users").doc(customerUid)
+              .collection("private").doc("rating").get();
+          const d = snap.data() || {};
+          const n = Number(d.totalReviews || 0);
+          const s = Number(d.totalRatingSum || 0);
+          await snap.ref.set(
+              {averageRating: n > 0 ? s / n : 0}, {merge: true});
+          logger.info(`customer rating updated for ${customerUid} ` +
+            `(count ${countDelta}, sum ${sumDelta})`);
+        } catch (e) {
+          logger.error(`customer rating update failed for ${customerUid}: ${e}`);
+        }
+        return;
+      }
+
       // Etiket deltası: eski etiketleri düş, yenileri say. Yalnız etiket
       // değişse bile (rating sabit) topTags güncellenmeli — bu yüzden erken
       // çıkış hem sayı/toplam hem etiket değişimini birlikte kontrol eder.
@@ -579,6 +615,148 @@ exports.onReviewWritten = onDocumentWritten(
       }
     },
 );
+
+/**
+ * Aynı anda AÇIK tutulabilecek ilan sayısı ve günlük ilan hakkı.
+ *
+ * Neden gerekli: ilan yayınlanınca EŞLEŞEN TÜM USTALARA bildirim gider
+ * (`onJobCreated` fan-out). Limit olmadan tek kullanıcı sınırsız ilan açıp
+ * platform çapında bildirim spam'i üretebilir.
+ */
+const MAX_OPEN_JOBS = 5;
+const MAX_JOBS_PER_DAY = 10;
+
+/**
+ * `users/{uid}/private/jobStats.openCount` sayacını tazeler.
+ *
+ * Kural motoru `count()` yapamadığı için "aynı anda 5 açık ilan" kısıtı ancak
+ * DENORMALIZE sayaçla uygulanabilir; kural bu dokümanı okur. Sayaç istemci
+ * yazımına kapalıdır (rules) — yalnız burası yazar.
+ *
+ * Doğrudan sorguyla yeniden hesaplanır (increment/decrement yerine): durum
+ * geçişleri çok yollu (open → workerSelected → open, expired, cancelled…) ve
+ * kaçan bir geçiş sayacı kalıcı olarak bozardı.
+ */
+async function refreshOpenJobCount(customerId) {
+  if (!customerId) return;
+  try {
+    const snap = await db.collection("jobs")
+        .where("customerId", "==", customerId)
+        .where("status", "==", "open")
+        .get();
+    // Süresi dolmuş ilanlar `open` yazar ama yeni ilana engel OLMAMALI.
+    const now = Date.now();
+    let open = 0;
+    snap.forEach((d) => {
+      const exp = Number(d.data().expiresAtMs || 0);
+      if (!exp || exp > now) open += 1;
+    });
+    await db.collection("users").doc(customerId)
+        .collection("private").doc("jobStats")
+        .set({openCount: open, updatedAt: new Date().toISOString()},
+            {merge: true});
+  } catch (e) {
+    logger.warn(`refreshOpenJobCount failed for ${customerId}: ${e}`);
+  }
+}
+
+/**
+ * Sohbete SİSTEM mesajı yazar (yaşam döngüsü şeridi).
+ *
+ * `type: "system"` kurallarda istemci yazımına KAPALI — sahte "Usta seçildi"
+ * bildirimi üretilemez. `senderUid: "system"` balon yerine ortada şerit olarak
+ * çizilmesini sağlar. Sohbetin `lastMessage` özeti de tazelenir ki listede
+ * son durum görünsün.
+ */
+async function postSystemMessage(chatId, text) {
+  try {
+    const now = new Date();
+    await db.collection("chats").doc(chatId).collection("messages").add({
+      senderUid: "system",
+      type: "system",
+      text,
+      createdAt: Timestamp.fromDate(now),
+    });
+    await db.collection("chats").doc(chatId).set({
+      lastMessage: text,
+      lastMessageSenderUid: "system",
+      updatedAt: Timestamp.fromDate(now),
+    }, {merge: true});
+  } catch (e) {
+    logger.warn(`postSystemMessage failed for ${chatId}: ${e}`);
+  }
+}
+
+/**
+ * Bir ilanın sohbetlerini bulur (`chats.jobId == jobId`).
+ *
+ * Sohbet kimliği `chat_{müşteri}__{usta}__{jobId}` biçimindedir ama sorgu
+ * KİMLİK ÜZERİNDEN yapılamaz (Firestore önek sorgusu + eşitlik karışımı burada
+ * güvenilmez); bu yüzden `jobId` alanı denormalize yazılır ve tek eşitlik
+ * filtresiyle sorgulanır (composite index gerekmez).
+ */
+async function jobChatDocs(jobId) {
+  const snap = await db.collection("chats")
+      .where("jobId", "==", jobId)
+      .get();
+  return snap.docs;
+}
+
+/**
+ * Seçilen usta DIŞINDAKİ tüm sohbetleri salt okunur yapar.
+ *
+ * İstemci bunu yapamaz: kurallar hem başkasının sohbetine yazmayı hem de
+ * `lockedAt`/`lockReason` alanlarını istemci yazımına kapatır (aksi halde
+ * seçilmeyen usta kendi kilidini açardı).
+ */
+async function lockOtherJobChats(jobId, keepArtisanUid, reason) {
+  try {
+    const docs = await jobChatDocs(jobId);
+    const now = new Date().toISOString();
+    // 500'lük Firestore batch sınırı: teklif sayısı yüksek ilanlarda parçala.
+    let batch = db.batch();
+    let n = 0;
+    for (const d of docs) {
+      if (d.data().artisanUid === keepArtisanUid) continue;
+      if (d.data().lockedAt) continue; // zaten kilitli — dokunma
+      batch.update(d.ref, {lockedAt: now, lockReason: reason});
+      n += 1;
+      if (n % 450 === 0) {
+        await batch.commit();
+        batch = db.batch();
+      }
+    }
+    if (n % 450 !== 0) await batch.commit();
+    logger.info(`locked ${n} chat(s) for job ${jobId} (${reason})`);
+  } catch (e) {
+    logger.warn(`lockOtherJobChats failed for ${jobId}: ${e}`);
+  }
+}
+
+/** Seçim iptalinde kilitleri kaldırır (ilan yeniden teklif toplar). */
+async function unlockJobChats(jobId) {
+  try {
+    const docs = await jobChatDocs(jobId);
+    let batch = db.batch();
+    let n = 0;
+    for (const d of docs) {
+      if (!d.data().lockedAt) continue;
+      batch.update(d.ref, {
+        lockedAt: FieldValue.delete(),
+        lockReason: FieldValue.delete(),
+      });
+      n += 1;
+      if (n % 450 === 0) {
+        await batch.commit();
+        batch = db.batch();
+      }
+    }
+    if (n % 450 !== 0) await batch.commit();
+    logger.info(`unlocked ${n} chat(s) for job ${jobId}`);
+  } catch (e) {
+    logger.warn(`unlockJobChats failed for ${jobId}: ${e}`);
+  }
+}
 
 /**
  * Bir teklif (ilgi kaydı) her yazıldığında (oluşturma/güncelleme/geri çekme)
@@ -730,6 +908,46 @@ exports.onJobCreated = onDocumentCreated(
       const job = event.data && event.data.data();
       if (!job) return;
       const jobId = event.params.jobId;
+
+      // GÜNLÜK İLAN LİMİTİ. Aynı anda açık ilan sayısı kural tarafında
+      // (jobStats.openCount) kesiliyor; günlük hak ise sayaç gerektirdiği için
+      // burada. Aşılırsa ilan İPTAL edilir (silinmez — kullanıcı içeriğini
+      // kaybetmesin, ne olduğunu görebilsin) ve fan-out yapılmaz.
+      if (job.customerId) {
+        const rlRef = db.collection("adminRateLimits")
+            .doc(`job_create_${job.customerId}`);
+        const day = istanbulDayKey();
+        let overLimit = false;
+        try {
+          await db.runTransaction(async (tx) => {
+            const snap = await tx.get(rlRef);
+            const r = snap.exists ? (snap.data() || {}) : {};
+            const dayCount = r.dayKey === day ? Number(r.dayCount || 0) : 0;
+            if (dayCount >= MAX_JOBS_PER_DAY) {
+              overLimit = true;
+              return;
+            }
+            tx.set(rlRef, {dayKey: day, dayCount: dayCount + 1,
+              lastAtMs: Date.now()}, {merge: true});
+          });
+        } catch (e) {
+          // Sayaç yazılamadıysa ilanı ENGELLEME (kullanıcı mağdur olmasın).
+          logger.warn(`job rate limit skipped for ${job.customerId}: ${e}`);
+        }
+        if (overLimit) {
+          await db.collection("jobs").doc(jobId).update({
+            status: "cancelled",
+            cancelReason: "rateLimited",
+          });
+          const t = "İlan yayınlanamadı";
+          const b = `Günlük ilan hakkınızı doldurdunuz (${MAX_JOBS_PER_DAY}). ` +
+            "Yarın tekrar deneyebilirsiniz.";
+          await saveNotification(job.customerId, `job_${jobId}`,
+              {type: "job", title: t, body: b, jobId});
+          logger.warn(`job ${jobId} rate-limited for ${job.customerId}`);
+          return;
+        }
+      }
 
       // Yalnızca açık (yeni) ilanlar; kategori/il yoksa eşleşme yapılamaz.
       if ((job.status || "open") !== "open") return;
@@ -940,6 +1158,9 @@ exports.onJobWritten = onDocumentWritten(
       }
       if (!after) {
         // İlan silindi (kural: sahibi, ustaya bağlanmamış ilanı silebilir).
+        // Açık ilan sayacı düşsün, yoksa kullanıcı sildiği ilanlar yüzünden
+        // limite takılı kalırdı.
+        await refreshOpenJobCount(before && before.customerId);
         // Bağlı teklifleri temizle — ustanın listesinde hayalet kayıt kalmasın.
         // (Teklif silinmesi onOfferWritten'ı tetikler; o da ilan yoksa
         // offerCount güncellemesini zaten atlar.)
@@ -955,6 +1176,13 @@ exports.onJobWritten = onDocumentWritten(
         return;
       }
       const jobId = event.params.jobId;
+
+      // 0) Açık ilan sayacı: yeni ilan ya da durum değişimi → yeniden hesapla.
+      //    Kural (`jobs create`) bu sayacı okuyup MAX_OPEN_JOBS kapısını
+      //    uygular; sayaç istemci yazımına kapalıdır.
+      if (!before || before.status !== after.status) {
+        await refreshOpenJobCount(after.customerId);
+      }
 
       // 1) completed'a ilk geçiş → completedJobs +1.
       //    `disputed`dan dönüş sayılmaz: disputed→completed yalnızca şikayet
@@ -977,6 +1205,37 @@ exports.onJobWritten = onDocumentWritten(
           logger.warn(
               `completedJobs skipped for ${after.selectedArtisanId}: ${e}`);
         }
+        // İş kapandı: sohbete şerit + değerlendirme daveti. Sohbet KİLİTLENMEZ
+        // — taraflar teslim sonrası konuşmaya devam edebilmeli; kapanma
+        // 7 gün sonra arşivleme ile olur (archiveCompletedChats).
+        if (after.chatId) {
+          await postSystemMessage(after.chatId,
+              "🎉 İş tamamlandı. Karşılıklı değerlendirme yapabilirsiniz.");
+        }
+        // Arşivleme saati bu damgadan sayılır (istemci yazamaz — rules).
+        if (!after.completedAt) {
+          try {
+            await db.collection("jobs").doc(jobId)
+                .update({completedAt: new Date().toISOString()});
+          } catch (e) {
+            logger.warn(`completedAt set failed for ${jobId}: ${e}`);
+          }
+        }
+      }
+
+      // 1b) Tek taraflı onay → karşı tarafa sohbette hatırlatma şeridi.
+      if (before && after.chatId) {
+        const custNew = after.customerConfirmedDone === true &&
+          before.customerConfirmedDone !== true;
+        const artNew = after.artisanConfirmedDone === true &&
+          before.artisanConfirmedDone !== true;
+        // Yalnız TEK taraf onaylıysa (ikisi de onaylıysa yukarıdaki
+        // "tamamlandı" şeridi zaten yazıldı, iki mesaj üst üste binmesin).
+        if ((custNew || artNew) && after.status !== "completed") {
+          await postSystemMessage(after.chatId, custNew ?
+            "📩 Müşteri işi tamamlandı olarak onayladı. Usta onayı bekleniyor." :
+            "📩 Usta teslimi onayladı. Müşteri onayı bekleniyor.");
+        }
       }
 
       // 2) Usta seçildi (open → workerSelected) → seçilen ustaya haber ver.
@@ -994,6 +1253,50 @@ exports.onJobWritten = onDocumentWritten(
         });
         await sendPushToUid(after.selectedArtisanId, selTitle, selBody,
             {type: "job", jobId});
+
+        // Bu ilanın DİĞER sohbetlerini kilitle (salt okunur) — seçilmeyen
+        // ustalar yazmaya devam edemez. İstemci yapamaz: kural, başkasının
+        // sohbetine yazmayı ve `lockedAt` alanını tamamen kapatır.
+        await lockOtherJobChats(jobId, after.selectedArtisanId,
+            "otherArtisanSelected");
+
+        // Seçilen sohbete yaşam döngüsü şeridi.
+        if (after.chatId) {
+          await postSystemMessage(after.chatId,
+              "✅ Usta seçildi — iş başladı. İş bitince iki taraf da " +
+              "tamamlandı onayı verecek.");
+        }
+      }
+
+      // 2a) Seçim İPTAL (workerSelected → open): müşteri vazgeçti ya da usta
+      //     işi bıraktı. Kilitler açılır, ilan yeniden teklif toplar.
+      if (before && before.status === "workerSelected" &&
+          after.status === "open") {
+        await unlockJobChats(jobId);
+        // Seçilmiş ustanın sohbetine de bilgi düşülür (kilidi hiç konmamıştı).
+        if (before.chatId) {
+          await postSystemMessage(before.chatId,
+              "↩️ Müşteri usta seçimini iptal etti; ilan yeniden açıldı.");
+        }
+        // Kötüye kullanım freni: sürekli seç–iptal döngüsü ustaları oyalar.
+        // 3. iptalden sonra ilan kapanır (istemci sayacı yazamaz — burada).
+        const cancels = Number(before.selectionCancelCount || 0) + 1;
+        if (cancels >= 3) {
+          await db.collection("jobs").doc(jobId).update({
+            selectionCancelCount: cancels,
+            status: "cancelled",
+            cancelReason: "wrongPost",
+          });
+          const t = "İlan kapatıldı";
+          const b = "Bu ilanda usta seçimi 3 kez iptal edildi. " +
+            "Yeni bir ilan açabilirsiniz.";
+          await saveNotification(after.customerId, `job_${jobId}`,
+              {type: "job", title: t, body: b, jobId});
+          logger.warn(`job ${jobId} closed after ${cancels} cancels`);
+        } else {
+          await db.collection("jobs").doc(jobId)
+              .update({selectionCancelCount: cancels});
+        }
       }
 
       // 2b) Şikayet açıldı/geri çekildi → KARŞI tarafa bildirim + push.
@@ -4761,5 +5064,57 @@ exports.purgeRemovedProducts = onSchedule(
         await doc.ref.delete();
         logger.info(`purged product ${doc.id}`);
       }
+    },
+);
+
+/**
+ * Tamamlanan işlerin sohbetlerini 7 gün sonra ARŞİVLER (salt okunur).
+ *
+ * SİLMEZ — bilinçli karar: kalıcı silme anlaşmazlık kanıtını, değerlendirme
+ * bağını (`reviews` kimliği chatId'ye dayanır) ve yönetici transcript'ini
+ * götürürdü. Geç gelen bir şikayet 8. günde çözümsüz kalırdı. Arşiv, kullanıcı
+ * tarafında "kapanmış" görünür: mesajlaşma kapalı, geçmiş okunabilir.
+ *
+ * `completedAt` ISO string → tek alanlı aralık sorgusu (composite index
+ * gerekmez); `chatsArchivedAt` ikinci kez işlemeyi engeller.
+ */
+exports.archiveCompletedChats = onSchedule(
+    {
+      schedule: "every 24 hours",
+      region: REGION,
+      timeZone: "Europe/Istanbul",
+    },
+    async () => {
+      const cutoff = new Date(
+          Date.now() - 7 * 24 * 60 * 60 * 1000,
+      ).toISOString();
+      const qs = await db.collection("jobs")
+          .where("completedAt", "<=", cutoff)
+          .limit(100)
+          .get();
+
+      let jobs = 0;
+      for (const doc of qs.docs) {
+        const d = doc.data() || {};
+        if (d.chatsArchivedAt) continue; // zaten arşivlendi
+        const docs = await jobChatDocs(doc.id);
+        const now = new Date().toISOString();
+        let batch = db.batch();
+        let n = 0;
+        for (const c of docs) {
+          if (c.data().lockedAt) continue; // kilitli (seçilmeyen usta) — dursun
+          batch.update(c.ref, {lockedAt: now, lockReason: "archived"});
+          n += 1;
+          if (n % 450 === 0) {
+            await batch.commit();
+            batch = db.batch();
+          }
+        }
+        if (n % 450 !== 0) await batch.commit();
+        await doc.ref.update({chatsArchivedAt: now});
+        jobs += 1;
+        logger.info(`archived ${n} chat(s) for job ${doc.id}`);
+      }
+      if (jobs) logger.info(`archiveCompletedChats: ${jobs} job(s)`);
     },
 );

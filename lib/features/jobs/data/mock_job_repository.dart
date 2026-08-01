@@ -152,6 +152,58 @@ class MockJobRepository implements JobRepository {
   }
 
   @override
+  Future<void> cancelSelection({
+    required String jobId,
+    required String customerId,
+  }) async {
+    final job = _db.jobs[jobId];
+    if (job == null) return;
+    if (job.customerId != customerId) {
+      throw StateError('Bu ilan size ait değil');
+    }
+    if (job.status != JobStatus.workerSelected) {
+      throw StateError('Bu aşamada seçim iptal edilemez');
+    }
+
+    // accepted/rejected → pending (ilan yeniden açıldı, herkes tekrar aday);
+    // withdrawn dokunulmaz.
+    for (final o in _db.offers.values.where((o) => o.jobId == jobId).toList()) {
+      if (o.status == OfferStatus.withdrawn) continue;
+      if (o.status == OfferStatus.pending) continue;
+      _db.offers[o.offerId] =
+          o.copyWith(status: OfferStatus.pending, updatedAt: DateTime.now());
+    }
+
+    // `copyWith` null ile alan TEMİZLEYEMEZ (null → eski değeri korur), bu
+    // yüzden seçim alanları için nesne yeniden kurulur.
+    _db.jobs[jobId] = Job(
+      jobId: job.jobId,
+      customerId: job.customerId,
+      customerName: job.customerName,
+      customerPhotoUrl: job.customerPhotoUrl,
+      title: job.title,
+      description: job.description,
+      category: job.category,
+      province: job.province,
+      district: job.district,
+      neighborhood: job.neighborhood,
+      photos: job.photos,
+      priceType: job.priceType,
+      budget: job.budget,
+      status: JobStatus.open,
+      offerCount: job.offerCount,
+      selectedOfferId: null,
+      selectedArtisanId: null,
+      chatId: null,
+      customerConfirmedDone: false,
+      artisanConfirmedDone: false,
+      createdAt: job.createdAt,
+      expiresAt: job.expiresAt,
+    );
+    _db.notify();
+  }
+
+  @override
   Future<void> confirmDone({
     required String jobId,
     required bool byCustomer,

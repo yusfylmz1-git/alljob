@@ -36,8 +36,23 @@ class FirebaseChatRepository implements ChatRepository {
   /// Son yazılan heal değeri — gereksiz chatMeta yazısını keser.
   final Map<String, String> _lastHealedMetaKey = {};
 
-  static String chatIdFor(String customerUid, String artisanUid) =>
-      'chat_${customerUid}__$artisanUid';
+  /// Sohbet kimliği — İLAN BAZLI.
+  ///
+  /// [jobId] doluysa `chat_{müşteri}__{usta}__{jobId}`: her ilan kendi sohbet
+  /// odasını alır, aynı çift farklı ilanlarda karışmaz.
+  ///
+  /// [jobId] boşsa ESKİ iki parçalı biçim (`chat_{müşteri}__{usta}`) üretilir —
+  /// ürün/eleman sohbetleri ilana bağlı değildir ve ilan bazlı şemadan önce
+  /// açılmış sohbetler bu kimlikle durmaya devam eder. İki biçim yan yana
+  /// yaşar; [_uidsFromChatId] ikisini de çözer.
+  static String chatIdFor(
+    String customerUid,
+    String artisanUid, {
+    String? jobId,
+  }) {
+    final base = 'chat_${customerUid}__$artisanUid';
+    return (jobId == null || jobId.isEmpty) ? base : '${base}__$jobId';
+  }
 
   CollectionReference<Map<String, dynamic>> get _chats =>
       _db.collection('chats');
@@ -203,6 +218,8 @@ class FirebaseChatRepository implements ChatRepository {
                 // Yalnız CF yazar; eksik alan = görünür (eski mesajlar).
                 moderationHidden:
                     d.data()['moderationHidden'] == true,
+                // Yaşam döngüsü bildirimi (yalnız CF yazar).
+                isSystem: d.data()['type'] == 'system',
                 createdAt: (d.data()['createdAt'] as Timestamp?)?.toDate() ??
                     DateTime.now(),
               ))
@@ -240,6 +257,8 @@ class FirebaseChatRepository implements ChatRepository {
     }
 
     // chatId'den uid türetilebiliyorsa iskelet oluşturmayı dene.
+    // NOT: parse başarısızsa hiçbir şey yazılmaz ve hata da görünmez —
+    // kimlik biçimi değişirse (ilan bazlı 3 parça) burası ilk kırılacak yerdir.
     final parts = _uidsFromChatId(chatId);
     if (parts != null) {
       await _ensureChatDoc(
@@ -250,6 +269,8 @@ class FirebaseChatRepository implements ChatRepository {
         artisanUid: parts.$2,
         artisanName: 'Usta',
         artisanPhotoUrl: null,
+        // İskelette başlık bilinmez; kimlikten yalnız ilan numarası çıkar.
+        jobId: _jobIdFromChatId(chatId),
         now: DateTime.now(),
       );
     }
@@ -262,8 +283,9 @@ class FirebaseChatRepository implements ChatRepository {
   bool hasChatBetween({
     required String customerUid,
     required String artisanUid,
+    String? jobId,
   }) =>
-      _threads.containsKey(chatIdFor(customerUid, artisanUid));
+      _threads.containsKey(chatIdFor(customerUid, artisanUid, jobId: jobId));
 
   @override
   int unreadCount({required String chatId, required String uid}) {
@@ -311,9 +333,12 @@ class FirebaseChatRepository implements ChatRepository {
     required String artisanUid,
     required String artisanName,
     String? artisanPhotoUrl,
+    String? jobId,
+    String? jobTitle,
   }) async {
-    final id = chatIdFor(customerUid, artisanUid);
+    final id = chatIdFor(customerUid, artisanUid, jobId: jobId);
     final now = DateTime.now();
+    final prev = _threads[id];
     _threads[id] = ChatThread(
       id: id,
       customerUid: customerUid,
@@ -322,9 +347,16 @@ class FirebaseChatRepository implements ChatRepository {
       artisanName: artisanName,
       customerPhotoUrl: customerPhotoUrl,
       artisanPhotoUrl: artisanPhotoUrl,
-      createdAt: _threads[id]?.createdAt ?? now,
-      updatedAt: _threads[id]?.updatedAt ?? now,
-      lastMessage: _threads[id]?.lastMessage,
+      createdAt: prev?.createdAt ?? now,
+      updatedAt: prev?.updatedAt ?? now,
+      lastMessage: prev?.lastMessage,
+      jobId: jobId,
+      jobTitle: jobTitle,
+      // Sunucudan gelen bayrakları koru: önbellek tazelemesi kilidi/başlangıcı
+      // sıfırlarsa UI kilitli sohbette giriş kutusunu yeniden açardı.
+      customerStarted: prev?.customerStarted ?? false,
+      lockedAt: prev?.lockedAt,
+      lockReason: prev?.lockReason,
     );
 
     await _ensureChatDoc(
@@ -335,6 +367,8 @@ class FirebaseChatRepository implements ChatRepository {
       artisanUid: artisanUid,
       artisanName: artisanName,
       artisanPhotoUrl: artisanPhotoUrl,
+      jobId: jobId,
+      jobTitle: jobTitle,
       now: now,
     );
     return id;
@@ -349,6 +383,8 @@ class FirebaseChatRepository implements ChatRepository {
     required String artisanUid,
     required String artisanName,
     String? artisanPhotoUrl,
+    String? jobId,
+    String? jobTitle,
     required DateTime now,
   }) {
     final inflight = _pendingChatDoc[id];
@@ -362,6 +398,8 @@ class FirebaseChatRepository implements ChatRepository {
       artisanUid: artisanUid,
       artisanName: artisanName,
       artisanPhotoUrl: artisanPhotoUrl,
+      jobId: jobId,
+      jobTitle: jobTitle,
       now: now,
     );
     _pendingChatDoc[id] = future;
@@ -381,6 +419,8 @@ class FirebaseChatRepository implements ChatRepository {
     required String artisanUid,
     required String artisanName,
     String? artisanPhotoUrl,
+    String? jobId,
+    String? jobTitle,
     required DateTime now,
   }) async {
     // Var mı?
@@ -424,6 +464,10 @@ class FirebaseChatRepository implements ChatRepository {
         // Null-aware map elemanı: değer null ise anahtar yazılmaz.
         'customerPhotoURL': ?customerPhotoUrl,
         'artisanPhotoURL': ?artisanPhotoUrl,
+        // İlan bazlı sohbet: kimlikten de türetilebilir ama alan olarak
+        // yazmak sorgu/rules tarafını basitleştirir. Genel sohbette yazılmaz.
+        'jobId': ?jobId,
+        'jobTitle': ?jobTitle,
         'createdAt': Timestamp.fromDate(now),
         'updatedAt': Timestamp.fromDate(now),
       });
@@ -484,6 +528,13 @@ class FirebaseChatRepository implements ChatRepository {
       final receiver = thread.otherUid(senderUid);
       if (thread.archivedBy.contains(receiver)) {
         meta['archivedBy'] = {receiver: false};
+      }
+      // İLK müşteri mesajı sohbeti ustaya AÇAR. Kural motoru "bu sohbette
+      // müşteri mesajı var mı" diye sorgulayamadığı için bayrak burada
+      // DENORMALIZE yazılır; usta yazma izni buna bakar.
+      if (senderUid == thread.customerUid && !thread.customerStarted) {
+        meta['customerStarted'] = true;
+        _threads[chatId] = thread.copyWith(customerStarted: true);
       }
     }
     await _chats.doc(chatId).set(meta, SetOptions(merge: true));
@@ -563,12 +614,26 @@ class FirebaseChatRepository implements ChatRepository {
     return {uids.$1: true, uids.$2: true};
   }
 
-  /// `chat_<customerUid>__<artisanUid>` → (customer, artisan).
+  /// `chat_<müşteri>__<usta>[__<jobId>]` → (customer, artisan).
+  ///
+  /// İki biçim de çözülür: ilan bazlı (3 parça) ve eski genel sohbet (2 parça).
+  /// jobId parçası burada YOK SAYILIR — uid'ler her iki biçimde de ilk iki
+  /// parçadır.
   static (String, String)? _uidsFromChatId(String chatId) {
     if (!chatId.startsWith('chat_')) return null;
     final parts = chatId.substring(5).split('__');
-    if (parts.length != 2 || parts[0].isEmpty || parts[1].isEmpty) return null;
+    if (parts.length < 2 || parts[0].isEmpty || parts[1].isEmpty) return null;
     return (parts[0], parts[1]);
+  }
+
+  /// Kimlikten ilan numarası — yalnız ilan bazlı (3 parçalı) sohbetlerde.
+  /// Dokümandaki `jobId` alanı eksikse (eski/iskelet kayıt) yedek yol.
+  static String? _jobIdFromChatId(String chatId) {
+    if (!chatId.startsWith('chat_')) return null;
+    final parts = chatId.substring(5).split('__');
+    if (parts.length < 3 || parts[2].isEmpty) return null;
+    // jobId'nin kendisi '__' içerebilir → 3. parçadan sonrası birleştirilir.
+    return parts.sublist(2).join('__');
   }
 
   ChatThread _threadFromDoc(String id, Map<String, dynamic> d) {
@@ -588,6 +653,13 @@ class FirebaseChatRepository implements ChatRepository {
       updatedAt: updated,
       archivedBy: _flagSet(d['archivedBy']),
       pinnedBy: _flagSet(d['pinnedBy']),
+      // Alan yoksa kimlikten türet: iskelet dokümanlarda (ensureChatReady)
+      // jobId yazılamamış olabilir.
+      jobId: (d['jobId'] as String?) ?? _jobIdFromChatId(id),
+      jobTitle: d['jobTitle'] as String?,
+      customerStarted: d['customerStarted'] == true,
+      lockedAt: (d['lockedAt'] as Timestamp?)?.toDate(),
+      lockReason: ChatLockReason.fromString(d['lockReason'] as String?),
     );
   }
 

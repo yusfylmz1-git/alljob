@@ -47,6 +47,17 @@ abstract interface class JobRepository {
     required String chatId,
   });
 
+  /// Usta seçimini geri alır: ilan yeniden `open` olur, seçim alanları
+  /// temizlenir ve teklifler tekrar `pending`e döner.
+  ///
+  /// Yalnız `workerSelected` durumunda çalışır — iş başladıysa/tamamlandıysa ya
+  /// da şikayet açıldıysa bu yol kapalıdır (o durumlar dispute ile çözülür).
+  /// Sohbet kilitlerini CF (`onJobWritten`) açar.
+  Future<void> cancelSelection({
+    required String jobId,
+    required String customerId,
+  });
+
   /// Seçilen usta işe başladı → `inProgress`.
   Future<void> markStarted(String jobId);
 

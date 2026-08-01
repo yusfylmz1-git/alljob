@@ -1,12 +1,17 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sepette_hizmet/data/local/mock_database.dart';
+import 'package:sepette_hizmet/data/models/chat.dart' show ChatLockReason;
 import 'package:sepette_hizmet/data/models/favorite.dart';
 import 'package:sepette_hizmet/data/models/geo_models.dart';
 import 'package:sepette_hizmet/data/models/job.dart';
 import 'package:sepette_hizmet/data/models/offer.dart';
+import 'package:sepette_hizmet/data/models/review.dart'
+    show Review, ReviewDirection;
 import 'package:sepette_hizmet/features/favorites/data/mock_favorite_repository.dart';
+import 'package:sepette_hizmet/features/chat/data/chat_repository.dart'
+    show MockChatRepository;
 import 'package:sepette_hizmet/features/jobs/application/select_artisan.dart'
-    show selectableJobsFrom;
+    show canSelectArtisanFor;
 import 'package:sepette_hizmet/features/jobs/data/mock_job_repository.dart';
 import 'package:sepette_hizmet/features/jobs/data/mock_offer_repository.dart';
 import 'package:sepette_hizmet/features/jobs/presentation/job_explore_filter.dart';
@@ -819,134 +824,222 @@ void main() {
     });
   });
 
-  // Sohbet ilandan türemez (`chatIdFor(müşteri, usta)`), yani aynı çift tüm
-  // ilanlarında tek sohbeti paylaşır. Sohbet üstündeki "Ustayı Seç" şeridi bu
-  // yüzden kesişimle çalışır: müşterinin AÇIK ilanları ∩ ustanın BEKLEYEN
-  // ilgileri.
-  group('Sohbet üstü ilan seçimi (çift bazlı)', () {
-    test('iki açık ilana aynı usta ilgi → ikisi de listelenir', () async {
-      final db = MockDatabase();
-      final jobs = MockJobRepository(db);
-      final offers = MockOfferRepository(db);
-
-      final job1 = await jobs.createJob(_sampleJob());
-      final job2 = await jobs.createJob(_sampleJob());
-      await offers.submitOffer(_sampleOffer(jobId: job1, artisanId: 'art_1'));
-      await offers.submitOffer(_sampleOffer(jobId: job2, artisanId: 'art_1'));
-
-      final myJobs = await jobs.watchMyJobs('cust_1').first;
-      final fromArtisan = await offers
-          .watchOffersFromArtisan(customerId: 'cust_1', artisanId: 'art_1')
-          .first;
-
-      expect(selectableJobsFrom(myJobs, fromArtisan).length, 2);
-    });
-
-    test('ilgi geri çekilince ilan listeden düşer', () async {
-      final db = MockDatabase();
-      final jobs = MockJobRepository(db);
-      final offers = MockOfferRepository(db);
-
-      final job1 = await jobs.createJob(_sampleJob());
-      final job2 = await jobs.createJob(_sampleJob());
-      await offers.submitOffer(_sampleOffer(jobId: job1, artisanId: 'art_1'));
-      await offers.submitOffer(_sampleOffer(jobId: job2, artisanId: 'art_1'));
-
-      await offers.withdrawOffer(jobId: job1, artisanUid: 'art_1');
-
-      final myJobs = await jobs.watchMyJobs('cust_1').first;
-      final fromArtisan = await offers
-          .watchOffersFromArtisan(customerId: 'cust_1', artisanId: 'art_1')
-          .first;
-
-      final selectable = selectableJobsFrom(myJobs, fromArtisan);
-      expect(selectable.map((j) => j.jobId).toList(), [job2]);
-    });
-
-    test('usta seçilen ilan düşer, diğeri kalır', () async {
-      final db = MockDatabase();
-      final jobs = MockJobRepository(db);
-      final offers = MockOfferRepository(db);
-
-      final job1 = await jobs.createJob(_sampleJob());
-      final job2 = await jobs.createJob(_sampleJob());
-      await offers.submitOffer(_sampleOffer(jobId: job1, artisanId: 'art_1'));
-      await offers.submitOffer(_sampleOffer(jobId: job2, artisanId: 'art_1'));
-
-      await jobs.selectOffer(
-        jobId: job1,
-        offerId: Offer.idFor(job1, 'art_1'),
-        artisanId: 'art_1',
-        customerId: 'cust_1',
-        chatId: 'chat_cust_1__art_1',
+  // Sohbet artık İLAN BAZLI: `chat_{müşteri}__{usta}__{jobId}`. Aynı çift her
+  // ilanda ayrı odada konuşur; eski iki parçalı kimlikler (ürün/eleman ve
+  // geçiş öncesi kayıtlar) çalışmaya devam eder.
+  group('İlan bazlı sohbet kimliği', () {
+    test('aynı çift, iki ilan → İKİ AYRI sohbet', () async {
+      final chats = MockChatRepository();
+      final a = await chats.startChat(
+        customerUid: 'cust_1',
+        customerName: 'Müşteri',
+        artisanUid: 'art_1',
+        artisanName: 'Usta',
+        jobId: 'job_a',
+        jobTitle: 'Banyo musluk',
+      );
+      final b = await chats.startChat(
+        customerUid: 'cust_1',
+        customerName: 'Müşteri',
+        artisanUid: 'art_1',
+        artisanName: 'Usta',
+        jobId: 'job_b',
+        jobTitle: 'Mutfak dolabı',
       );
 
-      final myJobs = await jobs.watchMyJobs('cust_1').first;
-      final fromArtisan = await offers
-          .watchOffersFromArtisan(customerId: 'cust_1', artisanId: 'art_1')
-          .first;
-
-      // job1 artık open değil; teklifi de accepted olduğu için kesişimde yok.
-      expect(selectableJobsFrom(myJobs, fromArtisan).map((j) => j.jobId).toList(),
-          [job2]);
+      expect(a, isNot(b));
+      expect(a, 'chat_cust_1__art_1__job_a');
+      expect(chats.getThread(a)!.jobTitle, 'Banyo musluk');
+      expect(chats.getThread(b)!.jobTitle, 'Mutfak dolabı');
     });
 
-    test('başka ustanın ilgisi bu sohbete sızmaz', () async {
-      final db = MockDatabase();
-      final jobs = MockJobRepository(db);
-      final offers = MockOfferRepository(db);
+    test('jobId verilmezse ESKİ iki parçalı kimlik (genel sohbet)', () async {
+      final chats = MockChatRepository();
+      final id = await chats.startChat(
+        customerUid: 'cust_1',
+        customerName: 'Müşteri',
+        artisanUid: 'art_1',
+        artisanName: 'Usta',
+      );
 
-      final job1 = await jobs.createJob(_sampleJob());
-      final job2 = await jobs.createJob(_sampleJob());
-      await offers.submitOffer(_sampleOffer(jobId: job1, artisanId: 'art_1'));
-      await offers.submitOffer(_sampleOffer(jobId: job2, artisanId: 'art_2'));
-
-      final myJobs = await jobs.watchMyJobs('cust_1').first;
-      final fromArtisan = await offers
-          .watchOffersFromArtisan(customerId: 'cust_1', artisanId: 'art_1')
-          .first;
-
-      expect(selectableJobsFrom(myJobs, fromArtisan).map((j) => j.jobId).toList(),
-          [job1]);
+      expect(id, 'chat_cust_1__art_1');
+      expect(chats.getThread(id)!.isJobChat, isFalse);
     });
 
-    test('başka müşterinin ilanı sızmaz (customerId filtresi)', () async {
-      final db = MockDatabase();
-      final jobs = MockJobRepository(db);
-      final offers = MockOfferRepository(db);
+    test('canSend: usta müşteri başlatmadan yazamaz, kilitli sohbette kimse '
+        'yazamaz', () async {
+      final chats = MockChatRepository();
+      final id = await chats.startChat(
+        customerUid: 'cust_1',
+        customerName: 'Müşteri',
+        artisanUid: 'art_1',
+        artisanName: 'Usta',
+        jobId: 'job_a',
+      );
+      final fresh = chats.getThread(id)!;
+      expect(fresh.canSend('cust_1'), isTrue); // müşteri her zaman
+      expect(fresh.canSend('art_1'), isFalse); // usta henüz yazamaz
 
-      final mine = await jobs.createJob(_sampleJob());
-      final other = await jobs.createJob(_sampleJob(customerId: 'cust_2'));
-      await offers.submitOffer(_sampleOffer(jobId: mine, artisanId: 'art_1'));
-      await offers.submitOffer(_sampleOffer(
-          jobId: other, artisanId: 'art_1', customerId: 'cust_2'));
+      final started = fresh.copyWith(customerStarted: true);
+      expect(started.canSend('art_1'), isTrue);
 
-      final fromArtisan = await offers
-          .watchOffersFromArtisan(customerId: 'cust_1', artisanId: 'art_1')
-          .first;
-
-      expect(fromArtisan.length, 1);
-      expect(fromArtisan.first.jobId, mine);
+      final locked = started.copyWith(
+        lockedAt: DateTime.now(),
+        lockReason: ChatLockReason.otherArtisanSelected,
+      );
+      expect(locked.canSend('cust_1'), isFalse);
+      expect(locked.canSend('art_1'), isFalse);
     });
 
-    test('süresi dolmuş ilan listelenmez (effectiveStatus)', () async {
+    test('canSelectArtisanFor: yalnız açık ve süresi dolmamış ilan', () async {
       final db = MockDatabase();
       final jobs = MockJobRepository(db);
-      final offers = MockOfferRepository(db);
 
-      // Süresi dolmuş ilan: status alanı hâlâ `open` yazar ama kural
-      // open → workerSelected geçişini reddeder.
-      final stale = await jobs.createJob(_sampleJob(
+      final openId = await jobs.createJob(_sampleJob());
+      expect(canSelectArtisanFor((await jobs.getJob(openId))!), isTrue);
+
+      // Süresi dolmuş ilan: status alanı hâlâ `open` ama kural geçişi reddeder.
+      final staleId = await jobs.createJob(_sampleJob(
         createdAt: DateTime.now().subtract(const Duration(days: 30)),
       ));
-      await offers.submitOffer(_sampleOffer(jobId: stale, artisanId: 'art_1'));
+      expect(canSelectArtisanFor((await jobs.getJob(staleId))!), isFalse);
+    });
 
-      final myJobs = await jobs.watchMyJobs('cust_1').first;
-      final fromArtisan = await offers
-          .watchOffersFromArtisan(customerId: 'cust_1', artisanId: 'art_1')
+    test('ilk MÜŞTERİ mesajı sohbeti ustaya açar (customerStarted)', () async {
+      final chats = MockChatRepository();
+      final id = await chats.startChat(
+        customerUid: 'cust_1',
+        customerName: 'Müşteri',
+        artisanUid: 'art_1',
+        artisanName: 'Usta',
+        jobId: 'job_a',
+      );
+      expect(chats.getThread(id)!.canSend('art_1'), isFalse);
+
+      // Usta yazsaydı bayrak açılmamalı (kural zaten reddeder; mock paritesi).
+      await chats.sendMessage(
+          chatId: id, senderUid: 'art_1', text: 'merhaba');
+      expect(chats.getThread(id)!.customerStarted, isFalse);
+
+      await chats.sendMessage(
+          chatId: id, senderUid: 'cust_1', text: 'merhaba usta');
+      expect(chats.getThread(id)!.customerStarted, isTrue);
+      expect(chats.getThread(id)!.canSend('art_1'), isTrue);
+    });
+  });
+
+  group('Usta seçimi iptali', () {
+    test('iptal → ilan open, seçim alanları temizlenir, teklifler pending',
+        () async {
+      final db = MockDatabase();
+      final jobs = MockJobRepository(db);
+      final offers = MockOfferRepository(db);
+
+      final jobId = await jobs.createJob(_sampleJob());
+      await offers.submitOffer(_sampleOffer(jobId: jobId, artisanId: 'art_1'));
+      await offers.submitOffer(_sampleOffer(jobId: jobId, artisanId: 'art_2'));
+      await jobs.selectOffer(
+        jobId: jobId,
+        offerId: Offer.idFor(jobId, 'art_1'),
+        artisanId: 'art_1',
+        customerId: 'cust_1',
+        chatId: 'chat_cust_1__art_1__$jobId',
+      );
+      expect((await jobs.getJob(jobId))!.status, JobStatus.workerSelected);
+
+      await jobs.cancelSelection(jobId: jobId, customerId: 'cust_1');
+
+      final job = (await jobs.getJob(jobId))!;
+      expect(job.status, JobStatus.open);
+      expect(job.selectedArtisanId, isNull);
+      expect(job.selectedOfferId, isNull);
+      expect(job.chatId, isNull);
+
+      // Reddedilen usta da yeniden aday olur.
+      final visible = await offers
+          .watchOffersForJob(jobId: jobId, customerId: 'cust_1')
           .first;
+      expect(visible.every((o) => o.status == OfferStatus.pending), isTrue);
+    });
 
-      expect(selectableJobsFrom(myJobs, fromArtisan), isEmpty);
+    test('iş başladıysa iptal reddedilir', () async {
+      final db = MockDatabase();
+      final jobs = MockJobRepository(db);
+      final offers = MockOfferRepository(db);
+
+      final jobId = await jobs.createJob(_sampleJob());
+      await offers.submitOffer(_sampleOffer(jobId: jobId, artisanId: 'art_1'));
+      await jobs.selectOffer(
+        jobId: jobId,
+        offerId: Offer.idFor(jobId, 'art_1'),
+        artisanId: 'art_1',
+        customerId: 'cust_1',
+        chatId: 'chat_cust_1__art_1__$jobId',
+      );
+      await jobs.markStarted(jobId);
+
+      expect(
+        () => jobs.cancelSelection(jobId: jobId, customerId: 'cust_1'),
+        throwsStateError,
+      );
+    });
+
+    test('başkasının ilanında iptal reddedilir', () async {
+      final db = MockDatabase();
+      final jobs = MockJobRepository(db);
+      final offers = MockOfferRepository(db);
+
+      final jobId = await jobs.createJob(_sampleJob());
+      await offers.submitOffer(_sampleOffer(jobId: jobId, artisanId: 'art_1'));
+      await jobs.selectOffer(
+        jobId: jobId,
+        offerId: Offer.idFor(jobId, 'art_1'),
+        artisanId: 'art_1',
+        customerId: 'cust_1',
+        chatId: 'chat_cust_1__art_1__$jobId',
+      );
+
+      expect(
+        () => jobs.cancelSelection(jobId: jobId, customerId: 'baskasi'),
+        throwsStateError,
+      );
+    });
+  });
+
+  group('Çift taraflı değerlendirme', () {
+    test('doküman kimliği yöne göre ayrışır; c2a geriye uyumlu', () {
+      const chatId = 'chat_cust_1__art_1__job_a';
+      expect(
+        ReviewDirection.docIdFor(chatId, ReviewDirection.customerToArtisan),
+        chatId, // eski kayıtlarla aynı kimlik
+      );
+      expect(
+        ReviewDirection.docIdFor(chatId, ReviewDirection.artisanToCustomer),
+        '${chatId}__a2c',
+      );
+    });
+
+    test('yön alanı yoksa ESKİ kayıt sayılır (müşteri→usta)', () {
+      final r = Review.fromMap('chat_c__a', const {
+        'artisanUID': 'a',
+        'customerUID': 'c',
+        'rating': 5,
+      });
+      expect(r.direction, ReviewDirection.customerToArtisan);
+      expect(r.targetUid, 'a');
+      expect(r.authorUid, 'c');
+    });
+
+    test('a2c: hedef müşteri, yazan usta', () {
+      final r = Review.fromMap('chat_c__a__a2c', const {
+        'artisanUID': 'a',
+        'customerUID': 'c',
+        'rating': 4,
+        'direction': 'a2c',
+      });
+      expect(r.direction, ReviewDirection.artisanToCustomer);
+      expect(r.targetUid, 'c');
+      expect(r.authorUid, 'a');
     });
   });
 }

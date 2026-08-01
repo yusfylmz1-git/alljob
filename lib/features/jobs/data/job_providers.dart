@@ -6,7 +6,6 @@ import '../../../data/models/offer.dart';
 import '../../artisan/application/my_profile_controller.dart';
 import '../../artisan/data/artisan_providers.dart' show mockDatabaseProvider;
 import '../../auth/application/auth_controller.dart';
-import '../application/select_artisan.dart' show selectableJobsFrom;
 import 'firebase_job_repository.dart';
 import 'firebase_offer_repository.dart';
 import 'job_repository.dart';
@@ -78,30 +77,6 @@ final myOffersProvider = StreamProvider.family<List<Offer>, String>(
       ref.watch(offerRepositoryProvider).watchMyOffers(artisanUid),
 );
 
-/// Bir müşteri–usta çifti arasındaki bekleyen ilgi kayıtları.
-final offersFromArtisanProvider = StreamProvider.family<List<Offer>,
-    ({String customerId, String artisanId})>(
-  (ref, arg) => ref.watch(offerRepositoryProvider).watchOffersFromArtisan(
-        customerId: arg.customerId,
-        artisanId: arg.artisanId,
-      ),
-);
-
-/// Sohbet üstündeki "Ustayı Seç" şeridinin listesi: bu çift arasındaki AÇIK
-/// ilanlar.
-///
-/// NOT: sohbet ilandan türemez (`chatIdFor(müşteri, usta)`) ve `jobs.chatId`
-/// ancak `selectOffer` sırasında yazılır — yani `jobByChatIdProvider` seçim
-/// ÖNCESİ hiçbir şey bulamaz. Şerit bu yüzden kesişimle çalışır: müşterinin
-/// ilanları ∩ ustanın bekleyen ilgileri.
-final selectableJobsForChatProvider =
-    Provider.family<List<Job>, ({String customerId, String artisanId})>(
-        (ref, arg) {
-  final jobs = ref.watch(myJobsProvider(arg.customerId)).valueOrNull;
-  final offers = ref.watch(offersFromArtisanProvider(arg)).valueOrNull;
-  if (jobs == null || offers == null) return const <Job>[];
-  return selectableJobsFrom(jobs, offers);
-});
 
 /// Ustanın seçildiği işler (usta "İşlerim" / dashboard aktif iş).
 final assignedJobsProvider = StreamProvider.family<List<Job>, String>(

@@ -621,10 +621,16 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                               letterSpacing: -0.2,
                             ),
                           ),
+                          // İlan bazlı sohbette İŞ BAŞLIĞI yazar: aynı kişiyle
+                          // birden çok iş konuşuluyorsa karışmasın.
                           Text(
-                            isCustomer
-                                ? 'Usta · profile git'
-                                : 'Müşteri · profile bak',
+                            thread?.isJobChat == true &&
+                                    (thread?.jobTitle ?? '').isNotEmpty
+                                ? thread!.jobTitle!
+                                : (isCustomer
+                                    ? 'Usta · profile git'
+                                    : 'Müşteri · profile bak'),
+                            overflow: TextOverflow.ellipsis,
                             style: TextStyle(
                               fontSize: 12,
                               fontWeight: FontWeight.w500,
@@ -704,10 +710,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             // Bağlı iş varsa tamamlama durumu + hızlı onay (P0).
             if (user != null)
               _JobCompletionChatBar(chatId: widget.chatId, myUid: user.uid),
-            // Henüz usta seçilmemiş AÇIK ilanlar → "Bu İş İçin Seç" (yalnız
-            // müşteri görür).
+            // İlan bazlı sohbette usta seçimi: müşteri anlaştığı ustanın
+            // sohbetinden işi verir (§3 — "Ustayı Seç" teklif listesinden
+            // buraya taşındı).
             if (user != null && thread != null)
-              _JobSelectChatBar(thread: thread, myUid: user.uid),
+              _JobSelectBar(thread: thread, myUid: user.uid),
             Expanded(
               child: messagesAsync.when(
                 loading: () => const LoadingView(label: 'Sohbet yükleniyor…'),
@@ -785,6 +792,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                           // Kronolojik dizin: liste ters çizildiği için çevrilir.
                           final j = messages.length - 1 - (i - _pending.length);
                           final msg = messages[j];
+                          // Sistem mesajı: balon değil, ortada ince şerit.
+                          // Seçilemez/silinemez (gönderen "system").
+                          if (msg.isSystem) {
+                            return _SystemMessageStrip(text: msg.text ?? '');
+                          }
                           final isMine = msg.senderUid == user?.uid;
                           final showDate =
                               j == 0 ||
@@ -902,11 +914,19 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                     ),
                   ),
                 ),
-              _InputBar(
-                controller: _controller,
-                onSend: _sendText,
-                onPhoto: _sendPhoto,
-              ),
+              // Yazma izni yoksa giriş kutusu yerine GEREKÇE gösterilir:
+              // sohbet kilitli (başka usta seçildi / iş kapandı / arşiv) ya da
+              // usta henüz müşteri yazmadan yazamıyor. Sunucu kuralı da aynı
+              // kapıyı uygular; buradaki kontrol boşuna deneme yaptırmamak
+              // içindir.
+              if (user != null && thread != null && !thread.canSend(user.uid))
+                _BlockedComposerNotice(thread: thread, myUid: user.uid)
+              else
+                _InputBar(
+                  controller: _controller,
+                  onSend: _sendText,
+                  onPhoto: _sendPhoto,
+                ),
             ],
             // Klavye yüksekliği kadar animasyonlu boşluk (resizeToAvoidBottomInset
             // false olduğundan giriş çubuğunu klavyenin üstünde bu tutar).
@@ -932,6 +952,181 @@ class _KeyboardSpacer extends StatelessWidget {
       duration: const Duration(milliseconds: 160),
       curve: Curves.easeOutCubic,
       height: MediaQuery.viewInsetsOf(context).bottom,
+    );
+  }
+}
+
+/// Müşteri: "Bu Ustayı Seç / İşi Ver" şeridi.
+///
+/// Sohbet İLAN BAZLI olduğundan hangi işin verileceği kesindir — liste ya da
+/// başlık seçimi gerekmez. Yalnız ilan sahibine ve yalnız ilan `open` iken
+/// görünür; seçimden sonra sahne [_JobCompletionChatBar]'a geçer.
+class _JobSelectBar extends ConsumerStatefulWidget {
+  const _JobSelectBar({required this.thread, required this.myUid});
+
+  final ChatThread thread;
+  final String myUid;
+
+  @override
+  ConsumerState<_JobSelectBar> createState() => _JobSelectBarState();
+}
+
+class _JobSelectBarState extends ConsumerState<_JobSelectBar> {
+  /// Çift dokunuş kilidi — iki kez seçim isteği gitmesin.
+  bool _busy = false;
+
+  Future<void> _select(Job job) async {
+    if (_busy) return;
+    setState(() => _busy = true);
+    try {
+      await selectArtisanForJob(
+        context,
+        ref,
+        job: job,
+        artisanId: widget.thread.artisanUid,
+        artisanName: widget.thread.artisanName,
+        artisanPhotoUrl: widget.thread.artisanPhotoUrl,
+        // Zaten bu sohbetteyiz; üstüne aynı sohbeti push etmek geri tuşunu bozar.
+        openChatAfter: false,
+      );
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final thread = widget.thread;
+    // Yalnız ilan sahibi seçer; usta bu şeridi hiç görmez.
+    if (thread.customerUid != widget.myUid) return const SizedBox.shrink();
+    if (!thread.isJobChat) return const SizedBox.shrink();
+
+    final job = ref.watch(jobProvider(thread.jobId!)).valueOrNull;
+    if (job == null || !canSelectArtisanFor(job)) {
+      return const SizedBox.shrink();
+    }
+
+    final palette = context.palette;
+    return Material(
+      color: palette.card,
+      elevation: 0.5,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+        child: Row(
+          children: [
+            Icon(Icons.handyman_outlined, size: 20, color: palette.primary),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'Bu ustayla anlaştıysanız işi verin',
+                style: Theme.of(context)
+                    .textTheme
+                    .bodyMedium
+                    ?.copyWith(fontWeight: FontWeight.w700),
+              ),
+            ),
+            const SizedBox(width: 8),
+            FilledButton.tonal(
+              style: FilledButton.styleFrom(
+                visualDensity: VisualDensity.compact,
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+              ),
+              onPressed: _busy ? null : () => _select(job),
+              child: const Text('Bu Ustayı Seç'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Yaşam döngüsü bildirimi: "Usta seçildi", "İş tamamlandı"…
+///
+/// Mesaj listesinin ortasında, balonsuz ince bir şerit. Yalnız CF yazar
+/// (kurallar `type: 'system'` alanını istemciye kapatır), bu yüzden içeriği
+/// güvenilir sayılır ve seçim/silme akışlarına girmez.
+class _SystemMessageStrip extends StatelessWidget {
+  const _SystemMessageStrip({required this.text});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 8),
+      child: Center(
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+          decoration: BoxDecoration(
+            color: palette.card,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: palette.border),
+          ),
+          child: Text(
+            text,
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: palette.inkMuted,
+                  fontWeight: FontWeight.w600,
+                  height: 1.35,
+                ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Giriş kutusunun yerine geçen açıklama şeridi.
+///
+/// İki durumda çıkar: (1) sohbet kilitli — başka usta seçildi / iş kapandı /
+/// arşivlendi, (2) usta henüz yazamıyor çünkü iletişimi müşteri başlatmalı.
+class _BlockedComposerNotice extends StatelessWidget {
+  const _BlockedComposerNotice({required this.thread, required this.myUid});
+
+  final ChatThread thread;
+  final String myUid;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    final locked = thread.isLocked;
+    final text = locked
+        ? (thread.lockReason?.labelTR ??
+            'Bu sohbet mesajlaşmaya kapalıdır.')
+        : 'İletişimi müşteri başlatır. Müşteri size yazınca yanıt '
+            'verebilirsiniz.';
+
+    return Material(
+      color: palette.card,
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+          child: Row(
+            children: [
+              Icon(
+                locked ? Icons.lock_outline : Icons.hourglass_empty_rounded,
+                size: 18,
+                color: palette.inkMuted,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  text,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: palette.inkMuted,
+                        fontWeight: FontWeight.w600,
+                        height: 1.3,
+                      ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
@@ -1698,11 +1893,14 @@ class _JobCompletionChatBar extends ConsumerWidget {
     final isOwner = job.customerId == myUid;
     final palette = context.palette;
 
-    // 1) İş tamamlandı + müşteri → ince "değerlendir" hatırlatması.
-    //    rated / usta tarafı / eleman-only sohbet (job yok) → göstermez.
-    if (job.status == JobStatus.completed && isOwner) {
+    // 1) İş tamamlandı → ÇİFT TARAFLI değerlendirme hatırlatması.
+    //    Müşteri ustayı, usta müşteriyi puanlar. (Eleman-only sohbette job
+    //    olmadığı için buraya hiç girilmez.)
+    if (job.status == JobStatus.completed) {
       final artisanId = job.selectedArtisanId;
       if (artisanId == null) return const SizedBox.shrink();
+      // Usta tarafı yalnız SEÇİLEN usta ise değerlendirebilir.
+      if (!isOwner && artisanId != myUid) return const SizedBox.shrink();
       return Material(
         color: palette.card,
         elevation: 0.5,
@@ -1718,7 +1916,9 @@ class _JobCompletionChatBar extends ConsumerWidget {
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
-                  'İş tamamlandı — ustayı değerlendirin',
+                  isOwner
+                      ? 'İş tamamlandı — ustayı değerlendirin'
+                      : 'İş tamamlandı — müşteriyi değerlendirin',
                   style: Theme.of(
                     context,
                   ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w700),
@@ -1792,141 +1992,6 @@ class _JobCompletionChatBar extends ConsumerWidget {
                 label: Text(copy.confirmLabel),
               ),
             ],
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-/// Sohbetten usta seçimi: bu çift arasındaki AÇIK ilanlar + "Bu İş İçin Seç".
-///
-/// NEDEN LİSTE: `chatId` `chatIdFor(müşteri, usta)` ile üretilir, ilandan
-/// TÜREMEZ — aynı çift bütün ilanlarında tek sohbeti paylaşır. Dolayısıyla
-/// sohbette hangi işin konuşulduğu belirsizdir; iş başlığı yazılmadan seçim
-/// yaptırmak yanlış ilanı kapatma riski taşır.
-///
-/// [_JobCompletionChatBar]'dan AYRI: o şerit `jobs.chatId` üzerinden çalışır ve
-/// bu alan yalnız `selectOffer` sırasında yazıldığı için seçim ÖNCESİ açık
-/// ilanları göremez.
-class _JobSelectChatBar extends ConsumerStatefulWidget {
-  const _JobSelectChatBar({required this.thread, required this.myUid});
-
-  final ChatThread thread;
-  final String myUid;
-
-  @override
-  ConsumerState<_JobSelectChatBar> createState() => _JobSelectChatBarState();
-}
-
-class _JobSelectChatBarState extends ConsumerState<_JobSelectChatBar> {
-  /// Çift dokunuş kilidi: iki ilan aynı anda seçilirse ikisi de aynı chatId'yi
-  /// yazar ve `watchJobByChatId` (limit 1) hangisini döndüreceği belirsizleşir.
-  bool _busy = false;
-
-  Future<void> _select(Job job) async {
-    if (_busy) return;
-    setState(() => _busy = true);
-    try {
-      await selectArtisanForJob(
-        context,
-        ref,
-        job: job,
-        artisanId: widget.thread.artisanUid,
-        artisanName: widget.thread.artisanName,
-        artisanPhotoUrl: widget.thread.artisanPhotoUrl,
-        // Zaten sohbetteyiz; aynı sohbeti üstüne push etmek geri tuşunu bozar.
-        openChatAfter: false,
-      );
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final thread = widget.thread;
-    // Yalnız ilan sahibi seçer. Erken çıkış aynı zamanda ustanın cihazında
-    // müşterinin ilan listesine gereksiz abonelik açılmasını da engeller.
-    if (thread.customerUid != widget.myUid) return const SizedBox.shrink();
-
-    // Bu sohbete bağlı iş varsa yaşam döngüsü başlamıştır → seçim şeridi
-    // kapanır ve sahne _JobCompletionChatBar'a kalır (iki şerit üst üste
-    // binmesin).
-    final linked = ref.watch(jobByChatIdProvider(thread.id)).valueOrNull;
-    if (linked != null && linked.status.isAssigned) {
-      return const SizedBox.shrink();
-    }
-
-    final jobs = ref.watch(selectableJobsForChatProvider(
-      (customerId: thread.customerUid, artisanId: thread.artisanUid),
-    ));
-    if (jobs.isEmpty) return const SizedBox.shrink();
-
-    final palette = context.palette;
-    final theme = Theme.of(context);
-
-    return Material(
-      color: palette.card,
-      elevation: 0.5,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Row(
-              children: [
-                Icon(Icons.work_outline, size: 20, color: palette.primary),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    jobs.length == 1
-                        ? 'Bu ustayı işiniz için seçin'
-                        : 'Bu ustayı bir işinize atayın',
-                    style: theme.textTheme.bodyMedium
-                        ?.copyWith(fontWeight: FontWeight.w700),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 6),
-            // 3'ten fazla ilanda şerit ekranı kaplamasın.
-            ConstrainedBox(
-              constraints: const BoxConstraints(maxHeight: 156),
-              child: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    for (final job in jobs)
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 4),
-                        child: Row(
-                          children: [
-                            Expanded(
-                              child: Text(
-                                job.title,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: theme.textTheme.bodyMedium,
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            FilledButton.tonal(
-                              style: FilledButton.styleFrom(
-                                visualDensity: VisualDensity.compact,
-                                padding:
-                                    const EdgeInsets.symmetric(horizontal: 12),
-                              ),
-                              onPressed: _busy ? null : () => _select(job),
-                              child: const Text('Bu İş İçin Seç'),
-                            ),
-                          ],
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-            ),
           ],
         ),
       ),

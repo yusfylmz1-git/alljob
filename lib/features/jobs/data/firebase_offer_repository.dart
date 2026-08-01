@@ -87,26 +87,6 @@ class FirebaseOfferRepository implements OfferRepository {
     });
   }
 
-  @override
-  Stream<List<Offer>> watchOffersFromArtisan({
-    required String customerId,
-    required String artisanId,
-  }) {
-    // Tek eşitlik filtresi (customerId) → kural ispatı sağlanır ve composite
-    // index gerekmez; usta + durum süzmesi istemcide yapılır.
-    return _offers
-        .where('customerId', isEqualTo: customerId)
-        .snapshots()
-        .map((s) {
-      final list = s.docs
-          .map((d) => Offer.fromMap(d.id, d.data()))
-          .where((o) => o.artisanId == artisanId)
-          .where((o) => o.status == OfferStatus.pending)
-          .toList()
-        ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
-      return list;
-    });
-  }
 
   @override
   Future<Offer?> myOfferFor({

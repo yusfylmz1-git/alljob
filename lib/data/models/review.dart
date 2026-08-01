@@ -28,6 +28,34 @@ class ReviewTags {
   static bool isNegative(String tag) => negative.contains(tag);
 }
 
+/// Değerlendirmenin yönü — iş bitince İKİ TARAF da puan verir.
+enum ReviewDirection {
+  /// Müşteri → usta (usta profilinde herkese açık puan).
+  customerToArtisan,
+
+  /// Usta → müşteri. Puan YALNIZ USTALARA görünür: müşteri profili vitrin
+  /// değildir, düşük puanlı müşterinin hizmet alamaz hale gelmesi istenmez.
+  artisanToCustomer;
+
+  /// Doküman kimliği eki: `{chatId}__c2a` / `{chatId}__a2c`.
+  String get suffix => switch (this) {
+        ReviewDirection.customerToArtisan => 'c2a',
+        ReviewDirection.artisanToCustomer => 'a2c',
+      };
+
+  String get apiValue => suffix;
+
+  /// Eksik alan = ESKİ kayıt: çift yönlü şemadan önce yalnız müşteri→usta
+  /// değerlendirmesi vardı.
+  static ReviewDirection fromString(String? v) =>
+      v == 'a2c' ? artisanToCustomer : customerToArtisan;
+
+  /// `reviews` doküman kimliği. Eski (yönsüz) kayıtlar düz `chatId` taşır;
+  /// onlar [customerToArtisan] sayılır.
+  static String docIdFor(String chatId, ReviewDirection dir) =>
+      dir == customerToArtisan ? chatId : '${chatId}__${dir.suffix}';
+}
+
 /// `reviews` koleksiyonundaki değerlendirme dökümanı (PRD Ekran H, §3).
 /// Yalnızca 1–5 yıldız + hazır olumlu/olumsuz etiketler içerir (serbest metin yok).
 class Review {
@@ -40,6 +68,7 @@ class Review {
     required this.rating,
     required this.tags,
     required this.createdAt,
+    this.direction = ReviewDirection.customerToArtisan,
   });
 
   final String id;
@@ -50,6 +79,19 @@ class Review {
   final int rating; // 1..5
   final List<String> tags; // hazır etiketler (ReviewTags)
   final DateTime createdAt;
+
+  /// Kimin kimi puanladığı. Eski kayıtlarda alan yoktur → müşteri→usta.
+  final ReviewDirection direction;
+
+  /// Puanı ALAN taraf.
+  String get targetUid => direction == ReviewDirection.customerToArtisan
+      ? artisanUid
+      : customerUid;
+
+  /// Puanı VEREN taraf.
+  String get authorUid => direction == ReviewDirection.customerToArtisan
+      ? customerUid
+      : artisanUid;
 
   /// Gizlilik için maskelenmiş ad: "Ahmet Yılmaz" -> "A***".
   String get maskedName {
@@ -65,6 +107,7 @@ class Review {
         'chatId': chatId,
         'rating': rating,
         'tags': tags,
+        'direction': direction.apiValue,
         'createdAt': createdAt.toIso8601String(),
       };
 
@@ -76,6 +119,7 @@ class Review {
         chatId: (m['chatId'] as String?) ?? '',
         rating: (m['rating'] as num?)?.toInt() ?? 0,
         tags: ((m['tags'] as List?) ?? []).map((e) => e.toString()).toList(),
+        direction: ReviewDirection.fromString(m['direction'] as String?),
         createdAt: DateTime.tryParse(m['createdAt']?.toString() ?? '') ??
             DateTime.now(),
       );

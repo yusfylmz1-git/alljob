@@ -209,6 +209,54 @@ class FirebaseJobRepository implements JobRepository {
   }
 
   @override
+  Future<void> cancelSelection({
+    required String jobId,
+    required String customerId,
+  }) async {
+    final jobSnap = await _jobs.doc(jobId).get();
+    if (!jobSnap.exists || jobSnap.data() == null) {
+      throw StateError('İlan bulunamadı');
+    }
+    final job = Job.fromMap(jobSnap.id, jobSnap.data()!);
+    if (job.customerId != customerId) {
+      throw StateError('Bu ilan size ait değil');
+    }
+    // İş başladıysa/tamamlandıysa/şikayetliyse iptal yok (kural da reddeder).
+    if (job.status != JobStatus.workerSelected) {
+      throw StateError('Bu aşamada seçim iptal edilemez');
+    }
+
+    // `customerId` filtresi kural ispatı için zorunlu (selectOffer paritesi).
+    final offersSnap = await _offers
+        .where('jobId', isEqualTo: jobId)
+        .where('customerId', isEqualTo: customerId)
+        .get();
+
+    final batch = _db.batch();
+    batch.update(_jobs.doc(jobId), {
+      'status': JobStatus.open.apiValue,
+      'selectedOfferId': null,
+      'selectedArtisanId': null,
+      'chatId': null,
+    });
+
+    // accepted/rejected → pending: ilan yeniden açıldığına göre herkes tekrar
+    // aday. withdrawn olanlar dokunulmaz (usta kendi kararıyla çekilmişti).
+    final now = DateTime.now().toIso8601String();
+    for (final d in offersSnap.docs) {
+      final status = OfferStatus.fromString(d.data()['status'] as String?);
+      if (status == OfferStatus.withdrawn) continue;
+      if (status == OfferStatus.pending) continue;
+      batch.update(d.reference, {
+        'status': OfferStatus.pending.apiValue,
+        'updatedAt': now,
+      });
+    }
+
+    await batch.commit();
+  }
+
+  @override
   Future<void> confirmDone({
     required String jobId,
     required bool byCustomer,

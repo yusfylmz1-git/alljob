@@ -61,6 +61,8 @@ Future<bool> selectArtisanForJob(
           artisanUid: artisanId,
           artisanName: artisanName,
           artisanPhotoUrl: artisanPhotoUrl,
+          jobId: job.jobId,
+          jobTitle: job.title,
         );
     // Teklif ID'si deterministik (jobId__artisanId) — listedeki kartla aynı.
     await ref.read(jobRepositoryProvider).selectOffer(
@@ -82,17 +84,10 @@ Future<bool> selectArtisanForJob(
   return true;
 }
 
-/// Sohbet şeridinde gösterilecek ilanlar: müşterinin AÇIK ilanları ∩ bu ustanın
-/// bekleyen ilgi kayıtları.
+/// Bu ilan için ustanın seçilebilir olup olmadığı.
 ///
-/// Saf fonksiyon — provider kurulumu olmadan test edilebilir. Süresi dolmuş
-/// ilanı `effectiveStatus` eler (durum alanı `open` kalsa bile), çünkü kural
+/// Sohbet artık ilan bazlı olduğundan (`chat_{müşteri}__{usta}__{jobId}`)
+/// hangi işin konuşulduğu kesindir; liste süzmeye gerek kalmaz. Süresi dolmuş
+/// ilanı `effectiveStatus` eler — durum alanı `open` kalsa bile kural
 /// `open → workerSelected` geçişini süre dolduktan sonra reddeder.
-List<Job> selectableJobsFrom(List<Job> myJobs, List<Offer> artisanOffers) {
-  final jobIds = artisanOffers.map((o) => o.jobId).toSet();
-  return myJobs
-      .where((j) => jobIds.contains(j.jobId))
-      .where((j) => j.effectiveStatus == JobStatus.open)
-      .toList()
-    ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
-}
+bool canSelectArtisanFor(Job job) => job.effectiveStatus == JobStatus.open;
