@@ -25,4 +25,9 @@ const bool useFirebaseStorage = true;
 /// (alan adları: alljob1.web.app, alljob1.firebaseapp.com, localhost) →
 /// site anahtarını buraya yaz + Console'da App Check web uygulaması
 /// kaydında aynı anahtarın GİZLİ anahtarını gir.
-const String kAppCheckWebRecaptchaKey = '';
+///
+/// DOLU (Oturum 76, 2026-08-01): v3 anahtarı üretildi; GİZLİ anahtar Console →
+/// App Check → web uygulaması kaydına girildi. Site anahtarı gizli değildir
+/// (tarayıcı kaynağında görünür); koruma, kayıtlı alan adlarından gelir —
+/// yeni bir alan adı eklenirse reCAPTCHA yönetim panelinde de tanımlanmalı.
+const String kAppCheckWebRecaptchaKey = '6LfHRnAtAAAAACf_IgPj-G6BN33ZbhTPhJBw6H0a';

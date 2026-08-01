@@ -58,12 +58,7 @@ class DefaultFirebaseOptions {
 
   static const FirebaseOptions android = FirebaseOptions(
     apiKey: 'AIzaSyCJsp6zfD5YD-pFHHIkKRHQfne_Pu0FC1s',
-    // ⚠️ GÜNCELLENMESİ GEREKİYOR: paket adı com.sepettehizmet.app'e taşındı
-    // (2026-08-01, yayın öncesi). Aşağıdaki appId hâlâ ESKİ com.ustasindan.app
-    // kaydınındır. Firebase Console'da yeni Android app kaydı açılıp
-    // google-services.json indirilince buradaki appId de onunla değiştirilmeli
-    // (flutterfire configure bunu otomatik yapar).
-    appId: '1:839781526307:android:53a729b742c6a8439aba96',
+    appId: '1:839781526307:android:07beea07f6939d809aba96',
     messagingSenderId: '839781526307',
     projectId: 'alljob1',
     storageBucket: 'alljob1.firebasestorage.app',

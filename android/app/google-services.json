@@ -7,6 +7,58 @@
   "client": [
     {
       "client_info": {
+        "mobilesdk_app_id": "1:839781526307:android:07beea07f6939d809aba96",
+        "android_client_info": {
+          "package_name": "com.sepettehizmet.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "839781526307-76r2fak0tr825sr3it2scjnc4o3h20j2.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.sepettehizmet.app",
+            "certificate_hash": "997acb235f5f0c7884e1a703b13c5521a5005887"
+          }
+        },
+        {
+          "client_id": "839781526307-h91i76glh04repj779f3e267o0hmcfqb.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.sepettehizmet.app",
+            "certificate_hash": "5dc4f1624b88db10bbaf758babefc61709b12602"
+          }
+        },
+        {
+          "client_id": "839781526307-igop85vu9fqtrsvs5o853hp5alekulqb.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCJsp6zfD5YD-pFHHIkKRHQfne_Pu0FC1s"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "839781526307-igop85vu9fqtrsvs5o853hp5alekulqb.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "839781526307-29ltrp37h0acp3rjr5thgnircbgqtgl2.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.ustacepte.ustaCepte"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
         "mobilesdk_app_id": "1:839781526307:android:b73835fe450e77df9aba96",
         "android_client_info": {
           "package_name": "com.ustacepte.usta_cepte"
@@ -65,6 +117,22 @@
         }
       },
       "oauth_client": [
+        {
+          "client_id": "839781526307-3mgojc2qsbugte12epv0e72u63vf2cfv.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.ustasindan.app",
+            "certificate_hash": "997acb235f5f0c7884e1a703b13c5521a5005887"
+          }
+        },
+        {
+          "client_id": "839781526307-5frfenos5n332m33cldlskconueu3h37.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.ustasindan.app",
+            "certificate_hash": "5dc4f1624b88db10bbaf758babefc61709b12602"
+          }
+        },
         {
           "client_id": "839781526307-igop85vu9fqtrsvs5o853hp5alekulqb.apps.googleusercontent.com",
           "client_type": 3

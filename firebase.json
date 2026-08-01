@@ -62,7 +62,7 @@
       "android": {
         "default": {
           "projectId": "alljob1",
-          "appId": "1:839781526307:android:53a729b742c6a8439aba96",
+          "appId": "1:839781526307:android:07beea07f6939d809aba96",
           "fileOutput": "android/app/google-services.json"
         }
       },
@@ -70,7 +70,7 @@
         "lib/firebase_options.dart": {
           "projectId": "alljob1",
           "configurations": {
-            "android": "1:839781526307:android:53a729b742c6a8439aba96",
+            "android": "1:839781526307:android:07beea07f6939d809aba96",
             "ios": "1:839781526307:ios:a35b0070e8f483e59aba96",
             "web": "1:839781526307:web:af2928409fc356089aba96"
           }

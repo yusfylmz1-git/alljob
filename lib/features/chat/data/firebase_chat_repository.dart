@@ -45,32 +45,16 @@ class FirebaseChatRepository implements ChatRepository {
   DocumentReference<Map<String, dynamic>> _chatMetaRef(String uid) =>
       _db.collection('users').doc(uid).collection('private').doc('chatMeta');
 
-  bool _legacyHealAttempted = false;
-
-  Future<void> _healLegacyThreads(String uid) async {
-    if (_legacyHealAttempted) return;
-    _legacyHealAttempted = true;
-    try {
-      final snap =
-          await _chats.where('participants', arrayContains: uid).get();
-      for (final doc in snap.docs) {
-        final members = doc.data()['members'];
-        if (members is Map && members[uid] == true) continue;
-        final derived = _membersFromChatId(doc.id) ??
-            {
-              for (final p
-                  in (doc.data()['participants'] as List? ?? const []))
-                p.toString(): true,
-            };
-        if (derived.isEmpty) continue;
-        await doc.reference.set({'members': derived}, SetOptions(merge: true));
-      }
-    } catch (_) {/* kural/ağ */}
-  }
-
   @override
   Stream<List<ChatThread>> watchThreads(String uid) {
-    _healLegacyThreads(uid);
+    // `members` haritası olmayan LEGACY sohbetler için bir onarım taraması
+    // burada DURMUYOR: tarama `participants array_contains` ile sorgulamak
+    // zorundaydı ve kurallar bunu reddediyor (firestore.rules "chats" notu —
+    // kural motoru array-contains'te üyelik ispatını yapamıyor). Yani onarım
+    // hiçbir zaman çalışmıyordu, yalnızca her açılışta yutulan bir
+    // permission-denied üretiyordu. Yeni sohbetler `members`i ilk yazımda
+    // koyuyor (createChat); geriye dönük veri çıkarsa onarım istemciden değil
+    // Admin SDK'lı bir Cloud Function'dan yapılmalıdır.
     return _chats.where('members.$uid', isEqualTo: true).snapshots().map((snap) {
       final list = <ChatThread>[];
       for (final doc in snap.docs) {
