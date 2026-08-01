@@ -7,7 +7,7 @@
 ---
 
 ## 🎯 Proje Hakkında
-- **Proje adı:** Ustasından (`usta_cepte` — paket/kod kimliği) — hizmet pazaryeri uygulaması
+- **Proje adı:** Sepette Hizmet (`sepette_hizmet` Dart paketi · `com.sepettehizmet.app` paket kimliği) — hizmet pazaryeri uygulaması. *(Oturum 78'e kadar "Ustasından" / `usta_cepte`.)*
 - **Amaç:** Müşterileri (tamirat/tadilat ihtiyacı olanlar) bölge ve meslek bazlı ustalarla buluşturmak. TR pazarı.
 - **Platform:** Flutter — Android + iOS + Web
 - **Backend (hedef):** Firebase (Auth, Firestore, Storage, Cloud Functions, FCM)
@@ -25,7 +25,39 @@
 
 **Tarih:** 2026-08-01
 
-**Oturum 78 (2026-08-01): PAKET YÜKSELTMESİ + PROJE ADI "SEPETTE HİZMET". 306/306 test, analyze 0. ✅ Functions CANLIDA. ⚠️ ANDROID BUILD FIREBASE KAYDI BEKLİYOR.**
+**Oturum 79 (2026-08-01): FIREBASE YENİ PAKET KAYDI + WEB APP CHECK. 306/306 test, analyze 0. ✅ Android CİHAZDA DOĞRULANDI, admin hosting CANLIDA. ⚠️ SHA-256 + iOS AÇIK.**
+
+### A) Android kaydı `com.sepettehizmet.app` (CİHAZDA DOĞRULANDI ✅)
+- Oturum 78'in bekleyen 5 maddesi kapandı. `google-services.json` yeni kayıtla indirildi; **iki `client_type: 1` girdisi** (debug + release SHA-1) dosyada doğrulandı. `flutterfire configure` ile appId yenilendi: `…android:53a729b7` (ESKİ `com.ustasindan.app`) → **`…android:07beea07`**.
+- **İlk indirme EKSİKTİ:** SHA'lar Console'a girilmeden önce indirilmiş olduğu için dosyada hiç `client_type: 1` yoktu (yalnız web client). Google girişi bu hâliyle `sign_in_failed` verirdi. **Ders: SHA ekledikten SONRA dosyayı tekrar indir** — SHA'lar dosyaya sonradan yansımaz.
+- Doğrulama zinciri uçtan uca kontrol edildi: json → `firebase_options.dart` → Gradle'ın ürettiği `google_app_id` (`build/app/generated/res/processDebugGoogleServices/values/values.xml`) → APK. Cihazda (Xiaomi 22101316G, Android 14) Google girişi **hatasız**; logcat'te `sign_in_failed` / `ApiException` YOK.
+- **App Check debug token** kaydedildi (`76d6d9ce-…`). Öncesinde `403 App attestation failed` alınıyordu, kayıttan sonra kayboldu. Ürün paylaşımı + profil fotoğrafı yükleme cihazda çalıştı.
+- **⚠️ ESKİ KAYITTA HİÇ SHA YOKTU:** `com.ustasindan.app` kaydında parmak izi hiç girilmemiş — o kimlikle Google girişi zaten çalışmıyordu. Yeni kayıtta tekrarlanmadı.
+
+### B) Web App Check ETKİNLEŞTİRİLDİ (CANLIDA ✅)
+- **Admin paneli korumasız yayındaydı.** `kAppCheckWebRecaptchaKey` boş olduğu sürece `main.dart` / `main_admin.dart` App Check'i **hiç activate etmiyordu** (kod `isNotEmpty` kontrolüne bağlı). reCAPTCHA v3 anahtarı üretildi, site anahtarı `backend_config.dart`'a yazıldı, gizli anahtar Console'daki web app kaydına girildi.
+- Admin hosting deploy edildi; yayınlanan `main.dart.js` içinde anahtar **curl ile doğrulandı**. Site anahtarı gizli değildir (tarayıcı kaynağında görünür) — koruma kayıtlı alan adlarından gelir, yeni alan adı eklenirse reCAPTCHA panelinde de tanımlanmalı.
+- **Web appId'si YENİLENMEDİ (gerek yok):** web kayıtları paket kimliğine bağlı değildir, paket adı değişikliği web'i etkilemedi.
+
+### C) `_healLegacyThreads` KALDIRILDI (ölü kod)
+- `members` haritası olmayan eski sohbetleri onarmak için yazılmıştı ama **hiçbir zaman çalışmadı**: `participants array_contains` ile sorguluyordu ve kurallar bunu reddediyor (`firestore.rules` "chats" notu — kural motoru array-contains'te üyelik ispatını yapamıyor; liste sorgusu bu yüzden `members.<uid> == true`'ya taşınmıştı, **heal fonksiyonu eski sorguda kalmış**).
+- Tek etkisi her açılışta yutulan bir `permission-denied` üretmekti (`catch (_)`), bu da debugger'ı duraklatıyordu. Yerine neden kaldırıldığı + geriye dönük veri çıkarsa onarımın **Admin SDK'lı bir CF'den** yapılması gerektiği not olarak bırakıldı. `_membersFromChatId` duruyor (ensureChat + chatMeta yollarında kullanılıyor).
+
+### D) İncelendi, DEĞİŞTİRİLMEDİ
+- **`adminStats/global` → PERMISSION_DENIED bir hata DEĞİL:** `home_stats.dart` bunu kasıtlı yapıyor — doküman yalnız admin'e açık, normal kullanıcıda okuma başarısız olunca bölüm gizleniyor ve sahte rakam gösterilmiyor (dosyada gerekçe yazılı). Loglarda görünür ama davranış doğru.
+- **`firebase.json`:** `flutterfire configure` dosyayı tek satıra sıkıştırmış ve `--platforms=android` yüzünden `dart.configurations`'tan ios/web anahtarlarını düşürmüştü. Okunabilir hâle geri getirildi, iki anahtar korundu (hosting/functions/firestore/storage ayarları zaten kaybolmamıştı).
+
+### ⚠️ AÇIK KALANLAR
+1. **SHA-256 Console'a eklenmeli** (verildi, eklendiği doğrulanmadı): release'te `AndroidProvider.playIntegrity` kullanılıyor ve SHA-256 istiyor. Eksikse **yayınlanan APK'da App Check kırılır** → kullanıcılar `permission-denied` alır. Debug'da `AndroidProvider.debug` kullanıldığı için fark edilmez.
+2. **iOS:** Console kaydı ve `GoogleService-Info.plist` **yok** (dosya hiç mevcut değil → iOS build zaten yapılamıyor). `firebase_options.dart`'taki ios appId hâlâ ESKİ `com.ustacepte.ustaCepte` kaydının; dosyada ⚠️ notu duruyor. Xcode tarafı `com.sepettehizmet.app`'e taşınmış durumda.
+3. **Play App Signing:** Store'a çıkarken Play Console → App signing'deki **app signing key** SHA'ları ayrıca eklenmeli — upload key'inkiler yetmez, yoksa mağazadan inen sürümde Google girişi çalışmaz.
+4. **Profil kaydetme hatası (KÖK NEDEN BULUNAMADI):** telefon + sosyal medya alanları doldurulunca `Write failed at artisanProfiles/{uid}: PERMISSION_DENIED` alındı, sonra kendiliğinden düzeldi. Payload ile `firestore.rules` karşılaştırıldı, ihlal bulunamadı (`toMap()` sunucuya ait alan üretmiyor, `socialLinks` kuralı kodla uyumlu). Şüphe: `serviceProvincesOk()` (`provs.size() <= areas.size()`) veya geçici App Check token durumu. **Tekrarlarsa logcat'ten yakalanmalı.**
+
+**SIRADAKİ:** SHA-256 doğrula → cihaz testi (Hemen Lazım akışı + mesaj moderasyonu + AR) → Play Console ilk yükleme. Açık kalanlar: dinamik meslek yönetimi, admin rehber/SSS bloğu, ESLint 9 config migrasyonu (Oturum 74'ten).
+
+--- (önceki oturumlar) ---
+
+**Oturum 78 (2026-08-01): PAKET YÜKSELTMESİ + PROJE ADI "SEPETTE HİZMET". 306/306 test, analyze 0. ✅ Functions CANLIDA. ✅ Firebase kaydı Oturum 79'da TAMAMLANDI.**
 
 ### A) firebase-functions 7 + firebase-admin 14 (CANLIDA ✅)
 - **Deploy uyarısı kapandı.** Ama iş göründüğünden büyüktü: **firebase-admin v14 eski namespace API'sini TAMAMEN KALDIRMIŞ** → `admin.firestore` / `admin.auth` / `admin.storage` / `admin.messaging` = `undefined`. **71 çağrı noktası** modüler alt yollara çevrildi (`getFirestore()`, `FieldValue`, `getAuth()`, `getStorage()`, `getMessaging()`).
@@ -40,14 +72,14 @@
 - **⚠️ BİLEREK DEĞİŞTİRİLMEYENLER (koda gerekçe yazıldı):** (a) `_dbName = 'usta_cepte_tracking.db'` — cihazdaki SQLite DOSYA ADI; değişirse mevcut kullanıcıların **tüm Takip Merkezi kayıtları kaybolmuş görünür**. (b) Play ürün kimlikleri (`usta_cepte_pro_monthly`) — Console'da oluşturulduktan sonra ASLA değişmez, kullanıcıya görünmez; Console'da henüz oluşturulmadıysa yenilemek serbest (billing_config.dart'ta not var).
 - **DERLEME DOĞRULANDI:** `flutter build apk --debug` önce `google-services.json`'da yeni paket olmadığı için düştü (BEKLENEN). Geçici bir istemci girdisiyle tekrar denendi → **`√ Built app-debug.apk`** (yani namespace + MainActivity taşıma + pbxproj değişikliklerinin hepsi doğru). Geçici girdi **GERİ ALINDI** — sahte kimlik commit'lenmedi.
 
-### ⚠️ SİZİN YAPMANIZ GEREKENLER (Firebase Console — ben yapamam)
-1. **Android:** Yeni app kaydı `com.sepettehizmet.app` (+ SHA-1/SHA-256) → `google-services.json` indir → `android/app/` içine koy.
-2. **iOS:** Yeni app kaydı `com.sepettehizmet.app` → `GoogleService-Info.plist` indir.
-3. `flutterfire configure` çalıştır → `lib/firebase_options.dart` içindeki **appId'ler otomatik yenilenir** (şu an ESKİ kayıtların appId'si duruyor, dosyada ⚠️ notu var).
-4. **App Check debug token** yeniden kaydedilmeli (paket adı değişti → eski token geçmez).
-5. Bunlar bitmeden `flutter build apk` **çalışmaz** (google-services.json paket eşleşmesi).
+### ⚠️ SİZİN YAPMANIZ GEREKENLER (Firebase Console) — **Oturum 79'da KAPANDI**
+1. ~~**Android:** Yeni app kaydı `com.sepettehizmet.app` (+ SHA-1/SHA-256) → `google-services.json`~~ → ✅ Oturum 79/A (SHA-256 hariç: hâlâ açık).
+2. **iOS:** Yeni app kaydı `com.sepettehizmet.app` → `GoogleService-Info.plist` indir. → ⏸ **HÂLÂ AÇIK** (Oturum 79 "Açık Kalanlar" §2).
+3. ~~`flutterfire configure` → appId'ler yenilenir~~ → ✅ Oturum 79/A (Android). iOS/web appId'leri için not: web'inki zaten geçerli, iOS'unki iOS kaydı açılınca yenilenecek.
+4. ~~**App Check debug token** yeniden kaydedilmeli~~ → ✅ Oturum 79/A.
+5. ~~Bunlar bitmeden `flutter build apk` çalışmaz~~ → ✅ derleniyor + cihazda çalışıyor.
 
-**SIRADAKİ:** Firebase kayıtları → APK derle → cihaz testi (Hemen Lazım + mesaj moderasyonu + yeni isim) → Play Console ilk yükleme. Açık kalanlar: dinamik meslek yönetimi, admin rehber/SSS bloğu, AR cihaz testi.
+**SIRADAKİ:** ~~Firebase kayıtları → APK derle~~ (bitti) → cihaz testi (Hemen Lazım + mesaj moderasyonu + yeni isim) → Play Console ilk yükleme. Açık kalanlar: dinamik meslek yönetimi, admin rehber/SSS bloğu, AR cihaz testi.
 
 --- (önceki oturumlar) ---
 
