@@ -25,6 +25,50 @@
 
 **Tarih:** 2026-08-01
 
+**Oturum 80 (2026-08-01): İLAN BAZLI SOHBET MİMARİSİ + İŞ AKIŞI SADELEŞTİRME + İLAN LİMİTİ. 317/317 test, analyze 0. ✅ rules + 4 CF CANLIDA. ⚠️ CİHAZ TESTİ BEKLİYOR.**
+
+### A) Sohbet artık İLAN BAZLI — `chat_{müşteri}__{usta}__{jobId}`
+- **Önceki model:** aynı çift BÜTÜN ilanlarında tek sohbeti paylaşıyordu; `ChatThread`'de `jobId` yoktu, bağ ters yönlüydü (`jobs.chatId`) ve yalnız `selectOffer`'da yazılıyordu → sohbette hangi işin konuşulduğu belirsizdi.
+- **Eski iki parçalı kimlikler ÇALIŞMAYA DEVAM EDER** (ürün/eleman sohbetleri + geçiş öncesi kayıtlar). Göç YOK; `_uidsFromChatId` iki biçimi de çözer, `jobId` null ise "genel sohbet".
+- **⚠️ `ensureChatReady` en kırılgan yerdi:** chatId parse edemezse hiçbir şey yazmıyor ve hata da vermiyor (sessiz başarısızlık). Kimlik biçimi değişirken ilk güncellenen yer burası oldu.
+- `ChatThread` yeni alanlar: `jobId`, `jobTitle` (denormalize — liste/AppBar ekstra okuma yapmasın), `customerStarted`, `lockedAt`, `lockReason`.
+
+### B) İletişimi MÜŞTERİ başlatır (§2)
+- Usta ilk mesajı atamaz. **Kural motoru "bu sohbette müşteri mesajı var mı" diye sorgulayamaz** → `customerStarted` bayrağı DENORMALIZE tutulur, ilk müşteri mesajında yazılır.
+- Kural: bayrağı yalnız müşteri ve yalnız `false→true` yazabilir (`customerStartedOk`) — usta kendi yazma iznini açamaz, müşteri de geri alıp ustayı susturamaz.
+- UI: yazma izni yoksa giriş kutusu yerine `_BlockedComposerNotice` (gerekçeyle).
+
+### C) Usta seçimi sohbete taşındı + diğer sohbetler kilitlenir (§3)
+- "Ustayı Seç" düğmesi teklif listesinden KALKTI, ustayla konuşulan sohbetin üstüne geldi (`_JobSelectBar`). İlan detayındaki kart artık yalnız "Mesaj Gönder".
+- **Kilitleme CF'de** (`lockOtherJobChats`): istemci yapamaz — kural hem başkasının sohbetine yazmayı hem `lockedAt` alanını kapatır. Aksi halde seçilmeyen usta kendi kilidini açardı.
+- **SEÇİM İPTALİ (yeni):** usta işi yarıda bırakırsa müşteri ilanı yeniden açar → kilitler kalkar, teklifler `pending`e döner. `ownerNoReassignArtisan` gevşetildi ama **A→B doğrudan geçiş hâlâ yasak** (iptal edip yeniden açmak gerekir). Kötüye kullanım freni: **3. iptalde ilan kapanır**.
+
+### D) "İşe başladım" kaldırıldı + sistem mesajları (§4)
+- Buton kalktı; usta doğrudan tamamlama onayı veriyor. **`inProgress` enum'u KODDA KALDI** — `statusBeforeDispute` eski kayıtlarda bu değeri tutuyor, silinseydi eski `disputed` işler geri çekilemezdi (30+ dokunma noktası da cabası).
+- Yaşam döngüsü artık sohbette **sistem mesajı** olarak görünür (`type: "system"`, yalnız CF yazar — kural allowlist'inde yok, sahte "Usta seçildi" üretilemez).
+
+### E) Çift taraflı değerlendirme (§5)
+- `reviews` kimliği yöne göre ayrışır: `{chatId}` = c2a (müşteri→usta, **eski kayıtlarla aynı kimlik**), `{chatId}__a2c` = usta→müşteri.
+- **Müşteri puanı YALNIZ USTALARA görünür** → herkese açık `users` dokümanına değil `users/{uid}/private/rating` altına yazılır (CF). Müşteri profili vitrin değildir; düşük puanlı müşterinin hizmet alamaz hale gelmesi istenmiyor.
+- `getArtisanReviews` artık `a2c` kayıtlarını eler (usta vitrinine sızmasın).
+
+### F) 7 gün sonra ARŞİVLEME — silme DEĞİL (§6)
+- **Kullanıcı "otomatik silme" istemişti; itiraz edildi ve arşivlemede karar kılındı.** Kalıcı silme (a) anlaşmazlık kanıtını, (b) review bağını (`reviews` kimliği chatId'ye dayanır), (c) admin transcript'ini götürürdü — 8. günde gelen şikayet çözümsüz kalırdı. "Veritabanı şişkinliği" gerekçesi de sayısal olarak zayıf (10k iş × 50 mesaj ≈ 500k doküman, Firestore'da önemsiz).
+- `archiveCompletedChats` (24 saatte bir): `completedAt <= now-7gün` → sohbet salt okunur + `chatsArchivedAt` damgası. Şablon: `purgeRemovedProducts`.
+
+### G) İLAN LİMİTİ — önceden HİÇ YOKTU 🔴
+- **Açık güvenlik boşluğuydu:** yayınlanan her ilan eşleşen TÜM ustalara bildirim gönderiyor (`onJobCreated` fan-out); limitsiz kullanıcı platform çapında spam üretebiliyordu.
+- **5 açık ilan** (kural kapısı) + **10/gün** (CF). Kural `count()` yapamadığı için `openCount` `users/{uid}/private/jobStats`'ta denormalize — yalnız CF yazar. Günlük hak `adminRateLimits` deseniyle (`createSupportTicket`/`publishProduct` paritesi); aşılırsa ilan `cancelled` + `cancelReason: rateLimited` (yeni enum) ve fan-out yapılmaz.
+
+### H) Kaldırılan (Oturum 79'da eklenmişti)
+`_JobSelectChatBar` + `selectableJobsForChatProvider` + `offersFromArtisanProvider` + `watchOffersFromArtisan` (3 katman) + 6 test. Varlık sebepleri "sohbet ilandan türemiyor"du; artık türüyor.
+
+**CANLIDA:** `firestore:rules` + `onJobWritten`/`onJobCreated`/`onReviewWritten` (güncel) + `archiveCompletedChats` (yeni). `functions:list` ile doğrulandı, STARTUP probe OK, `Cannot find module`/`is not a function` YOK.
+
+**SIRADAKİ:** ⚠️ **CİHAZ TESTİ** — iki hesapla (müşteri + usta) uçtan uca: ilgi bildirimi → müşteri sohbeti başlatır → usta yanıtlar → seçim → diğer sohbet kilitli → tamamlama → çift değerlendirme. Ayrıca ilan limiti (6. ilan reddedilmeli) ve seçim iptali denenmeli.
+
+--- (önceki oturumlar) ---
+
 **Oturum 79 (2026-08-01): FIREBASE YENİ PAKET KAYDI + WEB APP CHECK. 306/306 test, analyze 0. ✅ Android CİHAZDA DOĞRULANDI, admin hosting CANLIDA. ⚠️ SHA-256 + iOS AÇIK.**
 
 ### A) Android kaydı `com.sepettehizmet.app` (CİHAZDA DOĞRULANDI ✅)
