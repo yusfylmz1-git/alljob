@@ -7,6 +7,7 @@ import '../../../core/theme/app_palette.dart';
 import '../../../core/utils/snackbar_helper.dart';
 import '../../../core/widgets/app_button.dart';
 import '../../../core/widgets/responsive_center.dart';
+import '../../../data/models/chat.dart' show ChatThread;
 import '../../../data/models/job.dart';
 import '../../../data/models/review.dart';
 import '../../artisan/data/artisan_providers.dart';
@@ -73,10 +74,46 @@ class _ReviewScreenState extends ConsumerState<ReviewScreen> {
   /// etiketlerle ön-dolu gelir, gönderim mevcut kaydı GÜNCELLER.
   bool _isUpdate = false;
 
+  /// Sohbet SUNUCUDAN okunur — bu ekrana ilan detayından/bildirimden doğrudan
+  /// gelinebiliyor ve o durumda sohbet listesi hiç çalışmamış olur. Bellek
+  /// haritasına bakan `hasChatBetween`/`getThread` o hâlde yanlışlıkla
+  /// "sohbet yok" diyordu ve değerlendirme ekranı hiç açılmıyordu.
+  ChatThread? _thread;
+  bool _threadLoading = true;
+
   @override
   void initState() {
     super.initState();
     _loadExisting();
+    _loadThread();
+  }
+
+  Future<void> _loadThread() async {
+    final customerUid = _customerUid();
+    if (customerUid == null) {
+      // Usta tarafında ilan henüz yüklenmemiş olabilir; bir kare bekleyip
+      // tekrar dene (jobProvider akışı gelsin).
+      await Future<void>.delayed(const Duration(milliseconds: 300));
+      if (!mounted) return;
+      final retry = _customerUid();
+      if (retry == null) {
+        setState(() => _threadLoading = false);
+        return;
+      }
+      return _fetchThreadFor(retry);
+    }
+    return _fetchThreadFor(customerUid);
+  }
+
+  Future<void> _fetchThreadFor(String customerUid) async {
+    final t = await ref
+        .read(chatRepositoryProvider)
+        .fetchThread(_chatIdFor(customerUid: customerUid));
+    if (!mounted) return;
+    setState(() {
+      _thread = t;
+      _threadLoading = false;
+    });
   }
 
   Future<void> _loadExisting() async {
@@ -159,35 +196,38 @@ class _ReviewScreenState extends ConsumerState<ReviewScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final user = ref.watch(currentUserProvider);
-    final customerUid = _customerUid();
-    final chatId =
-        customerUid == null ? null : _chatIdFor(customerUid: customerUid);
-
-    // Sohbet var mı? (PRD §5)
-    final hasChat = customerUid != null &&
-        ref.read(chatRepositoryProvider).hasChatBetween(
-              customerUid: customerUid,
-              artisanUid: widget.artisanUid,
-              jobId: widget.jobId,
-            );
+    // Sohbet var mı? (PRD §5) — SUNUCUDAN okunan thread belirleyicidir.
+    final hasChat = _thread != null;
 
     // H6: tamamlanmış iş VEYA sohbet yaşı ≥ 24s.
     final jobAsync =
         widget.jobId != null ? ref.watch(jobProvider(widget.jobId!)) : null;
     final job = jobAsync?.valueOrNull;
+    // Tamamlanmış işte İKİ TARAF da değerlendirir: müşteri ustayı, usta
+    // müşteriyi. Kilit kontrolü bu yüzden "ben bu işin taraflarından biriyim"
+    // şeklinde olmalı — yalnız `customerId == user.uid` bakılsaydı usta hiçbir
+    // zaman değerlendirme yapamazdı.
     final jobUnlocks = job != null &&
         user != null &&
-        job.customerId == user.uid &&
+        (job.customerId == user.uid || job.selectedArtisanId == user.uid) &&
         job.selectedArtisanId == widget.artisanUid &&
         (job.status == JobStatus.completed || job.status == JobStatus.rated);
 
-    final thread =
-        chatId != null ? ref.read(chatRepositoryProvider).getThread(chatId) : null;
+    final thread = _thread;
     final chatAgeOk = thread != null &&
         DateTime.now().difference(thread.openedAt) >=
             AppConstants.reviewUnlockDuration;
     // Güncelleme (mevcut review) kilitsiz; yeni create kilitli.
     final unlocked = _isUpdate || jobUnlocks || chatAgeOk;
+
+    // Sohbet sunucudan gelene kadar "sohbet yok" deme — aksi halde ekran bir
+    // an yanlış boş durumu gösterip kullanıcıyı geri çeviriyordu.
+    if (_threadLoading) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Değerlendir')),
+        body: const Center(child: CircularProgressIndicator()),
+      );
+    }
 
     if (!hasChat) {
       return Scaffold(

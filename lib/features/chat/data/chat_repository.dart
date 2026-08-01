@@ -19,11 +19,22 @@ abstract interface class ChatRepository {
   /// Müşteri ile usta arasında sohbet geçmişi var mı? Değerlendirme yalnızca
   /// sohbet geçmişi olan müşterilere açıktır (PRD §5, Ekran F).
   /// [jobId] verilirse İLAN BAZLI sohbet aranır; verilmezse genel sohbet.
+  ///
+  /// DİKKAT: yalnız BELLEKTEKİ sohbetlere bakar (liste akışı bir kez
+  /// çalışmışsa dolu olur). Sohbet listesine hiç girilmeden bu soruya cevap
+  /// gerekiyorsa [fetchThread] kullanın — o sunucuya gider.
   bool hasChatBetween({
     required String customerUid,
     required String artisanUid,
     String? jobId,
   });
+
+  /// Sohbeti SUNUCUDAN okur (bellekte yoksa da bulur).
+  ///
+  /// Değerlendirme ekranı gibi doğrudan derin bağlantıyla açılan yerlerde
+  /// gereklidir: orada `watchThreads` hiç çalışmamış olabilir, bellek boştur
+  /// ve [getThread]/[hasChatBetween] yanlışlıkla "sohbet yok" der.
+  Future<ChatThread?> fetchThread(String chatId);
 
   /// Sohbeti [uid] için okundu işaretler (o ana kadarki mesajlar).
   void markRead({required String chatId, required String uid});
@@ -188,6 +199,9 @@ class MockChatRepository implements ChatRepository {
     String? jobId,
   }) =>
       _threads.containsKey(chatIdFor(customerUid, artisanUid, jobId: jobId));
+
+  @override
+  Future<ChatThread?> fetchThread(String chatId) async => _threads[chatId];
 
   @override
   void markRead({required String chatId, required String uid}) {

@@ -21,6 +21,8 @@ import '../../artisan/application/my_profile_controller.dart';
 import '../../auth/application/auth_controller.dart';
 import '../../auth/presentation/email_verification_gate.dart';
 import '../../chat/data/chat_providers.dart';
+import '../../chat/data/firebase_chat_repository.dart'
+    show FirebaseChatRepository;
 import '../../safety/presentation/report_sheet.dart';
 import '../data/job_providers.dart';
 import 'job_completion.dart';
@@ -435,6 +437,7 @@ class _OwnerOffersSection extends ConsumerWidget {
                 for (final o in offers) ...[
                   _OfferCard(
                     offer: o,
+                    jobId: job.jobId,
                     onChat: () => _openChat(context, ref, o),
                   ),
                   const SizedBox(height: 10),
@@ -673,16 +676,18 @@ class _EditJobSheetState extends State<_EditJobSheet> {
 }
 
 /// Müşterinin ilgilenen ustaları incelerken gördüğü usta özet kartı (#5).
-class _OfferCard extends StatelessWidget {
+class _OfferCard extends ConsumerWidget {
   const _OfferCard({
     required this.offer,
     required this.onChat,
+    required this.jobId,
   });
   final Offer offer;
   final VoidCallback onChat;
+  final String jobId;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
@@ -763,6 +768,9 @@ class _OfferCard extends StatelessWidget {
             ),
           ),
           const Divider(height: 20),
+          // Bu ustayla BU İLANDAKİ sohbetin özeti: son mesaj + okunmamış
+          // sayısı. Müşteri ilan detayından çıkmadan kimin ne yazdığını görür.
+          _OfferChatPreview(offer: offer, jobId: jobId),
           Row(
             children: [
               // "Ustayı Seç" BURADA DEĞİL: seçim, ustayla konuşulan sohbetin
@@ -777,6 +785,104 @@ class _OfferCard extends StatelessWidget {
               ),
             ],
           ),
+        ],
+      ),
+    );
+  }
+}
+
+/// İlgilenen usta kartındaki sohbet özeti.
+///
+/// Sohbet ilan bazlı olduğundan (`chat_{müşteri}__{usta}__{jobId}`) bu ilana
+/// ait oda doğrudan bulunabilir. Sohbet hiç başlamamışsa "İletişimi siz
+/// başlatın" der — kurgu gereği ilk mesajı müşteri yazar.
+class _OfferChatPreview extends ConsumerWidget {
+  const _OfferChatPreview({required this.offer, required this.jobId});
+
+  final Offer offer;
+  final String jobId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final me = ref.watch(currentUserProvider)?.uid;
+    if (me == null) return const SizedBox.shrink();
+
+    final chatId = FirebaseChatRepository.chatIdFor(
+      me,
+      offer.artisanId,
+      jobId: jobId,
+    );
+    // Liste akışını izle: yeni mesaj gelince kart kendiliğinden tazelensin.
+    final threads = ref.watch(myThreadsProvider).valueOrNull;
+    final thread = threads?.where((t) => t.id == chatId).firstOrNull;
+    final palette = context.palette;
+    final theme = Theme.of(context);
+
+    if (thread == null || (thread.lastMessage ?? '').trim().isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 10),
+        child: Row(
+          children: [
+            Icon(Icons.forum_outlined, size: 15, color: palette.inkFaint),
+            const SizedBox(width: 6),
+            Expanded(
+              child: Text(
+                'Henüz mesajlaşmadınız — iletişimi siz başlatın.',
+                style: theme.textTheme.labelSmall
+                    ?.copyWith(color: palette.inkMuted),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    final unread =
+        ref.read(chatRepositoryProvider).unreadCount(chatId: chatId, uid: me);
+    final mine = thread.lastMessageSenderUid == me;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Row(
+        children: [
+          Icon(
+            mine ? Icons.reply_rounded : Icons.forum_rounded,
+            size: 15,
+            color: unread > 0 ? palette.primary : palette.inkFaint,
+          ),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              mine ? 'Siz: ${thread.lastMessage}' : thread.lastMessage!,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.labelSmall?.copyWith(
+                color: unread > 0 ? palette.ink : palette.inkMuted,
+                fontWeight: unread > 0 ? FontWeight.w700 : FontWeight.w500,
+              ),
+            ),
+          ),
+          if (unread > 0) ...[
+            const SizedBox(width: 6),
+            Container(
+              constraints: const BoxConstraints(minWidth: 18),
+              height: 18,
+              padding: const EdgeInsets.symmetric(horizontal: 5),
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: palette.primary,
+                borderRadius: BorderRadius.circular(9),
+              ),
+              child: Text(
+                unread > 9 ? '9+' : '$unread',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ),
+          ],
         ],
       ),
     );

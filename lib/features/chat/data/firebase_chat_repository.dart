@@ -280,6 +280,23 @@ class FirebaseChatRepository implements ChatRepository {
   ChatThread? getThread(String chatId) => _threads[chatId];
 
   @override
+  Future<ChatThread?> fetchThread(String chatId) async {
+    final cached = _threads[chatId];
+    if (cached != null) return cached;
+    try {
+      final snap = await _chats.doc(chatId).get();
+      final data = snap.data();
+      if (!snap.exists || data == null) return null;
+      final t = _threadFromDoc(chatId, data);
+      _threads[chatId] = t; // önbelleğe al: sonraki getThread çağrıları bulsun
+      return t;
+    } catch (e) {
+      debugPrint('[chat] fetchThread ($chatId): $e');
+      return null;
+    }
+  }
+
+  @override
   bool hasChatBetween({
     required String customerUid,
     required String artisanUid,
