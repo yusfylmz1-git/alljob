@@ -88,10 +88,14 @@ hiçbir şey yapmaz** (plan seçmeden ilerlenemez, ama uygulama da küçülmez).
 
 Her oturumun sonunda nerede kaldığımızı buraya yazın.
 
-### Oturum 1 — ____________ (tarih)
-- **Tamamlanan:** ______________
-- **Kalınan yer:** ______________
-- **Bulgu sayısı:** ______
+### Oturum 1 — 2026-08-07
+- **Tamamlanan:** Bölüm 1 (Giriş ve Hesap) ✅
+- **Kalınan yer:** Bölüm 2 — Profil ve Rol
+- **Bulgular:** B-01 (düzeltildi, `fca9064`) · K-01 (karar bekliyor)
+- **Not:** Cihaz Xiaomi 22101316G / Android 14. APK kullanıcı tarafından
+  kendi imzasıyla kuruluyor — ajanın derlediği debug imzalı APK çakışıyor
+  (`INSTALL_FAILED_UPDATE_INCOMPATIBLE`). Düzeltme sonrası kurulumu kullanıcı
+  yapmalı.
 
 ---
 
