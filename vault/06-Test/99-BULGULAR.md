@@ -210,7 +210,11 @@ Her oturumun sonunda nerede kaldığımızı buraya yazın.
 ### Oturum 1 — 2026-08-07
 - **Tamamlanan:** Bölüm 1 (Giriş ve Hesap) ✅ · Bölüm 2 (Profil ve Rol) ✅
 - **🔜 KALINAN YER: Bölüm 3 — [[03-Ilanlar-Musteri]]** (hiç başlanmadı)
-- **Bulgular:** B-01 (düzeltildi, `fca9064`) · K-01, K-02 (karar bekliyor)
+- **Düzeltilenler:** B-01 (`fca9064`) · SSS "Eleman" kategorisi (`4e28ea4`) ·
+  kartlara TapScale (`3a18eb0`)
+- **Karar/plan bekleyen:** K-01 · K-02 · K-03 · K-04
+- **⚠️ Telefonda yeni derleme gerekiyor** — TapScale ve SSS düzeltmesi
+  cihazdaki sürümde yok
 - **Not:** Cihaz Xiaomi 22101316G / Android 14. APK kullanıcı tarafından
   kendi imzasıyla kuruluyor — ajanın derlediği debug imzalı APK çakışıyor
   (`INSTALL_FAILED_UPDATE_INCOMPATIBLE`). Düzeltme sonrası kurulumu kullanıcı
