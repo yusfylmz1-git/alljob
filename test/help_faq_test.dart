@@ -14,4 +14,19 @@ void main() {
       expect(f.answer.trim().length, greaterThan(20));
     }
   });
+
+  test('her sorunun kategorisi sekme listesinde VAR (sessiz kaybolma yok)', () {
+    // Yardım ekranı sekmeleri `kFaqCategories`'ten üretilir ve soruları
+    // `category == secilen` ile süzer. Listede olmayan bir kategoriye yazılan
+    // soru HİÇBİR sekmede görünmez — hata vermez, sessizce kaybolur.
+    // ("Eleman" kategorisi tam olarak böyle kaybolmuştu.)
+    for (final f in kFaqItems) {
+      expect(
+        kFaqCategories,
+        contains(f.category),
+        reason: '"${f.question}" sorusunun kategorisi (${f.category}) '
+            'kFaqCategories listesinde yok → ekranda hiç görünmez',
+      );
+    }
+  });
 }

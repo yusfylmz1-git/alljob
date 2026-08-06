@@ -11,11 +11,22 @@ class FaqItem {
   final String question;
   final String answer;
 
-  /// Müşteri | Usta | Genel
+  /// Genel | Müşteri | Usta | Eleman | Usta Çantası
+  ///
+  /// DİKKAT: Buraya yazılan değer [kFaqCategories] içinde de OLMALIDIR —
+  /// yardım ekranı sekmeleri o listeden üretilir ve listede olmayan bir
+  /// kategorideki soru hiçbir sekmede görünmez (sessizce kaybolur).
   final String category;
 }
 
-const kFaqCategories = ['Genel', 'Müşteri', 'Usta', 'Usta Çantası'];
+/// Yardım ekranındaki sekmeler. Sıra = görünme sırası.
+const kFaqCategories = [
+  'Genel',
+  'Müşteri',
+  'Usta',
+  'Eleman',
+  'Usta Çantası',
+];
 
 const kFaqItems = <FaqItem>[
   FaqItem(
