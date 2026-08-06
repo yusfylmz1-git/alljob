@@ -72,6 +72,18 @@ Future<bool> selectArtisanForJob(
           customerId: job.customerId,
           chatId: chatId,
         );
+    // Sohbeti ustaya AÇ. Müşteri hiç mesaj yazmadan doğrudan işi verebilir;
+    // o durumda `customerStarted` false kalır ve seçilen usta kendi işinin
+    // sohbetinde "İletişimi müşteri başlatır" şeridinde kilitli kalırdı —
+    // değerlendirme aşamasına kadar süren çıkmaz buydu. İşi vermek zaten
+    // iletişimi başlatmaktan güçlü bir niyettir.
+    //
+    // Seçim BAŞARILI olduktan sonra ve ayrı try içinde: bayrak yazılamazsa
+    // (ağ/kural) seçimi geri almanın anlamı yok, usta ilk müşteri mesajıyla
+    // yine açılır.
+    try {
+      await ref.read(chatRepositoryProvider).markCustomerStarted(chatId);
+    } catch (_) {/* seçim geçerli; bayrak ilk mesajda yazılır */}
   } catch (_) {
     if (context.mounted) {
       context.showError('Usta seçilemedi, lütfen tekrar deneyin.');

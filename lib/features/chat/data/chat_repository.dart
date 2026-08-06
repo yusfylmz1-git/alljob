@@ -74,6 +74,18 @@ abstract interface class ChatRepository {
   /// deep-link). Önbellekte thread varsa recreate dener.
   Future<void> ensureChatReady(String chatId);
 
+  /// Sohbeti ustaya AÇAR (`customerStarted = true`).
+  ///
+  /// Normalde bayrağı ilk müşteri mesajı yazar. Ancak müşteri hiç yazmadan
+  /// doğrudan "Bu Ustayı Seç" diyebilir; o durumda seçilen usta — iş kendisine
+  /// verilmiş olmasına rağmen — sohbete yazamaz ve "İletişimi müşteri başlatır"
+  /// şeridinde kilitli kalırdı. İşi vermek iletişimi başlatmaktan daha güçlü
+  /// bir niyet beyanıdır, bu yüzden seçim anında bayrak yazılır.
+  ///
+  /// Kurallar bu yazımı yalnız MÜŞTERİ'ye ve yalnız false→true yönünde açar,
+  /// dolayısıyla usta kendi iznini açmak için çağıramaz.
+  Future<void> markCustomerStarted(String chatId);
+
   /// Mesaj gönderir. İletişim bilgileri otomatik maskelenir (PRD §5).
   /// Maskeleme uygulandıysa (metin değiştiyse) true döner — UI uyarı gösterir.
   Future<bool> sendMessage({
@@ -283,6 +295,14 @@ class MockChatRepository implements ChatRepository {
 
   @override
   Future<void> ensureChatReady(String chatId) async {}
+
+  @override
+  Future<void> markCustomerStarted(String chatId) async {
+    final t = _threads[chatId];
+    if (t == null || t.customerStarted) return;
+    _threads[chatId] = t.copyWith(customerStarted: true);
+    _threadsTick.add(null);
+  }
 
   @override
   Future<bool> sendMessage({

@@ -926,6 +926,47 @@ void main() {
       expect(chats.getThread(id)!.customerStarted, isTrue);
       expect(chats.getThread(id)!.canSend('art_1'), isTrue);
     });
+
+    test('markCustomerStarted: müşteri hiç yazmadan işi verirse seçilen usta '
+        'yine de yazabilir', () async {
+      final chats = MockChatRepository();
+      final id = await chats.startChat(
+        customerUid: 'cust_1',
+        customerName: 'Müşteri',
+        artisanUid: 'art_1',
+        artisanName: 'Usta',
+        jobId: 'job_a',
+      );
+      // Müşteri sohbete TEK MESAJ yazmadan doğrudan "Bu Ustayı Seç" diyor.
+      expect(chats.getThread(id)!.canSend('art_1'), isFalse);
+
+      await chats.markCustomerStarted(id);
+
+      // İşi vermek iletişimi başlatmak sayılır: usta artık yazabilir. Bu
+      // olmadan usta kendi işinin sohbetinde "İletişimi müşteri başlatır"
+      // şeridinde kilitli kalıyor, değerlendirmeye kadar çıkmaza giriyordu.
+      expect(chats.getThread(id)!.customerStarted, isTrue);
+      expect(chats.getThread(id)!.canSend('art_1'), isTrue);
+    });
+
+    test('markCustomerStarted kilidi AÇMAZ: kilitli sohbette kimse yazamaz',
+        () async {
+      final chats = MockChatRepository();
+      final id = await chats.startChat(
+        customerUid: 'cust_1',
+        customerName: 'Müşteri',
+        artisanUid: 'art_1',
+        artisanName: 'Usta',
+        jobId: 'job_a',
+      );
+      await chats.markCustomerStarted(id);
+      final locked = chats.getThread(id)!.copyWith(
+            lockedAt: DateTime.now(),
+            lockReason: ChatLockReason.otherArtisanSelected,
+          );
+      expect(locked.canSend('art_1'), isFalse);
+      expect(locked.canSend('cust_1'), isFalse);
+    });
   });
 
   group('Usta seçimi iptali', () {

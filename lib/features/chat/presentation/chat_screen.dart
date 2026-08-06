@@ -718,7 +718,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           children: [
             // Bağlı iş varsa tamamlama durumu + hızlı onay (P0).
             if (user != null)
-              _JobCompletionChatBar(chatId: widget.chatId, myUid: user.uid),
+              _JobCompletionChatBar(
+                chatId: widget.chatId,
+                myUid: user.uid,
+                thread: thread,
+              ),
             // İlan bazlı sohbette usta seçimi: müşteri anlaştığı ustanın
             // sohbetinden işi verir (§3 — "Ustayı Seç" teklif listesinden
             // buraya taşındı).
@@ -1928,14 +1932,32 @@ class _EmptyChatState extends State<_EmptyChat>
 // ---------------------------------------------------------------------------
 
 class _JobCompletionChatBar extends ConsumerWidget {
-  const _JobCompletionChatBar({required this.chatId, required this.myUid});
+  const _JobCompletionChatBar({
+    required this.chatId,
+    required this.myUid,
+    this.thread,
+  });
 
   final String chatId;
   final String myUid;
 
+  /// Sohbet başlığı — ilan bazlı sohbette bağlı ilanın kimliğini TAŞIR.
+  final ChatThread? thread;
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final jobAsync = ref.watch(jobByChatIdProvider(chatId));
+    // İlan bazlı sohbette ilanı thread'in KENDİSİNDEN çöz. Eskiden yalnız
+    // `jobByChatIdProvider` kullanılıyordu; o, ilanın `chatId` ALANINI
+    // sorgular ve bu alan sadece `selectOffer` içinde yazılır. Alan
+    // yazılmamış/eşleşmemiş her durumda job null dönüyor, şerit hiç
+    // çizilmiyordu — yani "Değerlendir" düğmesi ortada yoktu ve kullanıcı
+    // tamamlanmış işte değerlendirmeye hiç ulaşamıyordu.
+    //
+    // Genel sohbetlerde (jobId yok) eski sorgu yedek olarak durur.
+    final linkedJobId = thread?.jobId;
+    final jobAsync = (linkedJobId != null && linkedJobId.isNotEmpty)
+        ? ref.watch(jobProvider(linkedJobId))
+        : ref.watch(jobByChatIdProvider(chatId));
     final job = jobAsync.valueOrNull;
     if (job == null) return const SizedBox.shrink();
 
@@ -1945,7 +1967,13 @@ class _JobCompletionChatBar extends ConsumerWidget {
     // 1) İş tamamlandı → ÇİFT TARAFLI değerlendirme hatırlatması.
     //    Müşteri ustayı, usta müşteriyi puanlar. (Eleman-only sohbette job
     //    olmadığı için buraya hiç girilmez.)
-    if (job.status == JobStatus.completed) {
+    //
+    //    `rated` DE DAHİL: ilan, taraflardan BİRİ puan verince `rated` olur
+    //    (markRated). Yalnız `completed` aransaydı ikinci taraf için şerit tam
+    //    o anda kaybolur, karşılıklı değerlendirme hiçbir zaman tamamlanamazdı.
+    //    Zaten puan vermiş tarafa şerit "güncelleme" kapısı olarak kalır —
+    //    ReviewScreen mevcut kaydı ön-dolduruyor.
+    if (job.status == JobStatus.completed || job.status == JobStatus.rated) {
       final artisanId = job.selectedArtisanId;
       if (artisanId == null) return const SizedBox.shrink();
       // Usta tarafı yalnız SEÇİLEN usta ise değerlendirebilir.

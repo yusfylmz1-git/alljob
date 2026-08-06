@@ -431,6 +431,20 @@ class FirebaseChatRepository implements ChatRepository {
     return future;
   }
 
+  @override
+  Future<void> markCustomerStarted(String chatId) async {
+    if (chatId.isEmpty) return;
+    final cached = _threads[chatId];
+    if (cached != null && cached.customerStarted) return;
+    await _chats.doc(chatId).set(
+      {'customerStarted': true},
+      SetOptions(merge: true),
+    );
+    if (cached != null) {
+      _threads[chatId] = cached.copyWith(customerStarted: true);
+    }
+  }
+
   Future<void> _ensureChatDocBody({
     required String id,
     required String customerUid,
