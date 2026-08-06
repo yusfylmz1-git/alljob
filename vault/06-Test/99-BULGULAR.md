@@ -30,6 +30,52 @@ Faydalı olursa ekleyin: hangi hesap, ekran görüntüsü, hata mesajının ayn�
 | # | Adım | Ne oldu | Öncelik | Durum |
 |---|---|---|---|---|
 | K-01 | 8.3 | Usta profilinde telefon numarası görünüyor (opt-in özellik) | — | 🤔 **karar bekliyor** |
+| K-02 | 2.1 | Profil ekranı karmaşık geliyor; "Vitrini tamamla" kartı fazla dikkat çekiyor | 🟡 P2 | 🤔 **karar bekliyor** |
+
+### K-02 · Profil ekranı sadeleştirme — UX kararı
+
+**Kullanıcı geri bildirimi:** *"müşteri ve usta profilleri farklı biliyorum ama
+çok karmaşık. Vitrini düzenle de göze çok dikkat çekiyor."*
+
+**Ekran görüntülerinden tespit — tasarım aslında iyi:**
+Müşteri/Usta sekmesi net, renk kodlaması (mavi=müşteri / yeşil=usta) akıllıca,
+alt bar role göre değişiyor. Sorun genel karmaşa değil, **üç nokta**:
+
+#### 1. "Vitrini tamamla" kartı görsel olarak baskın 🟡
+Turuncu/amber blok, ilerleme çubuğu, 6 rozet, büyük CTA — ekranın yarısını
+kaplıyor ve **her açılışta** aynı yoğunlukta. Vurgu bilinçliydi (ustayı profil
+tamamlamaya itmek) ama ölçek yanlış.
+
+**Öneri:** İlerledikçe sönükleşsin.
+- %0–50 → şu anki hâli (yeni usta gerçekten yönlendirilmeli)
+- %51–99 → tek satır: *"Vitrin %67 — Hakkımda eksik"* + küçük "Tamamla" bağlantısı
+- %100 → kart tamamen kalksın
+- Rozetleri her zaman göstermek yerine **yalnız sıradaki adımı** yaz
+
+#### 2. ARAÇLAR bölümü iki rolde de tekrar ediyor 🟡
+`profile_screen.dart:92-120` — "Usta Çantası" ve "Ajanda" hem müşteri hem usta
+modunda **aynen** görünüyor. Rol değiştirince değişmeyen bir blok, "karmaşık"
+hissinin bir kaynağı: kullanıcı neyin role ait olduğunu ayırt edemiyor.
+
+Ayrıca **isim tutarsızlığı**: müşteri modunda "Usta Çantası" yazıyor — müşteri
+neden usta çantası görsün? (Araçlar herkese açık olabilir ama ismi rolü ima
+ediyor.)
+
+**Öneri:** Ya araçları rol-bağımsız ayrı bir sekmeye/menüye taşı, ya da müşteri
+modunda gizle. En azından müşteri modunda adı nötrleştir ("Hesap Araçları").
+
+#### 3. Vitrin düzenleme formu tek parça 🟡
+`artisan_profile_edit_screen.dart` — 1601 satır, tek uzun form: fotoğraf,
+hakkında, meslek, bölge, iş fotoğrafları, çalışma saatleri, **5 sosyal medya
+alanı**, telefon anahtarı. `focusStep` deep-link'i var ama form yine bütün
+hâlinde açılıyor.
+
+**Öneri:** Sosyal medyayı katlanabilir *"Sosyal medya (isteğe bağlı)"*
+bölümüne al — çoğu usta hiçbirini doldurmuyor, 5 alan boş yer kaplıyor.
+
+> [!note] Ne zaman yapılmalı?
+> **Test bittikten sonra.** Şimdi dokunulursa bölüm 2–9 yeni bir arayüzde test
+> edilir ve karşılaştırma zemini kaybolur. K-01 ile birlikte topluca ele alınsın.
 
 ### K-01 · Vitrin telefonu — ürün kararı (hata DEĞİL)
 
