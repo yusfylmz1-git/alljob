@@ -65,7 +65,7 @@ kapı onu delik bırakır.
 
 | # | Adım | Ne oldu | Nasıl çözüldü | Commit |
 |---|---|---|---|---|
-| B-01 | 1.2.5 | Misafir Mesajlar'a basıp giriş ekranına düşünce, **donanım geri tuşu uygulamayı küçültüyordu** (ana ekrana dönmesi gerekirdi) | `LoginScreen` + `PackageSelectScreen`'e `PopScope` | `3e8b3d0` |
+| B-01 | 1.2.5 | Misafir Mesajlar'a basıp giriş ekranına düşünce, **donanım geri tuşu uygulamayı küçültüyordu** (ana ekrana dönmesi gerekirdi) | `LoginScreen` + `PackageSelectScreen`'e `PopScope` | `fca9064` |
 
 ### B-01 · Giriş ekranında donanım geri tuşu
 
