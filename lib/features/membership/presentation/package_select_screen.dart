@@ -96,12 +96,31 @@ class _PackageSelectScreenState extends ConsumerState<PackageSelectScreen> {
     }
   }
 
+  /// Geri (yalnız [widget.changing] modunda): yığında sayfa varsa ona dön,
+  /// yoksa PROFİLE. İlk zorunlu seçimde bu hiç çağrılmaz — plan seçilmeden
+  /// çıkılamaz.
+  void _goBack() {
+    if (context.canPop()) {
+      context.pop();
+    } else {
+      context.go(RoutePaths.profile);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final palette = context.palette;
 
-    return Scaffold(
+    return PopScope(
+      // Donanım geri tuşu: `changing` modunda profile döner. İLK ZORUNLU
+      // seçimde geri tuşu hiçbir şey yapmaz (canPop:false + boş gövde) —
+      // kullanıcı plan seçmeden ilerleyemez, ama uygulama da küçülmez.
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop && widget.changing) _goBack();
+      },
+      child: Scaffold(
       body: Column(
         children: [
           Container(
@@ -121,9 +140,7 @@ class _PackageSelectScreenState extends ConsumerState<PackageSelectScreen> {
                         alignment: Alignment.centerLeft,
                         child: BackButton(
                           color: Colors.white,
-                          onPressed: () => context.canPop()
-                              ? context.pop()
-                              : context.go(RoutePaths.profile),
+                          onPressed: _goBack,
                         ),
                       )
                     else
@@ -230,6 +247,7 @@ class _PackageSelectScreenState extends ConsumerState<PackageSelectScreen> {
             ),
           ),
         ],
+      ),
       ),
     );
   }

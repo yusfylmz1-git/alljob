@@ -29,9 +29,15 @@ Misafir bazı yerleri görebilir, bazılarında girişe yönlendirilir.
 
 ## 1.3 Google ile giriş
 
-- [ ] **1.3.1** Giriş ekranında **Google ile Giriş** düğmesi çalışıyor
-- [ ] **1.3.2** Google hesap seçici açılıyor
-- [ ] **1.3.3** Hesap seçince uygulamaya dönüyor, **ana ekran** açılıyor
+- [x] **1.3.1** Giriş ekranında **Google ile Giriş** düğmesi çalışıyor
+- [x] **1.3.2** Google hesap seçici açılıyor
+- [x] **1.3.3** Hesap seçince uygulamaya dönüyor
+- [x] **1.3.3b** **Bildirim izni** isteniyor (Android 13+ zorunlu)
+- [x] **1.3.3c** İlk oturumda **Plan Seçimi** ekranına yönlendiriyor
+      — ✅ doğru davranış, kodda kasıtlı (`app_router.dart:192`).
+      Bir kez zorunlu; sonra Profil'den değiştirilebilir.
+- [ ] **1.3.3d** Plan seçince **ana ekran** açılıyor
+- [ ] **1.3.3e** Uygulamayı kapatıp açın → plan seçimi **tekrar gelmemeli**
 - [ ] **1.3.4** Kullanıcı adı/fotoğrafı doğru görünüyor (profil veya menüde)
 - [ ] **1.3.5** ❌ **İptal ederseniz** (hesap seçmeden geri) → uygulama takılmıyor,
       giriş ekranında kalıyor, hata mesajı anlaşılır

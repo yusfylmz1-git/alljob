@@ -44,6 +44,20 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     context.go(seen ? RoutePaths.home : RoutePaths.packageSelect);
   }
 
+  /// Geri: yığında sayfa varsa ona dön, yoksa ANA EKRANA.
+  ///
+  /// Bu ekrana çoğunlukla `redirect` ile gelinir (misafir korumalı bir bölgeye
+  /// dokunur → router buraya yönlendirir). Yönlendirme geçmiş yığını
+  /// bırakmadığından `canPop()` false olur; ana ekrana düşürmezsek donanım geri
+  /// tuşu doğrudan sisteme gider ve UYGULAMAYI KÜÇÜLTÜR (kullanıcı bildirimi).
+  void _goBack() {
+    if (context.canPop()) {
+      context.pop();
+    } else {
+      context.go(RoutePaths.home);
+    }
+  }
+
   Future<void> _google() async {
     if (!_consent) {
       context.showInfo(
@@ -70,8 +84,17 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     final theme = Theme.of(context);
     final isLoading = ref.watch(authControllerProvider).isLoading;
 
-    return Scaffold(
-      body: Column(
+    return PopScope(
+      // Donanım geri tuşunu KENDİMİZ ele alıyoruz: bu ekrana genelde
+      // `redirect` ile gelinir ve geçmiş yığını boştur → varsayılan davranış
+      // uygulamayı küçültürdü. `canPop: false` + elle yönlendirme ile geri
+      // tuşu ana ekrana döner (ekrandaki BackButton ile aynı mantık).
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _goBack();
+      },
+      child: Scaffold(
+        body: Column(
         children: [
           Container(
             width: double.infinity,
@@ -89,9 +112,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       alignment: Alignment.centerLeft,
                       child: BackButton(
                         color: Colors.white,
-                        onPressed: () => context.canPop()
-                            ? context.pop()
-                            : context.go(RoutePaths.home),
+                        onPressed: _goBack,
                       ),
                     ),
                     const BrandMark(size: 180),
@@ -254,6 +275,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             ),
           ),
         ],
+        ),
       ),
     );
   }
