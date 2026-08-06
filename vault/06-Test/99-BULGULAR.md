@@ -135,13 +135,25 @@ hiçbir şey yapmaz** (plan seçmeden ilerlenemez, ama uygulama da küçülmez).
 Her oturumun sonunda nerede kaldığımızı buraya yazın.
 
 ### Oturum 1 — 2026-08-07
-- **Tamamlanan:** Bölüm 1 (Giriş ve Hesap) ✅
-- **Kalınan yer:** Bölüm 2 — Profil ve Rol
-- **Bulgular:** B-01 (düzeltildi, `fca9064`) · K-01 (karar bekliyor)
+- **Tamamlanan:** Bölüm 1 (Giriş ve Hesap) ✅ · Bölüm 2 (Profil ve Rol) ✅
+- **🔜 KALINAN YER: Bölüm 3 — [[03-Ilanlar-Musteri]]** (hiç başlanmadı)
+- **Bulgular:** B-01 (düzeltildi, `fca9064`) · K-01, K-02 (karar bekliyor)
 - **Not:** Cihaz Xiaomi 22101316G / Android 14. APK kullanıcı tarafından
   kendi imzasıyla kuruluyor — ajanın derlediği debug imzalı APK çakışıyor
   (`INSTALL_FAILED_UPDATE_INCOMPATIBLE`). Düzeltme sonrası kurulumu kullanıcı
   yapmalı.
+
+> [!important] Sonraki oturumda buradan devam
+> **Bölüm 3'ten başla.** İlan akışı sistemin merkezi — bölüm 3→4→5→6→7 zinciri
+> birbirine bağlıdır, tek oturumda yapmak en verimlisi (~1.5 saat).
+>
+> **Gerekli hazırlık:** İkinci Google hesabı. Bölüm 4'ten itibaren usta ve
+> müşteri ayrı hesaplar olmalı; ustanın kendi ilanına ilgi bildirmesi mümkün
+> değil.
+>
+> **Kritik doğrulamalar** (henüz hiç cihazda test edilmedi):
+> - 5.3 — müşteri hiç yazmadan işi verirse usta sohbete yazabiliyor mu?
+> - 7.2 — müşteri puan verdikten sonra ustanın "Değerlendir" şeridi duruyor mu?
 
 ---
 

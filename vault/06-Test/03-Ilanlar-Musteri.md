@@ -29,8 +29,14 @@
 
 - [ ] **3.3.1** 5 açık ilanınız varken **6.'yı açmayı deneyin**
 - [ ] **3.3.2** ⚠️ Engellenmeli ve **anlaşılır bir mesaj** vermeli
-      ("5 ilan sınırına ulaştınız" gibi) — sessizce başarısız olmamalı
+      (*"Aynı anda en fazla 5 açık ilanınız..."*) — sessizce başarısız olmamalı
 - [ ] **3.3.3** Bir ilanı iptal edip tekrar deneyin → **açabilmeli**
+- [ ] **3.3.4** **İlanlarım** ekranındaki sayaç doğru mu? (`3/5 açık` biçiminde)
+
+> [!note] İkinci bir limit daha var
+> **Günlük 10 ilan** (`maxJobsPerDay`) — sunucuda `onJobCreated` uygular.
+> 5'lik limiti test ederken buna takılmazsınız, ama çok sayıda deneme
+> yaparsanız karşınıza çıkabilir.
 
 ## 3.4 İlan listeleme ve detay
 
