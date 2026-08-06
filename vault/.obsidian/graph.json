@@ -1,0 +1,26 @@
+{
+  "collapse-filter": true,
+  "search": "",
+  "showTags": true,
+  "showAttachments": false,
+  "hideUnresolved": false,
+  "showOrphans": true,
+  "collapse-color-groups": false,
+  "colorGroups": [
+    { "query": "path:01-Mimari", "color": { "a": 1, "rgb": 5431378 } },
+    { "query": "path:02-Ozellikler", "color": { "a": 1, "rgb": 3908956 } },
+    { "query": "path:03-Backend", "color": { "a": 1, "rgb": 14701138 } },
+    { "query": "path:04-Veri", "color": { "a": 1, "rgb": 11621088 } },
+    { "query": "path:05-Operasyon", "color": { "a": 1, "rgb": 14024704 } }
+  ],
+  "collapse-display": true,
+  "showArrow": true,
+  "textFadeMultiplier": 0,
+  "nodeSizeMultiplier": 1.2,
+  "collapse-forces": true,
+  "centerStrength": 0.5,
+  "repelStrength": 11,
+  "linkStrength": 1,
+  "linkDistance": 200,
+  "scale": 1
+}
