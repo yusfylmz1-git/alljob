@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_palette.dart';
 import '../../../../core/widgets/app_image.dart';
+import '../../../../core/widgets/tap_scale.dart';
 import '../../../../data/local/mock_database.dart' show kProfessionNames;
 import '../../../../data/models/product.dart';
 
@@ -23,7 +24,9 @@ class ProductCard extends StatelessWidget {
     final cat =
         kProfessionNames[product.categoryCode] ?? product.categoryCode;
 
-    return Material(
+    return TapScale(
+      scale: 0.98,
+      child: Material(
       color: palette.card,
       borderRadius: BorderRadius.circular(16),
       clipBehavior: Clip.antiAlias,
@@ -94,6 +97,7 @@ class ProductCard extends StatelessWidget {
             ),
           ],
         ),
+      ),
       ),
     );
   }

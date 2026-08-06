@@ -2,10 +2,16 @@ import 'package:flutter/material.dart';
 
 import '../theme/app_palette.dart';
 import '../theme/app_theme.dart';
+import 'tap_scale.dart';
 
 /// Ortak “cam / premium” kart kabuğu — usta kartı, iş ilanı, favori listesi.
 ///
 /// BackdropFilter yok (liste performansı). Yarı saydam gradyan + ışıltı + gölge.
+///
+/// Dokunulabilir kartlar ([onTap] dolu) basılınca hafifçe içeri yaylanır
+/// ([TapScale]) — dokunma hissi uygulama genelinde birincil butonlarla aynı
+/// dili konuşsun diye. Efekt BURADA, tek noktada durur: bu kabuğu kullanan
+/// her kart (usta, ilan, favori, eleman) kendiliğinden kazanır.
 class PremiumSurfaceCard extends StatelessWidget {
   const PremiumSurfaceCard({
     super.key,
@@ -69,7 +75,13 @@ class PremiumSurfaceCard extends StatelessWidget {
       );
     }
 
-    return Material(
+    // Kartlar butonlardan büyüktür: aynı ölçek oranı iri yüzeylerde abartılı
+    // durur, o yüzden AppButton'ın 0.965'i yerine daha ince bir 0.98.
+    // onTap yoksa kart dekoratiftir — yaylanma yanıltıcı olur, kapalı.
+    return TapScale(
+      enabled: onTap != null,
+      scale: 0.98,
+      child: Material(
       color: Colors.transparent,
       borderRadius: radius,
       clipBehavior: Clip.antiAlias,
@@ -111,6 +123,7 @@ class PremiumSurfaceCard extends StatelessWidget {
             ],
           ),
         ),
+      ),
       ),
     );
   }
