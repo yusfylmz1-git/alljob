@@ -32,6 +32,31 @@ Faydalı olursa ekleyin: hangi hesap, ekran görüntüsü, hata mesajının ayn�
 | K-01 | 8.3 | Usta profilinde telefon numarası görünüyor (opt-in özellik) | — | 🤔 **karar bekliyor** |
 | K-02 | 2.1 | Profil ekranı karmaşık geliyor; "Vitrini tamamla" kartı fazla dikkat çekiyor | 🟡 P2 | 🤔 **karar bekliyor** |
 | K-03 | 1.1 | Onboarding sığ; "nasıl kullanılır" anlatımı eksik | 🟡 P2 | 📋 **planlandı** |
+| K-04 | — | Liste açılışında kartlar için "şelale" giriş animasyonu | 🟡 P2 | 📋 **planlandı** |
+
+### K-04 · Liste giriş animasyonu (şelale) — PLAN
+
+**Durum:** Dokunma yaylanması (`TapScale`) **yapıldı** (`3a18eb0`). Şelale
+animasyonu bekliyor.
+
+**İstenen:** Liste açılınca kartlar hep birden değil, yukarıdan aşağıya
+sırayla süzülerek görünsün.
+
+**İki gerçek risk — naif uygulama kötü sonuç verir:**
+
+1. **Tekrar oynatma.** Listeler `ListView.builder` kullanıyor; kaydırıp geri
+   dönünce widget yeniden kurulur. `index × gecikme` yazılırsa kartlar her
+   dönüşte tekrar animasyon oynatır → sinir bozucu.
+   **Çözüm:** yalnız **ilk yüklemede** ve yalnız **ilk ~8 kart**; sonrakiler
+   anında görünsün.
+2. **Gecikme hissi.** 50 ms × 10 kart = yarım saniye; kullanıcı listeyi geç
+   görmüş hisseder. **30–40 ms** ve **maks 6–8 kart** sınırı gerekir.
+
+**Yaklaşım:** Tek paylaşılan widget yaz (`ListEnter` gibi), her ekranda ayrı
+ayrı değil — yoksa 21 dosyaya dağılmış tutarsız animasyonlar olur.
+
+**Mevcut dil:** Sohbetteki `_MessageEnter` (`chat_screen.dart`, 280 ms
+`easeOutCubic`) aynı hareket dilini kullanıyor; listelerde de ona uyulmalı.
 
 ### K-03 · Onboarding + Yardım zenginleştirme — PLAN
 
