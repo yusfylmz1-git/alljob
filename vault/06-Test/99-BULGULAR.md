@@ -31,6 +31,54 @@ Faydalı olursa ekleyin: hangi hesap, ekran görüntüsü, hata mesajının ayn�
 |---|---|---|---|---|
 | K-01 | 8.3 | Usta profilinde telefon numarası görünüyor (opt-in özellik) | — | 🤔 **karar bekliyor** |
 | K-02 | 2.1 | Profil ekranı karmaşık geliyor; "Vitrini tamamla" kartı fazla dikkat çekiyor | 🟡 P2 | 🤔 **karar bekliyor** |
+| K-03 | 1.1 | Onboarding sığ; "nasıl kullanılır" anlatımı eksik | 🟡 P2 | 📋 **planlandı** |
+
+### K-03 · Onboarding + Yardım zenginleştirme — PLAN
+
+**Karar:** Kısa onboarding + zengin Yardım. (Kullanıcı seçimi.)
+
+**Gerekçe:** Onboarding'in düşmanı uzunluktur — 3 sayfayı 8'e çıkarırsak
+kullanıcı "atla"ya basar ve hiçbirini okumaz. Detay, ihtiyaç anında
+okunabileceği yerde (Yardım) durmalı.
+
+**Şişme endişesi ölçüldü — sorun değil:**
+| | Mevcut | Sonrası (tahmin) |
+|---|---|---|
+| Onboarding kodu | 297 satır | ~500 satır |
+| Yardım kodu | 458 satır | ~700 satır |
+| APK | 91 MB | +0.1 MB'tan az (kod, görsel değil) |
+
+64K satırlık projede ~450 satır = **%0.7**. Şişme değil.
+
+#### Faz 1 — Onboarding (3 sayfa KALSIN, kalitesi artsın)
+Mevcut içerik zaten iyi (`onboarding_screen.dart:26-47`): "Aradığın usta
+bölgende" / "İlanını ver ustalar gelsin" / "Usta mısın? Vitrinini aç".
+- Sayfa **sayısını artırma**; görsel anlatımı güçlendir (ikon → küçük illüstrasyon
+  veya animasyon)
+- Son sayfaya *"Nasıl kullanılır?"* bağlantısı ekle → Yardım'a götürsün
+- Atla düğmesi her zaman erişilebilir kalsın
+
+#### Faz 2 — Yardım ekranı (asıl iş burada)
+Şu an düz SSS listesi. Eklenecek: **rol bazlı adım adım rehberler**.
+```
+Yardım
+├── 🚀 Nasıl başlarım?        ← YENİ, rehber formatı
+│   ├── Müşteriysen: ilan ver → usta seç → değerlendir
+│   └── Ustaysan: vitrin aç → ilgi bildir → işi tamamla
+├── ❓ SSS                     ← mevcut, kategorili
+└── 📞 Destek                  ← mevcut
+```
+Rehber içeriği ekran görselleriyle desteklenirse çok daha etkili olur.
+
+#### Faz 3 (opsiyonel) — Bağlam içi ipuçları
+Kullanıcı bir ekranı ilk kez açtığında tek seferlik ipucu balonu.
+En etkili öğretme yöntemi ama en çok iş — Faz 1-2'den sonra değerlendirilsin.
+
+> [!note] ui-ux-pro-max skill'i
+> Bu iş için **fikir kaynağı** olarak mantıklı (onboarding kalıpları, tipografi,
+> animasyon önerileri) ama **kod üretici** olarak değil — projenin kendi
+> `AppPalette`/`AppTheme` sistemi var, yeni palet dayatması zarar verir.
+> Kurulum: `npm i -g ui-ux-pro-max-cli && uipro init --ai claude`
 
 ### K-02 · Profil ekranı sadeleştirme — UX kararı
 
