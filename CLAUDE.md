@@ -30,6 +30,54 @@ Hızlı eşleme:
 > adı veriyorsa, değiştirmeden önce o dosyayı aç ve hâlâ orada olduğunu
 > doğrula.
 
+**Kaldığımız yer:** `ILERLEME_NOTLARI.md` → "Son Durum" bölümü.
+
+## 📍 Dosya konumları — ARAMA YAPMA, buradan bak
+
+Bunlar sık gereken yollar. Grep/Glob turu açmadan önce bu tabloya bak.
+
+| Ne | Yol |
+|---|---|
+| Rotalar | `lib/core/router/route_paths.dart` · `app_router.dart` |
+| Backend anahtarı (mock/Firebase) | `lib/core/config/backend_config.dart` |
+| Sabitler (`maxOpenJobs=5` vb.) | `lib/core/constants/app_constants.dart` |
+| İletişim maskeleme | `lib/core/utils/contact_masker.dart` |
+| Tema / renk | `lib/core/theme/app_palette.dart` |
+| **Modeller (20 dosya)** | `lib/data/models/` |
+| İş modeli + `JobStatus` | `lib/data/models/job.dart` |
+| Sohbet modeli + `canSend()` | `lib/data/models/chat.dart` |
+| Değerlendirme + `ReviewDirection` | `lib/data/models/review.dart` |
+| Sohbet ekranı (2077 st) | `lib/features/chat/presentation/chat_screen.dart` |
+| Sohbet repo (Firebase) | `lib/features/chat/data/firebase_chat_repository.dart` |
+| Sohbet provider'ları | `lib/features/chat/data/chat_providers.dart` |
+| İlan detayı (1966 st) | `lib/features/jobs/presentation/job_detail_screen.dart` |
+| İlan provider'ları | `lib/features/jobs/data/job_providers.dart` |
+| **Usta seçimi (tek giriş)** | `lib/features/jobs/application/select_artisan.dart` |
+| Değerlendirme ekranı | `lib/features/review/presentation/review_screen.dart` |
+| Kimlik doğrulama | `lib/features/auth/application/auth_controller.dart` |
+| **Tüm CF'ler (51 adet)** | `functions/index.js` (tek dosya, 5127 st) |
+| Güvenlik kuralları | `firestore.rules` (1278 st) |
+| Admin girişi | `lib/main_admin.dart` · `lib/features/admin/` |
+
+**Modül → klasör:** admin · artisan · auth · chat · customer · favorites · help ·
+home · jobs · legal · membership · notifications · onboarding · products ·
+profile · review · safety · staffing · storage · toolkit · tracking
+→ hepsi `lib/features/<ad>/{data,application,presentation}/`
+
+## 💰 Token tasarrufu — çalışma biçimi
+
+1. **Önce kasa/tablo, sonra kod.** Yukarıdaki tabloda yol varsa doğrudan
+   `Read` et; `Glob`/`Grep` turu açma.
+2. **Büyük dosyaları parça oku.** `chat_screen.dart` ve `job_detail_screen.dart`
+   2000 satır — `offset`/`limit` ile ilgili bölümü oku, baştan sona okuma.
+   İlgili sınıfı bulmak için `grep -n "class _AdiniBildigim"` yeterli.
+3. **Alt ajan (Task/Agent) açma** — kullanıcı açıkça istemedikçe. Her ajan
+   bağlamı sıfırdan kurar; bu plandaki en pahalı yoldur.
+4. **Doğrulama tek komutta.** `flutter analyze` + `flutter test` çıktısını
+   `tail` ile kısalt; tüm test listesini bağlama alma.
+5. **Tekrar okuma yok.** Edit ettiğin dosyayı "kontrol için" yeniden `Read`
+   etme — Edit başarısız olsaydı hata verirdi.
+
 ## Komutlar
 
 ```bash

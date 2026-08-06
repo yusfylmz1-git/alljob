@@ -23,9 +23,80 @@
 
 ## ✅ Son Durum (EN SON BURAYI OKU)
 
-**Tarih:** 2026-08-01
+**Tarih:** 2026-08-06
 
-**Oturum 80 (2026-08-01): İLAN BAZLI SOHBET MİMARİSİ + İŞ AKIŞI SADELEŞTİRME + İLAN LİMİTİ. 317/317 test, analyze 0. ✅ rules + 4 CF CANLIDA. ⚠️ CİHAZ TESTİ BEKLİYOR.**
+**Oturum 81 (2026-08-06): KARŞILIKLI DEĞERLENDİRME ÇIKMAZI ÇÖZÜLDÜ + OBSİDİAN MİMARİ KASASI. 319/319 test, analyze 0. ⚠️ CİHAZ TESTİ BEKLİYOR. Kural/CF deploy GEREKMEDİ.**
+
+### 🆕 Yeni oturuma başlarken
+1. **`CLAUDE.md`** kökte — ajan tarafından otomatik okunur, kasaya yönlendirir.
+2. **`vault/`** mimari kasası — 18 not. Giriş: `vault/00-BASLA-BURADAN.md`
+   (görev tipine göre hangi notu okuyacağını söyleyen tablo).
+3. Bu dosya = zaman çizgisi. Kasa = kalıcı yapı. İkisi ayrı işler.
+
+### A) Değerlendirme çıkmazı — 3 kırık nokta (commit `d505d3f`)
+**Belirti:** İş tamamlandıktan sonra sohbette "mesaj yazma izniniz yok" çıkıyor,
+değerlendirme ekranı da açılmıyordu — kullanıcı çıkmaza giriyordu.
+
+1. **`customerStarted` işi verirken yazılmıyordu.** Müşteri sohbete hiç yazmadan
+   doğrudan "Bu Ustayı Seç" derse bayrak `false` kalıyor ve **seçilen usta kendi
+   işinin sohbetinde yazamıyordu**. Kullanıcının gördüğü "izniniz yok" buydu —
+   kilit değil, `canSend`'in usta dalı.
+   → `selectArtisanForJob` artık `markCustomerStarted(chatId)` çağırıyor
+   (arayüze + Firebase + Mock uygulamalarına eklendi).
+   → **Kural değişikliği GEREKMEDİ:** `firestore.rules:293` (`customerStartedOk`)
+   bu yazımı zaten yalnız müşteriye ve yalnız `false→true` yönünde açıyordu.
+
+2. **"Değerlendir" düğmesi hiç çizilmiyordu.** `_JobCompletionChatBar`
+   `jobByChatIdProvider`'a bağlıydı; o, ilanın `chatId` **ALANINI** sorgular ve o
+   alan yalnız `selectOffer` içinde yazılır. Eşleşmeyince `job == null` → şerit
+   yok → değerlendirmeye ulaşılamıyor.
+   → İlan bazlı sohbette artık `thread.jobId` → `jobProvider`.
+   `jobByChatIdProvider` yalnız genel sohbetler için yedek.
+
+3. **`rated` durumu unutulmuştu.** Şerit yalnız `JobStatus.completed` arıyordu.
+   İlk taraf puan verince `markRated` ilanı `rated` yapıyor ve şerit **ikinci
+   taraf için tam o anda kayboluyordu** — "karşılıklı" değerlendirme bu yüzden
+   hiçbir zaman tamamlanamıyordu.
+
+**Testler:** `jobs_test.dart`'a 2 regresyon testi — biri seçim sonrası ustanın
+yazabildiğini, diğeri bunun **kilidi AÇMADIĞINI** doğruluyor (başka usta seçilmiş
+sohbet salt okunur kalmalı).
+
+> ⚠️ **Geriye dönük etki:** Bu düzeltmeler YENİ akışlar için çalışır.
+> `customerStarted: false` takılı kalmış MEVCUT sohbetler kendiliğinden düzelmez —
+> müşteri o sohbete bir mesaj yazınca açılırlar. Toplu düzeltme istenirse tek
+> seferlik CF migration gerekir.
+
+### B) Obsidian mimari kasası (commit `db5aa25`)
+**Amaç:** her oturumda 64K satır Dart + 5.1K CF + 1.3K kuralı yeniden taramadan
+çalışmak (token maliyeti).
+
+- `vault/` — 18 not, 2.201 satır, wikilink'li, graph yapılandırıldı
+  - `01-Mimari` katman, repository deseni, Riverpod, rotalar, **16 ADR**
+  - `02-Ozellikler` iş akışı durum makinesi, sohbet, değerlendirme, envanter
+  - `03-Backend` 51 CF haritası, güvenlik kuralları, admin paneli
+  - `04-Veri` Firestore şeması, veri modelleri
+  - `05-Operasyon` **Bilinen-Tuzaklar** (en değerli), test stratejisi, deploy
+- `CLAUDE.md` — ajanı önce kasaya yönlendirir; değişmez kurallar + asla
+  değiştirilmeyecek sabitler (`usta_cepte_tracking.db`, Play ürün kimlikleri).
+- Doğrulama: 0 kırık wikilink, 0 öksüz not; teknik iddialar koda karşı örneklendi.
+
+> **Kapsam sınırı:** Kasa hedefli aramalarla çıkarıldı, 64K satırın tamamı
+> okunarak değil. Mimari omurga + tuzaklar sağlam; `toolkit` / `staffing` gibi
+> bu oturumda dokunulmayan modüllerin iç ayrıntısı yüzeysel (envanterde tek
+> satır). Gerekirse modül bazında derinleştirilir.
+
+### C) Sıradaki adım
+- [ ] **Cihaz testi:** karşılıklı değerlendirme akışı uçtan uca (müşteri hiç
+      yazmadan işi ver → usta yazabiliyor mu → iki taraf da puan verebiliyor mu)
+- [ ] Takılı kalmış eski sohbetler için migration gerekli mi karar ver
+- [ ] Oturum 80'den devreden cihaz testleri hâlâ bekliyor
+
+---
+
+## 📦 Oturum 80 (2026-08-01) — arşiv
+
+**Oturum 80: İLAN BAZLI SOHBET MİMARİSİ + İŞ AKIŞI SADELEŞTİRME + İLAN LİMİTİ. 317/317 test, analyze 0. ✅ rules + 4 CF CANLIDA. ⚠️ CİHAZ TESTİ BEKLİYOR.**
 
 ### A) Sohbet artık İLAN BAZLI — `chat_{müşteri}__{usta}__{jobId}`
 - **Önceki model:** aynı çift BÜTÜN ilanlarında tek sohbeti paylaşıyordu; `ChatThread`'de `jobId` yoktu, bağ ters yönlüydü (`jobs.chatId`) ve yalnız `selectOffer`'da yazılıyordu → sohbette hangi işin konuşulduğu belirsizdi.
@@ -1061,6 +1132,10 @@ Aşama 1 özet: Flutter projesi (Android/iOS/Web), Riverpod+GoRouter, tema, `Val
 ---
 
 ## 📜 Oturum Geçmişi (en yeni en üstte)
+
+### 2026-08-06 — Oturum 81 (Karşılıklı değerlendirme çıkmazı + Obsidian mimari kasası — detay yukarıda "Son Durum")
+Değerlendirme akışında 3 kırık nokta: (1) müşteri hiç yazmadan işi verirse seçilen usta sohbete yazamıyordu → `markCustomerStarted`; (2) "Değerlendir" şeridi `jobByChatIdProvider`'a bağlı olduğu için hiç çizilmiyordu → `thread.jobId` + `jobProvider`; (3) şerit `rated` durumunu tanımadığından ikinci taraf için kayboluyordu. Kural/CF deploy gerekmedi. + `vault/` mimari kasası (18 not) ve `CLAUDE.md`. 319/319 test, analyze 0.
+**Sıradaki adım (kullanıcı):** cihazda uçtan uca karşılıklı değerlendirme testi.
 
 ### 2026-07-08 — Oturum 29 (Mesajlar IG dili + kompakt kartlar — detay yukarıda "Son Durum → Oturum 29")
 Sohbet listesi: arama + kompakt satır + mavi okunmamış noktası. Sohbet: mesaj gruplama (avatar grup sonunda), 20px baloncuk, appbar/avatar → profil (müşteri için mini profil sheet). Usta kartı tek satır (grid 152→84), ilan kartı tek satır. analyze 0, 68/68.
