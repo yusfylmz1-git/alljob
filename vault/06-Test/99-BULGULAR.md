@@ -57,7 +57,9 @@ Faydalı olursa ekleyin: hangi hesap, ekran görüntüsü, hata mesajının ayn�
 | B-19 | 5.1.2 | **Sohbette ilan başlığı görünmüyor** — `ensureChatReady` alanları düşürüyor + kural sonradan yazmaya kapalı | 🟠 P1 | ✅ **düzeltildi + cihazda doğrulandı** |
 | B-17 | 1.x | Hesap değişiminde **ANR ("yanıt vermiyor") + çökme** — süre sınırsız çıkış zinciri | 🔴 P0 | ✅ **düzeltildi + cihazda doğrulandı** |
 | K-05 | 2.x | Usta hesabı ilk açılışta **Hemen Lazım varsayılan açık** gelsin | 🟡 P2 | 🤔 **karar bekliyor** |
-| K-08 | 5.x | **Mesajlar listesi karmaşık** — ilan + genel sohbetler karışık. Gruplama gerekli mi? | 🟡 P2 | ⏸️ **B-19 sonrası cihazda bakılacak** |
+| K-08 | 5.7 | **Mesajlar listesine sekme** — genel mesajlar önce, ilan mesajları sonra | 🟡 P2 | 📋 **planlandı** (kullanıcı istedi) |
+| K-09 | 5.5 | Sohbet **görünümü WhatsApp/Instagram havası vermiyor** — işlevler çalışıyor, cila eksik | 🟡 P2 | 🤔 **kapsam belirsiz** |
+| K-10 | 5.6 | ⛔ **Maskeleme test EDİLMEDİ** — "gereksiz" sanılarak atlandı, ama kod aktif ve K-01 hâlâ açık | 🟠 P1 | ⚠️ **test edilmeli** |
 | K-06 | 2.1 | Profil başlığı **usta kartı gibi** olsun: foto solda, yanında isim + Takip Et, altında meslek/telefon | 🟡 P2 | 🤔 **K-02 ile birlikte** |
 | K-07 | 3.1.6 | Fiyat tipi ilan formunda yok — ~~bilinçli mi?~~ | — | ✅ **kapandı: bilinçli** |
 
@@ -105,7 +107,99 @@ gerçekleştiği belli olur (şu an sessiz).
 **Zamanlama:** K-02/K-06 (profil başlığı yeniden tasarımı) ile **aynı alan**.
 Üçü birlikte ele alınmalı — profil başlığı da rol kimliğini gösteren yer.
 
-### K-08 · Mesajlar listesi karmaşık mı? — ÖNCE ÖLÇ
+### K-10 · ⛔ Maskeleme test edilmedi — yanlış anlaşılma düzeltilmeli
+
+**Kullanıcı:** *"5.6 da maskeleme gereksiz oldu çünkü profilde telefon
+gözükebilir yaptık."*
+
+**Bu varsayım yanlış — üç sebeple:**
+
+1. **K-01 hâlâ AÇIK.** Vitrinde telefon "yapıldı" değil; defterde *"karar
+   bekliyor"* durumunda. Özellik zaten vardı, varsayılan **kapalı** bir
+   opt-in ve üç şart birden gerekiyor (usta açmış + doğrulanmış + dolu).
+2. **Maskeleme kodu tamamen aktif.** `contact_masker.dart` telefon, e-posta,
+   URL, sosyal medya kullanıcı adlarını maskeliyor. Test edilmezse
+   **çalışıp çalışmadığını bilmiyoruz** — regex tabanlı, kaçış senaryoları
+   var (harfle yazılmış rakamlar vb.).
+3. **İkisi farklı kanal.** Profilde telefon = ustanın *bilinçli* tercihi,
+   herkese açık vitrin. Sohbette telefon = platform dışına *kaçış*.
+   Birincisi açık olsa da ikincisinin engeli anlamını korur.
+
+**Sonuç:** 5.6'nın 4 adımı hâlâ geçerli, test edilmeli.
+
+### K-11 · Müstehcen içerik / taciz engelleme — SORU
+
+**Kullanıcı:** *"Mesajlarda müstehcen içerikler ve yazışmalar nasıl
+engellenebilir? Bu konuda bir fikrim yok."*
+
+#### Mevcut durum — altyapının çoğu ZATEN VAR
+
+| Var olan | Nerede |
+|---|---|
+| Kullanıcı **engelleme** | `myBlockedUidsProvider`, `users/{uid}/blocked/` |
+| **Şikayet** (rapor) | `report_sheet.dart`, `reports` koleksiyonu |
+| Admin **moderasyon** | `admin/` modülü, `moderationHidden` bayrağı |
+| Kullanıcı **askıya alma** | `suspended` (yalnız CF yazar) |
+| Mesaj **silme** | 5.5.3'te doğrulandı |
+
+Yani "şikayet → admin bakar → askıya alır" zinciri kurulu. Eksik olan
+**önleyici** katman.
+
+#### Seçenekler — maliyet/etki
+
+| | Yaklaşım | Etki | Maliyet | Yanlış pozitif |
+|---|---|---|---|---|
+| **A** | **Küfür/argo kelime listesi** (istemci + CF) | Orta | Düşük | Orta — TR'de bağlama duyarlı |
+| **B** | Şikayet edilen sohbete **öncelikli inceleme** kuyruğu | Yüksek | Düşük | Yok |
+| **C** | Görsellerde **NSFW tespiti** (Cloud Vision SafeSearch) | Yüksek | Orta ($) | Düşük |
+| **D** | LLM ile mesaj denetimi | Çok yüksek | Yüksek ($$) | Düşük |
+| **E** | **Sadece tepkisel** (mevcut durum) | Düşük | Yok | Yok |
+
+#### Öneri: B + A, bu sırayla
+
+**B önce** — çünkü altyapı zaten var, yalnız admin tarafında sıralama
+gerekiyor. Şikayet edilen içerik hızlı incelenirse caydırıcılık doğar.
+**Maliyeti neredeyse sıfır.**
+
+**A sonra** — basit bir TR küfür listesi + `contact_masker` benzeri bir
+`profanity_filter`. Mesaj engellenmez, **uyarı gösterilir** ve şikayet
+sayacına işlenir. Sert engelleme yanlış pozitifte kullanıcıyı kızdırır.
+
+**C yalnız gerçek bir sorun görülürse** — fotoğraf paylaşımı azsa maliyeti
+haklı çıkmaz. Play Store politikası için *bir* moderasyon mekanizması
+yeterli; hepsi gerekmez.
+
+> [!note] Play Store gerçeği
+> UGC (kullanıcı içeriği) barındıran uygulamalar için Google **şunları**
+> ister: kullanıcı engelleme ✅ (var) · şikayet mekanizması ✅ (var) ·
+> içerik politikası (yazılı) · şikayetlere **makul sürede** yanıt.
+> Otomatik filtre **zorunlu değil**. Yani mevcut altyapı yayına yeterli;
+> B maddesi (inceleme kuyruğu) bunu güçlendirir.
+
+**Karar gerekiyor:** hangi seviyeye kadar gidilecek? Öneri **B + A**.
+
+### K-09 · Sohbet görünümü — "WhatsApp havası yok"
+
+**Kullanıcı:** *"5.5 çalışıyor ama görünüm olarak WhatsApp ve Instagram
+havası vermiyor 😄"*
+
+İşlevler tamam (fotoğraf, silme, tik, kaydırma); eksik olan **görsel dil**.
+
+**Kapsam belirsiz — netleştirilmeli.** "WhatsApp havası" birçok şey olabilir:
+- Balon biçimi/kuyruğu, renk kontrastı, köşe yarıçapı
+- Arka plan deseni (WhatsApp'ın duvar kâğıdı)
+- Tarih ayraçları, tik animasyonu, yazıyor göstergesi
+- Giriş kutusu yerleşimi (emoji/ataç/mikrofon düzeni)
+
+Bunların **hepsi ayrı iş**; bir kısmı zaten var (`_MessageEnter` animasyonu,
+gün ayraçları, `reverse: true` liste).
+
+> [!note] Ne zaman?
+> Test bitince, **K-02/K-06/B-16 ile aynı görsel tur**da. Önce kullanıcıdan
+> somut örnek alınmalı: *"hangi ekran, ne eksik?"* — ekran görüntüsü ile.
+> Yoksa tahmine dayalı yeniden tasarım riski var.
+
+### K-08 · Mesajlar listesi — sekme kararı
 
 **Kullanıcı:** *"Normal mesajlarda ilan mesajları var ve genel mesajlar.
 Onun yerine ilan detayında ilan mesajları gözükse olmaz mı? Çok karmaşık
@@ -132,14 +226,50 @@ görüyor ama hangisinin hangi işe ait olduğunu ayırt edemiyordu.
 
 **Tek liste doğru; liste okunabilir değildi.** Taşımak yerine etiketlemek.
 
-#### Karar B-19 sonrasına ertelendi
-Cihazda başlık + etiket görüldükten sonra bakılacak:
-- Yeterli mi → K-08 kapanır
-- Hâlâ karışıksa → **gruplama** (ilan sohbetleri üstte / genel altta, ya da
-  sekme) + ilan sohbetlerinde durum rozeti (*"İş yürüyor"*, *"Tamamlandı"*)
+#### ✅ Ölçüm yapıldı → sekme isteniyor
 
-İlan detayındaki "Sohbete Git" kısayolu zaten var — mesajları oraya *taşımak*
-değil, oradan *erişilebilir kılmak* doğru yaklaşım.
+B-19 sonrası cihazda: *"sohbet listesinde başlıklar görünüyor"* ✅ — ama
+kullanıcı yine de ayrım istiyor:
+
+> *"Genel mesajları ilan mesajlarından önce sekme olarak koysak. Yani müşteri
+> mesajlarım kısmına basınca ilk olarak genel mesajları görsün?"*
+
+**Karar: sekme yapılacak.** Başlık görünürlüğü karmaşayı azalttı ama iki
+sohbet türünün doğası farklı — ilan sohbetleri iş akışına bağlı ve durumu
+var, genel sohbetler serbest.
+
+#### ⚠️ Varsayılan sekme hangisi olmalı?
+
+Kullanıcı *"önce genel mesajlar"* dedi. **Ama bu tartışılmalı:**
+
+| | Varsayılan: Genel | Varsayılan: İlan |
+|---|---|---|
+| Hacim | Genelde **az** (ürün/eleman sohbetleri) | Çoğunluk |
+| Aciliyet | Düşük | **Yüksek** — iş akışı bekliyor |
+| Bildirim | Seyrek | Sık |
+| Risk | Kullanıcı yeni iş mesajını **görmez** | — |
+
+Uygulamanın ana işi **hizmet pazaryeri**; mesajların çoğu ilan bazlı olacak.
+Varsayılan "Genel" olursa kullanıcı her açılışta boş/durgun bir listeye bakıp
+sekme değiştirmek zorunda kalır.
+
+**Öneri:** varsayılan **İlan mesajları**, ikinci sekme Genel. Ya da
+**okunmamışı olan sekme** öne gelsin (akıllı varsayılan).
+→ Uygulamadan önce kullanıcıya sorulacak.
+
+#### Yapılacaklar (test bitince)
+1. `chat_list_screen`'e iki sekme (`TabBar`): İlan · Genel
+2. Ayrım zaten hazır: `thread.isJobChat`
+3. Her sekmede **kendi okunmamış rozeti**
+4. İlan sohbetlerinde **durum rozeti** (*"İş yürüyor"* / *"Tamamlandı"*) —
+   ayrı iş, sekmeden bağımsız değerlendirilebilir
+
+#### Reddedilen alternatif: mesajları ilan detayına taşımak
+İlk öneri *"ilan mesajları ilan detayında gözüksün"*di. Önerilmez:
+okunmamış rozeti bölünür, push yönlendirmesi ikiye ayrılır, kullanıcı
+*"bana yazan var mı?"* sorusunu tek bakışta cevaplayamaz, Mesajlar sekmesi
+boşalır. İlan detayındaki "Sohbete Git" kısayolu zaten var — mesajları oraya
+*taşımak* değil, oradan *erişilebilir kılmak* doğru yaklaşım.
 
 ### B-18 · "İşi teslim ettim" onaysız — 🔴 P0
 

@@ -69,11 +69,14 @@
 
 ## 5.5 Mesaj özellikleri
 
-- [ ] **5.5.1** **Fotoğraf** gönderilebiliyor
-- [ ] **5.5.2** Fotoğraf karşı tarafta açılıyor, büyütülebiliyor
-- [ ] **5.5.3** **Mesaj silme** çalışıyor → "Bu mesaj silindi" görünüyor
-- [ ] **5.5.4** Okundu bilgisi / tik doğru çalışıyor
-- [ ] **5.5.5** Uzun sohbette **kaydırma** akıcı, eski mesajlar yükleniyor
+- [x] **5.5.1** **Fotoğraf** gönderilebiliyor ✅
+- [x] **5.5.2** Fotoğraf karşı tarafta açılıyor, büyütülebiliyor ✅
+- [x] **5.5.3** **Mesaj silme** çalışıyor → "Bu mesaj silindi" ✅
+- [x] **5.5.4** Okundu bilgisi / tik doğru çalışıyor ✅
+- [x] **5.5.5** Uzun sohbette **kaydırma** akıcı ✅
+
+> ⚠️ **K-09:** İşlevler çalışıyor ama görünüm *"WhatsApp/Instagram havası
+> vermiyor"* (kullanıcı). Cila işi — bkz. [[99-BULGULAR]] K-09.
 
 ## 5.6 İletişim maskeleme ⭐
 
@@ -85,15 +88,29 @@
 - [ ] **5.6.3** **Instagram/sosyal medya** adı yazın → gizlenmeli
 - [ ] **5.6.4** Karşı taraf da maskelenmiş halini görüyor
 
+> [!warning] ⛔ Bu bölüm TEST EDİLMEDİ — atlanmamalı
+> Kullanıcı *"maskeleme gereksiz oldu, çünkü profilde telefon
+> gözükebilir yaptık"* diyerek atladı. **Bu bir yanlış anlaşılma:**
+> K-01 (vitrinde telefon) hâlâ **karar bekliyor** — "yapıldı" değil,
+> varsayılan **kapalı** bir opt-in özellik. Maskeleme kodu (`contact_masker`)
+> tamamen aktif ve mesajlarda çalışmaya devam ediyor.
+>
+> Yani maskeleme test edilmezse **çalışıp çalışmadığını bilmiyoruz**.
+> Bu 4 adım hâlâ geçerli — bkz. [[99-BULGULAR]] K-10.
+
 ## 5.7 Sohbet listesi
 
-- [ ] **5.7.1** Mesajlar listesi tüm sohbetleri gösteriyor
-- [ ] **5.7.2** **Okunmamış rozeti** doğru sayıyor
-- [ ] **5.7.3** Mesaj okuyunca rozet **düşüyor**
-- [ ] **5.7.4** Sohbet **arşivleme** çalışıyor (kişisel — karşı taraf etkilenmez)
+- [x] **5.7.1** Mesajlar listesi tüm sohbetleri gösteriyor ✅ —
+      **ilan başlıkları görünüyor** (B-19 düzeltmesi doğrulandı)
+- [ ] **5.7.2** **Okunmamış rozeti** doğru sayıyor → ⏸️ **2. cihaz** (B-14)
+- [ ] **5.7.3** Mesaj okuyunca rozet **düşüyor** → ⏸️ **2. cihaz**
+- [ ] **5.7.4** Sohbet **arşivleme** çalışıyor (kişisel)
 - [ ] **5.7.5** Arşivlenen sohbete yeni mesaj gelince **arşivden çıkıyor**
 - [ ] **5.7.6** ⚠️ Aynı çiftle **iki farklı ilan** varsa → **iki ayrı sohbet**
       görünüyor (ilan bazlı mimari)
+
+> **K-08 güncellendi:** Kullanıcı sekme istiyor — *"genel mesajlar önce,
+> sonra ilan mesajları"*. Başlıklar göründükten sonra bile ayrım isteniyor.
 
 ---
 
