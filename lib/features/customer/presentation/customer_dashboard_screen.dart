@@ -74,11 +74,10 @@ class _CustomerDashboardScreenState
   void initState() {
     super.initState();
     _scrollController.addListener(_onScroll);
-    // Müşteri/misafir: ustalar hemen listelensin. Usta modunda arama yok.
+    // Ustalar listesi HER MODDA hemen yüklenir. Eskiden usta modunda erken
+    // çıkılıyordu (o modda sekme gizliydi); artık sekme her modda görünüyor,
+    // arama başlatılmazsa liste BOŞ açılırdı.
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final isArtisan = ref.read(currentUserProvider)?.isArtisan ?? false;
-      if (isArtisan) return;
-
       // Ana Sayfa "Kategoriler"den bir meslek koduyla gelindiyse filtreyi
       // uygula ve taze ara (kullanıcı özellikle o kategoriyi seçti).
       final prof = widget.initialProfession;
@@ -110,12 +109,12 @@ class _CustomerDashboardScreenState
 
   @override
   Widget build(BuildContext context) {
-    final isArtisan =
-        ref.watch(currentUserProvider.select((u) => u?.isArtisan ?? false));
-    // Usta: Ustalar yok, varsayılan İlanlar. Müşteri: İlanlar yok.
+    // KEŞFET ROL AYRIMI YAPMAZ: her iki modda da Ustalar + Ürünler görünür.
+    // Eskiden usta modunda "Ustalar" gizlenip yerine "İlanlar" geliyordu —
+    // usta da usta arayabilir (taşeron, iş ortağı) ve ürün bakabilir.
+    // İlan akışı zaten alt bardaki "İlanlar" sekmesinde (yalnız usta modu).
     final effectiveView = switch (_view) {
-      _ExploreView.artisans when isArtisan => _ExploreView.jobs,
-      _ExploreView.jobs when !isArtisan => _ExploreView.artisans,
+      _ExploreView.jobs => _ExploreView.artisans,
       _ => _view,
     };
 
@@ -133,20 +132,13 @@ class _CustomerDashboardScreenState
                     selected: effectiveView,
                     onChanged: (v) => setState(() => _view = v),
                     items: [
-                      if (!isArtisan)
-                        const ExploreTabItem(
-                          value: _ExploreView.artisans,
-                          label: 'Ustalar',
-                          icon: Icons.handyman_rounded,
-                          accent: Color(0xFF2563EB),
-                        ),
-                      if (isArtisan)
-                        const ExploreTabItem(
-                          value: _ExploreView.jobs,
-                          label: 'İlanlar',
-                          icon: Icons.campaign_rounded,
-                          accent: Color(0xFF059669),
-                        ),
+                      // Her iki modda da aynı sekmeler.
+                      const ExploreTabItem(
+                        value: _ExploreView.artisans,
+                        label: 'Ustalar',
+                        icon: Icons.handyman_rounded,
+                        accent: Color(0xFF2563EB),
+                      ),
                       if (AppConstants.kProductsEnabled)
                         const ExploreTabItem(
                           value: _ExploreView.products,

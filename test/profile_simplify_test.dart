@@ -30,6 +30,28 @@ void main() {
     });
   });
 
+  group('Mükerrer giriş yok', () {
+    test('profilde tek "İlanlarım" satırı var', () {
+      final profile =
+          read('lib/features/profile/presentation/profile_screen.dart');
+      // Usta modunda _ArtisanHome + _CustomerHome birlikte çizilir; ikisinde
+      // de "İlanlarım" olursa satır İKİ KEZ görünür (kullanıcı bildirdi).
+      final hits = "'İlanlarım'".allMatches(profile).length;
+      expect(hits, 1,
+          reason: 'İlanlarım yalnız _CustomerHome içinde olmalı; '
+              '_ArtisanHome herkeste çizilen o bölümün üstüne biner.');
+    });
+
+    test('Keşfet rol ayrımı yapmaz: Ustalar her modda görünür', () {
+      final explore = read(
+          'lib/features/customer/presentation/customer_dashboard_screen.dart');
+      // Eskiden usta modunda "Ustalar" sekmesi gizleniyordu (if (!isArtisan)).
+      expect(explore.contains('if (!isArtisan)'), isFalse);
+      expect(explore.contains('if (isArtisan)'), isFalse);
+      expect(explore.contains("label: 'Ustalar'"), isTrue);
+    });
+  });
+
   group('Faz 2 · HESABIM profilden çıkarıldı', () {
     late String profile;
     late String drawer;

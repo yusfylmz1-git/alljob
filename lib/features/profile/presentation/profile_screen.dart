@@ -660,21 +660,10 @@ class _ArtisanHome extends ConsumerWidget {
         //    gidiyordu (mükerrer giriş).
         //  - "TAKİPÇİLER" listesi → başlıktaki takipçi sayacı zaten var ve
         //    dokununca aynı listeyi açıyor.
+        //  - "İlanlarım" BURADA YOK: `_CustomerHome` herkeste çiziliyor ve
+        //    o satır zaten orada. Usta modunda iki kez görünüyordu.
         _Group(children: [_AvailabilityRow(draft: draft)]),
         _ShopVitrineCard(user: user, draft: draft, shopSubtitle: shopSubtitle),
-        const SizedBox(height: 8),
-        _Group(
-          children: [
-            _MenuRow(
-              icon: Icons.campaign_outlined,
-              iconColor: context.palette.primary,
-              iconSurface: context.palette.primaryContainer,
-              title: 'İlanlarım',
-              subtitle: 'Müşteri olarak verdiğiniz ilanlar',
-              onTap: () => context.push(RoutePaths.myJobs),
-            ),
-          ],
-        ),
       ],
     );
   }
