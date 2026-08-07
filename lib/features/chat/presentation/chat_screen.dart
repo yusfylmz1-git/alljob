@@ -2046,6 +2046,12 @@ class _JobCompletionChatBar extends ConsumerWidget {
                   visualDensity: VisualDensity.compact,
                 ),
                 onPressed: () async {
+                  // Geri alınamaz adım — önce onay (B-18).
+                  final ok = await confirmJobDoneDialog(
+                    context,
+                    isOwner: isOwner,
+                  );
+                  if (!ok || !context.mounted) return;
                   try {
                     await ref
                         .read(jobRepositoryProvider)

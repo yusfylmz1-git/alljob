@@ -53,7 +53,7 @@ Faydalı olursa ekleyin: hangi hesap, ekran görüntüsü, hata mesajının ayn�
 | B-14 | 4.2.5 | Yeni bildirim geldiğinde **zil rozeti (kırmızı) görünmüyor** — bildirime girince mesaj orada | 🟠 P1 | 🔬 **teşhis gerek** |
 | B-15 | 1.x | **Hesap değiştirirken `permission-denied`** — program durduruldu. Public `users/{uid}` token temizliği kurala takılıyor | 🔴 P0 | ✅ **düzeltildi + cihazda doğrulandı** |
 | B-16 | — | **Hangi moddayım belli değil** (usta mı müşteri mi) — kullanıcı bile karıştırıyor | 🟠 P1 | 📋 **planlandı** |
-| B-18 | 5.1.2 / 6.x | **"İşi teslim ettim" tek dokunuşta, onay diyaloğu YOK** — yanlışlıkla basılabilir, geri alınamaz | 🔴 P0 | 🔧 **düzeltilecek** |
+| B-18 | 5.1.2 / 6.x | **"İşi teslim ettim" tek dokunuşta, onay diyaloğu YOK** — yanlışlıkla basılabilir, geri alınamaz | 🔴 P0 | ✅ **düzeltildi** (cihazda doğrulanacak) |
 | B-19 | 5.1.2 | **Sohbette ilan başlığı görünmüyor** — `ensureChatReady` + `copyWith` `jobId`/`jobTitle`'ı düşürüyor | 🟠 P1 | 🔧 **düzeltilecek** |
 | B-17 | 1.x | Hesap değişiminde **ANR ("yanıt vermiyor") + çökme** — süre sınırsız çıkış zinciri | 🔴 P0 | ✅ **düzeltildi + cihazda doğrulandı** |
 | K-05 | 2.x | Usta hesabı ilk açılışta **Hemen Lazım varsayılan açık** gelsin | 🟡 P2 | 🤔 **karar bekliyor** |
@@ -127,13 +127,20 @@ işi teslim ettim düğmesine basabilir?"*
 usta seçimi onay soruyor. Tamamlama onayı bu ikisinden **daha az** geri
 alınabilir olduğu hâlde korumasız.
 
-#### Düzeltme
-Her iki çağrı yerine `showDialog` onayı. Metin role göre:
-- Müşteri: *"İşin tamamlandığını onaylıyor musunuz? Bu işlem geri alınamaz."*
-- Usta: *"İşi teslim ettiğinizi bildiriyor musunuz? Bu işlem geri alınamaz."*
+#### ✅ Düzeltme (yapıldı)
+`confirmJobDoneDialog()` — `job_completion.dart` içinde **tek giriş**; hem
+ilan detayı hem sohbet şeridi onu çağırır (metin iki yerde ayrışmasın).
+Rol bazlı metin + *"Bu işlem geri alınamaz"* uyarısı + "Vazgeç" yolu.
 
-**Ek öneri (ayrı ele alınmalı):** Düğmeyi "Sohbete Git"ten görsel olarak
-ayır — araya boşluk/ayraç, ya da tamamlama eylemini ikincil stile al.
+**Regresyon testi:** `test/job_confirm_dialog_test.dart` (5 test) —
+her iki rolün metni, "geri alınamaz" uyarısının varlığı, Vazgeç→`false`,
+Onayla→`true`, **barrier'a dokunup kapatma→`false`** (null sessizce true
+sayılmamalı).
+
+**Yerleşim:** Değiştirilmedi. Sohbet şeridindeki düğme zaten `tonal`
+(ikincil) stilde ve üstünde durum bandı var; ilan detayında araya
+`JobConfirmRow` giriyor. Onay diyaloğu asıl riski kapattı — yerleşimi de
+değiştirmek kapsamı gereksiz genişletirdi.
 
 ### B-19 · Sohbette ilan başlığı görünmüyor — 🟠 P1
 

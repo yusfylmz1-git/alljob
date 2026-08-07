@@ -3,6 +3,45 @@ import 'package:flutter/material.dart';
 import '../../../core/theme/app_palette.dart';
 import '../../../data/models/job.dart';
 
+/// Tamamlama onayı için kullanıcıya sorulan doğrulama.
+///
+/// TEK GİRİŞ: hem ilan detayı hem sohbet şeridi bunu kullanır — metin ve
+/// davranış iki yerde ayrışmasın.
+///
+/// Neden zorunlu: `confirmDone` **geri alınamaz**. İstemcide onayı geri alma
+/// yolu yoktur ve karşı taraf da onaylarsa iş `completed` olur. Üstelik düğme
+/// "Sohbete Git" ile bitişik duruyor; onaysız hâlinde yanlış dokunuş işi
+/// kapatabiliyordu.
+Future<bool> confirmJobDoneDialog(
+  BuildContext context, {
+  required bool isOwner,
+}) async {
+  final ok = await showDialog<bool>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: Text(isOwner ? 'İşi onaylıyor musunuz?' : 'İşi teslim ettiniz mi?'),
+      content: Text(
+        isOwner
+            ? 'İşin tamamlandığını onaylıyorsunuz. Usta da onaylayınca ilan '
+                'kapanır ve değerlendirme açılır.\n\nBu işlem geri alınamaz.'
+            : 'İşi teslim ettiğinizi bildiriyorsunuz. Müşteri de onaylayınca '
+                'ilan kapanır ve değerlendirme açılır.\n\nBu işlem geri alınamaz.',
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(ctx).pop(false),
+          child: const Text('Vazgeç'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.of(ctx).pop(true),
+          child: Text(isOwner ? 'Onaylıyorum' : 'Teslim ettim'),
+        ),
+      ],
+    ),
+  );
+  return ok ?? false;
+}
+
 /// İş tamamlama metinleri ve durum özeti (ilan detay + sohbet şeridi).
 class JobCompletionCopy {
   JobCompletionCopy._({

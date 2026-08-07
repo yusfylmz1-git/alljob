@@ -1170,10 +1170,19 @@ class _AssignedCard extends ConsumerWidget {
                     style: FilledButton.styleFrom(
                         backgroundColor: context.palette.success),
                     onPressed: copy.canConfirm
-                        ? () => _busyGuard(
-                            context,
-                            () => repo.confirmDone(
-                                jobId: job.jobId, byCustomer: isOwner))
+                        ? () async {
+                            // Geri alınamaz adım — önce onay (B-18).
+                            final ok = await confirmJobDoneDialog(
+                              context,
+                              isOwner: isOwner,
+                            );
+                            if (!ok || !context.mounted) return;
+                            await _busyGuard(
+                              context,
+                              () => repo.confirmDone(
+                                  jobId: job.jobId, byCustomer: isOwner),
+                            );
+                          }
                         : null,
                     icon: const Icon(Icons.check_circle_outline),
                     label: Text(
