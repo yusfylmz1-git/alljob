@@ -925,14 +925,14 @@ kapı onu delik bırakır.
 | B-15 | 1.x | Hesap değiştirirken `permission-denied`, program durdu | `_stripPublicToken` → `arrayRemove` yerine `delete()` (anahtar kalmamalı) + 3 regresyon testi | `9f020e9` |
 | B-13 | 5.1 | Müşteri "Mesaj Gönder" → *"Sohbet açılamadı"*; tüm mesajlaşma akışı bloke | `_openChat`'e eksik `ensureEmailVerified` kapısı + `catch` sebebi ayırıyor | `9f020e9` |
 | B-17 | 1.x | Hesap değişiminde **ANR + çökme** — çıkış zinciri süre sınırsız 4 ağ çağrısı bekliyordu | `unregisterFor`'a 4 sn timeout (aşılırsa çıkışa devam) + 2 stream'e `handleError` | `c21c2f2` |
-| B-02 | 3.1.5 | Foto yüklenirken kaydet → foto sessizce kayboluyordu | `_submit()` başına `_uploadingPhoto` kontrolü + uyarı | `4054623` |
-| B-03 | 2.x | Hemen Lazım açıkken 5. meslek seçilemiyordu | `isRealProfession`/`realProfessionCount` — limit sayımı Hemen Lazım'ı eler (3 yerde) | `4054623` |
-| B-04 | 2.x | Kaydetme hatası sebep vermiyordu | `_lastSaveError` + `saveErrorTR` — permission-denied / ağ ayrımı | `4054623` |
-| B-05 | 2.x | Profil düzenlemede donma | `save()` hatada `AsyncError`'a düşmüyor, taslağı koruyor | `4054623` |
-| B-08 | 2.1 | Kaydet düğmesi alt barın altında kalıyordu | `profile_screen` ListView'e `bottom: 96` padding | `4054623` |
-| B-09 | 3.1.4 | İl seçince ekran kayıyor, klavye kapanmıyor | `SearchableSelectField._open` → `unfocus()` + sıradaki alana `highlight` | `4054623` |
-| B-10 | 3.2.1 | Hemen Lazım örnekleri çok aşağıdaydı | Çipler kategorinin hemen altına, bilgi bloğu sona | `4054623` |
-| B-11 | 3.6.1 | İptal nedenlerinde "günlük hakkım bitti" | `rateLimited` listeden elendi (enum'da KALIR — veri göçü) | `4054623` |
+| B-02 | 3.1.5 | Foto yüklenirken kaydet → foto sessizce kayboluyordu | `_submit()` başına `_uploadingPhoto` kontrolü + uyarı | `2134c42` |
+| B-03 | 2.x | Hemen Lazım açıkken 5. meslek seçilemiyordu | `isRealProfession`/`realProfessionCount` — limit sayımı Hemen Lazım'ı eler (3 yerde) | `2134c42` |
+| B-04 | 2.x | Kaydetme hatası sebep vermiyordu | `_lastSaveError` + `saveErrorTR` — permission-denied / ağ ayrımı | `2134c42` |
+| B-05 | 2.x | Profil düzenlemede donma | `save()` hatada `AsyncError`'a düşmüyor, taslağı koruyor | `2134c42` |
+| B-08 | 2.1 | Kaydet düğmesi alt barın altında kalıyordu | `profile_screen` ListView'e `bottom: 96` padding | `2134c42` |
+| B-09 | 3.1.4 | İl seçince ekran kayıyor, klavye kapanmıyor | `SearchableSelectField._open` → `unfocus()` + sıradaki alana `highlight` | `2134c42` |
+| B-10 | 3.2.1 | Hemen Lazım örnekleri çok aşağıdaydı | Çipler kategorinin hemen altına, bilgi bloğu sona | `2134c42` |
+| B-11 | 3.6.1 | İptal nedenlerinde "günlük hakkım bitti" | `rateLimited` listeden elendi (enum'da KALIR — veri göçü) | `2134c42` |
 
 ### B-01 · Giriş ekranında donanım geri tuşu
 
