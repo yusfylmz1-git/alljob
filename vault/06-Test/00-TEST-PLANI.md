@@ -61,14 +61,18 @@ Pazaryeri çift taraflı — müşteri ve usta **ayrı hesaplar** olmalı.
 
 ## 🎯 Bu testin özel hedefi
 
-Son oturumda düzelttiğimiz **karşılıklı değerlendirme çıkmazı** henüz cihazda
-doğrulanmadı. Kritik senaryo:
+Son oturumda düzelttiğimiz **karşılıklı değerlendirme çıkmazı**. Kritik
+senaryo:
 
 > Müşteri sohbete **hiç mesaj yazmadan** doğrudan "Bu Ustayı Seç" der →
 > usta o sohbete yazabiliyor mu? → iş tamamlanınca **iki taraf da**
 > değerlendirebiliyor mu?
 
-Bu [[05-Mesajlar]] ve [[07-Degerlendirme]] içinde ⭐ ile işaretli.
+**İlk yarısı ✅ DOĞRULANDI (5.3, oturum 2):** usta seçildikten sonra sohbete
+yazabiliyor, sistem mesajı düşüyor. Çıkmaz kalkmış.
+
+**İkinci yarısı bekliyor:** iş tamamlanınca iki tarafın da değerlendirebilmesi
+→ [[07-Degerlendirme]] 7.2.
 
 ---
 

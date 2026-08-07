@@ -40,13 +40,14 @@
 **Hazırlık:** Yeni bir ilan açın, usta ilgi bildirsin. Müşteri sohbeti açsın ama
 **hiçbir şey yazmasın**.
 
-- [ ] **5.3.1** Müşteri sohbet ekranında **"Bu Ustayı Seç"** şeridi görüyor
-- [ ] **5.3.2** Müşteri **hiç mesaj yazmadan** "Bu Ustayı Seç" diyor
-- [ ] **5.3.3** Onay diyaloğu çıkıyor, onaylayınca "Usta seçildi" mesajı
-- [ ] **5.3.4** ⭐ **Usta hesabına geçin → sohbete girin → YAZABİLİYOR MU?**
-  - ✅ **Doğru:** giriş kutusu açık, mesaj gönderilebiliyor
-  - ❌ **Hata:** "İletişimi müşteri başlatır" şeridi hâlâ duruyor → **BİLDİRİN**
-- [ ] **5.3.5** Sohbette **"✅ Usta seçildi — iş başladı"** sistem mesajı var
+- [x] **5.3.1** Müşteri sohbet ekranında **"Bu Ustayı Seç"** şeridi görüyor ✅
+- [x] **5.3.2** Müşteri **hiç mesaj yazmadan** "Bu Ustayı Seç" diyor ✅
+- [x] **5.3.3** Onay diyaloğu çıkıyor, onaylayınca "Usta seçildi" mesajı ✅
+- [x] **5.3.4** ⭐ **Usta sohbete girip YAZABİLİYOR** ✅
+      **Karşılıklı değerlendirme çıkmazı cihazda DOĞRULANDI.** Eskiden usta
+      burada kilitli kalıyordu (müşteri hiç yazmadığı için `customerStarted`
+      false); artık usta seçimi bayrağı yazıyor ve sohbet açılıyor.
+- [x] **5.3.5** Sohbette **"✅ Usta seçildi — iş başladı"** sistem mesajı var ✅
 
 > [!note] Eski sohbetler
 > Düzeltme **yeni** akışlar için çalışır. Daha önce takılı kalmış eski bir
