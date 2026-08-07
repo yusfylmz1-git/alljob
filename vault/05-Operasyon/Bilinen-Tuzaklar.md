@@ -71,6 +71,41 @@ yanlışlıkla "sohbet yok" der.
 | Tek seferlik sunucu okuması | `fetchThread(chatId)` |
 | Yalnız önbellek (liste açıkken) | `getThread(chatId)` |
 
+### 🔴 Çıkış/oturum akışında `await` = ANR riski
+
+`signOut` gibi UI'yı bekleten akışlarda **süre sınırsız ağ çağrısı olmamalı**.
+Firestore yazımları çevrimdışıyken kuyrukta askıda kalır (hata da vermez);
+ana iş parçacığı beklerse Android **"yanıt vermiyor"** uyarısı verir.
+
+Bu gerçek bir hataydı (B-17): `signOut` → `unregisterFor` zinciri art arda
+**4 ağ çağrısı** yapıyor, hiçbirinde timeout yoktu.
+
+**Kural:** Oturum kapanışındaki temizlik işleri *en iyi çaba*dır — başarısız
+olsalar da akış tamamlanmalı. `push_service.unregisterFor` deseni:
+
+```dart
+await _unregisterBody(uid).timeout(_unregisterTimeout);  // 4 sn
+// aşılırsa: logla, ÇIKIŞA DEVAM ET
+```
+
+> Geliştirici makinesinde hızlı ağla **hiç görünmez**; yalnız gerçek cihazda
+> ve kötü bağlantıda ortaya çıkar.
+
+### Oturum kapanışında `permission-denied` BEKLENEN durumdur
+
+Hesap değişiminde eski uid'e ait canlı `snapshots()` dinleyicileri bir an
+reddedilir — kural artık o uid'i tanımaz. Bu bir hata değil, normal yaşam
+döngüsü. Yakalanmazsa debugger durur / UI hata durumuna düşer.
+
+uid'e bağlı stream'lerde:
+```dart
+.handleError((e) => debugPrint(…), test: _isPermissionDenied)
+```
+
+> Kod tabanında **36 `snapshots()`** var; B-17'de yalnız uid'e doğrudan bağlı
+> ikisine (`watchUnreadMeta`, `watchThreads`) eklendi. Yeni uid-bağlı stream
+> yazarken bunu unutma.
+
 ---
 
 ## 🔴 Sohbet & iş akışı — bu oturumda düzeltilenler

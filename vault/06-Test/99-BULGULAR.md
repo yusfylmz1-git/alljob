@@ -53,7 +53,7 @@ Faydalı olursa ekleyin: hangi hesap, ekran görüntüsü, hata mesajının ayn�
 | B-14 | 4.2.5 | Yeni bildirim geldiğinde **zil rozeti (kırmızı) görünmüyor** — bildirime girince mesaj orada | 🟠 P1 | 🔬 **teşhis gerek** |
 | B-15 | 1.x | **Hesap değiştirirken `permission-denied`** — program durduruldu. Public `users/{uid}` token temizliği kurala takılıyor | 🔴 P0 | ✅ **düzeltildi + cihazda doğrulandı** |
 | B-16 | — | **Hangi moddayım belli değil** (usta mı müşteri mi) — kullanıcı bile karıştırıyor | 🟠 P1 | 📋 **planlandı** |
-| B-17 | 1.x | Hesap değişiminde **ANR ("yanıt vermiyor") + çökme** — süre sınırsız çıkış zinciri | 🔴 P0 | ✅ **düzeltildi** (cihazda doğrulanacak) |
+| B-17 | 1.x | Hesap değişiminde **ANR ("yanıt vermiyor") + çökme** — süre sınırsız çıkış zinciri | 🔴 P0 | ✅ **düzeltildi + cihazda doğrulandı** |
 | K-05 | 2.x | Usta hesabı ilk açılışta **Hemen Lazım varsayılan açık** gelsin | 🟡 P2 | 🤔 **karar bekliyor** |
 | K-06 | 2.1 | Profil başlığı **usta kartı gibi** olsun: foto solda, yanında isim + Takip Et, altında meslek/telefon | 🟡 P2 | 🤔 **K-02 ile birlikte** |
 | K-07 | 3.1.6 | Fiyat tipi ilan formunda yok — ~~bilinçli mi?~~ | — | ✅ **kapandı: bilinçli** |
@@ -162,15 +162,14 @@ ileride sorun çıkarabilir.
 `handleError` yeterli, ama hesap değişimi sırasında eski stream'in bir süre
 canlı kalması yapısal olarak doğru değil. **İleride gözden geçirilmeli.**
 
-#### ⏭️ Cihazda doğrulanacak
-Hesap değiştirme artık:
-1. ANR uyarısı vermemeli
-2. Çökmemeli
-3. Ağ yavaşken bile en fazla ~4 sn'de tamamlanmalı
+#### ✅ Cihazda doğrulandı
+Hesap değiştirme artık ANR uyarısı vermiyor, çökme yok. (Kullanıcı:
+*"sıkıntı çıkmadı şu an"*.)
 
-Hâlâ donuyorsa kalan aday: `firebase_auth_repository.dart:226`
-`unawaited(_stripPublicPii(...))` — süre sınırsız, ama `unawaited` olduğu
-için UI'yı bloklamaması gerekir.
+**Kalan risk — düşük ama bilinmeli:** `firebase_auth_repository.dart:226`
+`unawaited(_stripPublicPii(...))` hâlâ süre sınırsız. `unawaited` olduğu için
+UI'yı bloklamaz; yalnız çok kötü ağda arka planda asılı kalabilir. Sorun
+çıkarmadı, dokunulmadı.
 
 ### B-15 · Hesap değiştirirken permission-denied — 🔴 P0
 
@@ -559,6 +558,7 @@ kapı onu delik bırakır.
 | B-01 | 1.2.5 | Misafir Mesajlar'a basıp giriş ekranına düşünce, **donanım geri tuşu uygulamayı küçültüyordu** (ana ekrana dönmesi gerekirdi) | `LoginScreen` + `PackageSelectScreen`'e `PopScope` | `fca9064` |
 | B-15 | 1.x | Hesap değiştirirken `permission-denied`, program durdu | `_stripPublicToken` → `arrayRemove` yerine `delete()` (anahtar kalmamalı) + 3 regresyon testi | `9f020e9` |
 | B-13 | 5.1 | Müşteri "Mesaj Gönder" → *"Sohbet açılamadı"*; tüm mesajlaşma akışı bloke | `_openChat`'e eksik `ensureEmailVerified` kapısı + `catch` sebebi ayırıyor | `9f020e9` |
+| B-17 | 1.x | Hesap değişiminde **ANR + çökme** — çıkış zinciri süre sınırsız 4 ağ çağrısı bekliyordu | `unregisterFor`'a 4 sn timeout (aşılırsa çıkışa devam) + 2 stream'e `handleError` | `c21c2f2` |
 
 ### B-01 · Giriş ekranında donanım geri tuşu
 
@@ -638,8 +638,9 @@ hepsi doğru. Tek bulgu **B-12 (push)** — ama o 🔴 P0.
 > satırını okuyun. Sonuç düzeltmenin ne olduğunu belirler — kod mu, izin mi,
 > MIUI mi. Detay: B-12 notu.
 >
-> **✅ B-13 ve B-15 düzeltildi ve cihazda doğrulandı** (`9f020e9`) — hesap
-> değişimi çökmüyor, sohbet açılıyor, "Ustayı Seç" geldi.
+> **✅ Üç P0 kapandı ve cihazda doğrulandı:** B-13 + B-15 (`9f020e9`),
+> B-17 (`c21c2f2`). Hesap değişimi ANR/çökme vermiyor, sohbet açılıyor,
+> "Ustayı Seç" geldi.
 >
 > Kalan kuyruk: **B-12 (P0, tek cihazla test edilemedi) → B-16 → B-14 →
 > B-02 → B-03 → B-04/B-05 → B-06 → B-07 → B-08 → B-09 → B-10 → B-11**,
