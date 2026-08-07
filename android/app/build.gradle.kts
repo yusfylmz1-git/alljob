@@ -49,8 +49,9 @@ android {
         applicationId = "com.sepettehizmet.app"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
-        // ARCore (Usta Çantası AR ölçüm, PRD-007 Faz D) min SDK 24 ister;
-        // Flutter varsayılanı (21) altında kalmasın diye alt sınır sabitlendi.
+        // minSdk 24: başlangıçta ARCore (kaldırılan Usta Çantası) gereğiydi.
+        // AR gitti ama sınır DÜŞÜRÜLMEDİ — Firebase/Play hizmetleri zaten
+        // 23+ istiyor ve 21-23 aralığı için kazanç yok, test yükü var.
         minSdk = maxOf(flutter.minSdkVersion, 24)
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode

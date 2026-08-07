@@ -8,8 +8,12 @@ import 'package:sepette_hizmet/features/home/presentation/home_screen.dart';
 import 'helpers/mock_backend.dart';
 
 /// Ana Sayfa (platform dashboard) smoke testi: misafir olarak exception'sız
-/// açılır; karşılama + hızlı erişim + usta araçları bölümleri görünür.
+/// açılır; karşılama + hızlı erişim bölümleri görünür.
 /// (İstatistik/duyuru bölümleri veri yoksa gizlenir — burada beklenmez.)
+///
+/// NOT: "Usta Araçları" bölümü, Usta Çantası (toolkit) üründen kaldırılınca
+/// (2026-08-07) silindi — içindeki dört kısayolun ikisi toolkit'e, ikisi
+/// Ajanda'ya gidiyordu; toolkit gidince bölümün anlamı kalmadı.
 void main() {
   setUpAll(() => initializeDateFormatting('tr_TR', null));
 
@@ -29,7 +33,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 400));
   }
 
-  testWidgets('misafir Ana Sayfa açılır; hızlı erişim + araçlar görünür',
+  testWidgets('misafir Ana Sayfa açılır; hızlı erişim görünür',
       (tester) async {
     await pump(tester);
 
@@ -41,14 +45,9 @@ void main() {
     expect(find.text('Usta Bul'), findsOneWidget);
     expect(find.text('Eleman'), findsNothing);
 
-    // Usta Araçları bölümü en altta (misafir) — kaydırıp doğrula.
-    final list = find.byType(Scrollable).first;
-    await tester.scrollUntilVisible(
-      find.text('Usta Araçları'),
-      300,
-      scrollable: list,
-    );
-    expect(find.text('Usta Araçları'), findsOneWidget);
-    expect(find.text('Ölç & Hesapla'), findsOneWidget);
+    // Toolkit kaldırıldı: araç bölümü ve kısayolları HİÇ görünmemeli.
+    expect(find.text('Usta Araçları'), findsNothing);
+    expect(find.text('Ölç & Hesapla'), findsNothing);
+    expect(find.text('Usta Çantası'), findsNothing);
   });
 }

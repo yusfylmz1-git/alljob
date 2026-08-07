@@ -18,7 +18,6 @@ import 'widgets/home_guest_banner.dart';
 import 'widgets/home_quick_access.dart';
 import 'widgets/home_quick_support.dart';
 import 'widgets/home_stats.dart';
-import 'widgets/home_tools.dart';
 
 /// Ana Sayfa — Sepette Hizmet'in canlı vitrini. Uygulamaya giren önce burayı
 /// görür: sade karşılama + 3 ana aksiyon + "Bugün Sepette Hizmet'te" keşif
@@ -100,8 +99,6 @@ class HomeScreen extends ConsumerWidget {
         gap,
         HomeFeatured(), // Son İş İlanları / ürünler
         gap,
-        HomeTools(), // Usta Araçları
-        gap,
         HomeDiscover(),
         gap,
         HomeStats(),
@@ -121,7 +118,6 @@ class HomeScreen extends ConsumerWidget {
       const HomeFeatured(), // ⭐ Öne Çıkan Ustalar (+ürün/iş)
       gap,
       const HomeStats(), // 📊 minimal büyüme sayaçları
-      if (isGuest) ...[gap, const HomeTools()],
     ];
   }
 }

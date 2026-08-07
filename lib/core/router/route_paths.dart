@@ -142,20 +142,8 @@ class RoutePaths {
   static String trackDetail(String id) => '/tracking/$id';
   static String trackEdit(String id) => '/tracking/$id/edit';
 
-  // Usta Çantası (PRD-007) — saha hesap + AR ölçüm araç seti.
-  // Misafir dâhil herkese açık (needsLogin listesine EKLENMEZ); yerel-öncelikli,
-  // Firebase yok. Alt path'ler faz faz açılır (Faz B: area/paint/tile, ...).
-  static const String toolkit = '/toolkit';
-  static const String toolkitArea = '/toolkit/area';
-  static const String toolkitPaint = '/toolkit/paint';
-  static const String toolkitTile = '/toolkit/tile';
-  static const String toolkitCost = '/toolkit/cost';
-  static const String toolkitProfit = '/toolkit/profit';
-  static const String toolkitQuote = '/toolkit/quote';
-  static const String toolkitUnits = '/toolkit/units';
-  static const String toolkitDuration = '/toolkit/duration';
-  static const String toolkitAr = '/toolkit/ar';
-
-  /// Yönlendirmeli ölçüm & malzeme hesabı: malzeme → ölç → sorular → sonuç.
-  static const String toolkitMeasure = '/toolkit/measure';
+  // NOT: "Usta Çantası" (PRD-007) araç seti — hesap makineleri, AR ölçüm, PDF
+  // teklif — 2026-08-07'de üründen TAMAMEN KALDIRILDI (kullanıcı kararı).
+  // Rotalar, ekranlar, testler ve `ar_flutter_plugin_plus` / `pdf` /
+  // `printing` / `vector_math` / `share_plus` bağımlılıkları da silindi.
 }

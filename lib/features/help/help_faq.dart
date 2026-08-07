@@ -11,7 +11,7 @@ class FaqItem {
   final String question;
   final String answer;
 
-  /// Genel | Müşteri | Usta | Eleman | Usta Çantası
+  /// Genel | Müşteri | Usta | Eleman
   ///
   /// DİKKAT: Buraya yazılan değer [kFaqCategories] içinde de OLMALIDIR —
   /// yardım ekranı sekmeleri o listeden üretilir ve listede olmayan bir
@@ -25,7 +25,6 @@ const kFaqCategories = [
   'Müşteri',
   'Usta',
   'Eleman',
-  'Usta Çantası',
 ];
 
 const kFaqItems = <FaqItem>[
@@ -165,23 +164,5 @@ const kFaqItems = <FaqItem>[
         'Premium; müsaitlik rozeti, iş ilanlarına öncelikli erişim gibi usta '
         'araçlarını kapsar. Beta’da bu özellikler ücretsizdir. Ücretli modele '
         'geçilince Premium sayfasından güncel haklar listelenir.',
-  ),
-  FaqItem(
-    category: 'Usta Çantası',
-    question: 'Usta Çantası nedir, nasıl açılır?',
-    answer:
-        'Usta Çantası; alan, boya, fayans, maliyet, kâr, teklif, birim ve iş '
-        'süresi gibi saha hesaplarını tek yerde toplayan araç setidir. Yan '
-        'menüden (☰) “Usta Çantası” veya Profil → Araçlar üzerinden açılır. '
-        'Giriş yapmadan da kullanabilirsiniz; internet gerektirmez.',
-  ),
-  FaqItem(
-    category: 'Usta Çantası',
-    question: 'Hesaplanan ölçü ve miktarlar kesin mi?',
-    answer:
-        'Hayır. Usta Çantası’ndaki tüm sonuçlar tahminidir ve hızlı ön hesap '
-        'içindir. Malzeme siparişi ve profesyonel uygulama öncesinde ölçüleri '
-        'fiziksel bir ölçü aletiyle doğrulayın. Fire payı ve derz gibi '
-        'seçenekler tahmini daha gerçekçi yapmaya yardımcı olur.',
   ),
 ];

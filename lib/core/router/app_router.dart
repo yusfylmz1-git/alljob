@@ -44,17 +44,6 @@ import '../../features/tracking/presentation/track_edit_screen.dart';
 import '../../features/tracking/presentation/tracking_center_screen.dart';
 import '../../features/tracking/presentation/track_backup_screen.dart';
 import '../../features/tracking/presentation/tracking_trash_screen.dart';
-import '../../features/toolkit/presentation/toolkit_hub_screen.dart';
-import '../../features/toolkit/presentation/measure_flow_screen.dart';
-import '../../features/toolkit/presentation/area_screen.dart';
-import '../../features/toolkit/presentation/paint_screen.dart';
-import '../../features/toolkit/presentation/tile_screen.dart';
-import '../../features/toolkit/presentation/cost_screen.dart';
-import '../../features/toolkit/presentation/profit_screen.dart';
-import '../../features/toolkit/presentation/quote_screen.dart';
-import '../../features/toolkit/presentation/units_screen.dart';
-import '../../features/toolkit/presentation/duration_screen.dart';
-import '../../features/toolkit/presentation/ar_screen.dart';
 import '../../features/products/presentation/artisan_products_screen.dart';
 import '../../features/products/presentation/my_products_screen.dart';
 import '../../features/products/presentation/product_detail_screen.dart';
@@ -433,61 +422,6 @@ final routerProvider = Provider<GoRouter>((ref) {
                 LegalDocScreen(docId: state.pathParameters['doc']!),
           ),
         ],
-      ),
-      // Usta Çantası (PRD-007) — misafir dâhil herkese açık saha hesap araç
-      // seti. `needsLogin` listesine bilinçli olarak EKLENMEZ (yerel-öncelikli,
-      // Firebase yok). Alt araç rotaları (/toolkit/area, ...) faz faz eklenir.
-      GoRoute(
-        path: RoutePaths.toolkit,
-        builder: (_, _) => const ToolkitHubScreen(),
-      ),
-      GoRoute(
-        path: RoutePaths.toolkitArea,
-        builder: (_, state) => AreaScreen(
-          // AR ekranından gelen ölçülen uzunluk (m) — ilk yüzeyin "en"ini
-          // doldurur ve kaynağı AR işaretler (PRD-007 Faz E köprüsü).
-          arUzunlukM: double.tryParse(
-              state.uri.queryParameters['ar_uzunluk'] ?? ''),
-        ),
-      ),
-      GoRoute(
-        path: RoutePaths.toolkitPaint,
-        builder: (_, _) => const PaintScreen(),
-      ),
-      GoRoute(
-        path: RoutePaths.toolkitTile,
-        builder: (_, _) => const TileScreen(),
-      ),
-      GoRoute(
-        path: RoutePaths.toolkitCost,
-        builder: (_, _) => const CostScreen(),
-      ),
-      GoRoute(
-        path: RoutePaths.toolkitProfit,
-        builder: (_, _) => const ProfitScreen(),
-      ),
-      GoRoute(
-        path: RoutePaths.toolkitQuote,
-        builder: (_, _) => const QuoteScreen(),
-      ),
-      GoRoute(
-        path: RoutePaths.toolkitUnits,
-        builder: (_, _) => const UnitsScreen(),
-      ),
-      GoRoute(
-        path: RoutePaths.toolkitDuration,
-        builder: (_, _) => const DurationScreen(),
-      ),
-      GoRoute(
-        path: RoutePaths.toolkitAr,
-        builder: (_, state) => ArScreen(
-          // ret=1: ölçüm akışından açıldı → "aktar" değeri pop ile döndürür.
-          returnResult: state.uri.queryParameters['ret'] == '1',
-        ),
-      ),
-      GoRoute(
-        path: RoutePaths.toolkitMeasure,
-        builder: (_, _) => const MeasureFlowScreen(),
       ),
       // Yardım / SSS — misafir dâhil açık. `konu`/`detay` sorgu parametreleri
       // destek formunu önceden doldurur (ErrorView "Sorunu bildir" akışı).

@@ -250,14 +250,6 @@ class AppMenuDrawer extends ConsumerWidget {
 
         const Divider(indent: 16, endIndent: 16),
 
-        // Usta Çantası (PRD-007) — misafir dâhil herkese açık saha hesap araçları.
-        ListTile(
-          leading: const Icon(Icons.handyman_outlined),
-          title: const Text('Usta Çantası'),
-          subtitle: const Text('Ölçüm, maliyet ve teklif araçları'),
-          onTap: () => _open(context, RoutePaths.toolkit),
-        ),
-
         ListTile(
           leading: const Icon(Icons.help_outline_rounded),
           title: const Text('Yardım'),

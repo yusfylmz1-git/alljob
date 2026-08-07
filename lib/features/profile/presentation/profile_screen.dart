@@ -93,17 +93,11 @@ class _Body extends ConsumerWidget {
                 _ArtisanHome(user: user, draft: draft)
               else
                 _CustomerHome(user: user),
+              // "Usta Çantası" (toolkit) kaldırıldı — bölümde yalnız Ajanda
+              // ve (usta modunda) Ürünlerim kaldı.
               const _SectionLabel('ARAÇLAR'),
               _Group(
                 children: [
-                  _MenuRow(
-                    icon: Icons.handyman_outlined,
-                    iconColor: context.palette.primary,
-                    iconSurface: context.palette.primaryContainer,
-                    title: 'Usta Çantası',
-                    subtitle: 'Ölçüm, maliyet ve teklif araçları',
-                    onTap: () => context.push(RoutePaths.toolkit),
-                  ),
                   _MenuRow(
                     icon: Icons.checklist_rounded,
                     iconColor: context.palette.primary,
