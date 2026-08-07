@@ -14,8 +14,8 @@
 - [x] **5.1.1** Müşteri, ilgilenen ustanın kartından **sohbet açabiliyor** ✅
       ("Sohbete Git" düğmesi) — ⚠️ **B-18**: hemen altında onaysız
       "İşi teslim ettim" düğmesi de duruyor
-- [ ] **5.1.2** Sohbet ekranı açılıyor ✅ ama **ilan başlığı GÖRÜNMÜYOR**
-      → ⚠️ **B-19**
+- [x] **5.1.2** Sohbet ekranı açılıyor, **ilan başlığı görünüyor** ✅
+      (B-19 düzeltildi `1303f57`, cihazda doğrulandı)
 - [x] **5.1.3** Müşteri mesaj yazıp gönderebiliyor ✅
 - [x] **5.1.4** Mesaj karşı tarafa ulaşıyor ✅
 - [ ] **5.1.5** Ustaya **push bildirimi** gidiyor → ⏭️ **B-12** (tek cihaz)

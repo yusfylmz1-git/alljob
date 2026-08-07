@@ -54,7 +54,7 @@ Faydalı olursa ekleyin: hangi hesap, ekran görüntüsü, hata mesajının ayn�
 | B-15 | 1.x | **Hesap değiştirirken `permission-denied`** — program durduruldu. Public `users/{uid}` token temizliği kurala takılıyor | 🔴 P0 | ✅ **düzeltildi + cihazda doğrulandı** |
 | B-16 | — | **Hangi moddayım belli değil** (usta mı müşteri mi) — kullanıcı bile karıştırıyor | 🟠 P1 | 📋 **planlandı** |
 | B-18 | 5.1.2 / 6.x | **"İşi teslim ettim" tek dokunuşta, onay diyaloğu YOK** — yanlışlıkla basılabilir, geri alınamaz | 🔴 P0 | ✅ **düzeltildi** (cihazda doğrulanacak) |
-| B-19 | 5.1.2 | **Sohbette ilan başlığı görünmüyor** — `ensureChatReady` alanları düşürüyor + kural sonradan yazmaya kapalı | 🟠 P1 | ✅ **düzeltildi** (cihazda doğrulanacak) |
+| B-19 | 5.1.2 | **Sohbette ilan başlığı görünmüyor** — `ensureChatReady` alanları düşürüyor + kural sonradan yazmaya kapalı | 🟠 P1 | ✅ **düzeltildi + cihazda doğrulandı** |
 | B-17 | 1.x | Hesap değişiminde **ANR ("yanıt vermiyor") + çökme** — süre sınırsız çıkış zinciri | 🔴 P0 | ✅ **düzeltildi + cihazda doğrulandı** |
 | K-05 | 2.x | Usta hesabı ilk açılışta **Hemen Lazım varsayılan açık** gelsin | 🟡 P2 | 🤔 **karar bekliyor** |
 | K-08 | 5.x | **Mesajlar listesi karmaşık** — ilan + genel sohbetler karışık. Gruplama gerekli mi? | 🟡 P2 | ⏸️ **B-19 sonrası cihazda bakılacak** |
