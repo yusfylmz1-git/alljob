@@ -717,6 +717,28 @@ hiçbir şey yapmaz** (plan seçmeden ilerlenemez, ama uygulama da küçülmez).
 
 ---
 
+## 📱 İkinci cihaz bekleyen adımlar
+
+> Tek cihazla doğrulanamaz: hesap değiştirmek ekranı yeniden kurar, bu yüzden
+> "canlı güncelleniyor mu / push düştü mü" soruları cevapsız kalır.
+> **İkinci telefon gelince topluca bakılacak.**
+
+| Adım | Ne test edilecek | İlgili bulgu |
+|---|---|---|
+| **B-12** | Telefona sistem push'u geliyor mu? (B-15 düzeltmesi çözmüş olabilir) | 🔴 P0 |
+| **4.2.5** | Ustaya bildirim gidiyor mu | B-12 |
+| **4.5.1** | Yeni ilanda push (uygun meslek/bölge) | B-12 |
+| **4.5.4** | Uygulama **kapalıyken** push | B-12 |
+| **5.1.5** | Müşteri yazınca ustaya push | B-12 |
+| **5.2.3** | Müşteri yazınca usta ekranı **kendiliğinden** açılıyor mu (canlı stream) | — |
+| **B-14** | Zil rozeti (kırmızı) beliriyor mu | 🟠 P1 |
+
+**Not:** B-12 ve B-14 aynı aileden ("bildirim var ama kullanıcı görmüyor");
+ikisi birlikte bakılmalı. B-15 (`9f020e9`) token yazımını onardığı için
+ikisi de kendiliğinden çözülmüş olabilir.
+
+---
+
 ## 📋 Test oturumu kaydı
 
 Her oturumun sonunda nerede kaldığımızı buraya yazın.

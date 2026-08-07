@@ -24,12 +24,14 @@
 
 > Usta, müşteri yazana kadar **yazamaz**.
 
-- [ ] **5.2.1** Müşteri **hiç yazmadan** önce usta sohbeti açsın
-- [ ] **5.2.2** ⚠️ Giriş kutusu yerine şerit görünmeli:
-      *"İletişimi müşteri başlatır. Müşteri size yazınca yanıt verebilirsiniz."*
+- [x] **5.2.1** Müşteri **hiç yazmadan** önce usta sohbeti açsın ✅
+- [x] **5.2.2** ⚠️ Giriş kutusu yerine şerit görünüyor ✅
+      *"İletişimi müşteri başlatır…"* — spam engeli çalışıyor
 - [ ] **5.2.3** Müşteri bir mesaj yazsın → usta ekranı **kendiliğinden** açılmalı
-      (uygulamayı kapatıp açmaya gerek kalmadan)
-- [ ] **5.2.4** Usta artık yazabiliyor
+      → ⏸️ **ERTELENDİ: 2. cihaz gerek.** Tek cihazda hesap değiştirmek
+      ekranı yeniden kurar; "canlı güncelleniyor mu" sorusu ancak iki
+      cihaz yan yanayken cevaplanır
+- [x] **5.2.4** Usta artık yazabiliyor ✅ (müşteri yazdıktan sonra)
 
 ## 5.3 ⭐⭐ KRİTİK: Müşteri hiç yazmadan işi verirse
 
