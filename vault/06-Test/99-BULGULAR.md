@@ -1014,17 +1014,32 @@ Her oturumun sonunda nerede kaldığımızı buraya yazın.
 tekilliği (4.2.3), geri çekme/tekrar bildirme (4.3), yönlendirme (4.5.3)
 hepsi doğru. Tek bulgu **B-12 (push)** — ama o 🔴 P0.
 
+**Bölüm 5 sonucu:** 5.1 · 5.2 · 5.3 ⭐ · 5.5 · 5.7 geçti. **5.3 testin ana
+hedefiydi ve doğrulandı** — karşılıklı değerlendirme çıkmazı kalkmış.
+5.6 (maskeleme) ürün kararıyla **iptal**. 5.4 ikinci usta hesabı bekliyor.
+
+**Oturum 2'de düzeltilenler (hepsi cihazda doğrulandı):**
+B-13 · B-15 (`9f020e9`) · B-17 (`c21c2f2`) · B-18 (`213f3eb`) ·
+B-19 (`1303f57`) · maskeleme kaldırma (`df4cb6b`)
+
 > [!important] Sonraki oturumda buradan devam
-> **Bölüm 5'ten başla** ([[05-Mesajlar]] ⭐, 34 adım ~30 dk) — testin **en
-> kritik bölümü**. Karşılıklı değerlendirme çıkmazının doğrulaması burada
-> (5.3: müşteri hiç yazmadan işi verirse usta yazabiliyor mu?).
+> **Bölüm 6'dan başla** ([[06-Is-Tamamlama]], 28 adım ~25 dk).
+> Elde usta seçilmiş ilan var, doğrudan girilebilir.
 >
-> Bölüm 5'te kapatılacak devir adımları: **3.6.3** (iptal edilen ilan usta
-> feed'inden düştü mü) · **4.4.3** (seçilmeyen usta "Reddedildi" oluyor mu).
+> ⚠️ **Sıralama tuzağı:** Bu bölümde adımlar birbirini bozar. 6.1 ilanı
+> `completed` yapar → 6.2/6.3/6.4 o ilanla test edilemez. 6.3 (iptal) yalnız
+> `workerSelected`'da çalışır. **Üç ayrı ilan** gerekir, ya da sıra:
+> 6.2 → 6.1 (tek ilan), 6.3 ve 6.4 için yeni ilan.
 >
-> **B-12 ölçümü** (5 dk, teste paralel): Ayarlar → Bildirimler → tanılama
-> satırını okuyun. Sonuç düzeltmenin ne olduğunu belirler — kod mu, izin mi,
-> MIUI mi. Detay: B-12 notu.
+> **En kritik: 6.1.8** — tamamlanınca "Değerlendir" düğmesi iki tarafta da
+> görünmeli. Bu, 5.3'te doğrulanan çıkmazın **ikinci yarısı**.
+>
+> Bölüm 6'da **B-18 düzeltmesi** de test edilecek: "İşi teslim ettim" artık
+> onay diyaloğu soruyor.
+>
+> **Yeni eklendi — 6.5:** kullanıcı sorusu üzerine "sohbet silme iş akışını
+> bozar mı?" adımları. Koddan cevap: bozmamalı (`customerStarted` bayrağı ve
+> ilan dokümanı korunur), cihazda doğrulanacak.
 >
 > **✅ Üç P0 kapandı ve cihazda doğrulandı:** B-13 + B-15 (`9f020e9`),
 > B-17 (`c21c2f2`). Hesap değişimi ANR/çökme vermiyor, sohbet açılıyor,

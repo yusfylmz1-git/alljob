@@ -16,15 +16,40 @@
 | 2 | [[02-Profil-ve-Rol]] | 22 | ~20 dk | ✅ | K-02 (karar bekliyor) |
 | 3 | [[03-Ilanlar-Musteri]] | 26 | ~25 dk | ⚠️ | B-02·B-06…B-11 · K-07 |
 | 4 | [[04-Ilanlar-Usta]] | 20 | ~15 dk | ⚠️ | **B-12** (push 🔴 P0) |
-| 5 | [[05-Mesajlar]] ⭐ | 34 | ~30 dk | ⬜ | — |
-| 6 | [[06-Is-Tamamlama]] | 22 | ~20 dk | ⬜ | — |
+| 5 | [[05-Mesajlar]] ⭐ | 34 | ~30 dk | ⚠️ | B-18·B-19 (düzeltildi) · K-08…K-11 |
+| 6 | [[06-Is-Tamamlama]] | 28 | ~25 dk | ⬜ | — |
 | 7 | [[07-Degerlendirme]] ⭐ | 20 | ~15 dk | ⬜ | — |
 | 8 | [[08-Guvenlik-ve-Sikayet]] | 19 | ~15 dk | ⬜ | — |
 | 9 | [[09-Yan-Moduller]] | 31 | ~30 dk | ⬜ | — |
 
 **Durum:** ⬜ başlamadı · 🔄 sürüyor · ✅ geçti · ⚠️ bulgu var · ❌ kırık
 
-**Toplam: 218 adım · ~3 saat.** Bulgular → [[99-BULGULAR]]
+---
+
+## 📊 Kalan iş (oturum 2 sonu — 2026-08-07)
+
+| | Adım |
+|---|---|
+| **Toplam** (6.5 eklendi, 5.6 iptal) | **220** |
+| ✅ Test edildi | **~126** |
+| ⏸️ 2. cihaz/hesap bekliyor | **9** |
+| ⛔ İptal (5.6 maskeleme) | **4** |
+| 🔜 **Kalan** | **~81** |
+
+**Kalanın dağılımı:**
+
+| Bölüm | Kalan | Süre |
+|---|---|---|
+| 6 · İş Tamamlama | 28 | ~25 dk |
+| 7 · Değerlendirme ⭐ | 20 | ~15 dk |
+| 8 · Güvenlik ve Şikayet | 19 | ~15 dk |
+| 9 · Yan Modüller | 31 | ~30 dk |
+| 5 · Mesajlar (artık) | 3 | — (2. hesap) |
+
+> **~1.5 saat kaldı.** Bölüm 6→7 zinciri bağlantılı, birlikte yapılmalı.
+> Bölüm 8 ve 9 bağımsız, istenen sırada.
+
+Bulgular → [[99-BULGULAR]]
 
 > [!tip] Tek seferde bitirmeyin
 > Bölüm bölüm ilerleyin. Her bölüm sonunda nerede kaldığınızı

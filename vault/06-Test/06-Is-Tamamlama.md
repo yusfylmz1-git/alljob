@@ -53,6 +53,24 @@
 - [ ] **6.4.4** ⚠️ Yaşam döngüsü **donuyor** — tamamlama onayı verilemiyor
 - [ ] **6.4.5** Karşı tarafa bildirim gidiyor
 
+## 6.5 Sohbet silme iş akışını bozmuyor
+
+> Kullanıcı sorusu (oturum 2). **Koddan cevap: bozmamalı** — yazma izni
+> mesajlarda değil, sohbet dokümanındaki `customerStarted` bayrağında durur;
+> iş durumu da ilan dokümanındadır. Cihazda doğrulanacak.
+
+- [ ] **6.5.1** Müşteri kendi mesajını silsin → *"Bu mesaj silindi"* kalıyor
+- [ ] **6.5.2** Müşteri **sohbeti silsin** (WhatsApp tarzı, kişisel)
+  - Sohbet müşterinin listesinden düşüyor
+  - ⚠️ **Ustanın geçmişi ETKİLENMİYOR** (usta hesabıyla doğrulayın)
+- [ ] **6.5.3** ⭐ Silme sonrası **usta hâlâ yazabiliyor** mu?
+      (`customerStarted` bayrağı korunmalı — yazamıyorsa **kritik bulgu**)
+- [ ] **6.5.4** İş durumu / tamamlama onayları **etkilenmemiş**
+- [ ] **6.5.5** Usta yeni mesaj yazınca sohbet müşterinin listesinde
+      **yeniden beliriyor** (ama eski mesajlar ona gösterilmiyor)
+- [ ] **6.5.6** Silme sonrası **değerlendirme hakkı duruyor**
+      (kural sohbet dokümanının VARLIĞINA bakar; doküman silinemez)
+
 ---
 
 ## 🔍 Bu alanda nelere dikkat
