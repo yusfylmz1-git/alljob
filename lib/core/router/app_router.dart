@@ -353,6 +353,11 @@ final routerProvider = Provider<GoRouter>((ref) {
             path: 'notification-prefs',
             builder: (_, _) => const NotificationPrefsScreen(),
           ),
+          // Hesap Ayarları — profil ekranından çıkarılan HESABIM bölümü.
+          GoRoute(
+            path: 'account',
+            builder: (_, _) => const AccountSettingsScreen(),
+          ),
         ],
       ),
       // Keşfet Ürünler — /new ve /mine, :id'den önce.

@@ -12,6 +12,7 @@ import '../../../core/utils/phone_format.dart';
 import '../../../core/utils/snackbar_helper.dart';
 import '../../../core/widgets/app_image.dart';
 import '../../../core/widgets/app_menu_drawer.dart';
+import '../../../core/widgets/gradient_app_bar.dart';
 import '../../../core/widgets/responsive_center.dart';
 import '../../../core/widgets/role_bottom_bar.dart';
 import '../../../data/local/mock_database.dart';
@@ -45,6 +46,73 @@ class ProfileScreen extends ConsumerWidget {
           ? const Center(child: Text('Oturum bulunamadı.'))
           : _Body(user: user),
       bottomNavigationBar: const MainBottomBar(current: MainTab.profile),
+    );
+  }
+}
+
+/// Hesap Ayarları (`/profile/account`) — yan menüden açılır.
+///
+/// Profil ekranından çıkarılan HESABIM bölümü burada yaşar: telefon/e-posta
+/// doğrulama, üyelik, çıkış, hesap silme. Profil ekranı böylece yalnız
+/// İÇERİK gösterir (ilanlar, işler, takip) — Instagram düzeninin ön şartı.
+///
+/// Aynı dosyada duruyor: `_MenuRow` / `_Group` / `_SectionLabel` ve
+/// `_AccountGroup` private; ayrı dosyaya taşımak hepsini public yapmayı
+/// gerektirirdi.
+class AccountSettingsScreen extends ConsumerWidget {
+  const AccountSettingsScreen({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final user = ref.watch(currentUserProvider);
+
+    return Scaffold(
+      appBar: const GradientAppBar(
+        title: 'Hesap Ayarları',
+        icon: Icons.manage_accounts_outlined,
+      ),
+      body: user == null
+          ? const Center(child: Text('Oturum bulunamadı.'))
+          : ResponsiveCenter(
+              maxWidth: 720,
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _AccountGroup(user: user),
+                  const SizedBox(height: 8),
+                  _Group(
+                    children: [
+                      _MenuRow(
+                        icon: Icons.logout_rounded,
+                        iconColor: context.palette.danger,
+                        iconSurface:
+                            context.palette.danger.withValues(alpha: 0.10),
+                        title: 'Çıkış Yap',
+                        titleColor: context.palette.danger,
+                        onTap: () async {
+                          final router = GoRouter.of(context);
+                          await ref
+                              .read(authControllerProvider.notifier)
+                              .signOut();
+                          router.go(RoutePaths.home);
+                        },
+                      ),
+                      _MenuRow(
+                        icon: Icons.delete_forever_outlined,
+                        iconColor: context.palette.danger,
+                        iconSurface:
+                            context.palette.danger.withValues(alpha: 0.10),
+                        title: 'Hesabı Sil',
+                        titleColor: context.palette.danger,
+                        subtitle: 'Kalıcı — geri alınamaz',
+                        onTap: () => _deleteAccountFlow(context, ref),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
     );
   }
 }
@@ -117,33 +185,10 @@ class _Body extends ConsumerWidget {
                     ),
                 ],
               ),
-              const _SectionLabel('HESABIM'),
-              _AccountGroup(user: user),
-              _Group(
-                children: [
-                  _MenuRow(
-                    icon: Icons.logout_rounded,
-                    iconColor: context.palette.danger,
-                    iconSurface: context.palette.danger.withValues(alpha: 0.10),
-                    title: 'Çıkış Yap',
-                    titleColor: context.palette.danger,
-                    onTap: () async {
-                      final router = GoRouter.of(context);
-                      await ref.read(authControllerProvider.notifier).signOut();
-                      router.go(RoutePaths.home);
-                    },
-                  ),
-                  _MenuRow(
-                    icon: Icons.delete_forever_outlined,
-                    iconColor: context.palette.danger,
-                    iconSurface: context.palette.danger.withValues(alpha: 0.10),
-                    title: 'Hesabı Sil',
-                    titleColor: context.palette.danger,
-                    subtitle: 'Kalıcı — geri alınamaz',
-                    onTap: () => _deleteAccountFlow(context, ref),
-                  ),
-                ],
-              ),
+              // HESABIM bölümü (doğrulama, üyelik, çıkış, hesap silme) profil
+              // ekranından ÇIKARILDI → Hesap Ayarları (`/profile/account`),
+              // yan menüden açılır. Profil artık içerik gösterir: ilanlar,
+              // işler, takip. Çıkış Yap zaten yan menüde vardı (mükerrerdi).
             ],
           ),
         ),
@@ -193,14 +238,43 @@ class _Hero extends StatelessWidget {
               Row(
                 children: [
                   const DrawerMenuButton(),
+                  // B-16: hangi moddayız — YAZILI ve her zaman görünür.
+                  // Renk tek başına yetmiyordu (kullanıcı da karıştırıyordu).
                   Expanded(
-                    child: Text(
-                      artisanMode ? 'Usta dükkânı' : 'Müşteri',
-                      textAlign: TextAlign.center,
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: -0.2,
+                    child: Center(
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 5,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.16),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: Colors.white.withValues(alpha: 0.28),
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              artisanMode
+                                  ? Icons.handyman_rounded
+                                  : Icons.person_rounded,
+                              size: 15,
+                              color: Colors.white,
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              artisanMode ? 'Usta modu' : 'Müşteri modu',
+                              style: theme.textTheme.labelMedium?.copyWith(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: -0.1,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ),
@@ -343,6 +417,129 @@ class _Hero extends StatelessWidget {
                   ),
                 ),
               ],
+              const SizedBox(height: 16),
+              _HeroStats(user: user),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Instagram tarzı 3'lü sayaç şeridi (başlığın altında).
+///
+/// Usta modunda: Tamamlanan · Puan · Takipçi
+/// Müşteri modunda: İlanlarım · Takip · Takipçi
+///
+/// NOT: Müşterinin "tamamlanan iş" ve "değerlendirme" sayaçları henüz PUBLIC
+/// değil (`users/{uid}/private/` altında, kural yalnız sahibine okutur —
+/// ADR-11). Herkese açmak CF + kural + geri dolum ister; o iş
+/// [[PLAN-Profil-Sadelestirme]] Faz 6. O yüzden müşteri tarafında şimdilik
+/// takip/takipçi gibi ELDE OLAN sayaçlar gösteriliyor.
+class _HeroStats extends ConsumerWidget {
+  const _HeroStats({required this.user});
+  final AppUser user;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final artisanMode = user.isArtisan;
+    final followers =
+        ref.watch(followersProvider(user.uid)).valueOrNull?.length;
+    final following =
+        ref.watch(favoritesProvider(user.uid)).valueOrNull?.length;
+
+    if (artisanMode) {
+      final profile =
+          ref.watch(myProfileControllerProvider).valueOrNull?.profile;
+      return Row(
+        children: [
+          _StatCell(
+            value: '${profile?.completedJobs ?? 0}',
+            label: 'tamamlanan',
+          ),
+          _StatCell(
+            value: (profile?.totalReviews ?? 0) == 0
+                ? '—'
+                : (profile?.averageRating ?? 0).toStringAsFixed(1),
+            label: 'puan',
+            icon: (profile?.totalReviews ?? 0) == 0 ? null : Icons.star_rounded,
+          ),
+          _StatCell(
+            value: '${followers ?? 0}',
+            label: 'takipçi',
+            onTap: () => context.push(RoutePaths.favorites),
+          ),
+        ],
+      );
+    }
+
+    return Row(
+      children: [
+        _StatCell(
+          value: '${following ?? 0}',
+          label: 'takip',
+          onTap: () => context.push(RoutePaths.favorites),
+        ),
+        _StatCell(
+          value: '${followers ?? 0}',
+          label: 'takipçi',
+          onTap: () => context.push(RoutePaths.favorites),
+        ),
+        const _StatCell(value: '—', label: 'değerlendirme'),
+      ],
+    );
+  }
+}
+
+class _StatCell extends StatelessWidget {
+  const _StatCell({
+    required this.value,
+    required this.label,
+    this.icon,
+    this.onTap,
+  });
+
+  final String value;
+  final String label;
+  final IconData? icon;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Expanded(
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 6),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  if (icon != null) ...[
+                    Icon(icon, size: 16, color: const Color(0xFFFBBF24)),
+                    const SizedBox(width: 2),
+                  ],
+                  Text(
+                    value,
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 2),
+              Text(
+                label,
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: Colors.white.withValues(alpha: 0.72),
+                ),
+              ),
             ],
           ),
         ),

@@ -250,6 +250,16 @@ class AppMenuDrawer extends ConsumerWidget {
 
         const Divider(indent: 16, endIndent: 16),
 
+        // Hesap Ayarları — profil ekranından buraya taşındı (sadeleştirme):
+        // doğrulama, üyelik, hesap silme. Profil artık içerik gösterir.
+        if (user != null)
+          ListTile(
+            leading: const Icon(Icons.manage_accounts_outlined),
+            title: const Text('Hesap Ayarları'),
+            subtitle: const Text('Doğrulama, üyelik, hesap'),
+            onTap: () => _open(context, RoutePaths.accountSettings),
+          ),
+
         ListTile(
           leading: const Icon(Icons.help_outline_rounded),
           title: const Text('Yardım'),

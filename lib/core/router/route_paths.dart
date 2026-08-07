@@ -84,6 +84,11 @@ class RoutePaths {
   // Müşteri profil sayfası (oturum açmış müşteri)
   static const String profile = '/profile';
 
+  /// Hesap ayarları — telefon/e-posta doğrulama, üyelik, hesap silme.
+  /// Profil ekranından ÇIKARILDI (sadeleştirme): profil artık içerik
+  /// (ilanlar/işler/takip) gösterir; hesap işleri yan menüden buraya gelir.
+  static const String accountSettings = '/profile/account';
+
   // Hesap profili (ad + foto) — müşteri ve usta ortak.
   static const String profileEdit = '/profile/edit';
 
