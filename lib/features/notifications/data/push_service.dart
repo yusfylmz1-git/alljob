@@ -136,23 +136,37 @@ class PushService {
 
   /// Çıkışta çağrılır: bu cihazın token'ını kullanıcının dizisinden çıkarır
   /// ve token'ı geçersiz kılar (başka hesap bu cihaza bildirim almasın).
+  ///
+  /// TAMAMI SÜRE SINIRLI: `signOut` bunu `await` eder (`auth_controller.dart`).
+  /// Süre sınırı olmazsa yavaş/kopuk ağda çıkış ekranı kilitlenir ve Android
+  /// "yanıt vermiyor" (ANR) uyarısı verir. Token temizliği **en iyi çaba**dır —
+  /// başarısız olsa da çıkış tamamlanmalıdır (sunucu geçersiz token'ı zaten
+  /// ilk gönderimde eler).
+  static const _unregisterTimeout = Duration(seconds: 4);
+
   Future<void> unregisterFor(String uid) async {
     if (!useFirebaseBackend) return;
     try {
-      final token = await _getToken();
-      if (token != null) {
-        await _pushRef(uid).set({
-          'fcmTokens': FieldValue.arrayRemove([token]),
-        }, SetOptions(merge: true));
-        // Legacy public alandan da düş (eski kurulumlar).
-        await _stripPublicToken(uid);
-      }
-      await _messaging.deleteToken();
+      await _unregisterBody(uid).timeout(_unregisterTimeout);
+    } on TimeoutException {
+      debugPrint('PushService.unregisterFor: süre aşıldı, çıkışa devam.');
     } catch (e) {
       debugPrint('PushService.unregisterFor hatası: $e');
     } finally {
       _uid = null;
     }
+  }
+
+  Future<void> _unregisterBody(String uid) async {
+    final token = await _getToken();
+    if (token != null) {
+      await _pushRef(uid).set({
+        'fcmTokens': FieldValue.arrayRemove([token]),
+      }, SetOptions(merge: true));
+      // Legacy public alandan da düş (eski kurulumlar).
+      await _stripPublicToken(uid);
+    }
+    await _messaging.deleteToken();
   }
 
   Future<String?> _getToken() {

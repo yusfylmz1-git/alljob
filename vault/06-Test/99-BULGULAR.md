@@ -53,7 +53,7 @@ Faydalı olursa ekleyin: hangi hesap, ekran görüntüsü, hata mesajının ayn�
 | B-14 | 4.2.5 | Yeni bildirim geldiğinde **zil rozeti (kırmızı) görünmüyor** — bildirime girince mesaj orada | 🟠 P1 | 🔬 **teşhis gerek** |
 | B-15 | 1.x | **Hesap değiştirirken `permission-denied`** — program durduruldu. Public `users/{uid}` token temizliği kurala takılıyor | 🔴 P0 | ✅ **düzeltildi + cihazda doğrulandı** |
 | B-16 | — | **Hangi moddayım belli değil** (usta mı müşteri mi) — kullanıcı bile karıştırıyor | 🟠 P1 | 📋 **planlandı** |
-| B-17 | 1.x | Hesap değişiminde `permission-denied` **B-15'ten sonra da** görüldü — ikinci kaynak | 🔴 P0 | 🔬 **ayrım gerek** (debugger mı, gerçek çökme mi) |
+| B-17 | 1.x | Hesap değişiminde **ANR ("yanıt vermiyor") + çökme** — süre sınırsız çıkış zinciri | 🔴 P0 | ✅ **düzeltildi** (cihazda doğrulanacak) |
 | K-05 | 2.x | Usta hesabı ilk açılışta **Hemen Lazım varsayılan açık** gelsin | 🟡 P2 | 🤔 **karar bekliyor** |
 | K-06 | 2.1 | Profil başlığı **usta kartı gibi** olsun: foto solda, yanında isim + Takip Et, altında meslek/telefon | 🟡 P2 | 🤔 **K-02 ile birlikte** |
 | K-07 | 3.1.6 | Fiyat tipi ilan formunda yok — ~~bilinçli mi?~~ | — | ✅ **kapandı: bilinçli** |
@@ -107,49 +107,70 @@ gerçekleştiği belli olur (şu an sessiz).
 **B-15 düzeltmesinden SONRA da görüldü.** Yani `_stripPublicToken` tek kaynak
 değilmiş; ikinci bir yol var.
 
-#### ⚠️ Önce ayırt edilmeli: gerçek çökme mi, debugger duraklaması mı?
+#### ✅ Ayrım yapıldı: GERÇEK P0 (debugger gürültüsü değil)
 
-*"Exception has occurred."* ifadesi **VS Code debugger** kalıbıdır. Debugger,
-istisna **yakalanmış olsa bile** Firebase hatalarında duraklayabilir
-("Uncaught Exceptions" ayarı). Bu durumda:
-- **F5 / Continue** → akış devam eder, uygulama çalışır
-- **Son kullanıcı (release APK) hiçbir şey görmez**
+İlk teşhiste "VS Code debugger duraklaması olabilir" denmişti.
+**Kullanıcı doğruladı: telefonda "yanıt vermiyor" (ANR) uyarısı + çökme.**
+Yani gerçek bir donma; debugger yalnızca aynı olayı ayrıca gösteriyordu.
 
-| Gözlem | Anlamı | Öncelik |
-|---|---|---|
-| F5'e basınca devam ediyor, uygulama çalışıyor | Debugger duraklaması — **P2 gürültü** | Düşük |
-| Uygulama gerçekten kapanıyor / ekran donuyor | Gerçek çökme | 🔴 P0 |
+**ANR = hata değil, BLOKE OLAN İŞLEM.** Bu, aramayı "hangi istisna
+yakalanmıyor"dan "çıkış akışında ne bekliyor"a çevirdi.
 
-**Bu ayrım yapılmadan düzeltmeye başlanmamalı** — yanlış yere kod yazılır.
+#### 🔴 Kök neden: süre sınırsız çıkış zinciri
 
-#### Teşhis: 36 stream, HİÇBİRİNDE hata işleyicisi yok
+`signOut` (`auth_controller.dart:140`) `unregisterFor`'u **`await` ediyor**;
+o da sırayla **üç ağ çağrısı** yapıyordu ve **hiçbirinde timeout yoktu**:
+
+```
+signOut
+ └─ await unregisterFor(uid)          ← UI burada bekliyor
+     ├─ await _getToken()              (FCM, ağ)
+     ├─ await _pushRef(uid).set(…)     (Firestore yazım)
+     ├─ await _stripPublicToken(uid)   (Firestore yazım)
+     └─ await deleteToken()            (FCM, ağ)
+```
+
+Ağ yavaş/kopuksa Firestore yazımları dakikalarca askıda kalabilir (offline
+kuyruğu) → **ana iş parçacığı beklerken Android ANR verir**.
+
+`permission-denied` de bu zinciri uzatıyordu: `_stripPublicToken` reddedilince
+tekrar deneme yolları devreye giriyordu (B-15 bunu azalttı ama süre sınırı
+yoktu).
+
+#### ✅ Düzeltme (yapıldı)
+- `unregisterFor` gövdesi ayrıldı ve **4 sn süre sınırına** alındı; aşılırsa
+  loglanıp **çıkışa devam edilir**. Token temizliği *en iyi çaba*dır — sunucu
+  geçersiz token'ı ilk gönderimde zaten eler.
+- `watchUnreadMeta` + `watchThreads` stream'lerine `handleError` eklendi:
+  oturum kapanışındaki `permission-denied` **beklenen** durumdur, sessizce
+  boş değere düşer (36 stream içinde uid'e doğrudan bağlı olan ikisi bunlar).
+
+#### Yan tespit: 36 stream, hiçbirinde hata işleyicisi yoktu
 
 ```
 grep "snapshots()"  lib/ → 36 sonuç
-grep "handleError"  lib/ →  0 sonuç
+grep "handleError"  lib/ →  0 sonuç   (düzeltme öncesi)
 ```
 
-Hesap değişince eski uid'e ait canlı `snapshots()` dinleyicileri bir an için
-`permission-denied` fırlatır (kural artık o uid'i tanımıyor). Yakalayan yok.
+Hesap değişince eski uid'e ait canlı `snapshots()` dinleyicileri bir an
+`permission-denied` fırlatır. İkisi düzeltildi (`watchUnreadMeta`,
+`watchThreads`); kalan 34'ü uid'e doğrudan bağlı değil ama **aynı desen**
+ileride sorun çıkarabilir.
 
-**En güçlü aday:** `chat_providers.dart:47` `chatUnreadMetaProvider` —
-`autoDispose` **DEĞİL** (satır 32'deki `myThreadsProvider` autoDispose ama bu
-değil). autoDispose olmayan provider kullanıcı değişse de eski stream'i tutar.
+**Not:** `chatUnreadMetaProvider` (`chat_providers.dart:47`) hâlâ
+`autoDispose` **değil** — `myThreadsProvider` (`:32`) öyle. Şimdilik
+`handleError` yeterli, ama hesap değişimi sırasında eski stream'in bir süre
+canlı kalması yapısal olarak doğru değil. **İleride gözden geçirilmeli.**
 
-> Ancak `totalUnreadProvider` (`:54`) `valueOrNull` ile okuduğu için hatayı
-> yutar → tek başına çökertmemeli. Demek ki çökme **başka bir izleyiciden**
-> geliyor ya da gerçek çökme değil (yukarıdaki ayrım).
+#### ⏭️ Cihazda doğrulanacak
+Hesap değiştirme artık:
+1. ANR uyarısı vermemeli
+2. Çökmemeli
+3. Ağ yavaşken bile en fazla ~4 sn'de tamamlanmalı
 
-#### Düzeltme yönü (ayrım yapıldıktan sonra)
-1. **Kısa vade:** hesap değişiminde eski uid'in stream'lerini kapat —
-   `chatUnreadMetaProvider`'ı `autoDispose` yap, `currentUserProvider`
-   değişince yeniden kurulsun.
-2. **Kalıcı:** uid'e bağlı stream'lere `.handleError()` ekle;
-   `permission-denied` beklenen bir durum (oturum kapanışı), sessizce
-   boş değere düşmeli.
-
-**Not:** Bu yalnız bir *gürültü* sorunuysa (debugger duraklaması), 2. madde
-yine de yapılmalı ama önceliği **P2**'ye iner.
+Hâlâ donuyorsa kalan aday: `firebase_auth_repository.dart:226`
+`unawaited(_stripPublicPii(...))` — süre sınırsız, ama `unawaited` olduğu
+için UI'yı bloklamaması gerekir.
 
 ### B-15 · Hesap değiştirirken permission-denied — 🔴 P0
 

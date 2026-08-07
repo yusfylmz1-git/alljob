@@ -89,15 +89,37 @@ class FirebaseChatRepository implements ChatRepository {
       // Liste açıkken sayacı thread'lerden yeniden hizala (eski hesap / drift).
       unawaited(_healUnreadMeta(uid, list));
       return list;
-    });
+      // Hesap değişimi/çıkışta eski uid'in sorgusu reddedilir (bkz.
+      // watchUnreadMeta) — beklenen durum, boş listeye düş.
+    }).handleError(
+      (Object e) {
+        debugPrint('[chat] thread listesi kapandı ($uid): $e');
+      },
+      test: _isPermissionDenied,
+    );
   }
 
   @override
   Stream<ChatUnreadMeta> watchUnreadMeta(String uid) {
-    return _chatMetaRef(uid).snapshots().map(
-          (s) => ChatUnreadMeta.fromMap(s.data()),
-        );
+    return _chatMetaRef(uid)
+        .snapshots()
+        .map((s) => ChatUnreadMeta.fromMap(s.data()))
+        // Hesap değişimi/çıkışta bu dinleyici bir an eski uid ile canlı kalır
+        // ve kural onu artık tanımaz → `permission-denied`. BEKLENEN durum:
+        // hata olarak yayılırsa VS Code debugger durur ve UI'da sahte bir
+        // "çöktü" izlenimi doğar. Sessizce sıfıra düş; yeni uid'in stream'i
+        // zaten kurulacak.
+        .handleError(
+      (Object e) {
+        debugPrint('[chat] unreadMeta stream kapandı ($uid): $e');
+      },
+      test: _isPermissionDenied,
+    );
   }
+
+  /// Oturum kapanışında beklenen Firestore reddi mi?
+  static bool _isPermissionDenied(dynamic e) =>
+      e is FirebaseException && e.code == 'permission-denied';
 
   /// Thread listesinden doğru sayıyı yaz (yalnız değer değiştiyse).
   Future<void> _healUnreadMeta(String uid, List<ChatThread> threads) async {
