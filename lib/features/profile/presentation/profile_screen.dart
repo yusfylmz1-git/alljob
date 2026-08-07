@@ -25,6 +25,7 @@ import '../../artisan/presentation/widgets/shop_completion_banner.dart';
 import '../../auth/application/auth_controller.dart';
 import '../../auth/data/auth_repository.dart';
 import '../../auth/presentation/phone_verification_sheet.dart';
+import '../../chat/data/chat_providers.dart';
 import '../../favorites/data/favorite_providers.dart';
 import '../../membership/membership_access.dart';
 import '../../membership/membership_package.dart';
@@ -571,6 +572,10 @@ class _ArtisanModeSwitch extends ConsumerWidget {
     final palette = context.palette;
     final theme = Theme.of(context);
     final on = user.isArtisan;
+    // Karşı modda bekleyen okunmamış mesaj sayısı. Bu rozet eskiden yan
+    // menüdeki "Usta/Müşteri Moduna Geç" satırındaydı; o satırlar kalkınca
+    // buraya taşındı — yoksa kullanıcı diğer taraftaki mesajı fark etmez.
+    final crossUnread = ref.watch(otherModeUnreadProvider);
 
     Future<void> toggle(bool next) async {
       final ok = await ref
@@ -614,16 +619,33 @@ class _ArtisanModeSwitch extends ConsumerWidget {
                     ),
                   ),
                   Text(
-                    on
-                        ? 'Açık — iş alabilir, vitrinini yönetebilirsin'
-                        : 'Kapalı — yalnız hizmet alıyorsun',
+                    crossUnread > 0
+                        ? (on
+                            ? 'Müşteri tarafında $crossUnread okunmamış mesaj'
+                            : 'Usta tarafında $crossUnread okunmamış mesaj')
+                        : (on
+                            ? 'Açık — iş alabilir, vitrinini yönetebilirsin'
+                            : 'Kapalı — yalnız hizmet alıyorsun'),
                     style: theme.textTheme.bodySmall?.copyWith(
-                      color: palette.inkMuted,
+                      color: crossUnread > 0
+                          ? palette.danger
+                          : palette.inkMuted,
+                      fontWeight:
+                          crossUnread > 0 ? FontWeight.w700 : null,
                     ),
                   ),
                 ],
               ),
             ),
+            // Karşı modda bekleyen mesaj varsa anahtarın yanında kırmızı sayı.
+            if (crossUnread > 0)
+              Padding(
+                padding: const EdgeInsets.only(right: 4),
+                child: Badge(
+                  label: Text('$crossUnread'),
+                  backgroundColor: palette.danger,
+                ),
+              ),
             Switch(value: on, onChanged: toggle),
           ],
         ),
@@ -878,24 +900,13 @@ class _CustomerHome extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // Sade: yalnız İlanlarım. "Takip ettiklerim" başlıktaki sayaçtan
-        // açılıyor (mükerrer satır kaldırıldı).
-        _Group(
-          children: [
-            _MenuRow(
-              icon: Icons.campaign_outlined,
-              iconColor: context.palette.primary,
-              iconSurface: context.palette.primaryContainer,
-              title: 'İlanlarım',
-              subtitle: 'Verdiğiniz hizmet ilanları',
-              onTap: () => context.push(RoutePaths.myJobs),
-            ),
-          ],
-        ),
+        // "İlanlarım" PROFİLDEN KALKTI → yan menüde (usta modunda görünür).
+        // Alt bardaki "İlanlar" sekmesiyle de mükerrerdi.
+        // "Takip ettiklerim" ise başlıktaki sayaçtan açılıyor.
+        //
         // Usta modu yoksa tek çağrı: dükkân aç. Bu bir "içerik" değil ama
         // ürünün ana dönüşüm adımı — profilde kalması bilinçli.
         if (!user.hasArtisanProfile) ...[
-          const SizedBox(height: 8),
           _Group(
             children: [
               _MenuRow(

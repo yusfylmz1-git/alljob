@@ -31,15 +31,40 @@ void main() {
   });
 
   group('Mükerrer giriş yok', () {
-    test('profilde tek "İlanlarım" satırı var', () {
+    test('"İlanlarım" profilde YOK, yan menüde VAR (usta modunda)', () {
       final profile =
           read('lib/features/profile/presentation/profile_screen.dart');
-      // Usta modunda _ArtisanHome + _CustomerHome birlikte çizilir; ikisinde
-      // de "İlanlarım" olursa satır İKİ KEZ görünür (kullanıcı bildirdi).
-      final hits = "'İlanlarım'".allMatches(profile).length;
-      expect(hits, 1,
-          reason: 'İlanlarım yalnız _CustomerHome içinde olmalı; '
-              '_ArtisanHome herkeste çizilen o bölümün üstüne biner.');
+      final drawer = read('lib/core/widgets/app_menu_drawer.dart');
+
+      // Profilde satır olarak bulunmamalı: alt bardaki "İlanlar" sekmesi ve
+      // menü girişiyle üç kez tekrar ediyordu.
+      expect(profile.contains("title: 'İlanlarım'"), isFalse,
+          reason: 'İlanlarım profile geri eklenmiş — mükerrer.');
+
+      // Menüde, yalnız usta modunda.
+      expect(drawer.contains("title: const Text('İlanlarım')"), isTrue);
+      expect(drawer.contains('if (user.isArtisan)'), isTrue,
+          reason: 'İlanlarım usta modu koşuluna bağlı olmalı.');
+    });
+
+    test('yan menüde mod geçiş satırı YOK', () {
+      final drawer = read('lib/core/widgets/app_menu_drawer.dart');
+      // Mod değişimi yalnız profildeki anahtardan yapılır; iki ayrı yer
+      // "hangi moddayım?" karışıklığını besliyordu (B-16).
+      // Metin YORUMDA geçebilir (neden kaldırıldığını anlatır); asıl kontrol
+      // ListTile başlığı olarak DURMAMASI.
+      expect(drawer.contains("Text('Usta Moduna Geç')"), isFalse);
+      expect(drawer.contains("Text('Müşteri Moduna Geç')"), isFalse);
+      expect(drawer.contains('_switchMode('), isFalse);
+    });
+
+    test('karşı mod okunmamış rozeti kaybolmadı', () {
+      // Rozet menüdeki mod satırındaydı; o satır kalkınca profildeki
+      // anahtara taşındı. Taşınmasaydı kullanıcı diğer taraftaki mesajı
+      // hiç fark etmezdi.
+      final profile =
+          read('lib/features/profile/presentation/profile_screen.dart');
+      expect(profile.contains('otherModeUnreadProvider'), isTrue);
     });
 
     test('Keşfet rol ayrımı yapmaz: Ustalar her modda görünür', () {

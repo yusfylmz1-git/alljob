@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../data/models/user_role.dart';
 import '../../features/auth/application/auth_controller.dart';
 import '../../features/auth/data/auth_repository.dart';
 import '../../features/chat/data/chat_providers.dart';
@@ -54,10 +53,11 @@ class DrawerMenuButton extends ConsumerWidget {
 ///
 /// İçerik duruma göre değişir:
 /// - Misafir: Google ile giriş.
-/// - Müşteri modu: İş İlanı Ver, İlanlarım, Favorilerim (+ usta profili varsa
-///   Usta Moduna Geç, yoksa Hizmet Vermeye Başla).
-/// - Usta modu: Hizmetlerim, İlgilendiğim işler, Bildirimler, Premium, Profili
-///   Düzenle, Müşteri Moduna Geç.
+/// - Oturum açık: İş İlanı Ver, Takip Ettiklerim (+ usta modunda İlanlarım
+///   ve Bildirimler), Ajanda, Hesap Ayarları, Yardım, Görünüm, Çıkış.
+///
+/// MOD GEÇİŞİ BURADA YOK: profildeki "Usta modu" anahtarından yapılır.
+/// İki ayrı yer olması hangi modda olunduğunu belirsizleştiriyordu (B-16).
 class AppMenuDrawer extends ConsumerWidget {
   const AppMenuDrawer({super.key});
 
@@ -65,23 +65,6 @@ class AppMenuDrawer extends ConsumerWidget {
   void _open(BuildContext context, String path) {
     Navigator.pop(context);
     context.push(path);
-  }
-
-  Future<void> _switchMode(
-      BuildContext context, WidgetRef ref, UserRole mode) async {
-    // Drawer async işlem sonunda kapanmış olabilir; kalıcı bağlamları
-    // (router + kök navigator) önce yakala.
-    final router = GoRouter.of(context);
-    final nav = Navigator.of(context, rootNavigator: true);
-    final ok =
-        await ref.read(authControllerProvider.notifier).setActiveMode(mode);
-    if (ok) {
-      // Mod geçişi sonrası birleşik profil sayfası — kullanıcı yeni modun
-      // menüsünü tek yerde görür.
-      router.go(RoutePaths.profile);
-    } else if (nav.mounted) {
-      nav.context.showError('Mod değiştirilemedi, tekrar deneyin.');
-    }
   }
 
   Future<void> _becomeArtisan(BuildContext context, WidgetRef ref) async {
@@ -135,14 +118,9 @@ class AppMenuDrawer extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final user = ref.watch(currentUserProvider);
     final theme = Theme.of(context);
-    // Karşı moda düşen okunmamışlar → mod geçiş satırında kırmızı rozet.
-    final crossUnread = ref.watch(otherModeUnreadProvider);
-    final crossBadge = crossUnread > 0
-        ? Badge(
-            label: Text('$crossUnread'),
-            backgroundColor: context.palette.danger,
-          )
-        : null;
+    // NOT: Karşı moddaki okunmamış rozeti (`otherModeUnreadProvider`) burada
+    // mod geçiş satırında duruyordu. O satırlar kalktı; rozet profildeki
+    // "Usta modu" anahtarına taşındı (bkz. _ArtisanModeSwitch).
 
     return NavigationDrawer(
       children: [
@@ -198,9 +176,12 @@ class AppMenuDrawer extends ConsumerWidget {
           ),
         ]
 
-        // --- Müşteri modu ---
-        else if (!user.isArtisan) ...[
-          // İlanlarım artık alt barda ("İlanlarım" sekmesi).
+        // --- Oturum açmış kullanıcı (rol ayrımı YOK) ---
+        //
+        // "Usta Moduna Geç / Müşteri Moduna Geç" satırları KALDIRILDI:
+        // mod değişimi artık profildeki anahtardan yapılıyor, iki ayrı yer
+        // olması karışıklık yaratıyordu (B-16).
+        else ...[
           ListTile(
             leading: const Icon(Icons.campaign_outlined),
             title: const Text('İş İlanı Ver'),
@@ -211,41 +192,32 @@ class AppMenuDrawer extends ConsumerWidget {
             title: const Text('Takip Ettiklerim'),
             onTap: () => _open(context, RoutePaths.favorites),
           ),
-          const Divider(indent: 16, endIndent: 16),
-          if (user.hasArtisanProfile)
+
+          // Usta modülleri — yalnız anahtar açıkken.
+          if (user.isArtisan) ...[
             ListTile(
-              leading: const Icon(Icons.swap_horiz_rounded),
-              title: const Text('Usta Moduna Geç'),
-              trailing: crossBadge,
-              onTap: () => _switchMode(context, ref, UserRole.artisan),
-            )
-          else
+              leading: const Icon(Icons.assignment_outlined),
+              title: const Text('İlanlarım'),
+              subtitle: const Text('Verdiğiniz hizmet ilanları'),
+              onTap: () => _open(context, RoutePaths.myJobs),
+            ),
+            ListTile(
+              leading: const Icon(Icons.notifications_none_rounded),
+              title: const Text('Bildirimler'),
+              onTap: () => _open(context, RoutePaths.panelNotifications),
+            ),
+          ],
+
+          // Henüz usta profili yoksa dönüşüm çağrısı.
+          if (!user.hasArtisanProfile) ...[
+            const Divider(indent: 16, endIndent: 16),
             ListTile(
               leading: const Icon(Icons.handyman_outlined),
-              title: const Text('Hizmet Vermeye Başla'),
-              subtitle: const Text('Usta profili oluşturun'),
+              title: const Text('Usta olarak devam et'),
+              subtitle: const Text('Meslek ve bölge ekle, iş almaya başla'),
               onTap: () => _becomeArtisan(context, ref),
             ),
-        ]
-
-        // --- Usta modu ---
-        else ...[
-          // Yakındaki işler VE İlgilendiğim işler artık alt bardaki "İşler"
-          // sekmesinde (iki sekme yan yana) — menüde tekrar edilmiyor.
-          ListTile(
-            leading: const Icon(Icons.notifications_none_rounded),
-            title: const Text('Bildirimler'),
-            onTap: () => _open(context, RoutePaths.panelNotifications),
-          ),
-          // Premium ve Profili Düzenle artık birleşik profil sayfasında —
-          // menüde tekrar edilmez (mükerrer giriş kafa karıştırıyordu).
-          const Divider(indent: 16, endIndent: 16),
-          ListTile(
-            leading: const Icon(Icons.swap_horiz_rounded),
-            title: const Text('Müşteri Moduna Geç'),
-            trailing: crossBadge,
-            onTap: () => _switchMode(context, ref, UserRole.customer),
-          ),
+          ],
         ],
 
         const Divider(indent: 16, endIndent: 16),
