@@ -4,7 +4,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 
 import '../../../core/constants/app_constants.dart';
-import '../../../core/utils/contact_masker.dart';
 import '../../../data/models/chat.dart';
 import 'chat_repository.dart';
 
@@ -559,21 +558,23 @@ class FirebaseChatRepository implements ChatRepository {
     String? text,
     String? imageHandle,
   }) async {
-    final masked = text == null ? null : ContactMasker.mask(text);
-    final wasMasked = text != null && masked != text;
+    // İletişim maskeleme KALDIRILDI (ürün kararı, oturum 2): taraflar telefon/
+    // e-posta paylaşabilir. Usta vitrininde zaten telefon gösterme seçeneği
+    // var; sohbeti kısıtlamak tutarsızdı. `ContactMasker` sınıfı duruyor ama
+    // sohbet akışında ARTIK ÇAĞRILMIYOR.
     final now = DateTime.now();
 
     await ensureChatReady(chatId);
 
     await _chats.doc(chatId).collection('messages').add({
       'senderUid': senderUid,
-      'text': masked,
+      'text': text,
       'imageHandle': imageHandle,
       'createdAt': Timestamp.fromDate(now),
     });
 
     final meta = <String, dynamic>{
-      'lastMessage': imageHandle != null ? '📷 Fotoğraf' : masked,
+      'lastMessage': imageHandle != null ? '📷 Fotoğraf' : text,
       'lastMessageSenderUid': senderUid,
       'updatedAt': Timestamp.fromDate(now),
     };
@@ -600,7 +601,8 @@ class FirebaseChatRepository implements ChatRepository {
     }
     await _chats.doc(chatId).set(meta, SetOptions(merge: true));
 
-    return wasMasked;
+    // Maskeleme kaldırıldığı için hiçbir mesaj artık maskelenmiyor.
+    return false;
   }
 
   @override

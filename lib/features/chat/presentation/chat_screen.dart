@@ -185,14 +185,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     HapticFeedback.lightImpact();
     _controller.clear();
     try {
-      final masked = await ref
+      // Maskeleme kaldırıldı (ürün kararı) — `sendMessage` artık her zaman
+      // false döner, uyarı gösterilmez.
+      await ref
           .read(chatRepositoryProvider)
           .sendMessage(chatId: widget.chatId, senderUid: user.uid, text: text);
-      if (masked && mounted) {
-        context.showInfo(
-          'Güvenliğiniz için iletişim bilgileri gizlendi. Görüşmeleri uygulama içinde sürdürün.',
-        );
-      }
       _scrollToBottom();
     } catch (_) {
       if (mounted) {

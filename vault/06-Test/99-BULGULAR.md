@@ -59,7 +59,8 @@ Faydalı olursa ekleyin: hangi hesap, ekran görüntüsü, hata mesajının ayn�
 | K-05 | 2.x | Usta hesabı ilk açılışta **Hemen Lazım varsayılan açık** gelsin | 🟡 P2 | 🤔 **karar bekliyor** |
 | K-08 | 5.7 | **Mesajlar listesine sekme** (İlan · Genel) — varsayılan İlan, genelde okunmamış varsa o öne | 🟡 P2 | ✅ **karar verildi** → uygulanacak |
 | K-09 | 5.5 | Sohbet **görünümü WhatsApp/Instagram havası vermiyor** — işlevler çalışıyor, cila eksik | 🟡 P2 | 🤔 **kapsam belirsiz** |
-| K-10 | 5.6 | ⛔ **Maskeleme test EDİLMEDİ** — "gereksiz" sanılarak atlandı, ama kod aktif ve K-01 hâlâ açık | 🟠 P1 | ⚠️ **test edilmeli** |
+| K-11 | 5.x | **Müstehcen içerik/argo** — küfür listesi + her fotoğrafa NSFW taraması | 🟠 P1 | ✅ **karar verildi** → uygulanacak |
+| K-10 | 5.6 | **Maskeleme kaldırıldı** — sohbette telefon/e-posta serbest | — | ✅ **uygulandı** (ADR-10 geri alındı) |
 | K-06 | 2.1 | Profil başlığı **usta kartı gibi** olsun: foto solda, yanında isim + Takip Et, altında meslek/telefon | 🟡 P2 | 🤔 **K-02 ile birlikte** |
 | K-07 | 3.1.6 | Fiyat tipi ilan formunda yok — ~~bilinçli mi?~~ | — | ✅ **kapandı: bilinçli** |
 
@@ -107,25 +108,33 @@ gerçekleştiği belli olur (şu an sessiz).
 **Zamanlama:** K-02/K-06 (profil başlığı yeniden tasarımı) ile **aynı alan**.
 Üçü birlikte ele alınmalı — profil başlığı da rol kimliğini gösteren yer.
 
-### K-10 · ⛔ Maskeleme test edilmedi — yanlış anlaşılma düzeltilmeli
+### K-10 · Maskeleme kaldırıldı — ✅ UYGULANDI
 
-**Kullanıcı:** *"5.6 da maskeleme gereksiz oldu çünkü profilde telefon
-gözükebilir yaptık."*
+**Karar (kullanıcı):** Sohbette iletişim maskelemesi tamamen kalksın.
 
-**Bu varsayım yanlış — üç sebeple:**
+**Gerekçe:** Usta vitrininde zaten telefon gösterme seçeneği var; bir kanal
+açıkken diğerini kısıtlamak tutarsızdı.
 
-1. **K-01 hâlâ AÇIK.** Vitrinde telefon "yapıldı" değil; defterde *"karar
-   bekliyor"* durumunda. Özellik zaten vardı, varsayılan **kapalı** bir
-   opt-in ve üç şart birden gerekiyor (usta açmış + doğrulanmış + dolu).
-2. **Maskeleme kodu tamamen aktif.** `contact_masker.dart` telefon, e-posta,
-   URL, sosyal medya kullanıcı adlarını maskeliyor. Test edilmezse
-   **çalışıp çalışmadığını bilmiyoruz** — regex tabanlı, kaçış senaryoları
-   var (harfle yazılmış rakamlar vb.).
-3. **İkisi farklı kanal.** Profilde telefon = ustanın *bilinçli* tercihi,
-   herkese açık vitrin. Sohbette telefon = platform dışına *kaçış*.
-   Birincisi açık olsa da ikincisinin engeli anlamını korur.
+**Yapılanlar:**
+- `firebase_chat_repository.sendMessage` → `ContactMasker` çağrısı kalktı
+- `MockChatRepository.sendMessage` → aynısı (**mock paritesi**, kural 1)
+- `chat_screen` → "iletişim bilgileri gizlendi" uyarısı kalktı
+- `sendMessage` artık **her zaman `false`** döner
+- [[Mimari-Kararlar]] **ADR-10 geri alındı** (özgün karar tarihsel not olarak
+  duruyor)
+- Test defteri **5.6 iptal edildi**
 
-**Sonuç:** 5.6'nın 4 adımı hâlâ geçerli, test edilmeli.
+**`ContactMasker` sınıfı SİLİNMEDİ** — çalışır durumda, testleri de duruyor.
+Başka bir yerde gerekirse hazır; yalnız sohbet akışı onu çağırmıyor.
+
+**Regresyon testi:** `contact_masker_test.dart` yeniden yazıldı — artık
+"mesaj maskelenmez, olduğu gibi kaydedilir"i doğruluyor.
+`chat_review_test.dart`'taki eski maskeleme testi de güncellendi.
+
+> [!warning] Ticari sonuç — bilinçli kabul edildi
+> Platform dışına çıkan iş komisyon/güvence dışında kalır. **Gelir modeli
+> komisyona dayanırsa bu karar yeniden değerlendirilmeli.** K-01 (vitrindeki
+> telefon) da aynı eksende — artık iki kanal da açık.
 
 ### K-11 · Müstehcen içerik / taciz engelleme — SORU
 
@@ -155,28 +164,78 @@ Yani "şikayet → admin bakar → askıya alır" zinciri kurulu. Eksik olan
 | **D** | LLM ile mesaj denetimi | Çok yüksek | Yüksek ($$) | Düşük |
 | **E** | **Sadece tepkisel** (mevcut durum) | Düşük | Yok | Yok |
 
-#### Öneri: B + A, bu sırayla
+#### ✅ KARAR: küfür listesi (A) + görsel NSFW taraması (C)
 
-**B önce** — çünkü altyapı zaten var, yalnız admin tarafında sıralama
-gerekiyor. Şikayet edilen içerik hızlı incelenirse caydırıcılık doğar.
-**Maliyeti neredeyse sıfır.**
+Kullanıcı **her yüklenen fotoğrafın** taranmasını istedi ve maliyet
+bilgilendirmesi sordu.
 
-**A sonra** — basit bir TR küfür listesi + `contact_masker` benzeri bir
-`profanity_filter`. Mesaj engellenmez, **uyarı gösterilir** ve şikayet
-sayacına işlenir. Sert engelleme yanlış pozitifte kullanıcıyı kızdırır.
+---
 
-**C yalnız gerçek bir sorun görülürse** — fotoğraf paylaşımı azsa maliyeti
-haklı çıkmaz. Play Store politikası için *bir* moderasyon mekanizması
-yeterli; hepsi gerekmez.
+### 💰 Maliyet analizi — Cloud Vision SafeSearch
+
+**Fiyat (Google Cloud Vision API, 2026):**
+| Aylık istek | Birim fiyat |
+|---|---|
+| İlk **1.000** | **ÜCRETSİZ** |
+| 1.001 – 5.000.000 | **$1.50 / 1.000 istek** |
+
+SafeSearch Detection tek başına bir "feature" sayılır → istek başına 1 birim.
+
+**Uygulamadaki yükleme noktaları — 6 adet:**
+`create_job_screen` (ilan fotoğrafı, max 8) · `chat_screen` (sohbet) ·
+`artisan_profile_edit_screen` (profil + iş fotoğrafları) ·
+`product_edit_screen` (ürün) · `account_profile_edit_screen` (avatar) ·
+`admin_platform_screen`
+
+**Senaryolar:**
+
+| Ölçek | Aylık foto | Maliyet/ay |
+|---|---|---|
+| Beta (100 kullanıcı) | ~500 | **$0** (ücretsiz kotada) |
+| Küçük (1.000 kullanıcı) | ~5.000 | **~$6** |
+| Orta (10.000 kullanıcı) | ~50.000 | **~$74** |
+| Büyük (100.000 kullanıcı) | ~500.000 | **~$749** |
+
+> **Beta/erken aşamada maliyet pratikte SIFIR.** Aylık 1.000 fotoğrafın
+> altında kalındığı sürece ücret yok.
+
+**Maliyeti düşüren üç önlem:**
+1. **Yalnız riskli yüzeyleri tara.** Sohbet + ürün + iş fotoğrafları yeter;
+   avatar/ilan fotoğrafı düşük risk. → ~%50 tasarruf
+2. **Cache: aynı görselin hash'i tekrar taranmaz** (aynı foto yeniden
+   yüklenirse). → %10–20
+3. **Yalnız şikayet edilenleri tara** (tepkisel) — en ucuz ama en yavaş.
+
+---
+
+### Uygulama planı
+
+**Faz 1 — Küfür listesi (A), istemci + CF**
+- `core/utils/profanity_filter.dart` — `ContactMasker` kalıbında
+- Mesaj **engellenmez**: uyarı gösterilir + `reports` sayacına işlenir
+- Sert engelleme yanlış pozitifte kullanıcıyı kızdırır; TR'de "sik" masum
+  kelimelerin içinde geçer (kelime sınırı `\b` şart)
+- **Maliyet: $0**
+
+**Faz 2 — NSFW taraması (C), Cloud Function**
+- `onImageUploaded` trigger (Storage) → Vision SafeSearch
+- `adult`/`racy` = `LIKELY`/`VERY_LIKELY` → `moderationHidden: true` +
+  admin kuyruğuna düşür
+- **Senkron değil**: yükleme beklemesin, arka planda taransın
+- Vision API + CF çağrısı → yukarıdaki tablo
+
+**Faz 3 — Öncelikli inceleme kuyruğu (B)**
+- Şikayet edilen + otomatik işaretlenen içerik admin panelinde öne çıksın
+- **Maliyet: $0** (altyapı hazır)
 
 > [!note] Play Store gerçeği
-> UGC (kullanıcı içeriği) barındıran uygulamalar için Google **şunları**
-> ister: kullanıcı engelleme ✅ (var) · şikayet mekanizması ✅ (var) ·
-> içerik politikası (yazılı) · şikayetlere **makul sürede** yanıt.
-> Otomatik filtre **zorunlu değil**. Yani mevcut altyapı yayına yeterli;
-> B maddesi (inceleme kuyruğu) bunu güçlendirir.
+> UGC uygulamaları için Google **şunları** ister: kullanıcı engelleme ✅
+> (var) · şikayet mekanizması ✅ (var) · içerik politikası (yazılı) ·
+> şikayetlere makul sürede yanıt. **Otomatik filtre zorunlu değil** — yani
+> A+C yayın için gereklilik değil, kalite tercihi.
 
-**Karar gerekiyor:** hangi seviyeye kadar gidilecek? Öneri **B + A**.
+**Ne zaman?** Test bitince. Faz 1 küçük; Faz 2 Cloud Function + Vision API
+kurulumu gerektirir (fatura hesabı + API etkinleştirme).
 
 ### K-09 · Sohbet görünümü — "WhatsApp havası yok"
 

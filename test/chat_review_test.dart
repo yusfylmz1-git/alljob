@@ -21,7 +21,10 @@ void main() {
       expect(msgs.first.text, 'Merhaba');
     });
 
-    test('iletişim bilgisi maskelenir ve uyarı döner', () async {
+    // Maskeleme KALDIRILDI (ürün kararı, oturum 2): taraflar telefon/e-posta
+    // paylaşabilir — usta vitrininde zaten telefon gösterme seçeneği var,
+    // sohbeti kısıtlamak tutarsızdı. Eskiden bu test maskelemeyi doğruluyordu.
+    test('iletişim bilgisi MASKELENMEZ, olduğu gibi kaydedilir', () async {
       final repo = MockChatRepository();
       final chatId = await repo.startChat(
         customerUid: 'c1',
@@ -29,11 +32,12 @@ void main() {
         artisanUid: 'a1',
         artisanName: 'Usta',
       );
+      const text = 'ara 0532 123 45 67';
       final masked =
-          await repo.sendMessage(chatId: chatId, senderUid: 'c1', text: 'ara 0532 123 45 67');
-      expect(masked, isTrue);
+          await repo.sendMessage(chatId: chatId, senderUid: 'c1', text: text);
+      expect(masked, isFalse, reason: 'Artık hiçbir mesaj maskelenmiyor.');
       final msgs = await repo.watchMessages(chatId).first;
-      expect(msgs.first.text, isNot(contains('123 45 67')));
+      expect(msgs.first.text, text);
     });
 
     test('sohbet listesi ilgili kullanıcı için görünür', () async {

@@ -112,16 +112,36 @@ verir, filtrelenebilir.
 
 ---
 
-## ADR-10 · İletişim bilgisi maskelenir
+## ADR-10 · İletişim maskeleme — ~~uygulanır~~ **KALDIRILDI**
 
-**Karar:** Sohbette telefon, e-posta, sosyal medya otomatik gizlenir
-(`core/utils/contact_masker.dart`, PRD §5).
+> [!warning] Bu karar 2026-08-07'de GERİ ALINDI
+> Sohbet mesajları artık **maskelenmiyor**. Aşağıdaki özgün gerekçe tarihsel
+> kayıt olarak duruyor.
 
-**Gerekçe:** Ticari — iş platform içinde kalmalı. Platform dışına çıkan iş
-komisyon ve güvence dışında kalır.
+**Yeni karar (oturum 2, test sırasında):** Sohbette telefon/e-posta/sosyal
+medya **olduğu gibi** iletilir. `sendMessage` her zaman `false` döner, uyarı
+gösterilmez.
 
-**Not:** Maskeleme uygulandıysa `sendMessage` `true` döner, UI kullanıcıyı
-uyarır — sessizce değiştirmez.
+**Gerekçe:** Usta vitrininde zaten "telefon numaram görünsün" seçeneği var
+(bkz. K-01). Bir kanal açıkken diğerini kısıtlamak tutarsızdı — usta
+maskelemeye takılmadan aynı sonuca ulaşabiliyordu. Kullanıcı kararı:
+kısıtlamayı kaldır, tek tutarlı davranış bırak.
+
+**Kod durumu:**
+- `ContactMasker` sınıfı **duruyor ve çalışıyor** — silinmedi, testleri de
+  duruyor. Başka bir yerde gerekirse hazır.
+- `firebase_chat_repository.sendMessage` ve `MockChatRepository.sendMessage`
+  artık onu **çağırmıyor** (mock paritesi korundu).
+- `chat_screen` içindeki "iletişim bilgileri gizlendi" uyarısı kaldırıldı.
+
+**Ticari sonuç — bilinçli kabul edildi:** Platform dışına çıkan iş komisyon
+ve güvence dışında kalır. Gelir modeli komisyona dayanırsa bu karar yeniden
+değerlendirilmelidir.
+
+> **Özgün karar (tarihsel):** Sohbette telefon, e-posta, sosyal medya
+> otomatik gizlenirdi (`contact_masker.dart`, PRD §5). Gerekçe: iş platform
+> içinde kalmalı. Maskeleme uygulandıysa `sendMessage` `true` döner, UI
+> kullanıcıyı uyarırdı.
 
 ---
 

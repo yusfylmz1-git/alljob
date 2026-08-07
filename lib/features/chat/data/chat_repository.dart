@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import '../../../core/utils/contact_masker.dart';
 import '../../../data/models/chat.dart';
 
 /// Sohbet verisi soyutlaması (PRD Ekran E). Mock ile gerçek-zamanlı davranışı
@@ -311,14 +310,13 @@ class MockChatRepository implements ChatRepository {
     String? text,
     String? imageHandle,
   }) async {
-    final masked = text == null ? null : ContactMasker.mask(text);
-    final wasMasked = text != null && masked != text;
-
+    // Maskeleme KALDIRILDI (ürün kararı, oturum 2) — Firebase uygulamasıyla
+    // parite: orada da `ContactMasker` artık çağrılmıyor.
     final msg = ChatMessage(
       id: 'msg_${_seq++}',
       chatId: chatId,
       senderUid: senderUid,
-      text: masked,
+      text: text,
       imageHandle: imageHandle,
       createdAt: DateTime.now(),
     );
@@ -333,7 +331,7 @@ class MockChatRepository implements ChatRepository {
     if (t != null) {
       final receiver = t.otherUid(senderUid);
       _threads[chatId] = t.copyWith(
-        lastMessage: imageHandle != null ? '📷 Fotoğraf' : masked,
+        lastMessage: imageHandle != null ? '📷 Fotoğraf' : text,
         updatedAt: msg.createdAt,
         lastMessageSenderUid: senderUid,
         archivedBy: t.archivedBy.contains(receiver)
@@ -346,7 +344,8 @@ class MockChatRepository implements ChatRepository {
       _threadsTick.add(null);
     }
 
-    return wasMasked;
+    // Maskeleme kaldırıldığı için hiçbir mesaj artık maskelenmiyor.
+    return false;
   }
 
   @override

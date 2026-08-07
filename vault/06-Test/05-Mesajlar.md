@@ -82,21 +82,21 @@
 
 > Telefon, e-posta, sosyal medya otomatik gizlenir (platform dışına çıkış engeli).
 
-- [ ] **5.6.1** Sohbete **telefon numarası** yazın (`0532 123 45 67`)
-  - Gizlenmeli + **uyarı** gösterilmeli
-- [ ] **5.6.2** **E-posta** yazın (`test@gmail.com`) → gizlenmeli
-- [ ] **5.6.3** **Instagram/sosyal medya** adı yazın → gizlenmeli
-- [ ] **5.6.4** Karşı taraf da maskelenmiş halini görüyor
-
-> [!warning] ⛔ Bu bölüm TEST EDİLMEDİ — atlanmamalı
-> Kullanıcı *"maskeleme gereksiz oldu, çünkü profilde telefon
-> gözükebilir yaptık"* diyerek atladı. **Bu bir yanlış anlaşılma:**
-> K-01 (vitrinde telefon) hâlâ **karar bekliyor** — "yapıldı" değil,
-> varsayılan **kapalı** bir opt-in özellik. Maskeleme kodu (`contact_masker`)
-> tamamen aktif ve mesajlarda çalışmaya devam ediyor.
+> [!info] ⛔ BÖLÜM İPTAL — maskeleme kaldırıldı
+> **Ürün kararı (oturum 2):** Sohbette iletişim maskelemesi **tamamen
+> kaldırıldı**. Taraflar telefon/e-posta/sosyal medya paylaşabilir.
 >
-> Yani maskeleme test edilmezse **çalışıp çalışmadığını bilmiyoruz**.
-> Bu 4 adım hâlâ geçerli — bkz. [[99-BULGULAR]] K-10.
+> **Gerekçe:** Usta vitrininde zaten "telefonum görünsün" seçeneği var;
+> bir kanal açıkken diğerini kısıtlamak tutarsızdı.
+>
+> **Bu 4 adım artık geçersiz.** [[Mimari-Kararlar]] ADR-10 geri alındı.
+> Kod: `sendMessage` her zaman `false` döner, uyarı yok. `ContactMasker`
+> sınıfı silinmedi — çağrılmıyor.
+
+- ~~**5.6.1** Telefon numarası gizlenmeli~~ → iptal
+- ~~**5.6.2** E-posta gizlenmeli~~ → iptal
+- ~~**5.6.3** Sosyal medya adı gizlenmeli~~ → iptal
+- ~~**5.6.4** Karşı taraf maskelenmiş görüyor~~ → iptal
 
 ## 5.7 Sohbet listesi
 
