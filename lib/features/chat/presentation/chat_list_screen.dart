@@ -636,7 +636,12 @@ class _ThreadTile extends StatelessWidget {
                     // İlan bazlı sohbette hangi işin konuşulduğu ADIN ALTINDA
                     // yazar: aynı usta ile birden çok ilan varsa liste
                     // karışmasın (sohbet kimliği ilana bağlıdır).
-                    if (thread.isJobChat && (thread.jobTitle ?? '').isNotEmpty)
+                    // B-19: başlık eksik olsa da (eski/iskelet dökümanlar)
+                    // satır ÇİZİLİR — ilan sohbeti ile genel sohbeti ayırt
+                    // etmek listenin okunabilirliği için şart. Başlık yoksa
+                    // nötr etiket yazılır; burada ilan dokümanı OKUNMAZ
+                    // (her satır için ayrı okuma listeyi pahalılaştırır).
+                    if (thread.isJobChat)
                       Padding(
                         padding: const EdgeInsets.only(top: 2),
                         child: Row(
@@ -646,7 +651,9 @@ class _ThreadTile extends StatelessWidget {
                             const SizedBox(width: 4),
                             Expanded(
                               child: Text(
-                                thread.jobTitle!,
+                                (thread.jobTitle ?? '').isNotEmpty
+                                    ? thread.jobTitle!
+                                    : 'İlan sohbeti',
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: theme.textTheme.labelSmall?.copyWith(

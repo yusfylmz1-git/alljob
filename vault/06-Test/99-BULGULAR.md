@@ -54,9 +54,10 @@ Faydalı olursa ekleyin: hangi hesap, ekran görüntüsü, hata mesajının ayn�
 | B-15 | 1.x | **Hesap değiştirirken `permission-denied`** — program durduruldu. Public `users/{uid}` token temizliği kurala takılıyor | 🔴 P0 | ✅ **düzeltildi + cihazda doğrulandı** |
 | B-16 | — | **Hangi moddayım belli değil** (usta mı müşteri mi) — kullanıcı bile karıştırıyor | 🟠 P1 | 📋 **planlandı** |
 | B-18 | 5.1.2 / 6.x | **"İşi teslim ettim" tek dokunuşta, onay diyaloğu YOK** — yanlışlıkla basılabilir, geri alınamaz | 🔴 P0 | ✅ **düzeltildi** (cihazda doğrulanacak) |
-| B-19 | 5.1.2 | **Sohbette ilan başlığı görünmüyor** — `ensureChatReady` + `copyWith` `jobId`/`jobTitle`'ı düşürüyor | 🟠 P1 | 🔧 **düzeltilecek** |
+| B-19 | 5.1.2 | **Sohbette ilan başlığı görünmüyor** — `ensureChatReady` alanları düşürüyor + kural sonradan yazmaya kapalı | 🟠 P1 | ✅ **düzeltildi** (cihazda doğrulanacak) |
 | B-17 | 1.x | Hesap değişiminde **ANR ("yanıt vermiyor") + çökme** — süre sınırsız çıkış zinciri | 🔴 P0 | ✅ **düzeltildi + cihazda doğrulandı** |
 | K-05 | 2.x | Usta hesabı ilk açılışta **Hemen Lazım varsayılan açık** gelsin | 🟡 P2 | 🤔 **karar bekliyor** |
+| K-08 | 5.x | **Mesajlar listesi karmaşık** — ilan + genel sohbetler karışık. Gruplama gerekli mi? | 🟡 P2 | ⏸️ **B-19 sonrası cihazda bakılacak** |
 | K-06 | 2.1 | Profil başlığı **usta kartı gibi** olsun: foto solda, yanında isim + Takip Et, altında meslek/telefon | 🟡 P2 | 🤔 **K-02 ile birlikte** |
 | K-07 | 3.1.6 | Fiyat tipi ilan formunda yok — ~~bilinçli mi?~~ | — | ✅ **kapandı: bilinçli** |
 
@@ -104,6 +105,42 @@ gerçekleştiği belli olur (şu an sessiz).
 **Zamanlama:** K-02/K-06 (profil başlığı yeniden tasarımı) ile **aynı alan**.
 Üçü birlikte ele alınmalı — profil başlığı da rol kimliğini gösteren yer.
 
+### K-08 · Mesajlar listesi karmaşık mı? — ÖNCE ÖLÇ
+
+**Kullanıcı:** *"Normal mesajlarda ilan mesajları var ve genel mesajlar.
+Onun yerine ilan detayında ilan mesajları gözükse olmaz mı? Çok karmaşık
+bir iş akışı oldu."*
+
+#### Mimari sağlam — sorun görünürlüktü
+
+İlan bazlı sohbet (`chat_{müşteri}__{usta}__{jobId}`) **doğru bir karar**:
+her ilan kendi odasını alır, aynı çift farklı işlerde karışmaz. Bunu bozmak
+veri göçü demek — **önerilmez**.
+
+Karmaşa hissinin gerçek sebebi **B-19**: ilan başlığı hiç görünmüyordu, üstelik
+liste satırı başlık boşken **tamamen gizleniyordu**. Yani kullanıcı beş sohbet
+görüyor ama hangisinin hangi işe ait olduğunu ayırt edemiyordu.
+
+#### "İlan mesajlarını ilan detayına taşıyalım" — neden önerilmez
+
+| Sonuç | Sorun |
+|---|---|
+| Her ilanı tek tek açmak gerekir | *"Usta bana yazmış mı?"* sorusu tek bakışta cevaplanamaz |
+| Okunmamış rozeti bölünür | Alt bardaki Mesajlar ilan mesajlarını saymazsa bildirim kaçar |
+| Push yönlendirmesi ikiye ayrılır | İki ayrı hedef = iki ayrı derin bağlantı mantığı |
+| Mesajlar sekmesi boşalır | Genel sohbetler azınlıkta — sekme anlamsızlaşır |
+
+**Tek liste doğru; liste okunabilir değildi.** Taşımak yerine etiketlemek.
+
+#### Karar B-19 sonrasına ertelendi
+Cihazda başlık + etiket görüldükten sonra bakılacak:
+- Yeterli mi → K-08 kapanır
+- Hâlâ karışıksa → **gruplama** (ilan sohbetleri üstte / genel altta, ya da
+  sekme) + ilan sohbetlerinde durum rozeti (*"İş yürüyor"*, *"Tamamlandı"*)
+
+İlan detayındaki "Sohbete Git" kısayolu zaten var — mesajları oraya *taşımak*
+değil, oradan *erişilebilir kılmak* doğru yaklaşım.
+
 ### B-18 · "İşi teslim ettim" onaysız — 🔴 P0
 
 **Kullanıcı:** *"Usta iş için seçildiğinde sohbete git düğmesi açılıyor güzel
@@ -150,39 +187,60 @@ Bu, ilan bazlı sohbet mimarisinin **görünen tek işareti** — aynı kişiyle
 birden çok iş konuşulduğunda hangi sohbetin hangi işe ait olduğu buradan
 anlaşılır (5.7.6 ile doğrudan ilgili).
 
-#### Kök neden: iki ayrı yerde alan düşüyor
+#### Kök neden
 
-UI doğru yazılmış (`chat_screen.dart:635-641`): `isJobChat && jobTitle
-dolu` ise başlığı gösteriyor. Sorun verinin oraya ulaşmaması.
+UI doğru yazılmış (`chat_screen.dart`): `isJobChat && jobTitle dolu` ise
+başlığı gösteriyor. Sorun verinin oraya ulaşmaması.
 
-**1. `ensureChatReady` alanları geçmiyor** (`firebase_chat_repository.dart:268-277`)
-Önbellekteki thread'i `_ensureChatDoc`'a geri yazarken **`jobId` ve
-`jobTitle` parametreleri hiç verilmiyor** → `null` gider.
+**1. `ensureChatReady` alanları geçmiyordu** (`firebase_chat_repository.dart:268-277`)
+Önbellekteki thread'i `_ensureChatDoc`'a geri yazarken `jobId`/`jobTitle`
+parametreleri **hiç verilmiyordu** → doküman yeniden yaratılırsa başlıksız
+doğuyordu.
 
-**2. `ChatThread.copyWith` alanları düşürüyor** (`chat.dart:215-216`)
-```dart
-jobId: jobId,        // ← `?? this.jobId` YOK
-jobTitle: jobTitle,  // ← `?? this.jobTitle` YOK
-```
-Diğer tüm alanlar `?? this.x` kalıbını kullanıyor; bu ikisi kullanmıyor.
-Yani `copyWith` çağıran her yer bu alanları sessizce siliyor.
+> ⚠️ **İlk teşhis kısmen yanlıştı:** "`copyWith` alanları düşürüyor"
+> denmişti. Kontrol edildi — `copyWith`'in parametre listesinde `jobId`/
+> `jobTitle` **yok**, satır 215-216 alanın kendi değerini taşıyor. Orada
+> kayıp **yok**. (Yine de regresyon testiyle sabitlendi.)
+
+**2. Kural sonradan yazmaya KAPALI** — asıl kilit nokta
+`chatUpdateKeysOk` (`firestore.rules:280-288`) izin verilen anahtarlar:
+`lastMessage · lastMessageSenderUid · updatedAt · lastRead · clearedAt ·
+members · archivedBy · pinnedBy · customerStarted`.
+
+**`jobTitle` listede YOK.** Yani başlığı eksik doğmuş bir sohbete istemciden
+**sonradan yazılamaz** — kural reddeder. Mevcut bozuk sohbetler kendiliğinden
+düzelemez.
 
 #### Yarış: sohbet başlıksız doğuyor
 `watchMessages` (`:200`) ekran açılır açılmaz `ensureChatReady` çağırır ve o
 yalnız `chatId` bilir. `startChat` (başlığı bilen taraf) sonra geldiğinde
-doküman **zaten var** → `_ensureChatDocBody` erken `return` eder (`:503-505`)
-ve `jobTitle` **hiç yazılmaz**. Eksik alan kalıcı olur.
+doküman **zaten var** → `_ensureChatDocBody` erken `return` eder ve
+`jobTitle` hiç yazılmaz.
 
 > `jobId` kimlikten türetilebiliyor (`_threadFromDoc:714`) ama `jobTitle`
-> yalnız dokümandan gelir (`:715`) — bu yüzden kalıcı olarak boş kalıyor.
+> yalnız dokümandan gelir → kalıcı boş kalır.
 
-#### Düzeltme
-1. `copyWith`'te `?? this.jobId` / `?? this.jobTitle`
-2. `ensureChatReady` → `_ensureChatDoc`'a `jobId: cached.jobId,
-   jobTitle: cached.jobTitle` geçsin
-3. **Mevcut bozuk sohbetler için:** doküman varken `jobTitle` eksikse
-   `merge` ile tamamla (ad alanları gibi kurala takılmaz — `jobTitle`
-   `chatUpdateKeysOk` içinde mi, kontrol edilmeli)
+#### ✅ Düzeltme (yapıldı)
+1. **`ensureChatReady`** artık `jobId`/`jobTitle`'ı geçiyor → yeni sohbetler
+   başlıklı doğar.
+2. **Sohbet ekranı (AppBar):** `jobTitle` boşsa başlık **ilandan türetilir**
+   (`jobProvider(thread.jobId)`) — tıpkı `jobId`'nin kimlikten türetilmesi
+   gibi. Kural yazmaya izin vermediği için **okuma tarafında** çözüldü;
+   eski bozuk sohbetler de düzgün görünür.
+3. **Sohbet listesi:** başlık eksik olsa da satır artık **çiziliyor**
+   (eskiden `jobTitle` boşsa tamamen gizleniyordu → ilan sohbeti ile genel
+   sohbet ayırt edilemiyordu). Başlık yoksa nötr *"İlan sohbeti"* etiketi.
+   Listede ilan dokümanı **okunmaz** — her satır için ayrı okuma listeyi
+   pahalılaştırırdı.
+
+**Regresyon testi:** `test/chat_job_title_test.dart` (5 test) — `copyWith`
+ilan alanlarını korur (lastMessage/arşiv/kilit/customerStarted zincirinde),
+`isJobChat` başlıktan bağımsızdır (başlıksız da ilan sohbetidir).
+
+> [!note] Liste gruplama ayrı iş
+> Kullanıcı *"ilan mesajları ve genel mesajlar karışık, çok karmaşık"* dedi.
+> Bu düzeltme **görünürlüğü** açar (başlık + etiket). Gruplama/sekme kararı
+> cihazda görüldükten sonra verilecek — bkz. K-08.
 
 ### B-17 · Hesap değişiminde permission-denied TEKRAR — 🔴 P0, AÇIK
 

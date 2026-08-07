@@ -545,6 +545,24 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         thread != null &&
         ref.watch(myBlockedUidsProvider).contains(thread.otherUid(user.uid));
 
+    // AppBar alt satırı: ilan bazlı sohbette İŞ BAŞLIĞI (B-19).
+    //
+    // Öncelik thread'in denormalize `jobTitle`ında; o eksikse (eski/iskelet
+    // dökümanlar — `chatUpdateKeysOk` alanı update'e kapatır, sonradan
+    // yazılamaz) ilan dokümanından okunur. İkisi de yoksa null döner ve
+    // çağıran taraf genel alt yazıya düşer.
+    String? jobChatSubtitle;
+    if (thread?.isJobChat == true) {
+      final denormalized = thread?.jobTitle ?? '';
+      if (denormalized.isNotEmpty) {
+        jobChatSubtitle = denormalized;
+      } else {
+        final fromJob =
+            ref.watch(jobProvider(thread!.jobId!)).valueOrNull?.title ?? '';
+        if (fromJob.isNotEmpty) jobChatSubtitle = fromJob;
+      }
+    }
+
     // Kullanıcı bu sohbeti listesinden sildiyse, silme anından önceki
     // mesajlar ona artık gösterilmez (tek taraflı sohbet silme).
     final cleared = user == null
@@ -632,11 +650,15 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                           ),
                           // İlan bazlı sohbette İŞ BAŞLIĞI yazar: aynı kişiyle
                           // birden çok iş konuşuluyorsa karışmasın.
+                          //
+                          // B-19: `jobTitle` sohbet dökümanında EKSİK olabilir
+                          // (ensureChatReady iskeleti başlıksız yazmışsa) ve
+                          // `chatUpdateKeysOk` bu alanı update'e kapattığı için
+                          // sonradan yazılamaz. Bu yüzden başlık, tıpkı `jobId`
+                          // gibi, gerekirse İLANDAN türetilir.
                           Text(
-                            thread?.isJobChat == true &&
-                                    (thread?.jobTitle ?? '').isNotEmpty
-                                ? thread!.jobTitle!
-                                : (isCustomer
+                            jobChatSubtitle ??
+                                (isCustomer
                                     ? 'Usta · profile git'
                                     : 'Müşteri · profile bak'),
                             overflow: TextOverflow.ellipsis,

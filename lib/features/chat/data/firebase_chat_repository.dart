@@ -273,6 +273,11 @@ class FirebaseChatRepository implements ChatRepository {
         artisanUid: cached.artisanUid,
         artisanName: cached.artisanName,
         artisanPhotoUrl: cached.artisanPhotoUrl,
+        // B-19: bunlar GEÇİLMEZSE null gider ve ilan başlığı kaybolur —
+        // doküman yeniden yaratılırsa `jobTitle`sız doğar, AppBar'da başlık
+        // hiç görünmez (ilan bazlı sohbetin görünen tek işareti budur).
+        jobId: cached.jobId,
+        jobTitle: cached.jobTitle,
         now: DateTime.now(),
       );
       return;
