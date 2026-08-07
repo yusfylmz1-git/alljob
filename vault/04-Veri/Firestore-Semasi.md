@@ -62,6 +62,14 @@ gerçekler kopyalanır. Kopyayı kim yazıyorsa **tek yazan o olmalıdır**.
 | ortalama puan | `artisanProfiles` | **Yalnız CF** (`onReviewWritten`) | Kendi puanını yazamasın |
 | `unreadTotal/Customer/Artisan` | `users/{uid}/private/chatMeta` | CF | Rozet tüm listeyi dinlemesin |
 | `openJobCount` | `users` | CF `refreshOpenJobCount` | 5 ilan limiti |
+| `completedJobsAsCustomer` | `users` | **Yalnız CF** (`onJobWritten`) | Müşteri profili sayacı |
+| `reviewCountAsCustomer` | `users` | **Yalnız CF** (`onReviewWritten`) | Müşteri profili sayacı — **ADET**, puan değil |
+
+> [!note] Müşteri puanı neden herkese açık DEĞİL?
+> `reviewCountAsCustomer` yalnız **kaç** değerlendirme aldığını söyler.
+> Ortalama/toplam puan `users/{uid}/private/rating` altında kalır (yalnız
+> sahibi okur) — düşük puanlı müşteri herkese teşhir edilmesin. Ustada
+> durum farklı: usta profili **vitrindir**, puanı satış argümanıdır.
 
 > [!warning] Denormalizasyon eklerken
 > 1. Tek yazan kim? 2. Kural o alanı başkasına kapatıyor mu?

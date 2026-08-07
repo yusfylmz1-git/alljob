@@ -81,7 +81,7 @@ görünür olsun.
 | **3** | Profil başlığı: mod rozeti + 3'lü sayaç | ✅ `86858d7` |
 | **4** | "Profili Düzenle" tek giriş (usta vitrini kartı) | ✅ `b80f734` |
 | **5** | IG vitrin dili: grid 2px + dairesel highlights | ✅ `b80f734` |
-| **6** | Müşteri sayaçları: CF + kural + geri dolum + deploy | ⏸️ **backend** |
+| **6** | Müşteri sayaçları: CF + kural + model + UI | ✅ `00dc4c9` · ⚠️ **deploy bekliyor** |
 
 ### Faz 1-5 · yapılanlar özeti
 - Alt bar rol ayrımı yapmıyor; sekme adı role göre değişmiyor (B-16 kaynağı)
@@ -91,11 +91,35 @@ görünür olsun.
 - Tek düzenleme girişi; formlar birleştirilmedi (iki kaydetme yolu
   birbirine bağlanmasın — bkz. B-04 dersi)
 
-### ⏸️ Faz 6 — neden bekliyor
-Müşteri profilinde **"değerlendirme" sayacı `—`** gösteriyor. Gerçek sayı
-için gerekenler değişmedi (yukarıdaki madde 4). Bu **tek başına bir backend
-işi**: CF + kural + geri dolum + deploy. İstemci tarafı hazır — `_HeroStats`
-içinde yalnız veri kaynağı bağlanacak.
+### ✅ Faz 6 — yapıldı, DEPLOY bekliyor
+
+Müşteri profili artık **tamamlanan · takip · takipçi** gösteriyor.
+
+**Gizlilik ayrımı korundu:** Puan herkese açılmadı — ortalama/toplam
+`users/{uid}/private/rating` altında kaldı (yalnız sahibi okur). Herkese
+açık dokümana **yalnız adet** gidiyor, düşük puanlı müşteri teşhir edilmesin.
+
+| Katman | Değişiklik |
+|---|---|
+| CF | `onReviewWritten` → `reviewCountAsCustomer` (mutlak değer, drift olmasın) · `onJobWritten` → `completedJobsAsCustomer` +1 |
+| Kural | İki sayaç da update **ve** create'te istemciye kapalı |
+| Model | `fromMap` okur · `toMap` **yazmaz** (B-04) · `copyWith` **taşır** (B-19) |
+| UI | `_HeroStats` gerçek veriden okuyor |
+
+> [!warning] ⚠️ DEPLOY GEREKİYOR
+> ```
+> firebase deploy --only functions
+> firebase deploy --only firestore:rules
+> ```
+> Deploy edilmeden sayaçlar **dolmaz** — UI 0 gösterir, hata vermez.
+> Ağ dalgalıysa **ayrı ayrı** deploy et (bkz. [[Deploy-ve-Ortam]]).
+
+> [!note] Geri dolum yapılmadı
+> Mevcut kullanıcıların **geçmiş** işleri/değerlendirmeleri sayaca
+> yansımaz — CF yalnız bundan sonraki olayları sayar. Herkes 0'dan başlar.
+> Geriye dönük doğru sayı isteniyorsa tek seferlik bir script gerekir
+> (`jobs` + `reviews` taranıp `users` güncellenir). Beta ölçeğinde
+> gerekmeyebilir; karar kullanıcıya bırakıldı.
 
 ---
 
