@@ -528,10 +528,17 @@ exports.onReviewWritten = onDocumentWritten(
       const countDelta = (after ? 1 : 0) - (before ? 1 : 0);
       const sumDelta = newRating - oldRating;
 
-      // USTA → MÜŞTERİ (a2c): ayrı yol. Müşteri puanı YALNIZ USTALARA
-      // görünür (müşteri profili vitrin değil), bu yüzden herkese açık
-      // `users` dokümanına değil `users/{uid}/private/rating` altına yazılır.
-      // İstemci bu dokümana yazamaz (rules: private allowlist'inde yok).
+      // USTA → MÜŞTERİ (a2c): ayrı yol.
+      //
+      // İKİ YERE yazılır:
+      //  1. `users/{uid}/private/rating` — AYRINTI (toplam puan, ortalama).
+      //     Yalnız sahibi okur; müşterinin aldığı puanın kendisi hassas veri.
+      //  2. `users/{uid}.reviewCountAsCustomer` — herkese açık SAYI.
+      //     Profil sadeleştirmesiyle (2026-08-07) müşteri profili de
+      //     görünür bir sayfa oldu ve "kaç değerlendirme almış" bilgisi
+      //     orada gösteriliyor. PUAN değil, yalnız ADET paylaşılır —
+      //     düşük puanlı müşteri teşhir edilmesin.
+      //     İstemci bu alanı yazamaz (rules: notSettingPublicPii + allowlist).
       const direction = (after && after.direction) ||
         (before && before.direction) || "c2a";
       if (direction === "a2c") {
@@ -556,8 +563,15 @@ exports.onReviewWritten = onDocumentWritten(
           const s = Number(d.totalRatingSum || 0);
           await snap.ref.set(
               {averageRating: n > 0 ? s / n : 0}, {merge: true});
+
+          // Herkese açık ADET (puan değil) — müşteri profilindeki sayaç.
+          // `n` private toplamdan okunur; increment yerine MUTLAK değer
+          // yazılır ki iki kayıt drift edemesin.
+          await db.collection("users").doc(customerUid)
+              .set({reviewCountAsCustomer: n}, {merge: true});
+
           logger.info(`customer rating updated for ${customerUid} ` +
-            `(count ${countDelta}, sum ${sumDelta})`);
+            `(count ${countDelta}, sum ${sumDelta}, public ${n})`);
         } catch (e) {
           logger.error(`customer rating update failed for ${customerUid}: ${e}`);
         }
@@ -1211,6 +1225,22 @@ exports.onJobWritten = onDocumentWritten(
           // Profil yoksa atla (zararsız).
           logger.warn(
               `completedJobs skipped for ${after.selectedArtisanId}: ${e}`);
+        }
+
+        // MÜŞTERİ tarafı sayacı — profil sadeleştirmesiyle (2026-08-07)
+        // müşteri profilinde de "tamamlanan" gösteriliyor. Ustanınkiyle
+        // simetrik: aynı koşul, aynı anda, çift artış korumasıyla.
+        // Herkese açık `users` dokümanında; istemci yazamaz (rules).
+        if (after.customerId) {
+          try {
+            await db.collection("users").doc(after.customerId).set({
+              completedJobsAsCustomer: FieldValue.increment(1),
+            }, {merge: true});
+            logger.info(`completedJobsAsCustomer +1 for ${after.customerId}`);
+          } catch (e) {
+            logger.warn(
+                `completedJobsAsCustomer skipped for ${after.customerId}: ${e}`);
+          }
         }
         // İş kapandı: sohbete şerit + değerlendirme daveti. Sohbet KİLİTLENMEZ
         // — taraflar teslim sonrası konuşmaya devam edebilmeli; kapanma

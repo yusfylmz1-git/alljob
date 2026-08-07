@@ -21,6 +21,8 @@ class AppUser {
     this.suspended = false,
     this.phoneNumber,
     this.profilePhotoUrl,
+    this.completedJobsAsCustomer = 0,
+    this.reviewCountAsCustomer = 0,
   });
 
   final String uid;
@@ -76,6 +78,16 @@ class AppUser {
   final String? phoneNumber;
   final String? profilePhotoUrl;
 
+  /// Müşteri olarak tamamlanan iş sayısı — profildeki sayaç.
+  /// YALNIZ CF yazar (`onJobWritten`); kural istemciye kapatır (kural 3).
+  final int completedJobsAsCustomer;
+
+  /// Müşteri olarak alınan değerlendirme ADEDİ (puan değil).
+  /// Puanın kendisi hassas: `users/{uid}/private/rating` altında, yalnız
+  /// sahibi okur. Burada yalnız sayı paylaşılır — düşük puanlı müşteri
+  /// teşhir edilmesin. YALNIZ CF yazar (`onReviewWritten`).
+  final int reviewCountAsCustomer;
+
   /// Arayüz şu an usta modunda mı? (UI kapıları bunu kullanır.)
   bool get isArtisan => activeMode == UserRole.artisan;
   bool get isCustomer => activeMode == UserRole.customer;
@@ -108,6 +120,11 @@ class AppUser {
       suspended: suspended ?? this.suspended,
       phoneNumber: phoneNumber ?? this.phoneNumber,
       profilePhotoUrl: profilePhotoUrl ?? this.profilePhotoUrl,
+      // Sayaçlar copyWith parametresi DEĞİL (istemci değiştiremez) ama
+      // taşınmazsa her copyWith çağrısında 0'a düşerdi — B-19'daki tuzağın
+      // aynısı. Mevcut değer korunur.
+      completedJobsAsCustomer: completedJobsAsCustomer,
+      reviewCountAsCustomer: reviewCountAsCustomer,
     );
   }
 
@@ -123,6 +140,12 @@ class AppUser {
         'profilePhotoURL': profilePhotoUrl,
         // GÜVENLİK: phoneNumber / email / fcmTokens bu dökümana yazılmaz
         // (kural da engeller). Token: users/{uid}/private/push.
+        //
+        // SAYAÇLAR DA YAZILMAZ: completedJobsAsCustomer /
+        // reviewCountAsCustomer yalnız CF'e aittir (kural 3). Buraya
+        // eklenirse kural TÜM kaydı reddeder — bkz. B-04 dersi
+        // ([[Bilinen-Tuzaklar]] "toMap() → Firestore: sunucuya ait alanları
+        // çıkar").
       };
 
   factory AppUser.fromMap(String uid, Map<String, dynamic> map) {
@@ -142,6 +165,11 @@ class AppUser {
       createdAt: _parseDate(map['createdAt']),
       phoneNumber: map['phoneNumber'] as String?,
       profilePhotoUrl: map['profilePhotoURL'] as String?,
+      // CF yazar; alan yoksa 0 (henüz iş bitirmemiş/değerlendirilmemiş).
+      completedJobsAsCustomer:
+          (map['completedJobsAsCustomer'] as num?)?.toInt() ?? 0,
+      reviewCountAsCustomer:
+          (map['reviewCountAsCustomer'] as num?)?.toInt() ?? 0,
     );
   }
 

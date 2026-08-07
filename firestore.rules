@@ -63,9 +63,16 @@ service cloud.firestore {
       // Owner yazamaz: phoneNumber, email, fcmTokens (H2) + moderasyon aynası
       // (suspended/suspendedAt) — yalnız CF yazar; kullanıcı kendini açamaz.
       // email/fcmTokens: create'te yasak; update'te yalnız SİLME (legacy temizlik).
+      //
+      // MÜŞTERİ SAYAÇLARI (completedJobsAsCustomer, reviewCountAsCustomer):
+      // profil sadeleştirmesiyle herkese açık dokümana taşındı; yalnız CF
+      // yazar (onJobWritten / onReviewWritten). İstemci yazabilseydi kendi
+      // "tamamlanan iş" sayısını şişirirdi (CLAUDE.md kural 3).
       function notSettingPublicPii() {
         let changed = request.resource.data.diff(resource.data).affectedKeys();
-        return !changed.hasAny(['phoneNumber', 'suspended', 'suspendedAt'])
+        return !changed.hasAny(['phoneNumber', 'suspended', 'suspendedAt',
+                                'completedJobsAsCustomer',
+                                'reviewCountAsCustomer'])
           && (!changed.hasAny(['email'])
               || !('email' in request.resource.data))
           && (!changed.hasAny(['fcmTokens'])
@@ -86,7 +93,9 @@ service cloud.firestore {
       allow create: if isSelf(uid)
         && !request.resource.data.keys()
               .hasAny(['phoneNumber', 'suspended', 'suspendedAt',
-                       'email', 'fcmTokens'])
+                       'email', 'fcmTokens',
+                       // Sayaçlar sıfırdan başlar; CF yazar (kural 3).
+                       'completedJobsAsCustomer', 'reviewCountAsCustomer'])
         && phoneClaimOkFor('phoneVerified')
         && displayNameOk();
       allow update: if isSelf(uid)

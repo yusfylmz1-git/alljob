@@ -474,8 +474,15 @@ class _HeroStats extends ConsumerWidget {
       );
     }
 
+    // Müşteri sayaçları artık PUBLIC (CF yazar: onJobWritten /
+    // onReviewWritten). Puan değil ADET gösterilir — düşük puanlı müşteri
+    // teşhir edilmesin; puanın kendisi private/rating altında kalır.
     return Row(
       children: [
+        _StatCell(
+          value: '${user.completedJobsAsCustomer}',
+          label: 'tamamlanan',
+        ),
         _StatCell(
           value: '${following ?? 0}',
           label: 'takip',
@@ -486,7 +493,6 @@ class _HeroStats extends ConsumerWidget {
           label: 'takipçi',
           onTap: () => context.push(RoutePaths.favorites),
         ),
-        const _StatCell(value: '—', label: 'değerlendirme'),
       ],
     );
   }
