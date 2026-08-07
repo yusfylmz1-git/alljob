@@ -866,7 +866,7 @@ void main() {
       expect(chats.getThread(id)!.isJobChat, isFalse);
     });
 
-    test('canSend: usta müşteri başlatmadan yazamaz, kilitli sohbette kimse '
+    test('canSend: SERBEST — iki taraf da yazar; kilitli sohbette kimse '
         'yazamaz', () async {
       final chats = MockChatRepository();
       final id = await chats.startChat(
@@ -877,13 +877,12 @@ void main() {
         jobId: 'job_a',
       );
       final fresh = chats.getThread(id)!;
-      expect(fresh.canSend('cust_1'), isTrue); // müşteri her zaman
-      expect(fresh.canSend('art_1'), isFalse); // usta henüz yazamaz
+      // Serbest pazaryeri (2026-08-08): usta da ilk mesajı atabilir.
+      // Eskiden `customerStarted` bayrağı beklenirdi (spam koruması).
+      expect(fresh.canSend('cust_1'), isTrue);
+      expect(fresh.canSend('art_1'), isTrue);
 
-      final started = fresh.copyWith(customerStarted: true);
-      expect(started.canSend('art_1'), isTrue);
-
-      final locked = started.copyWith(
+      final locked = fresh.copyWith(
         lockedAt: DateTime.now(),
         lockReason: ChatLockReason.otherArtisanSelected,
       );
@@ -905,7 +904,8 @@ void main() {
       expect(canSelectArtisanFor((await jobs.getJob(staleId))!), isFalse);
     });
 
-    test('ilk MÜŞTERİ mesajı sohbeti ustaya açar (customerStarted)', () async {
+    test('customerStarted bayrağı korunur (yazma iznini artık ETKİLEMEZ)',
+        () async {
       final chats = MockChatRepository();
       final id = await chats.startChat(
         customerUid: 'cust_1',
@@ -914,21 +914,22 @@ void main() {
         artisanName: 'Usta',
         jobId: 'job_a',
       );
-      expect(chats.getThread(id)!.canSend('art_1'), isFalse);
+      // Bayrak hâlâ "müşteri konuşmaya başladı mı" bilgisini taşır (UI/liste
+      // kullanır) ama YAZMA İZNİNİ belirlemez — usta baştan yazabilir.
+      expect(chats.getThread(id)!.canSend('art_1'), isTrue);
 
-      // Usta yazsaydı bayrak açılmamalı (kural zaten reddeder; mock paritesi).
       await chats.sendMessage(
           chatId: id, senderUid: 'art_1', text: 'merhaba');
-      expect(chats.getThread(id)!.customerStarted, isFalse);
+      expect(chats.getThread(id)!.customerStarted, isFalse,
+          reason: 'Usta mesajı bayrağı açmamalı.');
 
       await chats.sendMessage(
           chatId: id, senderUid: 'cust_1', text: 'merhaba usta');
       expect(chats.getThread(id)!.customerStarted, isTrue);
-      expect(chats.getThread(id)!.canSend('art_1'), isTrue);
     });
 
-    test('markCustomerStarted: müşteri hiç yazmadan işi verirse seçilen usta '
-        'yine de yazabilir', () async {
+    test('markCustomerStarted: işi vermek bayrağı açar (yazma zaten serbest)',
+        () async {
       final chats = MockChatRepository();
       final id = await chats.startChat(
         customerUid: 'cust_1',
@@ -938,13 +939,10 @@ void main() {
         jobId: 'job_a',
       );
       // Müşteri sohbete TEK MESAJ yazmadan doğrudan "Bu Ustayı Seç" diyor.
-      expect(chats.getThread(id)!.canSend('art_1'), isFalse);
-
+      // Serbest mesajlaşmada usta zaten yazabiliyor; bayrak yine de
+      // işaretlenmeli (liste/UI "konuşma başladı" bilgisini kullanır).
       await chats.markCustomerStarted(id);
 
-      // İşi vermek iletişimi başlatmak sayılır: usta artık yazabilir. Bu
-      // olmadan usta kendi işinin sohbetinde "İletişimi müşteri başlatır"
-      // şeridinde kilitli kalıyor, değerlendirmeye kadar çıkmaza giriyordu.
       expect(chats.getThread(id)!.customerStarted, isTrue);
       expect(chats.getThread(id)!.canSend('art_1'), isTrue);
     });

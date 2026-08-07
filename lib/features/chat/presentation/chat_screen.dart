@@ -1164,12 +1164,10 @@ class _BlockedComposerNotice extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final palette = context.palette;
-    final locked = thread.isLocked;
-    final text = locked
-        ? (thread.lockReason?.labelTR ??
-            'Bu sohbet mesajlaşmaya kapalıdır.')
-        : 'İletişimi müşteri başlatır. Müşteri size yazınca yanıt '
-            'verebilirsiniz.';
+    // Serbest pazaryeri (2026-08-08): "iletişimi müşteri başlatır" kısıtı
+    // kalktı → bu şerit artık YALNIZ kilitli sohbette görünür.
+    final text = thread.lockReason?.labelTR ??
+        'Bu sohbet mesajlaşmaya kapalıdır.';
 
     return Material(
       color: palette.card,
@@ -1180,7 +1178,7 @@ class _BlockedComposerNotice extends StatelessWidget {
           child: Row(
             children: [
               Icon(
-                locked ? Icons.lock_outline : Icons.hourglass_empty_rounded,
+                Icons.lock_outline,
                 size: 18,
                 color: palette.inkMuted,
               ),

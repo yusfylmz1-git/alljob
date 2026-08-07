@@ -91,16 +91,47 @@ pazar olur ama ustalar müşterilere doğrudan mesaj atabilir.
 
 ## Sıra ve risk
 
-| Faz | İş | Risk | Deploy? |
+| Faz | İş | Durum | Deploy? |
 |---|---|---|---|
-| 1 | staffing sil | **Yok** (ölü kod) | Kural varsa |
-| 2 | tracking sil | Düşük | Hayır |
-| 3 | products sil | Orta (vitrin bağı) | Kural + CF |
-| 4 | takip yönsüzleştir | **Yüksek** (veri göçü) | Kural + CF + script |
-| 5 | mesaj kısıtı kaldır | Orta (spam) | Kural |
+| 1 | staffing sil | ✅ `4476326` | — |
+| 2 | tracking sil | ✅ `4476326` | — |
+| 3 | products sil | ✅ `4476326` | — |
+| 4 | takip yönsüzleştir | ✅ **veri göçü GEREKMEDİ** | — |
+| 5 | mesaj kısıtı kaldır | ✅ | **Kural deploy** |
 
 **1-2-3 önce:** silme işleri, geri dönüşü kolay, test yükü az.
 **4-5 sonra:** veri ve davranış değiştiriyor, ayrı ele alınmalı.
 
 ---
 İlgili: [[99-BULGULAR]] · [[PLAN-Profil-Sadelestirme]] · [[Mimari-Kararlar]]
+
+---
+
+## ✅ Sonuç (2026-08-08)
+
+**Faz 1-3** (`4476326`): 12.586 satır silindi, 8 paket kalktı.
+
+**Faz 4 — takip yönsüzleşti.** Beklenen veri göçü **gerekmedi**: kural
+zaten yönsüz çalışıyordu (`customerUid` = takip eden, `artisanUid` = takip
+edilen olarak okununca). Firestore alan adları **korundu** — yeniden
+adlandırmak mevcut kayıtları okunamaz yapardı. Modele `followerUid` /
+`followedUid` takma adları eklendi.
+
+Asıl kısıt UI'daydı: `favorite_button` usta modunda düğmeyi **hiç
+göstermiyordu** (`if (isArtisan) return`). Kaldırıldı. Tek kalan kural:
+kimse kendini takip edemez.
+
+Profil sayaçları da tek satıra indi: **takip · takipçi · (puan | tamamlanan)**
+— herkeste aynı, rol dalı yok.
+
+**Faz 5 — mesajlaşma serbest.** `senderMayWrite` artık yalnız kilide bakıyor;
+`canSend` de öyle (kural + istemci paritesi korundu).
+
+> ⚠️ **Spam koruması bilinçli olarak azaldı.** Kalan korumalar: kilit
+> (`lockedAt`), engelleme, askıya alma, şikayet + admin moderasyonu.
+> `customerStarted` bayrağı KALDI — UI "konuşma başladı mı" bilgisini
+> kullanıyor, ama yazma iznini artık belirlemiyor.
+
+> ⚠️ **DEPLOY GEREKİYOR:** `firebase deploy --only firestore:rules`
+> Deploy edilmeden usta mesaj atmaya çalışınca sunucu **reddeder**
+> (istemci izin verir → "mesaj gönderilemedi" hatası).

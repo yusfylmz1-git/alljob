@@ -439,16 +439,22 @@ service cloud.firestore {
                           'deleted']);
         }
 
-        // İLETİŞİMİ MÜŞTERİ BAŞLATIR: usta ilana ilgi bildirir, ilk mesajı
-        // müşteri yazar. Kural motoru "bu sohbette müşteri mesajı var mı"
-        // diye sorgulayamadığı için chat dökümanındaki `customerStarted`
-        // bayrağına bakılır (istemci ilk müşteri mesajıyla yazar; create'te
-        // false olmak zorunda).
+        // SERBEST PAZARYERI (2026-08-08): iki taraf da yazabilir.
+        //
+        // Eskiden "iletişimi müşteri başlatır" kuralı vardı: usta, müşteri
+        // yazana kadar (`customerStarted`) mesaj gönderemezdi — spam
+        // korumasıydı. Kullanıcı kararıyla kaldırıldı; karşılıklı serbest
+        // mesajlaşma isteniyor.
+        //
+        // Kötüye kullanıma karşı KALAN korumalar: kilit (`lockedAt`),
+        // engelleme (`recipientBlockedSender`), askıya alma (`isSuspended`),
+        // şikayet + admin moderasyonu.
+        //
+        // `customerStarted` bayrağı KALDI — sohbet listesi/UI onu hâlâ
+        // "müşteri konuşmaya başladı mı" bilgisi olarak kullanıyor.
         function senderMayWrite() {
           let chat = get(/databases/$(database)/documents/chats/$(chatId)).data;
-          return chat.get('lockedAt', null) == null
-            && (chat.get('customerUid', '') == request.auth.uid
-                || chat.get('customerStarted', false) == true);
+          return chat.get('lockedAt', null) == null;
         }
 
         allow read: if memberOfChat();

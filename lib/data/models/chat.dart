@@ -165,11 +165,12 @@ class ChatThread {
   /// [uid] şu an mesaj yazabilir mi? Kilitliyse kimse yazamaz; usta yalnız
   /// müşteri başlattıysa yazabilir. (Sunucu kuralı da aynı mantığı uygular —
   /// buradaki kontrol yalnız UI'ı erken kapatmak içindir.)
-  bool canSend(String uid) {
-    if (isLocked) return false;
-    if (uid == customerUid) return true;
-    return customerStarted;
-  }
+  /// SERBEST PAZARYERI (2026-08-08): iki taraf da yazabilir; tek engel kilit.
+  ///
+  /// Eskiden usta, müşteri yazana kadar (`customerStarted`) yazamazdı.
+  /// Kullanıcı kararıyla kaldırıldı. `firestore.rules → senderMayWrite()`
+  /// aynı mantığı uygular (CLAUDE.md kural 2: kural + istemci birlikte).
+  bool canSend(String uid) => !isLocked;
 
   bool isArchivedFor(String uid) => archivedBy.contains(uid);
 

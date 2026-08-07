@@ -428,62 +428,34 @@ class _HeroAction extends StatelessWidget {
   }
 }
 
-/// Instagram tarzı 3'lü sayaç şeridi (başlığın altında).
+/// Instagram tarzı 3'lü sayaç şeridi (başlığın yanında).
 ///
-/// Usta modunda: Tamamlanan · Puan · Takipçi
-/// Müşteri modunda: İlanlarım · Takip · Takipçi
-///
-/// NOT: Müşterinin "tamamlanan iş" ve "değerlendirme" sayaçları henüz PUBLIC
-/// değil (`users/{uid}/private/` altında, kural yalnız sahibine okutur —
-/// ADR-11). Herkese açmak CF + kural + geri dolum ister; o iş
-/// [[PLAN-Profil-Sadelestirme]] Faz 6. O yüzden müşteri tarafında şimdilik
-/// takip/takipçi gibi ELDE OLAN sayaçlar gösteriliyor.
+/// Herkeste aynı: **takip · takipçi · (puan | tamamlanan)**.
+/// Usta modunda ve değerlendirme varsa 3. hücre puanı gösterir.
 class _HeroStats extends ConsumerWidget {
   const _HeroStats({required this.user});
   final AppUser user;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final artisanMode = user.isArtisan;
     final followers =
         ref.watch(followersProvider(user.uid)).valueOrNull?.length;
     final following =
         ref.watch(favoritesProvider(user.uid)).valueOrNull?.length;
 
-    if (artisanMode) {
-      final profile =
-          ref.watch(myProfileControllerProvider).valueOrNull?.profile;
-      return Row(
-        children: [
-          _StatCell(
-            value: '${profile?.completedJobs ?? 0}',
-            label: 'tamamlanan',
-          ),
-          _StatCell(
-            value: (profile?.totalReviews ?? 0) == 0
-                ? '—'
-                : (profile?.averageRating ?? 0).toStringAsFixed(1),
-            label: 'puan',
-            icon: (profile?.totalReviews ?? 0) == 0 ? null : Icons.star_rounded,
-          ),
-          _StatCell(
-            value: '${followers ?? 0}',
-            label: 'takipçi',
-            onTap: () => context.push(RoutePaths.favorites),
-          ),
-        ],
-      );
-    }
+    // TEK SATIR, HERKESTE AYNI (Instagram düzeni). Eskiden usta/müşteri iki
+    // ayrı sayaç dizisi görüyordu; rol ayrımı kalktı.
+    //
+    // Usta modunda 3. hücre PUAN gösterir (vitrin argümanı); kapalıyken
+    // "tamamlanan" kalır. Müşteri puanı herkese AÇILMAZ — düşük puan teşhir
+    // olmasın (bkz. Firestore-Semasi notu).
+    final profile = user.isArtisan
+        ? ref.watch(myProfileControllerProvider).valueOrNull?.profile
+        : null;
+    final hasRating = (profile?.totalReviews ?? 0) > 0;
 
-    // Müşteri sayaçları artık PUBLIC (CF yazar: onJobWritten /
-    // onReviewWritten). Puan değil ADET gösterilir — düşük puanlı müşteri
-    // teşhir edilmesin; puanın kendisi private/rating altında kalır.
     return Row(
       children: [
-        _StatCell(
-          value: '${user.completedJobsAsCustomer}',
-          label: 'tamamlanan',
-        ),
         _StatCell(
           value: '${following ?? 0}',
           label: 'takip',
@@ -494,6 +466,19 @@ class _HeroStats extends ConsumerWidget {
           label: 'takipçi',
           onTap: () => context.push(RoutePaths.favorites),
         ),
+        if (user.isArtisan && hasRating)
+          _StatCell(
+            value: (profile?.averageRating ?? 0).toStringAsFixed(1),
+            label: 'puan',
+            icon: Icons.star_rounded,
+          )
+        else
+          _StatCell(
+            value: user.isArtisan
+                ? '${profile?.completedJobs ?? 0}'
+                : '${user.completedJobsAsCustomer}',
+            label: 'tamamlanan',
+          ),
       ],
     );
   }

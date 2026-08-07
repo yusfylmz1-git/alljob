@@ -40,10 +40,10 @@ class FavoriteButton extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final user = ref.watch(currentUserProvider);
-    final isArtisan = user?.isArtisan ?? false;
 
-    // Usta modunda favori kullanılmaz; kullanıcı kendini de favorileyemez.
-    if (isArtisan) return const SizedBox.shrink();
+    // HERKES HERKESİ TAKİP EDER (2026-08-08). Eskiden usta modunda düğme
+    // hiç görünmüyordu ("usta modunda favori kullanılmaz") — usta da usta
+    // takip edebilmeli. Tek kısıt: kimse kendini takip edemez.
     if (user != null && user.uid == artisanUid) return const SizedBox.shrink();
 
     // Tek döküman dinle — tüm favori listesini her kartta çekme.

@@ -1,12 +1,23 @@
-/// `favorites` koleksiyonundaki takip kaydı (#14): müşteri → usta yönlü
-/// ("Takip Et"). Döküman ID'si deterministiktir: [Favorite.idFor] =
+/// `favorites` koleksiyonundaki takip kaydı — **herkes herkesi takip eder**
+/// (Instagram gibi). Döküman ID'si deterministiktir: [Favorite.idFor] =
 /// `"${customerUid}__${artisanUid}"`.
 ///
+/// > ⚠️ **Alan adları tarihsel.** Başlangıçta takip yalnız müşteri → usta
+/// > yönlüydü; 2026-08-08'de herkese açıldı. Firestore alan adları
+/// > (`customerUid`, `artisanUid`) **bilerek DEĞİŞTİRİLMEDİ** — yeniden
+/// > adlandırmak veri göçü olurdu (CLAUDE.md kural 6 mantığı). Yeni anlam:
+/// >
+/// > | Alan | Yeni anlam |
+/// > |---|---|
+/// > | `customerUid` | **takip EDEN** ([followerUid]) |
+/// > | `artisanUid` | **takip EDİLEN** ([followedUid]) |
+///
+/// Yeni kod [followerUid] / [followedUid] takma adlarını kullanmalıdır.
+///
 /// İki yönde de liste hızlı görünsün diye çift taraflı snapshot taşır:
-/// usta bilgisi müşterinin "Takip Ettiklerim" listesi için, müşteri bilgisi
-/// ustanın "Sizi Takip Edenler" bölümü için (bildirim ekranı). Eski kayıtlar
-/// müşteri alanlarını taşımayabilir → okuma tarafı boş adı `users`
-/// dökümanından tamamlar.
+/// takip edilenin bilgisi "Takip Ettiklerim" listesi için, takip edenin
+/// bilgisi "Takipçilerim" için. Eski kayıtlar bazı alanları taşımayabilir →
+/// okuma tarafı boş adı `users` dökümanından tamamlar.
 class Favorite {
   const Favorite({
     required this.customerUid,
@@ -24,16 +35,28 @@ class Favorite {
   final String customerUid;
   final String artisanUid;
 
-  // Usta snapshot'ı — müşterinin listesi hızlı görünsün diye.
+  /// Takip EDEN kullanıcı. (`customerUid` alanının yeni adı — bkz. sınıf notu.)
+  String get followerUid => customerUid;
+
+  /// Takip EDİLEN kullanıcı. (`artisanUid` alanının yeni adı.)
+  String get followedUid => artisanUid;
+
+  // Takip edilenin snapshot'ı — "Takip Ettiklerim" listesi hızlı görünsün diye.
   final String artisanName;
   final String professionNameTR;
   final double rating;
   final int totalReviews;
   final String? photoUrl;
 
-  // Müşteri snapshot'ı — ustanın takipçi listesi hızlı görünsün diye.
+  /// Takip edilenin görünen adı. (`artisanName` alanının yeni adı.)
+  String get followedName => artisanName;
+
+  // Takip edenin snapshot'ı — "Takipçilerim" listesi hızlı görünsün diye.
   final String customerName;
   final String? customerPhotoUrl;
+
+  /// Takip edenin görünen adı. (`customerName` alanının yeni adı.)
+  String get followerName => customerName;
 
   final DateTime createdAt;
 
