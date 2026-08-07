@@ -51,9 +51,60 @@ Faydalı olursa ekleyin: hangi hesap, ekran görüntüsü, hata mesajının ayn�
 | B-12 | 4.2.5 / 4.5 | **Telefona sistem push'u hiç gelmiyor** — uygulama içi bildirimler çalışıyor | 🔴 P0 | 🔬 **teşhis gerek** |
 | B-13 | 5.1 | **Müşteri "Mesaj Gönder"e basınca sohbet açılmıyor** — *"Sohbet açılamadı"*. Akış tam burada kırılıyor | 🔴 P0 | 🔧 **düzeltilecek** |
 | B-14 | 4.2.5 | Yeni bildirim geldiğinde **zil rozeti (kırmızı) görünmüyor** — bildirime girince mesaj orada | 🟠 P1 | 🔬 **teşhis gerek** |
+| B-15 | 1.x | **Hesap değiştirirken `permission-denied`** — program durduruldu. Public `users/{uid}` token temizliği kurala takılıyor | 🔴 P0 | 🔧 **düzeltilecek** |
 | K-05 | 2.x | Usta hesabı ilk açılışta **Hemen Lazım varsayılan açık** gelsin | 🟡 P2 | 🤔 **karar bekliyor** |
 | K-06 | 2.1 | Profil başlığı **usta kartı gibi** olsun: foto solda, yanında isim + Takip Et, altında meslek/telefon | 🟡 P2 | 🤔 **K-02 ile birlikte** |
 | K-07 | 3.1.6 | Fiyat tipi ilan formunda yok — ~~bilinçli mi?~~ | — | ✅ **kapandı: bilinçli** |
+
+### B-15 · Hesap değiştirirken permission-denied — 🔴 P0
+
+**Belirti:** Bir hesaptan çıkıp diğerine geçerken
+`FirebaseException ([cloud_firestore/permission-denied])`, program durduruldu.
+
+#### Kök neden: `arrayRemove` anahtarı BIRAKIR, kural onu reddeder
+
+Kural, public `users/{uid}` dokümanında `email`/`fcmTokens` için **yalnız
+SİLMEYE** izin verir (`firestore.rules:66-73`):
+
+```
+&& (!changed.hasAny(['fcmTokens'])
+    || !('fcmTokens' in request.resource.data))
+```
+
+Yani yazım sonrası anahtar **hiç kalmamalı**. İki temizlik yolu var ve
+biri bu şartı sağlamıyor:
+
+| Fonksiyon | Yazım | Sonuç | Kural |
+|---|---|---|---|
+| `_stripPublicPii` (`push_service.dart:185`) | `FieldValue.delete()` | anahtar **gider** | ✅ geçer |
+| `_stripPublicToken` (`:175`) | `FieldValue.arrayRemove([token])` | anahtar **kalır** (boş dizi) | ❌ **reddedilir** |
+
+`arrayRemove` alanı boş diziye indirir ama `'fcmTokens' in
+request.resource.data` hâlâ **true** → kural reddeder.
+
+#### Nerede patlıyor?
+İki çağrı yolu var, ikisi de `_stripPublicToken`'a ulaşabiliyor:
+- **Çıkışta:** `unregisterFor` (`:148`) — ama `catch (e)` yutuyor (`:151`),
+  ayrıca `signOut` (`auth_controller.dart:140`) `await` ediyor →
+  **çökmemesi gerekir**
+- **Girişte:** `_saveToken` → `_stripPublicPii` başarısız olursa
+  `catch` içinde `_stripPublicToken`'a **düşüyor** (`:191-194`) →
+  ikinci deneme de reddedilir
+
+> [!warning] Kullanıcıya görünen hata muhtemelen GİRİŞ tarafından
+> `unregisterFor` hatayı yutuyor; o hâlde yakalanmamış istisna büyük
+> olasılıkla `_saveToken` yolundan geliyor (`registerFor`'un `catch`'i
+> `_lastError`'a yazar ama bazı yollar dışarı sızabilir). Cihazda hangi
+> adımda çıktığı (çıkarken mi, yeni hesap girerken mi) **kesinleştirilmeli**.
+
+#### Düzeltme
+`_stripPublicToken` da `FieldValue.delete()` kullanmalı — legacy alanın
+tamamen kaldırılması zaten amaç (H2 temizliği); tek bir token'ı diziden
+çıkarmanın public dokümanda anlamı yok, orada hiç token durmamalı.
+
+**Not:** Bu, B-12'nin (push gelmiyor) kök nedeni de olabilir — `_saveToken`
+içinde `_stripPublicPii` patlarsa token yazımı yarıda kalır, `fcmTokens`
+private'a hiç yazılmayabilir. **B-15 → B-12 zinciri kontrol edilmeli.**
 
 ### B-13 · Sohbet açılamıyor — 🔴 P0, KÖK NEDEN BULUNDU
 
