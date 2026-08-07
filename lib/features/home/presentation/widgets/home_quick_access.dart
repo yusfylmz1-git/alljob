@@ -6,10 +6,9 @@ import '../../../../core/router/route_paths.dart';
 import '../../../../core/theme/app_palette.dart';
 import '../../../../core/widgets/tap_scale.dart';
 import '../../../../data/models/job.dart' show kQuickSupportName;
-import '../../../auth/application/auth_controller.dart';
 
 /// Ana Sayfa üst aksiyon bloğu: büyük "Usta Bul" davet kartı + altında iki
-/// ikincil aksiyon kutusu (İş İlanı Ver / Ürünleri Keşfet). Etiketler role
+/// ikincil kutu (İş İlanı Ver / Hemen Lazım). Rol ayrımı YOK. Etiketler role
 /// göre değişir: müşteri "Usta Bul + İş İlanı Ver", usta "İş İlanları" görür.
 /// Alt barın yerine geçmez; ana sayfanın birincil giriş noktasıdır.
 class HomeQuickAccess extends ConsumerWidget {
@@ -17,63 +16,34 @@ class HomeQuickAccess extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final isArtisan = ref.watch(
-      currentUserProvider.select((u) => u?.isArtisan ?? false),
+    // ROL AYRIMI YOK (2026-08-08): herkes aynı üç aksiyonu görür.
+    // Eskiden usta/müşteri iki ayrı kart dizisi görüyordu; üstelik usta
+    // tarafındaki iki kutu da SİLİNEN ürünler modülüne gidiyordu.
+    //
+    // Ürünün ana işi: usta bul · ilan ver · hemen lazım.
+    final hero = _HeroCta(
+      title: 'İhtiyacın olan\nustayı bul.',
+      subtitle: 'Güvenilir ustalar,\nprofesyonel hizmetler.',
+      ctaLabel: 'Usta Bul',
+      icon: Icons.handyman_rounded,
+      onTap: () => context.go(RoutePaths.explore),
     );
 
-    // ── Büyük davet kartı (rol bazlı) ──
-    final hero = isArtisan
-        ? _HeroCta(
-            title: 'Sana uygun işi bul.',
-            subtitle: 'Yakınındaki iş ilanları,\nhemen teklif ver.',
-            ctaLabel: 'İş İlanları',
-            icon: Icons.campaign_rounded,
-            onTap: () => context.go(RoutePaths.exploreTab('jobs')),
-          )
-        : _HeroCta(
-            title: 'İhtiyacın olan\nustayı bul.',
-            subtitle: 'Güvenilir ustalar,\nprofesyonel hizmetler.',
-            ctaLabel: 'Usta Bul',
-            icon: Icons.handyman_rounded,
-            onTap: () => context.go(RoutePaths.exploreTab('artisans')),
-          );
-
-    // ── İkincil iki aksiyon (rol bazlı) ──
     final secondary = <_QuickItem>[
-      if (isArtisan)
-        _QuickItem(
-          icon: Icons.storefront_rounded,
-          label: 'Ürünlerim',
-          hint: 'Vitrinini yönet',
-          color: const Color(0xFFEA580C),
-          onTap: () => context.go(RoutePaths.exploreTab('products')),
-        )
-      else
-        _QuickItem(
-          icon: Icons.post_add_rounded,
-          label: 'İş İlanı Ver',
-          hint: 'İlan oluştur,\nteklif al',
-          color: const Color(0xFF2563EB),
-          onTap: () => context.push(RoutePaths.newJob),
-        ),
-      // Müşteri: Hemen Lazım'ı ikinci aksiyon olarak öne çıkarır (ilan formu
-      // kategori seçili açılır). Usta: ürün keşfi.
-      if (isArtisan)
-        _QuickItem(
-          icon: Icons.inventory_2_rounded,
-          label: 'Ürünleri Keşfet',
-          hint: 'Ürünleri incele,\nilham al',
-          color: const Color(0xFF7C3AED),
-          onTap: () => context.go(RoutePaths.exploreTab('products')),
-        )
-      else
-        _QuickItem(
-          icon: Icons.bolt_rounded,
-          label: kQuickSupportName,
-          hint: 'Market, taşıma,\nkısa işler',
-          color: const Color(0xFFF59E0B),
-          onTap: () => context.push(RoutePaths.newQuickSupportJob),
-        ),
+      _QuickItem(
+        icon: Icons.post_add_rounded,
+        label: 'İş İlanı Ver',
+        hint: 'İlan oluştur,\nteklif al',
+        color: const Color(0xFF2563EB),
+        onTap: () => context.push(RoutePaths.newJob),
+      ),
+      _QuickItem(
+        icon: Icons.bolt_rounded,
+        label: kQuickSupportName,
+        hint: 'Market, taşıma,\nkısa işler',
+        color: const Color(0xFFF59E0B),
+        onTap: () => context.push(RoutePaths.newQuickSupportJob),
+      ),
     ];
 
     return Column(

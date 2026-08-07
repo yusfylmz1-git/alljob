@@ -16,7 +16,6 @@ import 'widgets/home_featured.dart';
 import 'widgets/home_guest_banner.dart';
 import 'widgets/home_quick_access.dart';
 import 'widgets/home_quick_support.dart';
-import 'widgets/home_stats.dart';
 
 /// Ana Sayfa — Sepette Hizmet'in canlı vitrini. Uygulamaya giren önce burayı
 /// görür: sade karşılama + 3 ana aksiyon + "Bugün Sepette Hizmet'te" keşif
@@ -35,7 +34,6 @@ class HomeScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final user = ref.watch(currentUserProvider);
     final isGuest = user == null;
-    final isArtisan = user?.isArtisan ?? false;
 
     return Scaffold(
       drawer: const AppMenuDrawer(),
@@ -51,7 +49,7 @@ class HomeScreen extends ConsumerWidget {
                   // Aşağı çekme, içerik ekranı doldurmasa da çalışmalı.
                   physics: const AlwaysScrollableScrollPhysics(),
                   padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
-                  children: _sections(isGuest: isGuest, isArtisan: isArtisan),
+                  children: _sections(isGuest: isGuest),
                 ),
               ),
             ),
@@ -66,13 +64,11 @@ class HomeScreen extends ConsumerWidget {
   /// hatasını yutar (biri düşerse diğerleri yine yenilenir); aksi hâlde tek
   /// bir hatalı bölüm yenilemenin tamamını iptal ederdi.
   Future<void> _refresh(WidgetRef ref) async {
-    ref.invalidate(homeStatsProvider);
     ref.invalidate(oneChikanUstalarProvider);
     ref.invalidate(openJobsProvider);
 
     await Future.wait<void>([
       for (final f in <Future<Object?>>[
-        ref.read(homeStatsProvider.future),
         ref.read(oneChikanUstalarProvider.future),
         ref.read(openJobsProvider.future),
       ])
@@ -80,41 +76,28 @@ class HomeScreen extends ConsumerWidget {
     ]);
   }
 
-  /// Bölüm sırası: aksiyon → keşif → öne çıkanlar → istatistik (ana sayfa
-  /// vitrin/keşif ağırlıklı akar).
-  /// Veriye bağlı bölümler (keşif/istatistik) boşsa kendini gizler.
-  List<Widget> _sections({required bool isGuest, required bool isArtisan}) {
+  /// Ana Sayfa bölümleri — HERKESTE AYNI (rol ayrımı yok, 2026-08-08).
+  ///
+  /// Eskiden usta ve müşteri iki farklı sıralama görüyordu. Tek ürün, tek
+  /// akış: usta bul · ilan ver · hemen lazım.
+  ///
+  /// Sıra: aksiyon → Hemen Lazım → öne çıkanlar → keşif. Veriye bağlı
+  /// bölümler boşsa kendini gizler.
+  ///
+  /// NOT: "Platform istatistikleri" bölümü (HomeStats) KALDIRILDI —
+  /// `adminStats/global` yalnız admine okunur (firestore.rules), yani normal
+  /// kullanıcıda bölüm HER ZAMAN gizliydi. 146 satır ölü kod.
+  List<Widget> _sections({required bool isGuest}) {
     const gap = SizedBox(height: 24);
-
-    // Usta: iş/ürün vitrini + araçlar önce. Hemen Lazım ilanları usta için
-    // doğrudan iş demektir → en üstte.
-    if (isArtisan) {
-      return const [
-        HomeQuickAccess(),
-        gap,
-        HomeQuickSupport(), // ⚡ Hemen Lazım
-        gap,
-        HomeFeatured(), // Son İş İlanları / ürünler
-        gap,
-        HomeDiscover(),
-        gap,
-        HomeStats(),
-      ];
-    }
-
-    // Misafir & Müşteri: keşif/vitrin ağırlıklı. Hemen Lazım öne alınır —
-    // hizmetin ne olduğu ancak canlı ilanlar görülünce anlaşılıyor.
     return [
       if (isGuest) const HomeGuestBanner(),
       const HomeQuickAccess(),
       gap,
       const HomeQuickSupport(), // ⚡ Hemen Lazım
       gap,
-      const HomeDiscover(), // 🔥 Bugün Sepette Hizmet'te
+      const HomeFeatured(), // ⭐ Öne çıkan ustalar + son ilanlar
       gap,
-      const HomeFeatured(), // ⭐ Öne Çıkan Ustalar (+ürün/iş)
-      gap,
-      const HomeStats(), // 📊 minimal büyüme sayaçları
+      const HomeDiscover(), // 🔥 Haftanın ustası + duyuru
     ];
   }
 }
