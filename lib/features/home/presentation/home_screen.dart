@@ -11,7 +11,6 @@ import '../../../core/widgets/responsive_center.dart';
 import '../../../core/widgets/role_bottom_bar.dart';
 import '../../auth/application/auth_controller.dart';
 import '../../jobs/data/job_providers.dart';
-import '../../products/data/product_providers.dart';
 import 'widgets/home_discover.dart';
 import 'widgets/home_featured.dart';
 import 'widgets/home_guest_banner.dart';
@@ -69,14 +68,12 @@ class HomeScreen extends ConsumerWidget {
   Future<void> _refresh(WidgetRef ref) async {
     ref.invalidate(homeStatsProvider);
     ref.invalidate(oneChikanUstalarProvider);
-    ref.invalidate(discoverProductsProvider);
     ref.invalidate(openJobsProvider);
 
     await Future.wait<void>([
       for (final f in <Future<Object?>>[
         ref.read(homeStatsProvider.future),
         ref.read(oneChikanUstalarProvider.future),
-        ref.read(discoverProductsProvider.future),
         ref.read(openJobsProvider.future),
       ])
         f.then<void>((_) {}, onError: (_) {}),

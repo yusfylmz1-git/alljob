@@ -11,12 +11,12 @@ class RoutePaths {
   // sonrası buraya gelinir. İstatistik, öne çıkanlar, hızlı erişim, duyuru.
   static const String home = '/';
 
-  // Keşfet (usta/iş/ürün/eleman arama ızgarası) — eski ana ekran.
+  // Keşfet (usta arama ızgarası) — eski ana ekran.
   // Ana Sayfa eklenince '/' Ana Sayfa'ya, keşif buraya taşındı.
   static const String explore = '/explore';
 
   /// Keşfet'i belirli bir sekmeyle açar (Ana Sayfa "Tümünü Gör" bağlantıları).
-  /// [tab]: artisans | jobs | products | staff. Geçersiz/boş değer yok sayılır
+  /// [tab]: artisans. Geçersiz/boş değer yok sayılır
   /// (Keşfet role göre varsayılan sekmeye düşer). [prof] verilirse (yalnız
   /// artisans sekmesi için anlamlı) Ustalar o meslek koduyla filtreli açılır.
   static String exploreTab(String tab, {String? prof}) {
@@ -117,35 +117,6 @@ class RoutePaths {
 
   /// Herkese açık usta profil sayfası yolu.
   static String artisanProfile(String uid) => '/artisan/$uid';
-
-  /// Bir ustanın/satıcının herkese açık ürünleri (profil "Dükkan" → Tümünü Gör).
-  static String artisanProducts(String uid) => '/artisan/$uid/products';
-
-  // Keşfet Ürünler (PRD-006) — /products/new ve /products/mine, :id'den önce.
-  static const String productsBase = '/products';
-  static const String productNew = '/products/new';
-  static const String myProducts = '/products/mine';
-  static String productDetail(String id) => '/products/$id';
-  static String productEdit(String id) => '/products/$id/edit';
-
-  // Eleman (işveren arar / iş arayan müsait görünür — başvuru formu yok).
-  static const String staffing = '/staffing';
-  static const String staffMyWorker = '/staffing/me';
-  static const String staffNeedNew = '/staffing/needs/new';
-  static const String staffMyNeeds = '/staffing/needs/mine';
-  static const String staffWorkers = '/staffing/workers';
-  static const String staffNeeds = '/staffing/needs';
-  static String staffWorkerDetail(String id) => '/staffing/workers/$id';
-
-  // Takip Merkezi (oturum açmış herkes; yerel-öncelikli kişisel takip).
-  // Sıralama: /tracking/new ve /tracking/trash, /tracking/:id'den ÖNCE
-  // tanımlanmalıdır (aksi halde :id onları da yakalar).
-  static const String tracking = '/tracking';
-  static const String trackingNew = '/tracking/new';
-  static const String trackingTrash = '/tracking/trash';
-  static const String trackingBackup = '/tracking/backup';
-  static String trackDetail(String id) => '/tracking/$id';
-  static String trackEdit(String id) => '/tracking/$id/edit';
 
   // NOT: "Usta Çantası" (PRD-007) araç seti — hesap makineleri, AR ölçüm, PDF
   // teklif — 2026-08-07'de üründen TAMAMEN KALDIRILDI (kullanıcı kararı).

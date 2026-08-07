@@ -18,16 +18,15 @@ import '../../../core/widgets/responsive_center.dart';
 import '../../../core/widgets/role_bottom_bar.dart';
 import '../../../core/widgets/skeleton.dart';
 import '../../auth/application/auth_controller.dart';
-import '../../jobs/presentation/widgets/jobs_explore_panel.dart';
-import '../../products/presentation/widgets/products_explore_panel.dart';
 import '../application/artisan_search_controller.dart';
 import 'widgets/artisan_card.dart';
 import 'widgets/detailed_search_sheet.dart';
-import 'widgets/explore_tab_bar.dart';
 
 /// Ekran A — Keşfet: lacivert hero içinde metin arama kutusu + "Detaylı Arama"
 /// açılır paneli, altında usta sonuç ızgarası (responsive).
-/// "İş İlanları" sekmesi yalnız usta modunda; müşteri başkalarının ilanını görmez.
+///
+/// TEK LİSTE (2026-08-08 sadeleştirmesi): yalnız ustalar. Ürünler modülü
+/// kaldırıldı, İlanlar alt bardaki kendi sekmesinde. Sekme çubuğu kalktı.
 class CustomerDashboardScreen extends ConsumerStatefulWidget {
   const CustomerDashboardScreen({
     super.key,
@@ -35,12 +34,12 @@ class CustomerDashboardScreen extends ConsumerStatefulWidget {
     this.initialProfession,
   });
 
-  /// Ana Sayfa "Tümünü Gör" bağlantılarından gelen başlangıç sekmesi:
-  /// artisans | jobs | products | staff. null/geçersizse role göre varsayılan.
+  /// Eski derin bağlantılarla uyum için korunur; artık tek liste olduğundan
+  /// yok sayılır.
   final String? initialTab;
 
-  /// Ana Sayfa "Kategoriler"den gelen başlangıç meslek kodu (yalnız Ustalar
-  /// sekmesinde anlamlı). Verilirse Ustalar bu meslekle filtreli açılır.
+  /// Ana Sayfa "Kategoriler"den gelen başlangıç meslek kodu. Verilirse
+  /// liste bu meslekle filtreli açılır.
   final String? initialProfession;
 
   @override
@@ -48,27 +47,9 @@ class CustomerDashboardScreen extends ConsumerStatefulWidget {
       _CustomerDashboardScreenState();
 }
 
-/// Keşfet sekmeleri.
-/// - [artisans]: müşteri / misafir (usta modunda gizlenir — rakip vitrini yok).
-/// - [jobs]: yalnız usta modu.
-/// (Eleman modülü şimdilik gizli — girişler kaldırıldı, kod korunuyor.)
-enum _ExploreView { artisans, jobs, products }
-
-/// URL query değeri → sekme. Bilinmeyen değer null döner (varsayılan korunur).
-_ExploreView? _exploreViewFromTab(String? tab) => switch (tab) {
-      'artisans' => _ExploreView.artisans,
-      'jobs' => _ExploreView.jobs,
-      'products' => _ExploreView.products,
-      _ => null,
-    };
-
 class _CustomerDashboardScreenState
     extends ConsumerState<CustomerDashboardScreen> {
   final _scrollController = ScrollController();
-  // Başlangıç: müşteri vitrini; usta modunda effectiveView → jobs.
-  // Ana Sayfa "Tümünü Gör" ile gelindiyse ilgili sekme seçilir.
-  late _ExploreView _view =
-      _exploreViewFromTab(widget.initialTab) ?? _ExploreView.artisans;
 
   @override
   void initState() {
@@ -109,15 +90,6 @@ class _CustomerDashboardScreenState
 
   @override
   Widget build(BuildContext context) {
-    // KEŞFET ROL AYRIMI YAPMAZ: her iki modda da Ustalar + Ürünler görünür.
-    // Eskiden usta modunda "Ustalar" gizlenip yerine "İlanlar" geliyordu —
-    // usta da usta arayabilir (taşeron, iş ortağı) ve ürün bakabilir.
-    // İlan akışı zaten alt bardaki "İlanlar" sekmesinde (yalnız usta modu).
-    final effectiveView = switch (_view) {
-      _ExploreView.jobs => _ExploreView.artisans,
-      _ => _view,
-    };
-
     return MainTabScope(
       tab: MainTab.explore,
       child: Scaffold(
@@ -125,42 +97,11 @@ class _CustomerDashboardScreenState
       body: Column(
         children: [
           const _HeroHeader(),
+          // KEŞFET TEK LİSTE: yalnız ustalar. Ürünler modülü kaldırıldı
+          // (2026-08-08), İlanlar ise alt bardaki kendi sekmesinde.
+          // Tek sekme kalınca sekme çubuğu da gereksizleşti.
           Expanded(
-            child: Column(
-              children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 10, 16, 4),
-                  child: ExploreTabBar<_ExploreView>(
-                    selected: effectiveView,
-                    onChanged: (v) => setState(() => _view = v),
-                    items: [
-                      // Her iki modda da aynı sekmeler.
-                      const ExploreTabItem(
-                        value: _ExploreView.artisans,
-                        label: 'Ustalar',
-                        icon: Icons.handyman_rounded,
-                        accent: Color(0xFF2563EB),
-                      ),
-                      if (AppConstants.kProductsEnabled)
-                        const ExploreTabItem(
-                          value: _ExploreView.products,
-                          label: 'Ürünler',
-                          icon: Icons.storefront_rounded,
-                          accent: Color(0xFFEA580C),
-                        ),
-                    ],
-                  ),
-                ),
-                Expanded(
-                  child: switch (effectiveView) {
-                    _ExploreView.artisans => _ArtisansExplorePanel(
-                          scrollController: _scrollController),
-                    _ExploreView.jobs => const JobsExplorePanel(),
-                    _ExploreView.products => const ProductsExplorePanel(),
-                  },
-                ),
-              ],
-            ),
+            child: _ArtisansExplorePanel(scrollController: _scrollController),
           ),
         ],
       ),

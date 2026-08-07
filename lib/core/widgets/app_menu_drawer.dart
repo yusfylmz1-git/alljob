@@ -54,7 +54,7 @@ class DrawerMenuButton extends ConsumerWidget {
 /// İçerik duruma göre değişir:
 /// - Misafir: Google ile giriş.
 /// - Oturum açık: İş İlanı Ver, Takip Ettiklerim (+ usta modunda İlanlarım
-///   ve Bildirimler), Ajanda, Hesap Ayarları, Yardım, Görünüm, Çıkış.
+///   ve Bildirimler), Hesap Ayarları, Yardım, Görünüm, Çıkış.
 ///
 /// MOD GEÇİŞİ BURADA YOK: profildeki "Usta modu" anahtarından yapılır.
 /// İki ayrı yer olması hangi modda olunduğunu belirsizleştiriyordu (B-16).
@@ -221,17 +221,6 @@ class AppMenuDrawer extends ConsumerWidget {
         ],
 
         const Divider(indent: 16, endIndent: 16),
-
-        // Ajanda — kişisel randevu/hatırlatma. Profil ekranından buraya
-        // taşındı: profil İÇERİK gösterir (ilanlar, işler, takip), kişisel
-        // araçlar menüde durur.
-        if (user != null)
-          ListTile(
-            leading: const Icon(Icons.checklist_rounded),
-            title: const Text('Ajanda'),
-            subtitle: const Text('Randevu ve hatırlatmalar'),
-            onTap: () => _open(context, RoutePaths.tracking),
-          ),
 
         // Hesap Ayarları — profil ekranından buraya taşındı (sadeleştirme):
         // doğrulama, üyelik, hesap silme. Profil artık içerik gösterir.

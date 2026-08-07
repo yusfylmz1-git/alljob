@@ -67,13 +67,15 @@ void main() {
       expect(profile.contains('otherModeUnreadProvider'), isTrue);
     });
 
-    test('Keşfet rol ayrımı yapmaz: Ustalar her modda görünür', () {
+    test('Keşfet TEK LİSTE: rol ayrımı ve sekme çubuğu yok', () {
       final explore = read(
           'lib/features/customer/presentation/customer_dashboard_screen.dart');
-      // Eskiden usta modunda "Ustalar" sekmesi gizleniyordu (if (!isArtisan)).
+      // Önce usta modunda "Ustalar" gizleniyordu; sonra rol ayrımı kalktı;
+      // Ürünler modülü de silinince tek sekme kaldı ve çubuk gereksizleşti.
       expect(explore.contains('if (!isArtisan)'), isFalse);
-      expect(explore.contains('if (isArtisan)'), isFalse);
-      expect(explore.contains("label: 'Ustalar'"), isTrue);
+      expect(explore.contains('ExploreTabBar'), isFalse,
+          reason: 'Tek liste kaldı; sekme çubuğu geri gelmiş.');
+      expect(explore.contains('_ArtisansExplorePanel'), isTrue);
     });
   });
 

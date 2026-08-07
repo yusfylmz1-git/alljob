@@ -17,10 +17,8 @@ import '../../../core/widgets/responsive_center.dart';
 import '../../../core/widgets/status_views.dart';
 import '../../../data/local/mock_database.dart' show kProfessionNames;
 import '../../../data/models/artisan_profile.dart';
-import '../../../data/models/product.dart';
 import '../../../data/models/review.dart';
 import '../../../data/models/social_links.dart';
-import '../../products/data/product_providers.dart';
 import '../../artisan/data/artisan_providers.dart';
 import '../../artisan/data/artisan_repository.dart';
 import '../../auth/application/auth_controller.dart';
@@ -163,13 +161,6 @@ class _ProfileBody extends ConsumerWidget {
                           : _WorkPhotoGrid(handles: profile.workPhotos),
                     ),
                     const SizedBox(height: 14),
-
-                    // Dükkan — ustanın Keşfet vitrini için sattığı ürünler.
-                    // Ürünü varsa yatay önizleme + "Tümünü Gör"; yoksa gizli.
-                    _ShopSection(
-                      sellerUid: detail.uid,
-                      sellerName: detail.displayName,
-                    ),
 
                     _Section(
                       icon: Icons.location_on_outlined,
@@ -925,117 +916,6 @@ class _Stat extends StatelessWidget {
 /// İkonlu başlığı olan, ince kenarlı beyaz bölüm kartı.
 /// Usta profilindeki "Dükkan" bölümü — o ustanın sattığı ürünlerin yatay
 /// resimli önizlemesi + "Tümünü Gör". Ürünü yoksa bölüm tamamen gizlenir.
-class _ShopSection extends ConsumerWidget {
-  const _ShopSection({required this.sellerUid, required this.sellerName});
-  final String sellerUid;
-  final String sellerName;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final products =
-        ref.watch(myProductsProvider(sellerUid)).valueOrNull ?? const [];
-    if (products.isEmpty) return const SizedBox.shrink();
-
-    final onceki = products.take(6).toList();
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 14),
-      child: _Section(
-        icon: Icons.storefront_outlined,
-        title: 'Dükkan (${products.length})',
-        trailing: TextButton(
-          onPressed: () => context.push(
-            '${RoutePaths.artisanProducts(sellerUid)}'
-            '?ad=${Uri.encodeComponent(sellerName)}',
-          ),
-          child: const Text('Tümünü Gör →'),
-        ),
-        child: SizedBox(
-          height: 128,
-          child: ListView.separated(
-            scrollDirection: Axis.horizontal,
-            padding: EdgeInsets.zero,
-            itemCount: onceki.length,
-            separatorBuilder: (_, _) => const SizedBox(width: 10),
-            itemBuilder: (_, i) => _ShopThumb(product: onceki[i]),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// Dükkan önizlemesindeki tek küçük ürün: kapak resmi + fiyat.
-class _ShopThumb extends StatelessWidget {
-  const _ShopThumb({required this.product});
-  final Product product;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final palette = context.palette;
-    return SizedBox(
-      width: 104,
-      child: Material(
-        color: palette.card,
-        borderRadius: BorderRadius.circular(12),
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: () => context.push(RoutePaths.productDetail(product.id)),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              SizedBox(
-                height: 80,
-                width: double.infinity,
-                child: product.coverPhoto != null
-                    ? AppImage(
-                        handle: product.coverPhoto,
-                        fit: BoxFit.cover,
-                        memCacheWidth: 208,
-                      )
-                    : Container(
-                        color: palette.surfaceMuted,
-                        alignment: Alignment.center,
-                        child: Icon(
-                          Icons.storefront_rounded,
-                          color: palette.primary,
-                          size: 24,
-                        ),
-                      ),
-              ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(6, 5, 6, 6),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      product.title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.labelSmall?.copyWith(
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    Text(
-                      product.priceLabel,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.labelSmall?.copyWith(
-                        color: palette.primary,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 class _Section extends StatelessWidget {
   const _Section({
     required this.icon,

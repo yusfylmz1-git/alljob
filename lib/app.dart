@@ -17,7 +17,6 @@ import 'core/widgets/status_views.dart';
 import 'data/models/app_user.dart';
 import 'features/auth/application/auth_controller.dart';
 import 'features/notifications/data/push_service.dart';
-import 'features/tracking/data/track_notification_service.dart';
 
 /// ErrorView "Sorunu bildir": Yardım ekranındaki destek formunu, hatanın
 /// bağlamı önceden yazılmış olarak açar (form yönetim paneline düşer, yanıt
@@ -56,10 +55,6 @@ class UstaCepteApp extends ConsumerWidget {
     if (initialUid != null) {
       ref.read(pushServiceProvider).registerFor(initialUid);
     }
-
-    // Takip Merkezi hatırlatma servisini hazırla (idempotent; web/test no-op) —
-    // böylece bildirime dokununca ilgili takibe gitme işleyicisi hazır olur.
-    ref.read(trackNotificationServiceProvider).init();
 
     // Aktif moda göre KULLANICININ seçtiği vurgu rengi (Görünüm ayarı). Mod
     // veya renk değişince tema yeniden kurulur ve renkler yumuşakça geçer.

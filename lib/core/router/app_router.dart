@@ -39,15 +39,6 @@ import '../../features/review/presentation/review_screen.dart';
 import '../../features/help/presentation/help_screen.dart';
 import '../../features/legal/presentation/legal_screen.dart';
 import '../../features/safety/presentation/blocked_users_screen.dart';
-import '../../features/tracking/presentation/track_detail_screen.dart';
-import '../../features/tracking/presentation/track_edit_screen.dart';
-import '../../features/tracking/presentation/tracking_center_screen.dart';
-import '../../features/tracking/presentation/track_backup_screen.dart';
-import '../../features/tracking/presentation/tracking_trash_screen.dart';
-import '../../features/products/presentation/artisan_products_screen.dart';
-import '../../features/products/presentation/my_products_screen.dart';
-import '../../features/products/presentation/product_detail_screen.dart';
-import '../../features/products/presentation/product_edit_screen.dart';
 import 'route_paths.dart';
 
 /// Uygulama yönlendiricisi. "Misafir-önce" akış + tek hesap, çift rol:
@@ -117,7 +108,6 @@ final routerProvider = Provider<GoRouter>((ref) {
       if (loc == RoutePaths.panel) return RoutePaths.profile;
 
       // Oturum gerektiren bölgeler.
-      // Ürün detayı (/products/:id) misafire açık; oluşturma/yönetim kapalı.
       final needsLogin = loc.startsWith(RoutePaths.panel) ||
           loc.startsWith(RoutePaths.chats) ||
           loc.startsWith(RoutePaths.reviewBase) ||
@@ -127,12 +117,7 @@ final routerProvider = Provider<GoRouter>((ref) {
               loc != RoutePaths.quickSupportJobs) ||
           loc.startsWith(RoutePaths.favorites) ||
           loc.startsWith(RoutePaths.notifications) ||
-          loc.startsWith(RoutePaths.tracking) ||
-          loc.startsWith(RoutePaths.profile) ||
-          loc == RoutePaths.productNew ||
-          loc == RoutePaths.myProducts ||
-          (loc.startsWith('${RoutePaths.productsBase}/') &&
-              loc.endsWith('/edit'));
+          loc.startsWith(RoutePaths.profile);
 
       // Misafir: keşif + profilleri gezebilir; korunan bölgeler girişe yönlenir.
       if (user == null) {
@@ -217,13 +202,6 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/artisan/:uid',
         builder: (_, state) =>
             ArtisanProfileScreen(uid: state.pathParameters['uid']!),
-      ),
-      GoRoute(
-        path: '/artisan/:uid/products',
-        builder: (_, state) => ArtisanProductsScreen(
-          uid: state.pathParameters['uid']!,
-          sellerName: state.uri.queryParameters['ad'],
-        ),
       ),
       GoRoute(
         path: RoutePaths.login,
@@ -357,61 +335,6 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: 'account',
             builder: (_, _) => const AccountSettingsScreen(),
-          ),
-        ],
-      ),
-      // Keşfet Ürünler — /new ve /mine, :id'den önce.
-      GoRoute(
-        path: RoutePaths.productNew,
-        builder: (_, _) => const ProductEditScreen(),
-      ),
-      GoRoute(
-        path: RoutePaths.myProducts,
-        builder: (_, _) => const MyProductsScreen(),
-      ),
-      GoRoute(
-        path: '/products/:productId/edit',
-        builder: (_, state) => ProductEditScreen(
-          productId: state.pathParameters['productId'],
-        ),
-      ),
-      GoRoute(
-        path: '/products/:productId',
-        builder: (_, state) => ProductDetailScreen(
-          productId: state.pathParameters['productId']!,
-        ),
-      ),
-      // Eleman modülü şimdilik gizli: kullanıcı girişleri (Keşfet sekmesi,
-      // hızlı erişim) kaldırıldı ve rotaları devre dışı. Ekran/repo kodu
-      // features/staffing/ altında korunuyor; talep olursa buradan geri açılır.
-
-      // Takip Merkezi — sıralama önemli: /tracking/new ve /tracking/trash,
-      // /tracking/:id'den ÖNCE tanımlanmalı (aksi halde :id onları yakalar).
-      GoRoute(
-        path: RoutePaths.trackingNew,
-        builder: (_, _) => const TrackEditScreen(),
-      ),
-      GoRoute(
-        path: RoutePaths.trackingTrash,
-        builder: (_, _) => const TrackingTrashScreen(),
-      ),
-      GoRoute(
-        path: RoutePaths.trackingBackup,
-        builder: (_, _) => const TrackBackupScreen(),
-      ),
-      GoRoute(
-        path: RoutePaths.tracking,
-        builder: (_, _) => const TrackingCenterScreen(),
-      ),
-      GoRoute(
-        path: '/tracking/:id',
-        builder: (_, state) =>
-            TrackDetailScreen(trackId: state.pathParameters['id']!),
-        routes: [
-          GoRoute(
-            path: 'edit',
-            builder: (_, state) =>
-                TrackEditScreen(trackId: state.pathParameters['id']),
           ),
         ],
       ),

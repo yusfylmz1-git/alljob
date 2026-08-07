@@ -25,10 +25,6 @@ import 'package:sepette_hizmet/features/admin/data/admin_report_repository.dart'
 import 'package:sepette_hizmet/features/admin/data/admin_review_repository.dart';
 import 'package:sepette_hizmet/features/admin/data/admin_stats_repository.dart';
 import 'package:sepette_hizmet/features/admin/data/admin_user_repository.dart';
-import 'package:sepette_hizmet/features/tracking/data/mock_track_backup_repository.dart';
-import 'package:sepette_hizmet/features/tracking/data/mock_tracking_repository.dart';
-import 'package:sepette_hizmet/features/tracking/data/track_notification_service.dart';
-import 'package:sepette_hizmet/features/tracking/data/tracking_providers.dart';
 
 /// Tüm backend repo sağlayıcılarını bellek-içi mock uygulamalara yönlendirir.
 ///
@@ -72,14 +68,6 @@ List<Override> mockBackendOverrides() => [
       reportRepositoryProvider.overrideWith(
         (ref) => MockReportRepository(),
       ),
-      trackingRepositoryProvider.overrideWith((ref) {
-        final repo = MockTrackingRepository();
-        ref.onDispose(repo.dispose);
-        return repo;
-      }),
-      trackBackupRepositoryProvider.overrideWith(
-        (ref) => MockTrackBackupRepository(),
-      ),
       adminReportRepositoryProvider.overrideWith((ref) {
         final repo = MockAdminReportRepository();
         ref.onDispose(repo.dispose);
@@ -115,7 +103,4 @@ List<Override> mockBackendOverrides() => [
       adminAuditRepositoryProvider.overrideWith(
         (ref) => MockAdminAuditRepository(),
       ),
-      // Bildirimler native eklenti gerektirir → testlerde no-op.
-      trackNotificationServiceProvider
-          .overrideWithValue(const NoopTrackNotificationService()),
     ];

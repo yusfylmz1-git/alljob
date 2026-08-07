@@ -80,7 +80,6 @@ class AppConstants {
   static const int nearbyJobsFetchCap = 100;
 
   // Keşfet Ürünler (PRD-006)
-  static const bool kProductsEnabled = true;
   static const bool kAdminProductModerationEnabled = true;
   static const int maxProductPhotos = 8;
   static const int productTitleMin = 3;

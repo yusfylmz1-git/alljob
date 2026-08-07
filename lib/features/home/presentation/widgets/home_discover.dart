@@ -6,7 +6,6 @@ import '../../../../core/config/app_runtime_config.dart';
 import '../../../../core/router/route_paths.dart';
 import '../../../../core/theme/app_palette.dart';
 import '../../../../core/widgets/app_image.dart';
-import '../../../products/data/product_providers.dart';
 import 'home_featured.dart' show oneChikanUstalarProvider;
 
 /// Ana Sayfa "🔥 Bugün Sepette Hizmet'te" — platformun canlı vitrini. Yatay kayan
@@ -21,16 +20,10 @@ class HomeDiscover extends ConsumerWidget {
     final theme = Theme.of(context);
     final palette = context.palette;
 
-    final urunler = ref.watch(discoverProductsProvider).valueOrNull ?? const [];
     final ustalar = ref.watch(oneChikanUstalarProvider).valueOrNull ?? const [];
     final cfg = ref.watch(appRuntimeConfigProvider).valueOrNull;
 
-    // En çok görüntülenen ürün (varsa) ve en yüksek puanlı usta (varsa).
-    final enCokUrun = urunler.isEmpty
-        ? null
-        : (urunler.toList()
-              ..sort((a, b) => b.viewCount.compareTo(a.viewCount)))
-            .first;
+    // En yüksek puanlı usta (varsa).
     final haftaninUstasi = ustalar.isEmpty
         ? null
         : (ustalar.toList()
@@ -38,18 +31,6 @@ class HomeDiscover extends ConsumerWidget {
             .first;
 
     final kartlar = <Widget>[
-      if (enCokUrun != null)
-        _DiscoverCard(
-          etiket: 'En Çok Görüntülenen Ürün',
-          icon: Icons.local_fire_department_rounded,
-          accent: const Color(0xFFEA580C),
-          baslik: enCokUrun.title,
-          altBilgi: enCokUrun.viewCount > 0
-              ? '👁 ${enCokUrun.viewCount} görüntülenme'
-              : enCokUrun.priceLabel,
-          photo: enCokUrun.coverPhoto, // gerçek ürün kapağı (varsa)
-          onTap: () => context.push(RoutePaths.productDetail(enCokUrun.id)),
-        ),
       if (haftaninUstasi != null)
         _DiscoverCard(
           etiket: 'Haftanın Ustası',

@@ -60,8 +60,8 @@ Bunlar sık gereken yollar. Grep/Glob turu açmadan önce bu tabloya bak.
 | Admin girişi | `lib/main_admin.dart` · `lib/features/admin/` |
 
 **Modül → klasör:** admin · artisan · auth · chat · customer · favorites · help ·
-home · jobs · legal · membership · notifications · onboarding · products ·
-profile · review · safety · staffing · storage · tracking
+home · jobs · legal · membership · notifications · onboarding ·
+profile · review · safety · storage
 → hepsi `lib/features/<ad>/{data,application,presentation}/`
 
 ## 💰 Token tasarrufu — çalışma biçimi
@@ -110,7 +110,6 @@ Deploy komutları ve tuzakları: `vault/05-Operasyon/Deploy-ve-Ortam.md`
 
 | Sabit | Dosya |
 |---|---|
-| `_dbName = 'usta_cepte_tracking.db'` | `tracking/data/sqflite_tracking_repository.dart` |
 | `kProMonthlyProductId = 'usta_cepte_pro_monthly'` | `membership/billing_config.dart` |
 
 Marka "Usta Cepte" → "Sepette Hizmet" değişti; bu kimlikler bilerek eski

@@ -7,11 +7,9 @@ import '../../../../core/theme/app_palette.dart';
 import '../../../../core/widgets/app_image.dart';
 import '../../../../core/widgets/tap_scale.dart';
 import '../../../../data/models/job.dart';
-import '../../../../data/models/product.dart';
 import '../../../artisan/data/artisan_providers.dart';
 import '../../../artisan/data/artisan_repository.dart';
 import '../../../jobs/data/job_providers.dart';
-import '../../../products/data/product_providers.dart';
 
 /// Öne çıkan ustalar (algoritmik — şimdilik: müsait + puana göre ilk sonuçlar).
 /// Boş filtreyle repo'dan çeker; hata/boşsa boş liste → bölüm gizlenir.
@@ -43,7 +41,6 @@ class HomeFeatured extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final ustalar = ref.watch(oneChikanUstalarProvider).valueOrNull ?? const [];
-    final urunler = ref.watch(discoverProductsProvider).valueOrNull ?? const [];
     final isler = ref.watch(openJobsProvider).valueOrNull ?? const [];
 
     final sections = <Widget>[
@@ -54,14 +51,6 @@ class HomeFeatured extends ConsumerWidget {
           tall: true, // fotoğraflı usta kartları daha uzundur
           children: [
             for (final u in ustalar.take(6)) _UstaKart(usta: u),
-          ],
-        ),
-      if (urunler.isNotEmpty)
-        _FeaturedSection(
-          title: 'Popüler Ürünler',
-          exploreTab: 'products',
-          children: [
-            for (final p in urunler.take(6)) _UrunKart(urun: p),
           ],
         ),
       if (isler.isNotEmpty)
@@ -415,62 +404,6 @@ class _EtiketRozet extends StatelessWidget {
               fontWeight: FontWeight.w700,
               fontSize: 10.5,
             ),
-      ),
-    );
-  }
-}
-
-class _UrunKart extends StatelessWidget {
-  const _UrunKart({required this.urun});
-  final Product urun;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return _FeaturedCard(
-      etiket: 'Popüler Ürün',
-      onTap: () => context.push(RoutePaths.productDetail(urun.id)),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          ClipRRect(
-            borderRadius: BorderRadius.circular(10),
-            child: SizedBox(
-              height: 56,
-              width: double.infinity,
-              child: urun.coverPhoto != null
-                  ? AppImage(
-                      handle: urun.coverPhoto,
-                      fit: BoxFit.cover,
-                      memCacheWidth: 360,
-                    )
-                  : Container(
-                      color: context.palette.primary.withValues(alpha: 0.10),
-                      alignment: Alignment.center,
-                      child: Icon(Icons.storefront_rounded,
-                          color: context.palette.primary, size: 26),
-                    ),
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            urun.title,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: theme.textTheme.titleSmall
-                ?.copyWith(fontWeight: FontWeight.w700, height: 1.15),
-          ),
-          const Spacer(),
-          Text(
-            urun.priceLabel,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: theme.textTheme.labelMedium?.copyWith(
-              color: context.palette.primary,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-        ],
       ),
     );
   }
