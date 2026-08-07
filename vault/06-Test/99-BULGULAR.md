@@ -49,9 +49,70 @@ Faydalı olursa ekleyin: hangi hesap, ekran görüntüsü, hata mesajının ayn�
 | B-10 | 3.2.1 | Hemen Lazım'da **otomatik doldurma örnekleri çok aşağıda** — kategori kutusunun hemen altında olmalı | 🟡 P2 | 🔧 **düzeltilecek** |
 | B-11 | 3.6.1 | İlan iptal nedenlerinde **"günlük hakkım bitti" gereksiz** — hakkı yoksa zaten ilan açamıyor | 🟡 P2 | 🔧 **düzeltilecek** |
 | B-12 | 4.2.5 / 4.5 | **Telefona sistem push'u hiç gelmiyor** — uygulama içi bildirimler çalışıyor | 🔴 P0 | 🔬 **teşhis gerek** |
+| B-13 | 5.1 | **Müşteri "Mesaj Gönder"e basınca sohbet açılmıyor** — *"Sohbet açılamadı"*. Akış tam burada kırılıyor | 🔴 P0 | 🔧 **düzeltilecek** |
+| B-14 | 4.2.5 | Yeni bildirim geldiğinde **zil rozeti (kırmızı) görünmüyor** — bildirime girince mesaj orada | 🟠 P1 | 🔬 **teşhis gerek** |
 | K-05 | 2.x | Usta hesabı ilk açılışta **Hemen Lazım varsayılan açık** gelsin | 🟡 P2 | 🤔 **karar bekliyor** |
 | K-06 | 2.1 | Profil başlığı **usta kartı gibi** olsun: foto solda, yanında isim + Takip Et, altında meslek/telefon | 🟡 P2 | 🤔 **K-02 ile birlikte** |
 | K-07 | 3.1.6 | Fiyat tipi ilan formunda yok — ~~bilinçli mi?~~ | — | ✅ **kapandı: bilinçli** |
+
+### B-13 · Sohbet açılamıyor — 🔴 P0, KÖK NEDEN BULUNDU
+
+**Belirti:** Müşteri, "ilan 1 ile ilgilenen usta var" bildirimine tıkladı →
+ilan detayı açıldı → **"Mesaj Gönder"** düğmesine bastı →
+*"Sohbet açılamadı. E-posta doğrulamanızı kontrol edip tekrar deneyin."*
+
+**Bu, testin ana akışını kesen bir hata.** Müşteri ustayla iletişim kuramazsa
+Bölüm 5–7 (mesajlaşma → usta seçimi → tamamlama → değerlendirme) hiç
+başlayamaz.
+
+#### Kök neden: e-posta doğrulama kapısı MÜŞTERİ tarafında yok
+
+Sohbet oluşturma kuralı `isEmailVerified()` şartı koşuyor
+(`firestore.rules:359-361`). İstemcide bu kapı `ensureEmailVerified()` ile
+açılır — **ama iki taraf farklı davranıyor:**
+
+| Taraf | Akış | `ensureEmailVerified` | Sonuç |
+|---|---|---|---|
+| **Usta** → ilgi bildirir | `job_detail_screen.dart:1736` | ✅ **var** | Kapı açılır, kullanıcı doğrulamaya yönlendirilir |
+| **Müşteri** → sohbet açar | `job_detail_screen.dart:363` `_openChat` | ❌ **YOK** | Doğrudan Firestore'a yazar → kural reddeder |
+
+`_openChat` (`:363-374`) doğrudan `startChat`'i çağırıyor; hata
+`catch (_)` ile yutulup sabit metin gösteriliyor. Mesaj sebebi **doğru tahmin
+ediyor** ama kullanıcıya çıkış yolu sunmuyor — doğrulama e-postası gönderme
+akışı hiç açılmıyor.
+
+**Aynı dosyada iki farklı desen** olması bunun gözden kaçmış bir boşluk
+olduğunu gösteriyor; usta tarafı düzeltilirken müşteri tarafı unutulmuş.
+
+#### Düzeltme
+`_openChat` içinde `startChat` çağrısından ÖNCE `ensureEmailVerified(context,
+ref, actionLabel: 'ustaya mesaj göndermek')` — usta tarafındaki (`:1736`)
+desenin aynısı.
+
+**Ek:** `catch (_)` gerçek hatayı yutuyor (B-04 ile aynı desen). En azından
+`permission-denied` ile diğer hataları ayırmalı; başka bir kural şartı
+patlıyorsa (üyelik/ID biçimi) mesaj yanıltıcı olur.
+
+#### ⚠️ Doğrulama sorusu
+Kural listesindeki diğer şartlar da (`chatId` biçimi, `members` haritası,
+`participants`) reddedebilir. E-posta düzeltmesi sonrası hâlâ açılmıyorsa
+**gerçek hata koduna bakılmalı** — bu yüzden `catch` iyileştirmesi düzeltmenin
+parçası olmalı, sonraya bırakılmamalı.
+
+### B-14 · Bildirim zil rozeti görünmüyor — 🟠 P1
+
+**Belirti:** Yeni bildirim geldiğinde zil ikonunda **kırmızı rozet yok**;
+bildirimlere girince mesaj orada duruyor. Yani veri geliyor, **sayaç UI'ya
+yansımıyor**.
+
+**İlk bakılacak yer:** `notification_bell.dart` (okunmamış sayacını okur) ve
+`users/{uid}/private/chatMeta` — CLAUDE.md kural 3: *"okunmamış sayacı CF'e
+aittir"*. Sayaç CF tarafında yazılmıyorsa veya istemci yanlış alanı dinliyorsa
+rozet hiç dolmaz.
+
+**B-12 ile ilişkili olabilir:** ikisi de "bildirim var ama kullanıcı görmüyor"
+ailesinden. Ortak kök (CF'in bildirim yazma yolu) çıkabilir — B-12 teşhisi
+sırasında birlikte bakılmalı.
 
 ### B-12 · Sistem push'u gelmiyor — 🔴 P0, ÖNCE TEŞHİS
 
@@ -400,8 +461,23 @@ hepsi doğru. Tek bulgu **B-12 (push)** — ama o 🔴 P0.
 > satırını okuyun. Sonuç düzeltmenin ne olduğunu belirler — kod mu, izin mi,
 > MIUI mi. Detay: B-12 notu.
 >
-> Test bitince (bölüm 5→9) düzeltme kuyruğu: **B-12 (P0) → B-02 → B-03 →
-> B-04/B-05 → B-06 → B-07 → B-08 → B-09 → B-10 → B-11**, sonra K-05/K-06.
+> Test bitince (bölüm 5→9) düzeltme kuyruğu: **B-13 (P0) → B-12 (P0) →
+> B-14 → B-02 → B-03 → B-04/B-05 → B-06 → B-07 → B-08 → B-09 → B-10 →
+> B-11**, sonra K-05/K-06.
+
+> [!warning] ⛔ B-13 Bölüm 5'i BLOKLUYOR — istisna gerekebilir
+> "Test sürerken kod değiştirilmiyor" kuralı bu bulguda tıkanıyor: müşteri
+> sohbeti açamazsa Bölüm 5 (34 adım), 6 (22) ve 7 (20) — **76 adım** hiç
+> test edilemez. Testin ana hedefi (5.3 / 7.2 karşılıklı değerlendirme
+> çıkmazı) da bu akışın içinde.
+>
+> **Önce şu ayrım yapılmalı:** hesabın e-postası gerçekten doğrulanmamış
+> olabilir (Google girişinde genelde otomatik `true` gelir, ama her zaman
+> değil). Öyleyse **kod hatası değil** — doğrulama yapılıp test sürdürülür,
+> B-13 yalnız "kapı açılmıyor" UX eksiği olarak kuyrukta kalır.
+>
+> Doğrulanmışsa ⇒ gerçek kural reddi ⇒ B-13 **hemen** düzeltilmeli, yoksa
+> test buradan devam edemez.
 
 ---
 
