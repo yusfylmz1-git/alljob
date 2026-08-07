@@ -111,6 +111,13 @@ class _CreateJobScreenState extends ConsumerState<CreateJobScreen> {
 
   Future<void> _submit() async {
     if (_submitting) return; // çift tık → çift ilan
+    // B-02: Yükleme sürerken kaydedilirse o fotoğraf `_photos`'a hiç
+    // eklenmez — ilana girmez ve kullanıcı kaybettiğini fark etmez.
+    // (Geri tuşu bunu zaten ele alıyordu, kaydet düğmesi almıyordu.)
+    if (_uploadingPhoto) {
+      context.showInfo('Fotoğraf yükleniyor, lütfen bekleyin.');
+      return;
+    }
     if (!_formKey.currentState!.validate()) return;
     if (_category == null) {
       context.showError('Lütfen bir meslek/kategori seçin.');
@@ -292,37 +299,12 @@ class _CreateJobScreenState extends ConsumerState<CreateJobScreen> {
                       value: _category,
                       onChanged: (c) => setState(() => _category = c),
                     ),
+                    // B-10: Örnek çipleri KATEGORİNİN HEMEN ALTINDA durur.
+                    // Eskiden araya uzun bilgi bloğu giriyordu ve çipler
+                    // ekranın altında kalıyordu — oysa asıl eylem bunlar,
+                    // açıklama ikincil. Bilgi bloğu sona alındı.
                     if (_category == kQuickSupportCategory) ...[
                       const SizedBox(height: 10),
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: context.palette.warningSurface,
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Icon(
-                              Icons.bolt,
-                              color: context.palette.warning,
-                              size: 20,
-                            ),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: Text(
-                                '$kQuickSupportName: market, taşıma, kısa gidiş '
-                                'gibi uzmanlık gerektirmeyen kısa işler. İlanınız '
-                                'İLİNİZDEKİ tüm $kQuickSupportName ustalarına '
-                                'gider; ilçenizdekiler önce görür.',
-                                style: Theme.of(context).textTheme.bodySmall
-                                    ?.copyWith(fontWeight: FontWeight.w600),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 12),
                       Text(
                         'Hızlı örnek seç (başlık + açıklama dolar)',
                         style: Theme.of(context).textTheme.labelLarge?.copyWith(
@@ -350,6 +332,35 @@ class _CreateJobScreenState extends ConsumerState<CreateJobScreen> {
                               },
                             ),
                         ],
+                      ),
+                      const SizedBox(height: 12),
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: context.palette.warningSurface,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Icon(
+                              Icons.bolt,
+                              color: context.palette.warning,
+                              size: 20,
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                '$kQuickSupportName: market, taşıma, kısa gidiş '
+                                'gibi uzmanlık gerektirmeyen kısa işler. İlanınız '
+                                'İLİNİZDEKİ tüm $kQuickSupportName ustalarına '
+                                'gider; ilçenizdekiler önce görür.',
+                                style: Theme.of(context).textTheme.bodySmall
+                                    ?.copyWith(fontWeight: FontWeight.w600),
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ],
                   ],
@@ -670,6 +681,10 @@ class _LocationPicker extends ConsumerWidget {
                   prefixIcon: Icons.location_city_outlined,
                   equals: (a, b) => a.id == b.id,
                   onSelected: (d) => onDistrict(d),
+                  // B-09: İl seçildi ama ilçe boş → sıradaki adım burası.
+                  // Sheet'i kendiliğinden AÇMIYORUZ (kullanıcıyı şaşırtır);
+                  // alanı vurgulayıp yönlendirmek yeterli.
+                  highlight: district == null,
                 ),
               ),
       ],

@@ -309,7 +309,8 @@ class _EditFormState extends ConsumerState<_EditForm> {
     if (ok) {
       context.showSuccess('Profiliniz kaydedildi.');
     } else {
-      context.showError('Kaydetme başarısız, tekrar deneyin.');
+      // B-04: sabit metin yerine GERÇEK sebep — permission-denied mi, ağ mı?
+      context.showError(_controller.saveErrorTR);
     }
   }
 
@@ -457,8 +458,11 @@ class _EditFormState extends ConsumerState<_EditForm> {
                   onToggle: (code) {
                     final cur = profile.professionCodes;
                     final adding = !cur.contains(code);
+                    // B-03: Hemen Lazım limite dahil değil — sayaç da onu
+                    // elemişti (`_ProfessionMultiSelect`), kontrol elemiyordu.
                     if (adding &&
-                        cur.length >= MyProfileController.maxProfessions) {
+                        MyProfileController.realProfessionCount(cur) >=
+                            MyProfileController.maxProfessions) {
                       context.showError(
                         'En fazla ${MyProfileController.maxProfessions} meslek seçebilirsiniz.',
                       );

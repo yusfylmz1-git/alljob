@@ -38,16 +38,16 @@ Faydalı olursa ekleyin: hangi hesap, ekran görüntüsü, hata mesajının ayn�
 
 | # | Adım | Ne oldu | Öncelik | Durum |
 |---|---|---|---|---|
-| B-02 | 3.1.5 | Fotoğraf yüklenirken **Kaydet'e basınca beklemiyor** — o foto ilana hiç girmiyor, sessiz veri kaybı | 🟠 P1 | 🔧 **düzeltilecek** |
-| B-03 | 2.x | Meslek limiti: Hemen Lazım açıkken **5. meslek seçilemiyor** (sayaç "4/5" derken reddediyor) | 🟠 P1 | 🔧 **düzeltilecek** |
-| B-04 | 2.x | Profil kaydetme başarısız — **sebep yazmıyor**, genel mesaj. Gerçek neden teşhis edilemiyor | 🟠 P1 | 🔧 **düzeltilecek** |
-| B-05 | 2.x | Profilde "tekrar düzenle" → **ekran donuyor**. B-04'ün devamı olabilir | 🟠 P1 | ⏸️ **B-04'ten sonra** |
+| B-02 | 3.1.5 | Fotoğraf yüklenirken **Kaydet'e basınca beklemiyor** — sessiz veri kaybı | 🟠 P1 | ✅ **düzeltildi** |
+| B-03 | 2.x | Meslek limiti: Hemen Lazım açıkken **5. meslek seçilemiyor** | 🟠 P1 | ✅ **düzeltildi** |
+| B-04 | 2.x | Profil kaydetme başarısız — **sebep yazmıyor** | 🟠 P1 | ✅ **düzeltildi** (gerçek sebep gösteriliyor) |
+| B-05 | 2.x | Profilde "tekrar düzenle" → **ekran donuyor** | 🟠 P1 | ✅ **düzeltildi** (AsyncError'a düşmüyor) |
 | B-06 | 3.1.5 | İlan fotoğrafı **çoklu seçilemiyor** — tek tek eklemek gerekiyor (limit 8) | 🟠 P1 | 🔧 **düzeltilecek** |
 | B-07 | 3.5.1 | İlan düzenlemede **yalnız başlık + açıklama** var; fotoğraf/konum/kategori düzenlenemiyor | 🟠 P1 | 🔧 **düzeltilecek** |
-| B-08 | 2.x/3.1 | **Kaydet / İlanı yayınla düğmeleri alt menünün altında kalıyor** (bazı telefonlarda erişilemez) | 🟠 P1 | 🔧 **düzeltilecek** |
-| B-09 | 3.1.4 | İl seçince **ekran yukarı kayıyor**; ilçeye odaklanmıyor, klavye kapanmıyor | 🟡 P2 | 🔧 **düzeltilecek** |
-| B-10 | 3.2.1 | Hemen Lazım'da **otomatik doldurma örnekleri çok aşağıda** — kategori kutusunun hemen altında olmalı | 🟡 P2 | 🔧 **düzeltilecek** |
-| B-11 | 3.6.1 | İlan iptal nedenlerinde **"günlük hakkım bitti" gereksiz** — hakkı yoksa zaten ilan açamıyor | 🟡 P2 | 🔧 **düzeltilecek** |
+| B-08 | 2.x/3.1 | **Kaydet düğmesi alt menünün altında kalıyor** | 🟠 P1 | ✅ **düzeltildi** (profil ekranı alt boşluk) |
+| B-09 | 3.1.4 | İl seçince **ekran yukarı kayıyor**, klavye kapanmıyor | 🟡 P2 | ✅ **düzeltildi** |
+| B-10 | 3.2.1 | Hemen Lazım'da **örnekler çok aşağıda** | 🟡 P2 | ✅ **düzeltildi** (kategorinin hemen altına alındı) |
+| B-11 | 3.6.1 | İlan iptal nedenlerinde **"günlük hakkım bitti" gereksiz** | 🟡 P2 | ✅ **düzeltildi** |
 | B-12 | 4.2.5 / 4.5 | **Telefona sistem push'u hiç gelmiyor** — uygulama içi bildirimler çalışıyor | 🔴 P0 | ⏸️ **2. cihaz gerek** (B-15 çözmüş olabilir) |
 | B-13 | 5.1 | **Müşteri "Mesaj Gönder"e basınca sohbet açılmıyor** — *"Sohbet açılamadı"*. Akış tam burada kırılıyor | 🔴 P0 | ✅ **düzeltildi + cihazda doğrulandı** |
 | B-14 | 4.2.5 | Yeni bildirim geldiğinde **zil rozeti (kırmızı) görünmüyor** — bildirime girince mesaj orada | 🟠 P1 | 🔬 **teşhis gerek** |
@@ -925,6 +925,14 @@ kapı onu delik bırakır.
 | B-15 | 1.x | Hesap değiştirirken `permission-denied`, program durdu | `_stripPublicToken` → `arrayRemove` yerine `delete()` (anahtar kalmamalı) + 3 regresyon testi | `9f020e9` |
 | B-13 | 5.1 | Müşteri "Mesaj Gönder" → *"Sohbet açılamadı"*; tüm mesajlaşma akışı bloke | `_openChat`'e eksik `ensureEmailVerified` kapısı + `catch` sebebi ayırıyor | `9f020e9` |
 | B-17 | 1.x | Hesap değişiminde **ANR + çökme** — çıkış zinciri süre sınırsız 4 ağ çağrısı bekliyordu | `unregisterFor`'a 4 sn timeout (aşılırsa çıkışa devam) + 2 stream'e `handleError` | `c21c2f2` |
+| B-02 | 3.1.5 | Foto yüklenirken kaydet → foto sessizce kayboluyordu | `_submit()` başına `_uploadingPhoto` kontrolü + uyarı | `4054623` |
+| B-03 | 2.x | Hemen Lazım açıkken 5. meslek seçilemiyordu | `isRealProfession`/`realProfessionCount` — limit sayımı Hemen Lazım'ı eler (3 yerde) | `4054623` |
+| B-04 | 2.x | Kaydetme hatası sebep vermiyordu | `_lastSaveError` + `saveErrorTR` — permission-denied / ağ ayrımı | `4054623` |
+| B-05 | 2.x | Profil düzenlemede donma | `save()` hatada `AsyncError`'a düşmüyor, taslağı koruyor | `4054623` |
+| B-08 | 2.1 | Kaydet düğmesi alt barın altında kalıyordu | `profile_screen` ListView'e `bottom: 96` padding | `4054623` |
+| B-09 | 3.1.4 | İl seçince ekran kayıyor, klavye kapanmıyor | `SearchableSelectField._open` → `unfocus()` + sıradaki alana `highlight` | `4054623` |
+| B-10 | 3.2.1 | Hemen Lazım örnekleri çok aşağıdaydı | Çipler kategorinin hemen altına, bilgi bloğu sona | `4054623` |
+| B-11 | 3.6.1 | İptal nedenlerinde "günlük hakkım bitti" | `rateLimited` listeden elendi (enum'da KALIR — veri göçü) | `4054623` |
 
 ### B-01 · Giriş ekranında donanım geri tuşu
 

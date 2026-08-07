@@ -62,7 +62,11 @@ class _Body extends ConsumerWidget {
         : null;
 
     return ListView(
-      padding: EdgeInsets.zero,
+      // B-08: Alt bar (`MainBottomBar`) YÜZEN bir çubuk — gövdenin üstünü
+      // kapatır. `EdgeInsets.zero` ile son öğeler (Kaydet vb.) barın altında
+      // kalıyordu; bazı telefonlarda hiç erişilemiyordu. Bar yüksekliği
+      // 68 + dikey padding 16 = ~84; güvenli pay bırakılır.
+      padding: const EdgeInsets.only(bottom: 96),
       children: [
         _Hero(user: user, draft: draft, artisanMode: artisanMode),
         ResponsiveCenter(

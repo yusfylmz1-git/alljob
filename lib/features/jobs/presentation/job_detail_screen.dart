@@ -1557,12 +1557,16 @@ Future<void> _cancelJob(BuildContext context, WidgetRef ref, Job job) async {
             child: Text('İlanı neden iptal ediyorsunuz?',
                 style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
           ),
+          // B-11: `rateLimited` YALNIZ CF'in yazdığı bir sebeptir (günlük
+          // ilan hakkı dolunca sunucu iptal eder). Kullanıcıya seçenek olarak
+          // sunmak anlamsızdı — hakkı dolmuşsa zaten ilan açamıyor.
           for (final r in JobCancelReason.values)
-            ListTile(
-              leading: const Icon(Icons.chevron_right),
-              title: Text(r.labelTR),
-              onTap: () => Navigator.pop(ctx, r),
-            ),
+            if (r != JobCancelReason.rateLimited)
+              ListTile(
+                leading: const Icon(Icons.chevron_right),
+                title: Text(r.labelTR),
+                onTap: () => Navigator.pop(ctx, r),
+              ),
           const SizedBox(height: 8),
         ],
       ),

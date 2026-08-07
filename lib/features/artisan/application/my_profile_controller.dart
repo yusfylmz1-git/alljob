@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/utils/validators.dart';
@@ -85,13 +86,27 @@ class MyProfileController extends AsyncNotifier<MyProfileDraft> {
   /// Çoklu meslek (max 5). Birincil = listenin ilki.
   static const int maxProfessions = 5;
 
+  /// B-03: Hemen Lazım (`kOtherProfession`) depoda `professions` dizisinde
+  /// tutulur ama **meslek değildir** — ayrı bir hizmet tercihidir. Limit
+  /// sayımında ve kesmede ELENMELİDİR, yoksa 4 meslek + Hemen Lazım = 5
+  /// olur ve kullanıcı 5. mesleğini seçemez (sayaç "4/5" derken reddedilir).
+  static bool isRealProfession(String code) =>
+      code != kOtherProfession && code != kQuickSupportCategory;
+
+  /// [codes] içindeki gerçek meslek sayısı (Hemen Lazım hariç).
+  static int realProfessionCount(Iterable<String> codes) =>
+      codes.where(isRealProfession).length;
+
   void setProfessions(List<String> codes) {
-    final cleaned = codes
+    final all = codes
         .map((c) => c.trim())
         .where((c) => c.isNotEmpty)
         .toSet()
-        .take(maxProfessions)
         .toList();
+    // Kesme YALNIZ gerçek mesleklere uygulanır; Hemen Lazım korunur.
+    final real = all.where(isRealProfession).take(maxProfessions);
+    final extras = all.where((c) => !isRealProfession(c));
+    final cleaned = [...real, ...extras];
     _update((d) => d.copyWith(
           profile: d.profile.copyWith(
             professions: cleaned,
@@ -105,7 +120,8 @@ class MyProfileController extends AsyncNotifier<MyProfileDraft> {
     if (cur.contains(code)) {
       cur.remove(code);
     } else {
-      if (cur.length >= maxProfessions) return;
+      // Hemen Lazım limite dahil DEĞİL (bkz. isRealProfession).
+      if (realProfessionCount(cur) >= maxProfessions) return;
       cur.add(code);
     }
     setProfessions(cur);
@@ -310,6 +326,30 @@ class MyProfileController extends AsyncNotifier<MyProfileDraft> {
   // premium özellikleri `hasPremiumAccess` ile herkese açık; gerçek satın
   // alma (Play Billing + sunucu doğrulaması) geldiğinde alanları CF yazacak.
 
+  /// Son kaydetme hatası (B-04). `save()` false dönerse UI buradan gerçek
+  /// sebebi okur — eskiden hata `AsyncValue.guard` içinde yutuluyor ve
+  /// kullanıcıya sabit "Kaydetme başarısız" yazılıyordu; neden kaydedilemediği
+  /// hiçbir yere düşmüyordu.
+  String? _lastSaveError;
+
+  /// Kullanıcıya gösterilecek kaydetme hatası — sebebi ayırt eder.
+  String get saveErrorTR {
+    final e = _lastSaveError ?? '';
+    if (e.contains('permission-denied') || e.contains('PERMISSION_DENIED')) {
+      return 'Profil kaydedilemedi: sunucu reddetti. Hizmet bölgeleriniz ve '
+          'sosyal medya alanlarınızı kontrol edin.';
+    }
+    if (e.contains('unavailable') ||
+        e.contains('deadline') ||
+        e.contains('network') ||
+        e.contains('Timeout')) {
+      return 'Profil kaydedilemedi: bağlantı sorunu. İnternetinizi kontrol '
+          'edip tekrar deneyin.';
+    }
+    if (e.isEmpty) return 'Profil kaydedilemedi, tekrar deneyin.';
+    return 'Profil kaydedilemedi: $e';
+  }
+
   /// Taslağı kalıcı hale getirir. Başarılıysa true döner.
   Future<bool> save() async {
     final current = state.valueOrNull;
@@ -324,6 +364,7 @@ class MyProfileController extends AsyncNotifier<MyProfileDraft> {
     );
     final sanitized = current.copyWith(displayName: name, profile: profile);
 
+    _lastSaveError = null;
     state = const AsyncLoading<MyProfileDraft>().copyWithPrevious(state);
     final result = await AsyncValue.guard(() async {
       await ref.read(myProfileRepositoryProvider).saveMyProfile(
@@ -338,8 +379,19 @@ class MyProfileController extends AsyncNotifier<MyProfileDraft> {
           );
       return sanitized;
     });
+
+    if (result.hasError) {
+      _lastSaveError = result.error.toString();
+      debugPrint('[profil] kaydetme hatası: $_lastSaveError');
+      // B-05: HATA DURUMUNA GEÇME. `state = result` yazılsaydı provider
+      // AsyncError'a düşer, `valueOrNull` null olur ve düzenleme ekranı
+      // `SizedBox.shrink()` çizerdi — kullanıcı "ekran donuyor" diye
+      // bildirmişti. Taslak korunur, kullanıcı düzeltip tekrar deneyebilir.
+      state = AsyncData(sanitized);
+      return false;
+    }
     state = result;
-    return !result.hasError;
+    return true;
   }
 }
 

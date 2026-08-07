@@ -34,6 +34,7 @@ class SearchableSelectField<T> extends StatelessWidget {
     this.allowClear = false,
     this.clearLabel = 'Tümü',
     this.onClear,
+    this.highlight = false,
   });
 
   final String label;
@@ -55,9 +56,17 @@ class SearchableSelectField<T> extends StatelessWidget {
   final String clearLabel;
   final VoidCallback? onClear;
 
+  /// Sıradaki adım bu alan mı? true ise kenarlık vurgulanır — kullanıcı
+  /// nereye dokunacağını arar (B-09: "il seçtim, sonra ne olacak?").
+  final bool highlight;
+
   Future<void> _open(BuildContext context) async {
     if (!enabled) return;
     if (items.isEmpty && !allowClear) return;
+    // B-09: Başka bir alanda klavye açıkken bu sheet açılırsa klavye açık
+    // kalır ve gövde yukarı kayar ("il seçince ekran yukarı kayıyor").
+    // Seçim alanı metin girişi değil — odağı bırak.
+    FocusManager.instance.primaryFocus?.unfocus();
     final outcome = await showModalBottomSheet<_SelectOutcome<T>>(
       context: context,
       isScrollControlled: true,
@@ -102,12 +111,24 @@ class SearchableSelectField<T> extends StatelessWidget {
         decoration: InputDecoration(
           labelText: label,
           floatingLabelBehavior: FloatingLabelBehavior.always,
-          prefixIcon: prefixIcon == null ? null : Icon(prefixIcon),
+          prefixIcon: prefixIcon == null
+              ? null
+              : Icon(prefixIcon, color: highlight ? palette.primary : null),
           suffixIcon: Icon(
             Icons.expand_more_rounded,
-            color: enabled ? palette.inkMuted : palette.inkFaint,
+            color: highlight
+                ? palette.primary
+                : (enabled ? palette.inkMuted : palette.inkFaint),
           ),
           enabled: enabled,
+          // Sıradaki adımsa kenarlık vurgulanır (B-09).
+          enabledBorder: highlight
+              ? OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide:
+                      BorderSide(color: palette.primary, width: 1.6),
+                )
+              : null,
           contentPadding:
               const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
         ),
