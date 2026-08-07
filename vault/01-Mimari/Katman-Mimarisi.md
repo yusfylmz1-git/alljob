@@ -76,7 +76,6 @@ Tek ekranın kullandığı basit mantık `presentation` içinde kalabilir.
 | admin | 36 | products | 10 |
 | jobs | 21 | home | 8 |
 | tracking | 21 | safety | 7 |
-| toolkit | 19 | customer | 6 |
 | staffing | 17 | favorites | 6 |
 | auth | 15 | chat | 5 |
 | artisan | 11 | membership | 5 |

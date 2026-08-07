@@ -50,10 +50,13 @@ makinesi ayrı, moderasyon var.
 İki taraf: iş arayan (`staffWorkers`) ve eleman arayan (`staffNeeds`).
 Pazaryerinden bağımsız akış.
 
-### `toolkit` (19 dosya) — usta çantası
-Hesap makineleri: alan, boya, fayans, maliyet, kâr, teklif, birim çevirici,
-süre. Ayrıca AR ölçüm (`ar_screen.dart`) ve ölçüm akışı.
-**Tamamen istemci tarafı** — repository yok.
+### ~~`toolkit` — usta çantası~~ · KALDIRILDI (2026-08-07)
+Hesap makineleri (alan, boya, fayans, maliyet, kâr, teklif, birim, süre),
+AR ölçüm ve PDF teklif üretimi içeriyordu — 19 dosya / 3.537 satır.
+**Üründen tamamen çıkarıldı** (kullanıcı kararı): rotalar, ekranlar, testler
+ve `ar_flutter_plugin_plus` · `vector_math` · `share_plus` · `pdf` ·
+`printing` bağımlılıkları silindi. Ana Sayfa'daki "Usta Araçları" bölümü ve
+SSS kategorisi de kalktı.
 
 ### `tracking` (21 dosya) — takip merkezi
 Kişisel iş/hatırlatma takibi. **Yerel SQLite** (`sqflite`), buluta yedekleme

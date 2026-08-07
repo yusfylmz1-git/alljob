@@ -82,7 +82,6 @@ değerlendirilir. Sıra bir davranış sözleşmesidir:
 | Ürünler | `/products`, `/new`, `/mine`, `/:id`, `/:id/edit` |
 | Eleman | `/staffing`, `/me`, `/needs/new`, `/needs/mine`, `/workers`, `/workers/:id`, `/needs` |
 | Takip | `/tracking`, `/new`, `/trash`, `/backup`, `/:id`, `/:id/edit` |
-| Usta çantası | `/toolkit` + area · paint · tile · cost · profit · quote · units · duration · ar · measure |
 | Yasal / yardım | `/legal`, `/legal/:id`, `/help` |
 
 ## Yeni rota eklerken

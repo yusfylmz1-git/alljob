@@ -15,7 +15,6 @@ flutter analyze                 # önce bu
 |---|---|---|
 | `admin_test.dart` | 54 | Yetenek sistemi, moderasyon, denetim |
 | `jobs_test.dart` | 48 | **İş akışı, sohbet kimliği, seçim, değerlendirme** |
-| `toolkit_test.dart` | 39 | Hesap makineleri (saf fonksiyon) |
 | `tracking_test.dart` | 28 | Takip merkezi, tekrarlama, yedekleme |
 | `artisan_search_test.dart` | 14 | Arama ve filtre |
 | `chat_list_test.dart` | 12 | Sohbet listesi |
@@ -33,7 +32,7 @@ Ortak yardımcı: `test/helpers/mock_backend.dart`
 - Model serileştirme roundtrip (`toMap`/`fromMap`)
 - Sayaç tutarlılığı (`offerCount` artar/azalır)
 - Geriye uyumluluk (eksik alan → varsayılan)
-- Saf hesaplama (toolkit, tarih hesapları, sürüm karşılaştırma)
+- Saf hesaplama (tarih hesapları, sürüm karşılaştırma)
 - Admin yetenek mantığı
 
 ⚠️ **Kapsanmayan — bilinçli**

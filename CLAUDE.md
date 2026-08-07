@@ -61,7 +61,7 @@ Bunlar sık gereken yollar. Grep/Glob turu açmadan önce bu tabloya bak.
 
 **Modül → klasör:** admin · artisan · auth · chat · customer · favorites · help ·
 home · jobs · legal · membership · notifications · onboarding · products ·
-profile · review · safety · staffing · storage · toolkit · tracking
+profile · review · safety · staffing · storage · tracking
 → hepsi `lib/features/<ad>/{data,application,presentation}/`
 
 ## 💰 Token tasarrufu — çalışma biçimi

@@ -58,6 +58,7 @@ Faydalı olursa ekleyin: hangi hesap, ekran görüntüsü, hata mesajının ayn�
 | B-17 | 1.x | Hesap değişiminde **ANR ("yanıt vermiyor") + çökme** — süre sınırsız çıkış zinciri | 🔴 P0 | ✅ **düzeltildi + cihazda doğrulandı** |
 | K-05 | 2.x | Usta hesabı ilk açılışta **Hemen Lazım varsayılan açık** gelsin | 🟡 P2 | 🤔 **karar bekliyor** |
 | K-08 | 5.7 | **Mesajlar listesine sekme** (İlan · Genel) — varsayılan İlan, genelde okunmamış varsa o öne | 🟡 P2 | ✅ **karar verildi** → uygulanacak |
+| K-12 | — | **Usta Çantası (toolkit) üründen kaldırılsın** | — | ✅ **uygulandı** (`527c565`) |
 | K-09 | 5.5 | Sohbet **görünümü WhatsApp/Instagram havası vermiyor** — işlevler çalışıyor, cila eksik | 🟡 P2 | 🤔 **kapsam belirsiz** |
 | K-11 | 5.x | **Müstehcen içerik/argo** — küfür listesi yapılacak; NSFW taraması **ertelendi** | 🟠 P1 | ✅ **karar verildi** (Faz 1 + 3) |
 | K-10 | 5.6 | **Maskeleme kaldırıldı** — sohbette telefon/e-posta serbest | — | ✅ **uygulandı** (ADR-10 geri alındı) |
