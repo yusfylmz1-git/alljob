@@ -219,27 +219,42 @@ class _ProfileBody extends ConsumerWidget {
                         title: profile.hasApprovedCertificates
                             ? 'Sertifikalar ve belgeler · onaylı'
                             : 'Sertifikalar ve belgeler',
+                        // Instagram "Öne Çıkanlar" dili: dairesel, halkalı.
+                        // Onaylı belgelerde halka vurgulu (yeşil), aksi hâlde
+                        // nötr — "onaylı" iddiası görsel olarak da ayrışır.
                         child: SizedBox(
-                          height: 100,
+                          height: 92,
                           child: ListView.separated(
                             scrollDirection: Axis.horizontal,
                             itemCount: profile.certificates.length,
                             separatorBuilder: (_, _) =>
-                                const SizedBox(width: 8),
+                                const SizedBox(width: 12),
                             itemBuilder: (context, i) => GestureDetector(
                               onTap: () => _showCertificate(
                                 context,
                                 profile.certificates[i],
                               ),
-                              child: ClipRRect(
-                                borderRadius: BorderRadius.circular(12),
-                                child: SizedBox(
-                                  width: 100,
-                                  height: 100,
-                                  child: AppImage(
-                                    handle: profile.certificates[i],
-                                    memCacheWidth: 200,
-                                    memCacheHeight: 200,
+                              child: Container(
+                                padding: const EdgeInsets.all(2.5),
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  border: Border.all(
+                                    color: profile.hasApprovedCertificates
+                                        ? palette.success
+                                        : palette.borderStrong,
+                                    width: 2,
+                                  ),
+                                ),
+                                child: ClipOval(
+                                  child: SizedBox(
+                                    width: 76,
+                                    height: 76,
+                                    child: AppImage(
+                                      handle: profile.certificates[i],
+                                      fit: BoxFit.cover,
+                                      memCacheWidth: 200,
+                                      memCacheHeight: 200,
+                                    ),
                                   ),
                                 ),
                               ),
@@ -441,23 +456,22 @@ class _WorkPhotoGrid extends StatelessWidget {
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
       itemCount: handles.length,
+      // Instagram ızgarası: 2 px aralık, köşe yuvarlaması YOK — kareler
+      // birbirine bitişik durur, akış kesintisiz görünür.
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 3,
-        mainAxisSpacing: 4,
-        crossAxisSpacing: 4,
+        mainAxisSpacing: 2,
+        crossAxisSpacing: 2,
       ),
       itemBuilder: (context, i) {
         final h = handles[i];
         return GestureDetector(
           onTap: () => _showCertificate(context, h),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(8),
-            child: AppImage(
-              handle: h,
-              fit: BoxFit.cover,
-              memCacheWidth: 320,
-              memCacheHeight: 320,
-            ),
+          child: AppImage(
+            handle: h,
+            fit: BoxFit.cover,
+            memCacheWidth: 320,
+            memCacheHeight: 320,
           ),
         );
       },

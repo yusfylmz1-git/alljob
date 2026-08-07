@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../../core/constants/app_constants.dart';
+import '../../../core/router/route_paths.dart';
 import '../../../core/theme/app_palette.dart';
 import '../../../core/utils/snackbar_helper.dart';
 import '../../../core/utils/validators.dart';
@@ -290,11 +292,7 @@ class _AccountProfileEditScreenState
               ),
               const SizedBox(height: 8),
               Text(
-                user.hasArtisanProfile
-                    ? 'Bu ad ve fotoğraf hesabınızda ve sohbetlerde görünür. '
-                        'Dükkân (meslek, bölge, takvim) için Usta dükkânı → '
-                        'Vitrin düzenle kullanın.'
-                    : 'Bu ad ve fotoğraf ilanlarınızda ve sohbetlerde görünür.',
+                'Bu ad ve fotoğraf ilanlarınızda ve sohbetlerde görünür.',
                 style: theme.textTheme.bodySmall?.copyWith(
                   color: theme.colorScheme.onSurfaceVariant,
                 ),
@@ -311,6 +309,72 @@ class _AccountProfileEditScreenState
                       )
                     : const Text('Kaydet'),
               ),
+
+              // Usta modu AÇIKSA vitrin ayarları da buradan açılır: kullanıcı
+              // "Profili Düzenle" dedi mi her şeyi tek yerde bulmalı. Ayrı
+              // menü yolu aramak zorunda kalmasın (ortak profil fikri).
+              //
+              // Formlar BİRLEŞTİRİLMEDİ: vitrin formu 1600 satır ve kendi
+              // controller/kaydetme akışı var; tek forma katmak iki kaydetme
+              // yolunu birbirine bağlar. Bunun yerine tek GİRİŞ NOKTASI.
+              if (user.isArtisan) ...[
+                const SizedBox(height: 28),
+                Divider(color: palette.hairline),
+                const SizedBox(height: 12),
+                Text('USTA VİTRİNİ', style: theme.textTheme.labelSmall?.copyWith(
+                  color: palette.inkMuted,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0.6,
+                )),
+                const SizedBox(height: 10),
+                Material(
+                  color: palette.card,
+                  borderRadius: BorderRadius.circular(14),
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(14),
+                    onTap: () => context.push(RoutePaths.panelEdit),
+                    child: Padding(
+                      padding: const EdgeInsets.all(14),
+                      child: Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(9),
+                            decoration: BoxDecoration(
+                              color: palette.primaryContainer,
+                              borderRadius: BorderRadius.circular(11),
+                            ),
+                            child: Icon(Icons.storefront_outlined,
+                                color: palette.primary, size: 20),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Vitrini düzenle',
+                                  style: theme.textTheme.titleSmall
+                                      ?.copyWith(fontWeight: FontWeight.w700),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  'Meslek, bölge, hakkımda, iş fotoğrafları, '
+                                  'çalışma saatleri',
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                    color: palette.inkMuted,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Icon(Icons.chevron_right_rounded,
+                              color: palette.inkMuted),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ],
           ),
         ),
