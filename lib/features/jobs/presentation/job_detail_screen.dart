@@ -361,15 +361,30 @@ class _OwnerOffersSection extends ConsumerWidget {
   }
 
   Future<void> _openChat(BuildContext context, WidgetRef ref, Offer offer) async {
+    // Sunucu da zorlar (chats create + isEmailVerified, firestore.rules).
+    // Kapı olmadan doğrudan yazılırsa kural reddeder ve kullanıcı doğrulama
+    // akışına HİÇ yönlendirilmez — usta tarafındaki (`_sendInterest`) desenin
+    // aynısı burada da uygulanır.
+    final emailOk = await ensureEmailVerified(
+      context,
+      ref,
+      actionLabel: 'ustaya mesaj göndermek',
+    );
+    if (!emailOk || !context.mounted) return;
     try {
       final chatId = await _chatIdFor(ref, offer);
       if (!context.mounted) return;
       context.push(RoutePaths.chatThread(chatId));
-    } catch (_) {
-      if (context.mounted) {
-        context.showError(
-            'Sohbet açılamadı. E-posta doğrulamanızı kontrol edip tekrar deneyin.');
-      }
+    } catch (e) {
+      if (!context.mounted) return;
+      // Sebebi ayır: e-posta kapısı yukarıda geçtiyse ret başka bir kural
+      // şartından gelir (üyelik/chatId biçimi) — o durumda "e-postanızı
+      // kontrol edin" demek yanıltıcı olur.
+      final denied = e.toString().contains('permission-denied');
+      context.showError(denied
+          ? 'Sohbet açma izniniz yok. Hesabınız askıya alınmış olabilir.'
+          : 'Sohbet açılamadı, tekrar deneyin.');
+      debugPrint('[chat] startChat hatası: $e');
     }
   }
 

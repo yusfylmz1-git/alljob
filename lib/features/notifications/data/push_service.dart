@@ -145,7 +145,7 @@ class PushService {
           'fcmTokens': FieldValue.arrayRemove([token]),
         }, SetOptions(merge: true));
         // Legacy public alandan da düş (eski kurulumlar).
-        await _stripPublicToken(uid, token);
+        await _stripPublicToken(uid);
       }
       await _messaging.deleteToken();
     } catch (e) {
@@ -169,20 +169,32 @@ class PushService {
       'updatedAt': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
     // Public dökümandaki eski fcmTokens/email sızıntısını temizle (H2).
-    await _stripPublicPii(uid, token);
+    await _stripPublicPii(uid);
   }
 
-  Future<void> _stripPublicToken(String uid, String token) async {
+  /// Public dökümandaki legacy `fcmTokens` alanını TAMAMEN kaldırır.
+  ///
+  /// DİKKAT — `arrayRemove` KULLANILAMAZ: kural (H2, `notSettingPublicPii`)
+  /// bu alan için yalnız SİLMEYE izin verir; yazım sonrası anahtar hiç
+  /// kalmamalıdır. `arrayRemove` alanı boş diziye indirir ama anahtar durur
+  /// (`'fcmTokens' in request.resource.data` hâlâ true) → permission-denied.
+  /// Zaten amaç tek token'ı çıkarmak değil, alanı public dökümandan silmek.
+  Future<void> _stripPublicToken(String uid) async {
     try {
       await _db.collection('users').doc(uid).set({
-        'fcmTokens': FieldValue.arrayRemove([token]),
+        'fcmTokens': FieldValue.delete(),
       }, SetOptions(merge: true));
     } catch (_) {
       /* kural veya alan yok — yok say */
     }
   }
 
-  Future<void> _stripPublicPii(String uid, String token) async {
+  /// H2 temizliği: public dökümandan `email` + `fcmTokens` sızıntısını siler.
+  ///
+  /// Başarısız olursa yalnız `fcmTokens` ile bir kez daha denenir (eski
+  /// kurallarda `email` silme reddedilebiliyordu); private push yazımı bu
+  /// temizlikten bağımsız olarak zaten tamamlanmıştır.
+  Future<void> _stripPublicPii(String uid) async {
     try {
       await _db.collection('users').doc(uid).set({
         'email': FieldValue.delete(),
@@ -190,7 +202,7 @@ class PushService {
       }, SetOptions(merge: true));
     } catch (_) {
       // Eski kurallar / yok alan — private push yine yazıldı.
-      await _stripPublicToken(uid, token);
+      await _stripPublicToken(uid);
     }
   }
 

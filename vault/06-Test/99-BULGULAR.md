@@ -49,9 +49,9 @@ Faydalı olursa ekleyin: hangi hesap, ekran görüntüsü, hata mesajının ayn�
 | B-10 | 3.2.1 | Hemen Lazım'da **otomatik doldurma örnekleri çok aşağıda** — kategori kutusunun hemen altında olmalı | 🟡 P2 | 🔧 **düzeltilecek** |
 | B-11 | 3.6.1 | İlan iptal nedenlerinde **"günlük hakkım bitti" gereksiz** — hakkı yoksa zaten ilan açamıyor | 🟡 P2 | 🔧 **düzeltilecek** |
 | B-12 | 4.2.5 / 4.5 | **Telefona sistem push'u hiç gelmiyor** — uygulama içi bildirimler çalışıyor | 🔴 P0 | 🔬 **teşhis gerek** |
-| B-13 | 5.1 | **Müşteri "Mesaj Gönder"e basınca sohbet açılmıyor** — *"Sohbet açılamadı"*. Akış tam burada kırılıyor | 🔴 P0 | 🔧 **düzeltilecek** |
+| B-13 | 5.1 | **Müşteri "Mesaj Gönder"e basınca sohbet açılmıyor** — *"Sohbet açılamadı"*. Akış tam burada kırılıyor | 🔴 P0 | ✅ **düzeltildi** (cihazda doğrulanacak) |
 | B-14 | 4.2.5 | Yeni bildirim geldiğinde **zil rozeti (kırmızı) görünmüyor** — bildirime girince mesaj orada | 🟠 P1 | 🔬 **teşhis gerek** |
-| B-15 | 1.x | **Hesap değiştirirken `permission-denied`** — program durduruldu. Public `users/{uid}` token temizliği kurala takılıyor | 🔴 P0 | 🔧 **düzeltilecek** |
+| B-15 | 1.x | **Hesap değiştirirken `permission-denied`** — program durduruldu. Public `users/{uid}` token temizliği kurala takılıyor | 🔴 P0 | ✅ **düzeltildi** (cihazda doğrulanacak) |
 | K-05 | 2.x | Usta hesabı ilk açılışta **Hemen Lazım varsayılan açık** gelsin | 🟡 P2 | 🤔 **karar bekliyor** |
 | K-06 | 2.1 | Profil başlığı **usta kartı gibi** olsun: foto solda, yanında isim + Takip Et, altında meslek/telefon | 🟡 P2 | 🤔 **K-02 ile birlikte** |
 | K-07 | 3.1.6 | Fiyat tipi ilan formunda yok — ~~bilinçli mi?~~ | — | ✅ **kapandı: bilinçli** |
@@ -97,14 +97,21 @@ request.resource.data` hâlâ **true** → kural reddeder.
 > `_lastError`'a yazar ama bazı yollar dışarı sızabilir). Cihazda hangi
 > adımda çıktığı (çıkarken mi, yeni hesap girerken mi) **kesinleştirilmeli**.
 
-#### Düzeltme
-`_stripPublicToken` da `FieldValue.delete()` kullanmalı — legacy alanın
+#### ✅ Düzeltme (yapıldı)
+`_stripPublicToken` artık `FieldValue.delete()` kullanıyor — legacy alanın
 tamamen kaldırılması zaten amaç (H2 temizliği); tek bir token'ı diziden
 çıkarmanın public dokümanda anlamı yok, orada hiç token durmamalı.
+Kullanılmayan `token` parametresi de düştü (`_stripPublicPii` dahil).
+
+**Regresyon testi:** `test/push_public_pii_test.dart` (3 test) — public
+`users` yazımlarında `arrayRemove` aranır, `_stripPublicToken`'ın `delete()`
+kullandığı doğrulanır, ayrıca kuralın hâlâ "anahtar kalmamalı" dediği
+kontrol edilir (kural gevşerse test düşer, gerekçe gözden geçirilir).
+Test eski kod geri konarak **kırıldığı doğrulandı** — gerçekten yakalıyor.
 
 **Not:** Bu, B-12'nin (push gelmiyor) kök nedeni de olabilir — `_saveToken`
 içinde `_stripPublicPii` patlarsa token yazımı yarıda kalır, `fcmTokens`
-private'a hiç yazılmayabilir. **B-15 → B-12 zinciri kontrol edilmeli.**
+private'a hiç yazılmayabilir. **B-15 → B-12 zinciri cihazda kontrol edilecek.**
 
 ### B-13 · Sohbet açılamıyor — 🔴 P0, KÖK NEDEN BULUNDU
 
@@ -135,20 +142,21 @@ akışı hiç açılmıyor.
 **Aynı dosyada iki farklı desen** olması bunun gözden kaçmış bir boşluk
 olduğunu gösteriyor; usta tarafı düzeltilirken müşteri tarafı unutulmuş.
 
-#### Düzeltme
+#### ✅ Düzeltme (yapıldı)
 `_openChat` içinde `startChat` çağrısından ÖNCE `ensureEmailVerified(context,
 ref, actionLabel: 'ustaya mesaj göndermek')` — usta tarafındaki (`:1736`)
-desenin aynısı.
+desenin aynısı. E-posta doğrulanmamışsa kullanıcı artık **doğrulama akışına
+yönlendiriliyor**, sessiz ret yok.
 
-**Ek:** `catch (_)` gerçek hatayı yutuyor (B-04 ile aynı desen). En azından
-`permission-denied` ile diğer hataları ayırmalı; başka bir kural şartı
-patlıyorsa (üyelik/ID biçimi) mesaj yanıltıcı olur.
+**`catch` de düzeltildi:** `permission-denied` diğer hatalardan ayrılıyor ve
+gerçek hata `debugPrint` ile loglanıyor. Kapı yukarıda geçtiği için artık
+"e-postanızı kontrol edin" demek yanıltıcı olurdu; askı/izin mesajı verilir.
 
-#### ⚠️ Doğrulama sorusu
+#### ⚠️ Cihazda doğrulanacak
 Kural listesindeki diğer şartlar da (`chatId` biçimi, `members` haritası,
-`participants`) reddedebilir. E-posta düzeltmesi sonrası hâlâ açılmıyorsa
-**gerçek hata koduna bakılmalı** — bu yüzden `catch` iyileştirmesi düzeltmenin
-parçası olmalı, sonraya bırakılmamalı.
+`participants`) reddedebilir. Sohbet hâlâ açılmıyorsa artık **gerçek hata
+logda görünür** — `flutter logs` veya `adb logcat` çıktısındaki
+`[chat] startChat hatası:` satırı sebebi söyler.
 
 ### B-14 · Bildirim zil rozeti görünmüyor — 🟠 P1
 
@@ -433,6 +441,8 @@ kapı onu delik bırakır.
 | # | Adım | Ne oldu | Nasıl çözüldü | Commit |
 |---|---|---|---|---|
 | B-01 | 1.2.5 | Misafir Mesajlar'a basıp giriş ekranına düşünce, **donanım geri tuşu uygulamayı küçültüyordu** (ana ekrana dönmesi gerekirdi) | `LoginScreen` + `PackageSelectScreen`'e `PopScope` | `fca9064` |
+| B-15 | 1.x | Hesap değiştirirken `permission-denied`, program durdu | `_stripPublicToken` → `arrayRemove` yerine `delete()` (anahtar kalmamalı) + 3 regresyon testi | `4e69b0a` |
+| B-13 | 5.1 | Müşteri "Mesaj Gönder" → *"Sohbet açılamadı"*; tüm mesajlaşma akışı bloke | `_openChat`'e eksik `ensureEmailVerified` kapısı + `catch` sebebi ayırıyor | `4e69b0a` |
 
 ### B-01 · Giriş ekranında donanım geri tuşu
 
