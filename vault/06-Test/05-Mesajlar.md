@@ -104,10 +104,11 @@
       **ilan başlıkları görünüyor** (B-19 düzeltmesi doğrulandı)
 - [ ] **5.7.2** **Okunmamış rozeti** doğru sayıyor → ⏸️ **2. cihaz** (B-14)
 - [ ] **5.7.3** Mesaj okuyunca rozet **düşüyor** → ⏸️ **2. cihaz**
-- [ ] **5.7.4** Sohbet **arşivleme** çalışıyor (kişisel)
+- [x] **5.7.4** Sohbet **arşivleme** çalışıyor (kişisel) ✅
 - [ ] **5.7.5** Arşivlenen sohbete yeni mesaj gelince **arşivden çıkıyor**
-- [ ] **5.7.6** ⚠️ Aynı çiftle **iki farklı ilan** varsa → **iki ayrı sohbet**
-      görünüyor (ilan bazlı mimari)
+      → ⏸️ **2. cihaz** (karşı taraftan mesaj gerekiyor)
+- [x] **5.7.6** ⚠️ Aynı çiftle **iki farklı ilan** → **iki ayrı sohbet**
+      görünüyor ✅ **İlan bazlı mimari doğrulandı.**
 
 > **K-08 güncellendi:** Kullanıcı sekme istiyor — *"genel mesajlar önce,
 > sonra ilan mesajları"*. Başlıklar göründükten sonra bile ayrım isteniyor.
