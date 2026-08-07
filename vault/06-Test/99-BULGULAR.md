@@ -50,7 +50,7 @@ Faydalı olursa ekleyin: hangi hesap, ekran görüntüsü, hata mesajının ayn�
 | B-11 | 3.6.1 | İlan iptal nedenlerinde **"günlük hakkım bitti" gereksiz** — hakkı yoksa zaten ilan açamıyor | 🟡 P2 | 🔧 **düzeltilecek** |
 | K-05 | 2.x | Usta hesabı ilk açılışta **Hemen Lazım varsayılan açık** gelsin | 🟡 P2 | 🤔 **karar bekliyor** |
 | K-06 | 2.1 | Profil başlığı **usta kartı gibi** olsun: foto solda, yanında isim + Takip Et, altında meslek/telefon | 🟡 P2 | 🤔 **K-02 ile birlikte** |
-| K-07 | 3.1.6 | **Fiyat tipi (Sabit bütçe / Keşif Gerekli) ilan formunda yok** — kodda `inspection` sabit. Bilinçli mi? | — | 🤔 **karar bekliyor** |
+| K-07 | 3.1.6 | Fiyat tipi ilan formunda yok — ~~bilinçli mi?~~ | — | ✅ **kapandı: bilinçli** |
 
 ### Oturum 2 bulguları — kök neden analizi
 
@@ -110,11 +110,18 @@ dene, gerçek sebeple B-04/B-05'i kapat.
 **İyi haber:** `firestore.rules` fotoğrafı yasaklamıyor — `photos` create
 allowlist'inde (`:630`), update'te içerik kilidi yok. İş yalnızca istemcide.
 
-#### K-07 · Fiyat tipi formda yok
-`create_job_screen.dart:154` → `priceType: JobPriceType.inspection` **sabit
-yazılmış**; her ilan "Keşif Gerekli" doğuyor. Bilinçli sadeleştirme gibi
-duruyor ama test planı 3.1.6 hâlâ iki seçenek bekliyor.
-**Karar gerek:** bütçe alanı geri gelsin mi, yoksa 3.1.6 plandan düşsün mü?
+#### K-07 · Fiyat tipi formda yok — ✅ KAPANDI (bilinçli tasarım)
+`create_job_screen.dart:154` → `priceType: JobPriceType.inspection` sabit;
+her ilan "Keşif Gerekli" doğuyor.
+
+**Karar (kullanıcı, oturum 2):** Fiyat seçeneği **bilerek kaldırılmıştı**,
+geri gelmeyecek. Hata değil. Test adımı **3.1.6 plandan düşürüldü**.
+
+> [!warning] Kod hâlâ iki seçeneği taşıyor
+> `JobPriceType` enum'ı ve `Job.budget` alanı duruyor; `updateJobContent`
+> imzasında da `budget` parametresi var (`job_repository.dart:96-101`).
+> Ölü kod değil — eski ilanlar bütçeli olabilir, `apiValue` göçü de riskli
+> (CLAUDE.md kural 6). **Dokunulmayacak**, yalnız form seçenek sunmuyor.
 
 ### K-04 · Liste giriş animasyonu (şelale) — PLAN
 

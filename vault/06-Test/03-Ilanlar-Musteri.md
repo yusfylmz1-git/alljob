@@ -13,8 +13,9 @@
 - [x] **3.1.4** **İl / ilçe / mahalle** seçimi çalışıyor — ⚠️ **B-09** (odak/klavye)
 - [x] **3.1.5** **Fotoğraf** eklenebiliyor — loading + büyütme ✅ ·
       ⚠️ **B-02** (yükleme beklenmiyor) · ⚠️ **B-06** (çoklu seçim yok)
-- [ ] **3.1.6** Fiyat tipi seçilebiliyor: **Sabit bütçe** / **Keşif Gerekli**
-  - ⚠️ **K-07** — formda hiç yok, kodda `inspection` sabit. Karar bekliyor.
+- ~~**3.1.6** Fiyat tipi seçilebiliyor: Sabit bütçe / Keşif Gerekli~~
+  - ✅ **K-07 kararı: adım düşürüldü.** Fiyat seçeneği bilerek kaldırılmıştı;
+    her ilan "Keşif Gerekli". Test edilecek bir şey yok.
 - [x] **3.1.7** **Süre** seçimi (1 / 3 / 7 gün)
 - [x] **3.1.8** Zorunlu alan boşken **kaydet engelleniyor**, uyarı net
 - [x] **3.1.9** Kaydedince ilan oluşuyor ve **İlanlarım**'da görünüyor
