@@ -39,6 +39,33 @@ Kural `customerId == auth.uid` istiyorsa sorgu o filtreyi **taşımalıdır**:
 .where('customerId', isEqualTo: uid)   // ← kural ispatı, süs değil
 ```
 
+### 🔴 `toMap()` → Firestore: sunucuya ait alanları ÇIKAR
+
+Model `toMap()`'i **tüm** alanları üretir; bunların bir kısmını istemci
+yazamaz. Yazımdan çıkarılmazsa kural **tüm kaydı** reddeder — tek bir alan
+yüzünden hiçbir değişiklik kaydedilmez.
+
+İki ayrı grup var (`artisanProfiles` örneği):
+
+| Grup | Alanlar | Neden |
+|---|---|---|
+| Sayaç / premium / moderasyon | `averageRating`, `totalReviews`, `totalRatingSum`, `topTags`, `completedJobs`, `isPremium`, `premiumExpiresAt` | Yalnız CF yazar (kural 3) |
+| **Doğrulama aynaları** | `isVerified`, `emailVerified` | Kural bunları **Auth token'ıyla** karşılaştırır |
+
+İkinci grup sinsi: `verifiedClaimOk()` / `emailVerifiedMirrorOk()` alanın
+`true` olmasını token'daki `phone_number` / `email_verified` ile eşleştirir.
+Profilde `true` yazılı ama token'da karşılığı yoksa **kayıt reddedilir** —
+üstelik kullanıcı o alana hiç dokunmamıştır.
+
+**Gerçek vaka (B-04):** Usta profili hiç kaydedilemiyordu. Hata
+`AsyncValue.guard` içinde yutulduğu için sebep de görünmüyordu; ekran
+"Kaydetme başarısız" diyordu. `saveMyProfile` bu iki aynayı `remove()`
+etmiyordu.
+
+**Kural:** Yeni bir alan `toMap()`'e eklenirken sor — *"bunu istemci yazabilir
+mi?"* Yazamıyorsa repository'de `..remove('alan')` ekle.
+Regresyon: `test/profile_save_fields_test.dart`.
+
 ### Doküman yokken `get()`
 `resource == null` dalı yoksa `startChat`'in var-mı kontrolü
 `permission-denied` alır ve **sohbet hiç oluşmaz**. Alt koleksiyonlarda önce

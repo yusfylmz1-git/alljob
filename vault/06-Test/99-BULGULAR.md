@@ -732,7 +732,37 @@ Hemen Lazım depoda ayrı bayrak değil, `professions` dizisinde
 **Düzeltme:** her iki sayma yerinde de `kOtherProfession`/`kQuickSupportCategory`
 filtrelensin. Tek doğru kaynak: `professionCodes`'u filtreleyen bir getter.
 
-#### B-04 · Kaydetme hatası sebep vermiyor — sosyal medya DEĞİL
+#### B-04 · ✅ ÇÖZÜLDÜ — kök neden: doğrulama aynaları
+
+**Zincir:** B-04 düzeltmesi hata mesajını görünür yaptı → kullanıcı cihazda
+**"sunucu reddetti"** aldı (`permission-denied`) → kaynak izlendi → bulundu.
+
+**`saveMyProfile` doğrulama aynalarını da yazıyordu.**
+`ArtisanProfile.toMap()` çıktısında `isVerified` ve `emailVerified` var;
+repository bunları yazımdan **çıkarmıyordu**. Kural ikisini Auth token'ıyla
+karşılaştırır:
+
+```
+verifiedClaimOk()       → isVerified true ise    token.phone_number dolu olmalı
+emailVerifiedMirrorOk() → emailVerified true ise token.email_verified true olmalı
+```
+
+Profilde `true` yazılı ama token'da karşılığı yoksa → **tüm kayıt reddedilir**.
+
+**Düzeltme:** ikisi de `remove()` edildi. Meşru yolları bozulmadı:
+`markVerified()` (telefon doğrulama sonrası) ve `firebase_auth_repository`
+(e-posta doğrulama sonrası) yazmaya devam ediyor; `merge` mevcut değeri korur.
+
+**Regresyon testi:** `test/profile_save_fields_test.dart` (4 test).
+
+> ⚠️ **Elenen şüpheliler** — ikisi de test edildi, sorun değildi:
+> **Sosyal medya** (`normalizeHandle`/`normalizeWebsite` girdiyi kuralın
+> istediği biçime çeviriyor) ve **`serviceProvinces <= serviceAreas`**
+> (dört senaryoda da geçiyor: aynı ilin iki ilçesi, ilçesiz il, tek bölge,
+> boş liste). Kullanıcının ilk tahmini sosyal medyaydı, kodun hata mesajı da
+> onu işaret ediyordu — ikisi de yanlış yönlendirdi.
+
+##### Özgün teşhis (tarihsel)
 **Kullanıcı şüphesi test edildi, doğrulanmadı.** `normalizeHandle` /
 `normalizeWebsite` / `normalizeWhatsapp` (`social_links.dart:51-103`) girdiyi
 kuralın istediği biçime çeviriyor (URL → kullanıcı adı, `https://` ekler).

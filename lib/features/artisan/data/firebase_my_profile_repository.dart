@@ -110,6 +110,14 @@ class FirebaseMyProfileRepository implements MyProfileRepository {
       ..remove('completedJobs')
       ..remove('isPremium')
       ..remove('premiumExpiresAt')
+      // B-04: DOĞRULAMA AYNALARI da yazımdan çıkar. `verifiedClaimOk` ve
+      // `emailVerifiedMirrorOk` (firestore.rules) bu alanların true olmasını
+      // Auth token'ındaki `phone_number` / `email_verified` ile karşılaştırır.
+      // Profilde true yazılı ama token'da karşılığı yoksa TÜM KAYIT reddedilir
+      // ("sunucu reddetti"). İstemcinin bunları yazmasına gerek yok: telefon
+      // doğrulama akışı ve CF yazar, merge ile mevcut değer korunur.
+      ..remove('isVerified')
+      ..remove('emailVerified')
       ..['displayName'] = safeName
       ..['profilePhotoURL'] = profilePhotoUrl;
 
