@@ -12,6 +12,45 @@ import '../theme/app_theme.dart';
 /// `home` = platform Ana Sayfa (dashboard); `explore` = Keşfet arama ızgarası.
 enum MainTab { home, explore, work, chats, profile }
 
+/// Alt bar sekmelerinde DONANIM GERİ TUŞU davranışı.
+///
+/// Sekmeler arası geçiş `context.go()` ile yapılır ve bu **geçmiş yığını
+/// bırakmaz** — yani Profil/Keşfet/Mesajlar'dayken `canPop()` false döner ve
+/// geri tuşu doğrudan sisteme düşüp uygulamayı kapatır. Kullanıcı beklentisi
+/// ise Ana Sayfa'ya dönmek (B-01'deki giriş ekranı sorununun aynısı).
+///
+/// Kural:
+///  - Ana Sayfa'da → geri tuşu sisteme gider (uygulamadan çık)
+///  - Diğer sekmelerde → önce Ana Sayfa'ya dön
+///
+/// Kullanım: sekme ekranının `Scaffold`'unu bununla sar.
+class MainTabScope extends StatelessWidget {
+  const MainTabScope({super.key, required this.tab, required this.child});
+
+  final MainTab tab;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final isHome = tab == MainTab.home;
+    return PopScope(
+      // Ana Sayfa'da normal davranış (çıkış); diğerlerinde biz ele alırız.
+      canPop: isHome,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) return;
+        // Ekranın kendi yığını varsa (detaydan gelinmişse) onu tüket;
+        // yoksa Ana Sayfa'ya dön.
+        if (context.canPop()) {
+          context.pop();
+        } else {
+          context.go(RoutePaths.home);
+        }
+      },
+      child: child,
+    );
+  }
+}
+
 /// Yüzen cam alt gezinme — Instagram netliği + pill derinlik.
 /// Rotalar değişmez; yalnızca görsel/dokunuş dili.
 class MainBottomBar extends ConsumerWidget {

@@ -118,7 +118,9 @@ class _CustomerDashboardScreenState
       _ => _view,
     };
 
-    return Scaffold(
+    return MainTabScope(
+      tab: MainTab.explore,
+      child: Scaffold(
       drawer: const AppMenuDrawer(),
       body: Column(
         children: [
@@ -163,6 +165,7 @@ class _CustomerDashboardScreenState
         ],
       ),
       bottomNavigationBar: const MainBottomBar(current: MainTab.explore),
+      ),
     );
   }
 }

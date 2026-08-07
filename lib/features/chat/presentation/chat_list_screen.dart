@@ -240,10 +240,19 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen>
     }
 
     return PopScope(
-      // Geri tuşu seçim modunda ekrandan çıkmasın, seçimi kapatsın.
-      canPop: !_selectionMode,
+      // Alt bar sekmesi: geri tuşu uygulamayı KAPATMAMALI, Ana Sayfa'ya
+      // dönmeli (sekmeler `go()` ile açılır, geçmiş yığını bırakmaz).
+      // Seçim modundaysa önce seçim kapanır.
+      canPop: false,
       onPopInvokedWithResult: (didPop, _) {
-        if (!didPop) _exitSelection();
+        if (didPop) return;
+        if (_selectionMode) {
+          _exitSelection();
+        } else if (context.canPop()) {
+          context.pop();
+        } else {
+          context.go(RoutePaths.home);
+        }
       },
       child: Scaffold(
       appBar: _selectionMode

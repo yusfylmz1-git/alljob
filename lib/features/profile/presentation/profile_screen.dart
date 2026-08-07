@@ -45,12 +45,15 @@ class ProfileScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final user = ref.watch(currentUserProvider);
 
-    return Scaffold(
-      drawer: const AppMenuDrawer(),
-      body: user == null
-          ? const Center(child: Text('Oturum bulunamadı.'))
-          : _Body(user: user),
-      bottomNavigationBar: const MainBottomBar(current: MainTab.profile),
+    return MainTabScope(
+      tab: MainTab.profile,
+      child: Scaffold(
+        drawer: const AppMenuDrawer(),
+        body: user == null
+            ? const Center(child: Text('Oturum bulunamadı.'))
+            : _Body(user: user),
+        bottomNavigationBar: const MainBottomBar(current: MainTab.profile),
+      ),
     );
   }
 }

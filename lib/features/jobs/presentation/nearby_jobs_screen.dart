@@ -31,7 +31,9 @@ class NearbyJobsScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return DefaultTabController(
+    return MainTabScope(
+      tab: MainTab.work,
+      child: DefaultTabController(
       length: 2,
       child: Scaffold(
         appBar: const SurfaceAppBar(
@@ -53,6 +55,7 @@ class NearbyJobsScreen extends ConsumerWidget {
             MyOffersBody(),
           ],
         ),
+      ),
       ),
     );
   }
