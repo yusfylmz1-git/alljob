@@ -59,7 +59,7 @@ Faydalı olursa ekleyin: hangi hesap, ekran görüntüsü, hata mesajının ayn�
 | K-05 | 2.x | Usta hesabı ilk açılışta **Hemen Lazım varsayılan açık** gelsin | 🟡 P2 | 🤔 **karar bekliyor** |
 | K-08 | 5.7 | **Mesajlar listesine sekme** (İlan · Genel) — varsayılan İlan, genelde okunmamış varsa o öne | 🟡 P2 | ✅ **karar verildi** → uygulanacak |
 | K-09 | 5.5 | Sohbet **görünümü WhatsApp/Instagram havası vermiyor** — işlevler çalışıyor, cila eksik | 🟡 P2 | 🤔 **kapsam belirsiz** |
-| K-11 | 5.x | **Müstehcen içerik/argo** — küfür listesi + her fotoğrafa NSFW taraması | 🟠 P1 | ✅ **karar verildi** → uygulanacak |
+| K-11 | 5.x | **Müstehcen içerik/argo** — küfür listesi yapılacak; NSFW taraması **ertelendi** | 🟠 P1 | ✅ **karar verildi** (Faz 1 + 3) |
 | K-10 | 5.6 | **Maskeleme kaldırıldı** — sohbette telefon/e-posta serbest | — | ✅ **uygulandı** (ADR-10 geri alındı) |
 | K-06 | 2.1 | Profil başlığı **usta kartı gibi** olsun: foto solda, yanında isim + Takip Et, altında meslek/telefon | 🟡 P2 | 🤔 **K-02 ile birlikte** |
 | K-07 | 3.1.6 | Fiyat tipi ilan formunda yok — ~~bilinçli mi?~~ | — | ✅ **kapandı: bilinçli** |
@@ -164,14 +164,29 @@ Yani "şikayet → admin bakar → askıya alır" zinciri kurulu. Eksik olan
 | **D** | LLM ile mesaj denetimi | Çok yüksek | Yüksek ($$) | Düşük |
 | **E** | **Sadece tepkisel** (mevcut durum) | Düşük | Yok | Yok |
 
-#### ✅ KARAR: küfür listesi (A) + görsel NSFW taraması (C)
+#### ✅ KARAR: küfür listesi (A) + inceleme kuyruğu (B). NSFW (C) ERTELENDİ
 
-Kullanıcı **her yüklenen fotoğrafın** taranmasını istedi ve maliyet
-bilgilendirmesi sordu.
+**Karar (kullanıcı, maliyet görüldükten sonra):**
+> *"Şimdilik NSFW kalsın, uygulama büyürse ekleriz."*
+
+Doğru sıralama — NSFW maliyetten çok **kurulum yükü** getiriyor (Cloud
+Function + Vision API + fatura hesabı). Kullanıcı sayısı düşükken hem gereksiz
+hem de gerçek bir sorun görülmeden neye göre ayarlanacağı belirsiz.
+
+**Şimdi yapılacak:** Faz 1 (küfür listesi) + Faz 3 (öncelikli inceleme
+kuyruğu) — ikisi de **$0**.
+
+**Ne zaman NSFW'ye geçilmeli?** Tetikleyiciler:
+- Müstehcen görsel şikayeti **gerçekten** gelirse
+- Aylık fotoğraf sayısı **1.000'i** aşarsa (ücretsiz kota biter, ama asıl
+  sinyal: hacim arttı, elle moderasyon zorlaşıyor)
+- Play Store politika uyarısı gelirse
+
+Aşağıdaki maliyet analizi o gün için saklanıyor.
 
 ---
 
-### 💰 Maliyet analizi — Cloud Vision SafeSearch
+### 💰 Maliyet analizi — Cloud Vision SafeSearch *(ileride gerekirse)*
 
 **Fiyat (Google Cloud Vision API, 2026):**
 | Aylık istek | Birim fiyat |
@@ -210,32 +225,44 @@ SafeSearch Detection tek başına bir "feature" sayılır → istek başına 1 b
 
 ### Uygulama planı
 
-**Faz 1 — Küfür listesi (A), istemci + CF**
+**✅ Faz 1 — Küfür listesi (A)** · şimdi yapılacak · **$0**
 - `core/utils/profanity_filter.dart` — `ContactMasker` kalıbında
 - Mesaj **engellenmez**: uyarı gösterilir + `reports` sayacına işlenir
-- Sert engelleme yanlış pozitifte kullanıcıyı kızdırır; TR'de "sik" masum
-  kelimelerin içinde geçer (kelime sınırı `\b` şart)
-- **Maliyet: $0**
+- ⚠️ **TR tuzağı:** kelime sınırı (`\b`) şart — *sikke, psikoloji, fizik*
+  gibi masum kelimeler yanlış eşleşir. Sert engelleme yanlış pozitifte
+  kullanıcıyı kızdırır, o yüzden yalnız uyarı.
 
-**Faz 2 — NSFW taraması (C), Cloud Function**
+**✅ Faz 3 — Öncelikli inceleme kuyruğu (B)** · şimdi yapılacak · **$0**
+- Şikayet edilen içerik admin panelinde öne çıksın
+- Altyapı hazır (`reports`, `moderationHidden`, admin modülü) — yalnız
+  sıralama/filtre gerekiyor
+
+**⏸️ Faz 2 — NSFW taraması (C)** · **ERTELENDİ** (kullanıcı kararı)
 - `onImageUploaded` trigger (Storage) → Vision SafeSearch
 - `adult`/`racy` = `LIKELY`/`VERY_LIKELY` → `moderationHidden: true` +
   admin kuyruğuna düşür
 - **Senkron değil**: yükleme beklemesin, arka planda taransın
-- Vision API + CF çağrısı → yukarıdaki tablo
+- Kurulum yükü: Cloud Function + Vision API etkinleştirme + fatura hesabı
+- Tetikleyiciler yukarıda (şikayet gelirse / aylık 1.000 foto aşılırsa)
 
-**Faz 3 — Öncelikli inceleme kuyruğu (B)**
-- Şikayet edilen + otomatik işaretlenen içerik admin panelinde öne çıksın
-- **Maliyet: $0** (altyapı hazır)
+> [!note] Play Store gerçeği — ✅ gereklilikler KARŞILANIYOR
+> UGC uygulamaları için Google şunları ister:
+>
+> | Gereklilik | Durum |
+> |---|---|
+> | Kullanıcı engelleme | ✅ var (`myBlockedUidsProvider`) |
+> | Şikayet mekanizması | ✅ var (`report_sheet`, `reports`) |
+> | **Yazılı içerik politikası** | ✅ **var** — `legal_docs.dart` Kullanım Koşulları |
+> | Şikayetlere makul sürede yanıt | ⚠️ süreç meselesi (Faz 3 hızlandırır) |
+>
+> **Otomatik filtre zorunlu değil** — NSFW'yi ertelemek yayını engellemez.
+>
+> Kullanım Koşulları'nda yasaklı içerik maddesi zaten yazılı: *"Hakaret,
+> taciz, tehdit, ayrımcılık içeren veya hukuka aykırı içerik paylaşmak"*
+> yasak; şikayet + engelleme yolu ve yaptırım (içerik kaldırma, hesap
+> askıya alma) açıkça belirtilmiş. **Ek metin yazmaya gerek yok.**
 
-> [!note] Play Store gerçeği
-> UGC uygulamaları için Google **şunları** ister: kullanıcı engelleme ✅
-> (var) · şikayet mekanizması ✅ (var) · içerik politikası (yazılı) ·
-> şikayetlere makul sürede yanıt. **Otomatik filtre zorunlu değil** — yani
-> A+C yayın için gereklilik değil, kalite tercihi.
-
-**Ne zaman?** Test bitince. Faz 1 küçük; Faz 2 Cloud Function + Vision API
-kurulumu gerektirir (fatura hesabı + API etkinleştirme).
+**Ne zaman?** Test bitince, düzeltme kuyruğunda.
 
 ### K-09 · Sohbet görünümü — "WhatsApp havası yok"
 
