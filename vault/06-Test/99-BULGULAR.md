@@ -53,6 +53,8 @@ Faydalı olursa ekleyin: hangi hesap, ekran görüntüsü, hata mesajının ayn�
 | B-14 | 4.2.5 | Yeni bildirim geldiğinde **zil rozeti (kırmızı) görünmüyor** — bildirime girince mesaj orada | 🟠 P1 | 🔬 **teşhis gerek** |
 | B-15 | 1.x | **Hesap değiştirirken `permission-denied`** — program durduruldu. Public `users/{uid}` token temizliği kurala takılıyor | 🔴 P0 | ✅ **düzeltildi + cihazda doğrulandı** |
 | B-16 | — | **Hangi moddayım belli değil** (usta mı müşteri mi) — kullanıcı bile karıştırıyor | 🟠 P1 | 📋 **planlandı** |
+| B-18 | 5.1.2 / 6.x | **"İşi teslim ettim" tek dokunuşta, onay diyaloğu YOK** — yanlışlıkla basılabilir, geri alınamaz | 🔴 P0 | 🔧 **düzeltilecek** |
+| B-19 | 5.1.2 | **Sohbette ilan başlığı görünmüyor** — `ensureChatReady` + `copyWith` `jobId`/`jobTitle`'ı düşürüyor | 🟠 P1 | 🔧 **düzeltilecek** |
 | B-17 | 1.x | Hesap değişiminde **ANR ("yanıt vermiyor") + çökme** — süre sınırsız çıkış zinciri | 🔴 P0 | ✅ **düzeltildi + cihazda doğrulandı** |
 | K-05 | 2.x | Usta hesabı ilk açılışta **Hemen Lazım varsayılan açık** gelsin | 🟡 P2 | 🤔 **karar bekliyor** |
 | K-06 | 2.1 | Profil başlığı **usta kartı gibi** olsun: foto solda, yanında isim + Takip Et, altında meslek/telefon | 🟡 P2 | 🤔 **K-02 ile birlikte** |
@@ -101,6 +103,79 @@ gerçekleştiği belli olur (şu an sessiz).
 
 **Zamanlama:** K-02/K-06 (profil başlığı yeniden tasarımı) ile **aynı alan**.
 Üçü birlikte ele alınmalı — profil başlığı da rol kimliğini gösteren yer.
+
+### B-18 · "İşi teslim ettim" onaysız — 🔴 P0
+
+**Kullanıcı:** *"Usta iş için seçildiğinde sohbete git düğmesi açılıyor güzel
+ama hemen altında işi teslim et düğmesi de açılıyor. Yani adam yanlışlıkla
+işi teslim ettim düğmesine basabilir?"*
+
+**Evet, basabilir.** Doğrulandı: **hiçbir yerde onay diyaloğu yok.**
+
+| Yer | Satır | Davranış |
+|---|---|---|
+| Sohbet ekranı | `chat_screen.dart:2048` | `onPressed` → doğrudan `confirmDone` |
+| İlan detayı | `job_detail_screen.dart:1172-1177` | `_busyGuard` → doğrudan `confirmDone` |
+
+**Neden P0:** Bu **geri alınamaz** bir yaşam döngüsü adımı.
+- İstemcide onayı geri alma yolu **yok** (`confirmDone` tek yönlü)
+- Karşı taraf da onaylarsa iş `completed` olur — o noktada dönüş kesinlikle yok
+- Yerleşim riski artırıyor: "Sohbete Git" ile **dikey olarak bitişik**
+  (`job_detail_screen.dart:1151` vs `:1169`), yanlış dokunuş çok kolay
+
+**Karşılaştırma — projede zaten doğru desen var:** ilan iptali onay soruyor,
+usta seçimi onay soruyor. Tamamlama onayı bu ikisinden **daha az** geri
+alınabilir olduğu hâlde korumasız.
+
+#### Düzeltme
+Her iki çağrı yerine `showDialog` onayı. Metin role göre:
+- Müşteri: *"İşin tamamlandığını onaylıyor musunuz? Bu işlem geri alınamaz."*
+- Usta: *"İşi teslim ettiğinizi bildiriyor musunuz? Bu işlem geri alınamaz."*
+
+**Ek öneri (ayrı ele alınmalı):** Düğmeyi "Sohbete Git"ten görsel olarak
+ayır — araya boşluk/ayraç, ya da tamamlama eylemini ikincil stile al.
+
+### B-19 · Sohbette ilan başlığı görünmüyor — 🟠 P1
+
+**Kullanıcı:** *"İlan başlığı sohbetin herhangi bir yerinde gözükmüyor."*
+
+Bu, ilan bazlı sohbet mimarisinin **görünen tek işareti** — aynı kişiyle
+birden çok iş konuşulduğunda hangi sohbetin hangi işe ait olduğu buradan
+anlaşılır (5.7.6 ile doğrudan ilgili).
+
+#### Kök neden: iki ayrı yerde alan düşüyor
+
+UI doğru yazılmış (`chat_screen.dart:635-641`): `isJobChat && jobTitle
+dolu` ise başlığı gösteriyor. Sorun verinin oraya ulaşmaması.
+
+**1. `ensureChatReady` alanları geçmiyor** (`firebase_chat_repository.dart:268-277`)
+Önbellekteki thread'i `_ensureChatDoc`'a geri yazarken **`jobId` ve
+`jobTitle` parametreleri hiç verilmiyor** → `null` gider.
+
+**2. `ChatThread.copyWith` alanları düşürüyor** (`chat.dart:215-216`)
+```dart
+jobId: jobId,        // ← `?? this.jobId` YOK
+jobTitle: jobTitle,  // ← `?? this.jobTitle` YOK
+```
+Diğer tüm alanlar `?? this.x` kalıbını kullanıyor; bu ikisi kullanmıyor.
+Yani `copyWith` çağıran her yer bu alanları sessizce siliyor.
+
+#### Yarış: sohbet başlıksız doğuyor
+`watchMessages` (`:200`) ekran açılır açılmaz `ensureChatReady` çağırır ve o
+yalnız `chatId` bilir. `startChat` (başlığı bilen taraf) sonra geldiğinde
+doküman **zaten var** → `_ensureChatDocBody` erken `return` eder (`:503-505`)
+ve `jobTitle` **hiç yazılmaz**. Eksik alan kalıcı olur.
+
+> `jobId` kimlikten türetilebiliyor (`_threadFromDoc:714`) ama `jobTitle`
+> yalnız dokümandan gelir (`:715`) — bu yüzden kalıcı olarak boş kalıyor.
+
+#### Düzeltme
+1. `copyWith`'te `?? this.jobId` / `?? this.jobTitle`
+2. `ensureChatReady` → `_ensureChatDoc`'a `jobId: cached.jobId,
+   jobTitle: cached.jobTitle` geçsin
+3. **Mevcut bozuk sohbetler için:** doküman varken `jobTitle` eksikse
+   `merge` ile tamamla (ad alanları gibi kurala takılmaz — `jobTitle`
+   `chatUpdateKeysOk` içinde mi, kontrol edilmeli)
 
 ### B-17 · Hesap değişiminde permission-denied TEKRAR — 🔴 P0, AÇIK
 
