@@ -250,6 +250,17 @@ class AppMenuDrawer extends ConsumerWidget {
 
         const Divider(indent: 16, endIndent: 16),
 
+        // Ajanda — kişisel randevu/hatırlatma. Profil ekranından buraya
+        // taşındı: profil İÇERİK gösterir (ilanlar, işler, takip), kişisel
+        // araçlar menüde durur.
+        if (user != null)
+          ListTile(
+            leading: const Icon(Icons.checklist_rounded),
+            title: const Text('Ajanda'),
+            subtitle: const Text('Randevu ve hatırlatmalar'),
+            onTap: () => _open(context, RoutePaths.tracking),
+          ),
+
         // Hesap Ayarları — profil ekranından buraya taşındı (sadeleştirme):
         // doğrulama, üyelik, hesap silme. Profil artık içerik gösterir.
         if (user != null)

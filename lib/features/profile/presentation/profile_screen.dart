@@ -18,7 +18,6 @@ import '../../../core/widgets/role_bottom_bar.dart';
 import '../../../data/local/mock_database.dart';
 import '../../../data/models/app_user.dart';
 import '../../../data/models/user_role.dart';
-import '../../../data/models/favorite.dart';
 import '../../artisan/application/my_profile_controller.dart';
 import '../../artisan/data/shop_completion.dart';
 import '../../artisan/presentation/widgets/shop_completion_banner.dart';
@@ -29,10 +28,14 @@ import '../../favorites/data/favorite_providers.dart';
 import '../../membership/membership_access.dart';
 import '../../membership/membership_package.dart';
 
-/// Profil (alt bar): tek hesap, iki yüzey.
-///  - Müşteri: talepler (ilanlar, takip) — "iş seçimi" yok.
-///  - Usta: dükkân + işler (müsaitlik, vitrin, yakındaki işler).
-/// Ortak hesap/ayar en altta; araçlar (çanta, ajanda) kısa grup.
+/// Profil (alt bar) — TEK profil, açılıp kapanan usta modülleri.
+///
+/// Rol ayrımı YOK: herkes aynı profili görür. "Usta modu" anahtarı açıkken
+/// dükkân modülleri (müsaitlik, vitrin, ürünler) üstüne biner; kapalıyken
+/// sade kalır. Instagram'ın "profesyonel hesap" anahtarı gibi.
+///
+/// Profil yalnız İÇERİK gösterir. Hesap ayarları (doğrulama, üyelik, çıkış)
+/// `/profile/account`'ta, kişisel araçlar (Ajanda) yan menüde.
 class ProfileScreen extends ConsumerWidget {
   const ProfileScreen({super.key});
 
@@ -143,52 +146,32 @@ class _Body extends ConsumerWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              // TEK PROFİL, ek modüller. Eskiden `artisanMode` iki AYRI
+              // gövdeye ayırıyordu (_ArtisanHome / _CustomerHome) — kullanıcı
+              // "iki farklı ekran" hissediyordu. Artık herkes aynı profili
+              // görür; usta anahtarı açıkken ÜSTÜNE modül eklenir.
               if (user.hasArtisanProfile) ...[
-                _ModeSwitcher(user: user),
-                const SizedBox(height: 8),
-                Text(
-                  artisanMode
-                      ? 'Usta dükkânı — müsaitlik, vitrin ve işler'
-                      : 'Müşteri hesabı — ilanlar ve takip',
-                  textAlign: TextAlign.center,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  ),
-                ),
-                const SizedBox(height: 18),
+                _ArtisanModeSwitch(user: user),
+                const SizedBox(height: 14),
               ],
-              if (artisanMode)
-                _ArtisanHome(user: user, draft: draft)
-              else
-                _CustomerHome(user: user),
-              // "Usta Çantası" (toolkit) kaldırıldı — bölümde yalnız Ajanda
-              // ve (usta modunda) Ürünlerim kaldı.
-              const _SectionLabel('ARAÇLAR'),
-              _Group(
-                children: [
-                  _MenuRow(
-                    icon: Icons.checklist_rounded,
-                    iconColor: context.palette.primary,
-                    iconSurface: context.palette.primaryContainer,
-                    title: 'Ajanda',
-                    subtitle: 'Kişisel randevu ve hatırlatma (ilan işi değil)',
-                    onTap: () => context.push(RoutePaths.tracking),
-                  ),
-                  if (artisanMode)
-                    _MenuRow(
-                      icon: Icons.storefront_outlined,
-                      iconColor: context.palette.primary,
-                      iconSurface: context.palette.primaryContainer,
-                      title: 'Ürünlerim',
-                      subtitle: 'Keşfet vitrin ürünlerinizi yönetin',
-                      onTap: () => context.push(RoutePaths.myProducts),
-                    ),
-                ],
-              ),
-              // HESABIM bölümü (doğrulama, üyelik, çıkış, hesap silme) profil
-              // ekranından ÇIKARILDI → Hesap Ayarları (`/profile/account`),
-              // yan menüden açılır. Profil artık içerik gösterir: ilanlar,
-              // işler, takip. Çıkış Yap zaten yan menüde vardı (mükerrerdi).
+
+              // Usta modülleri (yalnız anahtar açıkken)
+              if (artisanMode) ...[
+                _ArtisanHome(user: user, draft: draft),
+                const SizedBox(height: 8),
+              ],
+
+              // Herkeste ortak: ilanlarım (+ usta değilse dönüşüm çağrısı)
+              _CustomerHome(user: user),
+              // ARAÇLAR bölümü de KALDIRILDI: "Ajanda" yan menüye taşındı
+              // (kişisel araç, profil içeriği değil). "Ürünlerim" usta
+              // dükkânı bölümünde zaten var.
+              //
+              // HESABIM (doğrulama, üyelik, çıkış, hesap silme) → Hesap
+              // Ayarları (`/profile/account`), yan menüden.
+              //
+              // Profil artık YALNIZ İÇERİK gösterir: ilanlarım · işlerim ·
+              // takip. Ayarlar ve araçlar menüde.
             ],
           ),
         ),
@@ -558,54 +541,78 @@ class _StatCell extends StatelessWidget {
 // Mod anahtarı — Müşteri hesabı | Usta dükkânı
 // ---------------------------------------------------------------------------
 
-class _ModeSwitcher extends ConsumerWidget {
-  const _ModeSwitcher({required this.user});
+/// Usta modu anahtarı — TEK profil, açılıp kapanan ek modüller.
+///
+/// Eskiden iki seçenekli `SegmentedButton`'dı ("Müşteri | Usta dükkânı") ve
+/// iki AYRI hesap yüzeyi varmış izlenimi veriyordu. Instagram'da "profesyonel
+/// hesap" nasıl tek anahtarla açılıyorsa burada da öyle: kapalıyken sade
+/// profil, açıkken üstüne dükkân modülleri biner.
+class _ArtisanModeSwitch extends ConsumerWidget {
+  const _ArtisanModeSwitch({required this.user});
   final AppUser user;
-
-  Future<void> _switch(
-    BuildContext context,
-    WidgetRef ref,
-    UserRole mode,
-  ) async {
-    final ok = await ref
-        .read(authControllerProvider.notifier)
-        .setActiveMode(mode);
-    if (!context.mounted) return;
-    if (!ok) {
-      context.showError('Mod değiştirilemedi, tekrar deneyin.');
-    }
-    // Sayfadan ayrılmayız: içerik yeni moda göre kendini yeniler — kullanıcı
-    // geçişin ne yaptığını gözüyle görür.
-  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // Global authController.isLoading ile KİLİTLENMEZ (e-posta/login loading
-    // sekmeleri pasif bırakıyordu). Repo optimistic; çift tık zararsız.
-    return SegmentedButton<UserRole>(
-      segments: const [
-        ButtonSegment(
-          value: UserRole.customer,
-          label: Text('Müşteri'),
-          icon: Icon(Icons.person_outline_rounded),
+    final palette = context.palette;
+    final theme = Theme.of(context);
+    final on = user.isArtisan;
+
+    Future<void> toggle(bool next) async {
+      final ok = await ref
+          .read(authControllerProvider.notifier)
+          .setActiveMode(next ? UserRole.artisan : UserRole.customer);
+      if (!context.mounted) return;
+      if (!ok) context.showError('Mod değiştirilemedi, tekrar deneyin.');
+      // Sayfadan ayrılmayız: içerik kendini yeniler, kullanıcı değişimi görür.
+    }
+
+    return Material(
+      color: on ? palette.primaryContainer : palette.card,
+      borderRadius: BorderRadius.circular(14),
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: on ? palette.primary : palette.border,
+            width: on ? 1.4 : 1,
+          ),
         ),
-        ButtonSegment(
-          value: UserRole.artisan,
-          label: Text('Usta dükkânı'),
-          icon: Icon(Icons.storefront_outlined),
+        padding: const EdgeInsets.fromLTRB(14, 6, 8, 6),
+        child: Row(
+          children: [
+            Icon(
+              on ? Icons.storefront_rounded : Icons.storefront_outlined,
+              size: 20,
+              color: on ? palette.primary : palette.inkMuted,
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'Usta modu',
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w800,
+                      color: on ? palette.primary : null,
+                    ),
+                  ),
+                  Text(
+                    on
+                        ? 'Açık — iş alabilir, vitrinini yönetebilirsin'
+                        : 'Kapalı — yalnız hizmet alıyorsun',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: palette.inkMuted,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Switch(value: on, onChanged: toggle),
+          ],
         ),
-      ],
-      selected: {user.activeMode},
-      showSelectedIcon: false,
-      style: SegmentedButton.styleFrom(
-        selectedBackgroundColor: context.palette.primary,
-        selectedForegroundColor: Theme.of(context).colorScheme.onPrimary,
-        minimumSize: const Size(0, 46),
       ),
-      onSelectionChanged: (selection) {
-        final mode = selection.first;
-        if (mode != user.activeMode) _switch(context, ref, mode);
-      },
     );
   }
 }
@@ -633,175 +640,27 @@ class _ArtisanHome extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const _SectionLabel('DÜKKÂNIM'),
+        // Sadeleştirme: bölüm etiketleri kalktı, mükerrerler temizlendi.
+        //  - "İŞLER" satırı → alt bardaki "İlanlar" sekmesiyle aynı yere
+        //    gidiyordu (mükerrer giriş).
+        //  - "TAKİPÇİLER" listesi → başlıktaki takipçi sayacı zaten var ve
+        //    dokununca aynı listeyi açıyor.
         _Group(children: [_AvailabilityRow(draft: draft)]),
         _ShopVitrineCard(user: user, draft: draft, shopSubtitle: shopSubtitle),
-        const SizedBox(height: 4),
-        _FollowersSection(artisanUid: user.uid),
-        const _SectionLabel('İŞLER'),
+        const SizedBox(height: 8),
         _Group(
           children: [
             _MenuRow(
-              icon: Icons.work_outline,
-              iconColor: context.palette.info,
-              iconSurface: context.palette.infoSurface,
-              // "İlgilendiğim işler" BURADAN KALKTI: iş akışının parçası
-              // olduğu için alt bardaki "İşler" sekmesine taşındı (orada
-              // "Yakınımdaki" ile yan yana iki sekme).
-              title: 'İşler',
-              subtitle: 'Yakınındakiler ve ilgilendiklerin',
-              onTap: () => context.push(RoutePaths.panelJobs),
+              icon: Icons.campaign_outlined,
+              iconColor: context.palette.primary,
+              iconSurface: context.palette.primaryContainer,
+              title: 'İlanlarım',
+              subtitle: 'Müşteri olarak verdiğiniz ilanlar',
+              onTap: () => context.push(RoutePaths.myJobs),
             ),
           ],
         ),
       ],
-    );
-  }
-}
-
-/// Ustanın takipçileri — dükkân ekranında görünür.
-class _FollowersSection extends ConsumerWidget {
-  const _FollowersSection({required this.artisanUid});
-  final String artisanUid;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final async = ref.watch(followersProvider(artisanUid));
-    final followers = async.valueOrNull ?? const <Favorite>[];
-    if (followers.isEmpty && !async.isLoading) {
-      return const SizedBox.shrink();
-    }
-
-    final theme = Theme.of(context);
-    final palette = context.palette;
-
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          const _SectionLabel('TAKİPÇİLER'),
-          Material(
-            color: palette.card,
-            borderRadius: BorderRadius.circular(16),
-            child: Container(
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: palette.border),
-                boxShadow: AppTheme.softShadow,
-              ),
-              child: async.isLoading && followers.isEmpty
-                  ? const Padding(
-                      padding: EdgeInsets.all(20),
-                      child: Center(
-                        child: SizedBox(
-                          width: 22,
-                          height: 22,
-                          child: CircularProgressIndicator(strokeWidth: 2.5),
-                        ),
-                      ),
-                    )
-                  : Column(
-                      children: [
-                        for (var i = 0; i < followers.length; i++) ...[
-                          if (i > 0)
-                            Divider(height: 1, color: palette.hairline),
-                          _FollowerRow(follower: followers[i]),
-                        ],
-                      ],
-                    ),
-            ),
-          ),
-          if (followers.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.only(top: 6, left: 4),
-              child: Text(
-                '${followers.length} kişi sizi takip ediyor',
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: palette.inkMuted,
-                ),
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-}
-
-class _FollowerRow extends StatelessWidget {
-  const _FollowerRow({required this.follower});
-  final Favorite follower;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final palette = context.palette;
-    final name = follower.customerName.isEmpty
-        ? 'Kullanıcı'
-        : follower.customerName;
-    final initial = name.trim().isEmpty
-        ? '?'
-        : name.trim().substring(0, 1).toUpperCase();
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      child: Row(
-        children: [
-          ClipOval(
-            child: SizedBox(
-              width: 40,
-              height: 40,
-              child: follower.customerPhotoUrl != null
-                  ? AppImage(
-                      handle: follower.customerPhotoUrl,
-                      width: 40,
-                      height: 40,
-                      fit: BoxFit.cover,
-                      memCacheWidth: 80,
-                      memCacheHeight: 80,
-                    )
-                  : Container(
-                      color: palette.primaryContainer,
-                      alignment: Alignment.center,
-                      child: Text(
-                        initial,
-                        style: TextStyle(
-                          fontWeight: FontWeight.w800,
-                          color: palette.primary,
-                        ),
-                      ),
-                    ),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                Text(
-                  'sizi takip ediyor',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: palette.inkMuted,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Icon(
-            Icons.favorite_rounded,
-            size: 18,
-            color: palette.danger.withValues(alpha: 0.85),
-          ),
-        ],
-      ),
     );
   }
 }
@@ -1015,7 +874,8 @@ class _CustomerHome extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const _SectionLabel('TALEPLERİM'),
+        // Sade: yalnız İlanlarım. "Takip ettiklerim" başlıktaki sayaçtan
+        // açılıyor (mükerrer satır kaldırıldı).
         _Group(
           children: [
             _MenuRow(
@@ -1026,26 +886,20 @@ class _CustomerHome extends ConsumerWidget {
               subtitle: 'Verdiğiniz hizmet ilanları',
               onTap: () => context.push(RoutePaths.myJobs),
             ),
-            _MenuRow(
-              icon: Icons.favorite_border,
-              iconColor: context.palette.danger,
-              iconSurface: context.palette.danger.withValues(alpha: 0.10),
-              title: 'Takip ettiklerim',
-              subtitle: 'Favori ustalar',
-              onTap: () => context.push(RoutePaths.favorites),
-            ),
           ],
         ),
+        // Usta modu yoksa tek çağrı: dükkân aç. Bu bir "içerik" değil ama
+        // ürünün ana dönüşüm adımı — profilde kalması bilinçli.
         if (!user.hasArtisanProfile) ...[
-          const _SectionLabel('HİZMET VER'),
+          const SizedBox(height: 8),
           _Group(
             children: [
               _MenuRow(
                 icon: Icons.handyman_outlined,
                 iconColor: context.palette.onSecondaryContainer,
                 iconSurface: context.palette.secondaryContainer,
-                title: 'Usta dükkânı aç',
-                subtitle: 'Meslek ve bölge ekle, iş al',
+                title: 'Usta olarak devam et',
+                subtitle: 'Meslek ve bölge ekle, iş almaya başla',
                 onTap: () => _becomeArtisan(context, ref),
               ),
             ],
@@ -1514,27 +1368,6 @@ class _PhoneVisibilityRow extends ConsumerWidget {
       trailing: Switch(
         value: shown,
         onChanged: draft == null ? null : onChanged,
-      ),
-    );
-  }
-}
-
-class _SectionLabel extends StatelessWidget {
-  const _SectionLabel(this.text);
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(4, 0, 4, 8),
-      child: Text(
-        text,
-        style: theme.textTheme.labelSmall?.copyWith(
-          color: theme.colorScheme.onSurfaceVariant,
-          fontWeight: FontWeight.w800,
-          letterSpacing: 0.8,
-        ),
       ),
     );
   }

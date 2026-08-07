@@ -51,6 +51,15 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(seconds: 1));
     expect(find.byType(ProfileScreen), findsOneWidget);
-    expect(find.text('DÜKKÂNIM'), findsOneWidget); // usta modu bölümü
+    // Sadeleştirme sonrası bölüm etiketleri (DÜKKÂNIM/İŞLER/TALEPLERİM)
+    // kaldırıldı: tek profil + "Usta modu" anahtarı. Anahtarın varlığı,
+    // usta bölümlerinin render olduğunun göstergesi.
+    // İki yerde geçer: başlıktaki mod rozeti + anahtar satırının başlığı.
+    expect(find.text('Usta modu'), findsNWidgets(2));
+    // Anahtarın alt yazısı yalnız anahtarda — usta modülleri render oldu.
+    expect(
+      find.textContaining('iş alabilir'),
+      findsOneWidget,
+    );
   });
 }
