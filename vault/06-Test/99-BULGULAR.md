@@ -48,13 +48,58 @@ Faydalı olursa ekleyin: hangi hesap, ekran görüntüsü, hata mesajının ayn�
 | B-09 | 3.1.4 | İl seçince **ekran yukarı kayıyor**; ilçeye odaklanmıyor, klavye kapanmıyor | 🟡 P2 | 🔧 **düzeltilecek** |
 | B-10 | 3.2.1 | Hemen Lazım'da **otomatik doldurma örnekleri çok aşağıda** — kategori kutusunun hemen altında olmalı | 🟡 P2 | 🔧 **düzeltilecek** |
 | B-11 | 3.6.1 | İlan iptal nedenlerinde **"günlük hakkım bitti" gereksiz** — hakkı yoksa zaten ilan açamıyor | 🟡 P2 | 🔧 **düzeltilecek** |
-| B-12 | 4.2.5 / 4.5 | **Telefona sistem push'u hiç gelmiyor** — uygulama içi bildirimler çalışıyor | 🔴 P0 | 🔬 **teşhis gerek** |
-| B-13 | 5.1 | **Müşteri "Mesaj Gönder"e basınca sohbet açılmıyor** — *"Sohbet açılamadı"*. Akış tam burada kırılıyor | 🔴 P0 | ✅ **düzeltildi** (cihazda doğrulanacak) |
+| B-12 | 4.2.5 / 4.5 | **Telefona sistem push'u hiç gelmiyor** — uygulama içi bildirimler çalışıyor | 🔴 P0 | ⏸️ **2. cihaz gerek** (B-15 çözmüş olabilir) |
+| B-13 | 5.1 | **Müşteri "Mesaj Gönder"e basınca sohbet açılmıyor** — *"Sohbet açılamadı"*. Akış tam burada kırılıyor | 🔴 P0 | ✅ **düzeltildi + cihazda doğrulandı** |
 | B-14 | 4.2.5 | Yeni bildirim geldiğinde **zil rozeti (kırmızı) görünmüyor** — bildirime girince mesaj orada | 🟠 P1 | 🔬 **teşhis gerek** |
-| B-15 | 1.x | **Hesap değiştirirken `permission-denied`** — program durduruldu. Public `users/{uid}` token temizliği kurala takılıyor | 🔴 P0 | ✅ **düzeltildi** (cihazda doğrulanacak) |
+| B-15 | 1.x | **Hesap değiştirirken `permission-denied`** — program durduruldu. Public `users/{uid}` token temizliği kurala takılıyor | 🔴 P0 | ✅ **düzeltildi + cihazda doğrulandı** |
+| B-16 | — | **Hangi moddayım belli değil** (usta mı müşteri mi) — kullanıcı bile karıştırıyor | 🟠 P1 | 📋 **planlandı** |
 | K-05 | 2.x | Usta hesabı ilk açılışta **Hemen Lazım varsayılan açık** gelsin | 🟡 P2 | 🤔 **karar bekliyor** |
 | K-06 | 2.1 | Profil başlığı **usta kartı gibi** olsun: foto solda, yanında isim + Takip Et, altında meslek/telefon | 🟡 P2 | 🤔 **K-02 ile birlikte** |
 | K-07 | 3.1.6 | Fiyat tipi ilan formunda yok — ~~bilinçli mi?~~ | — | ✅ **kapandı: bilinçli** |
+
+### B-16 · Mod belirsizliği (usta ⇄ müşteri) — 🟠 P1, PLAN
+
+**Kullanıcı geri bildirimi:** *"Giriş yapan kişi ben usta modunda mıyım yoksa
+müşteri modunda mıyım ayırt etmesi çok zor. Yani ben bile karıştırıyorum."*
+
+> Uygulamayı yazan kişi karıştırıyorsa, kullanıcı kesin karıştırır. Bu bir
+> cila değil, **yanlış moddan yapılan işlem** demek (usta hesabıyla ilan
+> açmaya çalışmak, müşteri modunda iş aramak).
+
+#### Mevcut durum — sinyaller var ama hepsi ZAYIF
+
+| Sinyal | Nerede | Neden yetmiyor |
+|---|---|---|
+| Vurgu rengi (müşteri mavi / usta yeşil) | `accent_options.dart:202-204` | Renk **öğrenilmiş** bilgi gerektirir; hangisinin hangisi olduğu yazmıyor. Kullanıcı renk değiştirebiliyor → ayrım tamamen kaybolabilir |
+| "Usta Modu / Müşteri Modu" yazısı | `app_menu_drawer.dart:180` | **Çekmeceyi açmak gerekiyor.** Kullanıcı zaten emin olmadığı için açıyor — yani sinyal, ihtiyaç anında görünmüyor |
+| Alt bar sekmesi (İlanlarım ⇄ İşler) | `role_bottom_bar.dart:39` | Sekme **adı** değişiyor ama ikon/konum aynı; fark ancak dikkatle bakınca görülür |
+
+**Ortak sorun:** Ana ekranların hiçbirinde **kalıcı, yazılı** bir mod
+göstergesi yok. `GradientAppBar` (`gradient_app_bar.dart:11-30`) yalnız
+`title`/`subtitle`/`icon` alıyor — rol bilgisi taşımıyor.
+
+#### Öneri — üç katman, artan maliyet
+
+**1. App bar'da kalıcı mod rozeti** (en yüksek etki / en düşük maliyet)
+`GradientAppBar`'a rol rozeti: *"👷 Usta"* / *"🙋 Müşteri"*. Tek widget,
+tüm ana ekranlarda görünür. Renk zaten farklı — rozet ona **yazı** ekler,
+yani sinyal öğrenilmiş bilgiye bağlı olmaktan çıkar.
+
+**2. Rozete dokununca mod değiştir**
+Şu an mod değiştirmek için çekmece → satır bulma gerekiyor. Rozet hem
+*gösterge* hem *anahtar* olursa "neredeyim + nasıl geçerim" tek yerde toplanır.
+
+**3. Mod geçişinde görsel onay**
+Geçiş anında kısa bir toast/animasyon: *"Usta Moduna geçildi"*. Geçişin
+gerçekleştiği belli olur (şu an sessiz).
+
+> [!note] Renk sistemine dokunulmamalı
+> `AppPalette`/accent altyapısı sağlam ve mod-bazlı renk **doğru bir karar**.
+> Sorun rengin varlığı değil, **tek başına** taşıyamayacağı bir yükü
+> taşıması. Rozet rengi değiştirmez, ona etiket ekler.
+
+**Zamanlama:** K-02/K-06 (profil başlığı yeniden tasarımı) ile **aynı alan**.
+Üçü birlikte ele alınmalı — profil başlığı da rol kimliğini gösteren yer.
 
 ### B-15 · Hesap değiştirirken permission-denied — 🔴 P0
 
@@ -522,9 +567,16 @@ hepsi doğru. Tek bulgu **B-12 (push)** — ama o 🔴 P0.
 > satırını okuyun. Sonuç düzeltmenin ne olduğunu belirler — kod mu, izin mi,
 > MIUI mi. Detay: B-12 notu.
 >
-> Test bitince (bölüm 5→9) düzeltme kuyruğu: **B-13 (P0) → B-12 (P0) →
-> B-14 → B-02 → B-03 → B-04/B-05 → B-06 → B-07 → B-08 → B-09 → B-10 →
-> B-11**, sonra K-05/K-06.
+> **✅ B-13 ve B-15 düzeltildi ve cihazda doğrulandı** (`9f020e9`) — hesap
+> değişimi çökmüyor, sohbet açılıyor, "Ustayı Seç" geldi.
+>
+> Kalan kuyruk: **B-12 (P0, tek cihazla test edilemedi) → B-16 → B-14 →
+> B-02 → B-03 → B-04/B-05 → B-06 → B-07 → B-08 → B-09 → B-10 → B-11**,
+> sonra K-05.
+>
+> **B-16 + K-02 + K-06 birlikte ele alınmalı** — üçü de rol kimliğinin
+> nasıl gösterildiğiyle ilgili (app bar rozeti · profil başlığı · vitrin
+> kartı). Ayrı ayrı yapmak üç kez aynı ekrana dokunmak olur.
 
 > [!warning] ⛔ B-13 Bölüm 5'i BLOKLUYOR — istisna gerekebilir
 > "Test sürerken kod değiştirilmiyor" kuralı bu bulguda tıkanıyor: müşteri
