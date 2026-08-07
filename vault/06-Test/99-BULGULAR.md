@@ -53,6 +53,7 @@ Faydalı olursa ekleyin: hangi hesap, ekran görüntüsü, hata mesajının ayn�
 | B-14 | 4.2.5 | Yeni bildirim geldiğinde **zil rozeti (kırmızı) görünmüyor** — bildirime girince mesaj orada | 🟠 P1 | 🔬 **teşhis gerek** |
 | B-15 | 1.x | **Hesap değiştirirken `permission-denied`** — program durduruldu. Public `users/{uid}` token temizliği kurala takılıyor | 🔴 P0 | ✅ **düzeltildi + cihazda doğrulandı** |
 | B-16 | — | **Hangi moddayım belli değil** (usta mı müşteri mi) — kullanıcı bile karıştırıyor | 🟠 P1 | 📋 **planlandı** |
+| B-17 | 1.x | Hesap değişiminde `permission-denied` **B-15'ten sonra da** görüldü — ikinci kaynak | 🔴 P0 | 🔬 **ayrım gerek** (debugger mı, gerçek çökme mi) |
 | K-05 | 2.x | Usta hesabı ilk açılışta **Hemen Lazım varsayılan açık** gelsin | 🟡 P2 | 🤔 **karar bekliyor** |
 | K-06 | 2.1 | Profil başlığı **usta kartı gibi** olsun: foto solda, yanında isim + Takip Et, altında meslek/telefon | 🟡 P2 | 🤔 **K-02 ile birlikte** |
 | K-07 | 3.1.6 | Fiyat tipi ilan formunda yok — ~~bilinçli mi?~~ | — | ✅ **kapandı: bilinçli** |
@@ -100,6 +101,55 @@ gerçekleştiği belli olur (şu an sessiz).
 
 **Zamanlama:** K-02/K-06 (profil başlığı yeniden tasarımı) ile **aynı alan**.
 Üçü birlikte ele alınmalı — profil başlığı da rol kimliğini gösteren yer.
+
+### B-17 · Hesap değişiminde permission-denied TEKRAR — 🔴 P0, AÇIK
+
+**B-15 düzeltmesinden SONRA da görüldü.** Yani `_stripPublicToken` tek kaynak
+değilmiş; ikinci bir yol var.
+
+#### ⚠️ Önce ayırt edilmeli: gerçek çökme mi, debugger duraklaması mı?
+
+*"Exception has occurred."* ifadesi **VS Code debugger** kalıbıdır. Debugger,
+istisna **yakalanmış olsa bile** Firebase hatalarında duraklayabilir
+("Uncaught Exceptions" ayarı). Bu durumda:
+- **F5 / Continue** → akış devam eder, uygulama çalışır
+- **Son kullanıcı (release APK) hiçbir şey görmez**
+
+| Gözlem | Anlamı | Öncelik |
+|---|---|---|
+| F5'e basınca devam ediyor, uygulama çalışıyor | Debugger duraklaması — **P2 gürültü** | Düşük |
+| Uygulama gerçekten kapanıyor / ekran donuyor | Gerçek çökme | 🔴 P0 |
+
+**Bu ayrım yapılmadan düzeltmeye başlanmamalı** — yanlış yere kod yazılır.
+
+#### Teşhis: 36 stream, HİÇBİRİNDE hata işleyicisi yok
+
+```
+grep "snapshots()"  lib/ → 36 sonuç
+grep "handleError"  lib/ →  0 sonuç
+```
+
+Hesap değişince eski uid'e ait canlı `snapshots()` dinleyicileri bir an için
+`permission-denied` fırlatır (kural artık o uid'i tanımıyor). Yakalayan yok.
+
+**En güçlü aday:** `chat_providers.dart:47` `chatUnreadMetaProvider` —
+`autoDispose` **DEĞİL** (satır 32'deki `myThreadsProvider` autoDispose ama bu
+değil). autoDispose olmayan provider kullanıcı değişse de eski stream'i tutar.
+
+> Ancak `totalUnreadProvider` (`:54`) `valueOrNull` ile okuduğu için hatayı
+> yutar → tek başına çökertmemeli. Demek ki çökme **başka bir izleyiciden**
+> geliyor ya da gerçek çökme değil (yukarıdaki ayrım).
+
+#### Düzeltme yönü (ayrım yapıldıktan sonra)
+1. **Kısa vade:** hesap değişiminde eski uid'in stream'lerini kapat —
+   `chatUnreadMetaProvider`'ı `autoDispose` yap, `currentUserProvider`
+   değişince yeniden kurulsun.
+2. **Kalıcı:** uid'e bağlı stream'lere `.handleError()` ekle;
+   `permission-denied` beklenen bir durum (oturum kapanışı), sessizce
+   boş değere düşmeli.
+
+**Not:** Bu yalnız bir *gürültü* sorunuysa (debugger duraklaması), 2. madde
+yine de yapılmalı ama önceliği **P2**'ye iner.
 
 ### B-15 · Hesap değiştirirken permission-denied — 🔴 P0
 
