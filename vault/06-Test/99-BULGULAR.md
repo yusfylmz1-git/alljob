@@ -34,6 +34,88 @@ Faydalı olursa ekleyin: hangi hesap, ekran görüntüsü, hata mesajının ayn�
 | K-03 | 1.1 | Onboarding sığ; "nasıl kullanılır" anlatımı eksik | 🟡 P2 | 📋 **planlandı** |
 | K-04 | — | Liste açılışında kartlar için "şelale" giriş animasyonu | 🟡 P2 | 📋 **planlandı** |
 
+**Oturum 2 — düzeltme kuyruğu** (öncelik sırasına dizili, hepsi koddan doğrulandı):
+
+| # | Adım | Ne oldu | Öncelik | Durum |
+|---|---|---|---|---|
+| B-02 | 3.1.5 | Fotoğraf yüklenirken **Kaydet'e basınca beklemiyor** — o foto ilana hiç girmiyor, sessiz veri kaybı | 🟠 P1 | 🔧 **düzeltilecek** |
+| B-03 | 2.x | Meslek limiti: Hemen Lazım açıkken **5. meslek seçilemiyor** (sayaç "4/5" derken reddediyor) | 🟠 P1 | 🔧 **düzeltilecek** |
+| B-04 | 2.x | Profil kaydetme başarısız — **sebep yazmıyor**, genel mesaj. Gerçek neden teşhis edilemiyor | 🟠 P1 | 🔧 **düzeltilecek** |
+| B-05 | 2.x | Profilde "tekrar düzenle" → **ekran donuyor**. B-04'ün devamı olabilir | 🟠 P1 | ⏸️ **B-04'ten sonra** |
+| B-06 | 3.1.5 | İlan fotoğrafı **çoklu seçilemiyor** — tek tek eklemek gerekiyor (limit 8) | 🟠 P1 | 🔧 **düzeltilecek** |
+| B-07 | 3.5.1 | İlan düzenlemede **yalnız başlık + açıklama** var; fotoğraf/konum/kategori düzenlenemiyor | 🟠 P1 | 🔧 **düzeltilecek** |
+| B-08 | 2.x/3.1 | **Kaydet / İlanı yayınla düğmeleri alt menünün altında kalıyor** (bazı telefonlarda erişilemez) | 🟠 P1 | 🔧 **düzeltilecek** |
+| B-09 | 3.1.4 | İl seçince **ekran yukarı kayıyor**; ilçeye odaklanmıyor, klavye kapanmıyor | 🟡 P2 | 🔧 **düzeltilecek** |
+| B-10 | 3.2.1 | Hemen Lazım'da **otomatik doldurma örnekleri çok aşağıda** — kategori kutusunun hemen altında olmalı | 🟡 P2 | 🔧 **düzeltilecek** |
+| B-11 | 3.6.1 | İlan iptal nedenlerinde **"günlük hakkım bitti" gereksiz** — hakkı yoksa zaten ilan açamıyor | 🟡 P2 | 🔧 **düzeltilecek** |
+| K-05 | 2.x | Usta hesabı ilk açılışta **Hemen Lazım varsayılan açık** gelsin | 🟡 P2 | 🤔 **karar bekliyor** |
+| K-06 | 2.1 | Profil başlığı **usta kartı gibi** olsun: foto solda, yanında isim + Takip Et, altında meslek/telefon | 🟡 P2 | 🤔 **K-02 ile birlikte** |
+| K-07 | 3.1.6 | **Fiyat tipi (Sabit bütçe / Keşif Gerekli) ilan formunda yok** — kodda `inspection` sabit. Bilinçli mi? | — | 🤔 **karar bekliyor** |
+
+### Oturum 2 bulguları — kök neden analizi
+
+> Hepsi koddan doğrulandı; düzeltme sırasında yeniden araştırmaya gerek yok.
+
+#### B-02 · Yükleme sürerken kaydet (veri kaybı)
+`_submit()` yalnız `_submitting`'i kontrol ediyor, `_uploadingPhoto`'ya
+**hiç bakmıyor** (`create_job_screen.dart:113`). Yükleme yarıdayken kaydedilirse
+o fotoğraf `_photos`'a hiç eklenmez → ilana girmez, uyarı da çıkmaz.
+
+**Tuhaflık:** geri tuşu bu durumu doğru ele alıyor (`busy = _uploadingPhoto ||
+_submitting`, `:217`) ama kaydet düğmesi aynı korumayı almamış.
+
+**Düzeltme:** `_submit()` başına `if (_uploadingPhoto)` → uyarı + return.
+
+#### B-03 · Meslek limiti Hemen Lazım'ı sayıyor
+Hemen Lazım depoda ayrı bayrak değil, `professions` dizisinde
+`kOtherProfession` kodu olarak tutuluyor — bu yüzden meslek sayısına karışıyor.
+
+**Tutarsızlık iki yerde:**
+| Yer | Hemen Lazım'ı | Sonuç |
+|---|---|---|
+| Sayaç (`artisan_profile_edit_screen.dart:1099-1101`) | **eliyor** | "4/5 seçili" yazıyor |
+| Limit kontrolü (`:458-461`) | **elemiyor** | 5.'yi reddediyor |
+| `toggleProfession` (`my_profile_controller.dart:104-108`) | **elemiyor** | sessizce `return` |
+
+`setQuickSupportEnabled` yorumu (`my_profile_controller.dart:130`) zaten
+*"[maxProfessions] sınırı Hemen Lazım'ı ENGELLEMEZ"* diyor — niyet doğruymuş,
+`toggleProfession` bunu uygulamamış.
+
+**Düzeltme:** her iki sayma yerinde de `kOtherProfession`/`kQuickSupportCategory`
+filtrelensin. Tek doğru kaynak: `professionCodes`'u filtreleyen bir getter.
+
+#### B-04 · Kaydetme hatası sebep vermiyor — sosyal medya DEĞİL
+**Kullanıcı şüphesi test edildi, doğrulanmadı.** `normalizeHandle` /
+`normalizeWebsite` / `normalizeWhatsapp` (`social_links.dart:51-103`) girdiyi
+kuralın istediği biçime çeviriyor (URL → kullanıcı adı, `https://` ekler).
+`socialLinksOk` (`firestore.rules:193-212`) ihlali beklenmez.
+
+**Asıl sorun mesajın kendisi:** `save()` hatayı `AsyncValue.guard` içinde yutup
+yalnız `false` dönüyor (`my_profile_controller.dart:328-342`); ekran sabit
+*"Kaydetme başarısız, tekrar deneyin."* yazıyor (`:312`). Gerçek sebep
+hiçbir yere yazılmıyor — log'a bile.
+
+**Diğer aday:** `serviceProvincesOk` (`firestore.rules:180-188`) —
+`serviceProvinces.size() <= serviceAreas.size()` şartı. Bölge/il seçimi bu
+dengeyi bozduysa kural reddeder.
+
+**Düzeltme sırası:** önce hata mesajını görünür yap (kendi başına doğru bir
+düzeltme — kullanıcı neden kaydedemediğini bilmeli), sonra cihazda tekrar
+dene, gerçek sebeple B-04/B-05'i kapat.
+
+#### B-07 · Düzenleme kapsamı dar — sunucu tarafı hazır
+`_EditJobSheet` yalnız başlık+açıklama taşıyor; `updateJobContent` imzası da
+öyle (`job_repository.dart:96-101`: `title`, `description`, `budget`).
+
+**İyi haber:** `firestore.rules` fotoğrafı yasaklamıyor — `photos` create
+allowlist'inde (`:630`), update'te içerik kilidi yok. İş yalnızca istemcide.
+
+#### K-07 · Fiyat tipi formda yok
+`create_job_screen.dart:154` → `priceType: JobPriceType.inspection` **sabit
+yazılmış**; her ilan "Keşif Gerekli" doğuyor. Bilinçli sadeleştirme gibi
+duruyor ama test planı 3.1.6 hâlâ iki seçenek bekliyor.
+**Karar gerek:** bütçe alanı geri gelsin mi, yoksa 3.1.6 plandan düşsün mü?
+
 ### K-04 · Liste giriş animasyonu (şelale) — PLAN
 
 **Durum:** Dokunma yaylanması (`TapScale`) **yapıldı** (`3a18eb0`). Şelale
@@ -231,6 +313,29 @@ Her oturumun sonunda nerede kaldığımızı buraya yazın.
 > **Kritik doğrulamalar** (henüz hiç cihazda test edilmedi):
 > - 5.3 — müşteri hiç yazmadan işi verirse usta sohbete yazabiliyor mu?
 > - 7.2 — müşteri puan verdikten sonra ustanın "Değerlendir" şeridi duruyor mu?
+
+### Oturum 2 — 2026-08-07
+- **Tamamlanan:** Bölüm 3 (İlanlar — Müşteri) ✅ · Bölüm 2'ye dönüş (vitrin düzenleme)
+- **🔜 KALINAN YER: Bölüm 4 — [[04-Ilanlar-Usta]]**
+- **Yöntem kararı:** Test sürerken kod değiştirilmiyor. Bulgular biriktirilip
+  **test bitince sırayla** düzeltilecek — yoksa her düzeltme sonrası yeni
+  derleme gerekir ve karşılaştırma zemini kayar.
+- **Yeni bulgular:** B-02…B-11 (hata) · K-05, K-06, K-07 (karar)
+- **Doğrulananlar:** ilan limiti 5 ✅ · düzenle/sil ✅ · Hemen Lazım ilanı ✅ ·
+  boş alan uyarısı ✅ · süre ✅ · ilan durumu ✅ · foto loading+büyütme ✅ ·
+  ikinci hesapla ilan görme ✅ · iptal nedeni sheet'i ✅
+- **Bölüm 3'te atlanan:** 3.1.6 (fiyat tipi — K-07 kararına bağlı) ·
+  3.4.5 + 3.6.3 (usta hesabı gerek → Bölüm 4'te doğrulanacak)
+- **Kullanıcı geri bildirimi:** "usta kartları ve ürünler basıldı hissi
+  veriyor, güzel" — TapScale + şelale animasyonu cihazda onaylandı ✅
+
+> [!important] Sonraki oturumda buradan devam
+> **Bölüm 4'ten başla** ([[04-Ilanlar-Usta]], 20 adım ~15 dk) — usta hesabı
+> hazır. Bölüm 3'ten devreden iki adımı da orada kapat: **3.4.5** (ilgilenen
+> ustalar bölümü) ve **3.6.3** (iptal edilen ilan usta feed'inden düşüyor mu).
+>
+> Test bitince (bölüm 4→9) düzeltme kuyruğuna geç: **B-02 → B-03 → B-04/B-05
+> → B-06 → B-07 → B-08 → B-09 → B-10 → B-11**, sonra K-05…K-07 kararları.
 
 ---
 

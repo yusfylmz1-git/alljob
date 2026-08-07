@@ -14,7 +14,7 @@
 |---|---|---|---|---|---|
 | 1 | [[01-Giris-ve-Hesap]] | 24 | ~15 dk | ✅ | B-01 (düzeltildi) |
 | 2 | [[02-Profil-ve-Rol]] | 22 | ~20 dk | ✅ | K-02 (karar bekliyor) |
-| 3 | [[03-Ilanlar-Musteri]] | 26 | ~25 dk | ⬜ | — |
+| 3 | [[03-Ilanlar-Musteri]] | 26 | ~25 dk | ⚠️ | B-02·B-06…B-11 · K-07 |
 | 4 | [[04-Ilanlar-Usta]] | 20 | ~15 dk | ⬜ | — |
 | 5 | [[05-Mesajlar]] ⭐ | 34 | ~30 dk | ⬜ | — |
 | 6 | [[06-Is-Tamamlama]] | 22 | ~20 dk | ⬜ | — |
