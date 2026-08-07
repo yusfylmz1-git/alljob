@@ -67,15 +67,23 @@ void main() {
     setUpAll(() =>
         profile = read('lib/features/profile/presentation/profile_screen.dart'));
 
-    test('mod göstergesi YAZILI (B-16)', () {
-      // Renk tek başına yetmiyordu; rozet metni her zaman görünür olmalı.
+    test('mod göstergesi YAZILI ve anahtarlı (B-16)', () {
+      // Renk tek başına yetmiyordu; durum yazıyla görünmeli. Başlıktaki
+      // rozet kaldırıldı — anahtar aynı bilgiyi hem gösteriyor hem
+      // değiştirilebilir kılıyor (mükerrer metin kalmadı).
+      expect(profile.contains('class _ArtisanModeSwitch'), isTrue);
       expect(profile.contains("'Usta modu'"), isTrue);
-      expect(profile.contains("'Müşteri modu'"), isTrue);
+      expect(profile.contains('Açık — iş alabilir'), isTrue);
+      expect(profile.contains('Kapalı — yalnız hizmet alıyorsun'), isTrue);
     });
 
-    test('3\'lü istatistik şeridi var', () {
+    test('Instagram başlık düzeni: avatar solda, sayaçlar yanında', () {
       expect(profile.contains('class _HeroStats'), isTrue);
       expect(profile.contains('class _StatCell'), isTrue);
+      expect(profile.contains('class _AvatarWithEdit'), isTrue);
+      // Aksiyon çubuğu (Profili düzenle / Profilime bak)
+      expect(profile.contains('class _HeroAction'), isTrue);
+      expect(profile.contains("'Profili düzenle'"), isTrue);
     });
 
     test('usta sayaçları gerçek veriden okunur', () {

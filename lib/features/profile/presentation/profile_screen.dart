@@ -13,6 +13,7 @@ import '../../../core/utils/snackbar_helper.dart';
 import '../../../core/widgets/app_image.dart';
 import '../../../core/widgets/app_menu_drawer.dart';
 import '../../../core/widgets/gradient_app_bar.dart';
+import '../../../core/widgets/notification_bell.dart';
 import '../../../core/widgets/responsive_center.dart';
 import '../../../core/widgets/role_bottom_bar.dart';
 import '../../../data/local/mock_database.dart';
@@ -142,7 +143,9 @@ class _Body extends ConsumerWidget {
         _Hero(user: user, draft: draft, artisanMode: artisanMode),
         ResponsiveCenter(
           maxWidth: 720,
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+          // IG: başlık ile içerik arası dar; aksiyon düğmelerinin hemen
+          // altında usta anahtarı gelir.
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -197,212 +200,223 @@ class _Hero extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final palette = context.palette;
     final name = user.displayName.trim();
     final initials = name.isEmpty ? '?' : name.substring(0, 1).toUpperCase();
     final photo = draft?.profilePhotoUrl ?? user.profilePhotoUrl;
     final profession = artisanMode && draft != null
         ? kProfessionNames[draft!.profile.profession]
         : null;
+    final about = artisanMode ? draft?.profile.aboutText.trim() : null;
 
-    return Container(
-      decoration: BoxDecoration(
-        gradient: context.palette.heroGradient,
-        borderRadius: const BorderRadius.vertical(bottom: Radius.circular(24)),
-      ),
-      child: SafeArea(
-        bottom: false,
-        child: ResponsiveCenter(
-          maxWidth: 720,
-          padding: const EdgeInsets.fromLTRB(12, 8, 12, 24),
-          child: Column(
-            children: [
-              // Üst şerit: menü + başlık (ortada) + dengeleyici boşluk.
-              // Menü yalnız avatar üstünde “uçan” durmasın.
-              Row(
-                children: [
-                  const DrawerMenuButton(),
-                  // B-16: hangi moddayız — YAZILI ve her zaman görünür.
-                  // Renk tek başına yetmiyordu (kullanıcı da karıştırıyordu).
-                  Expanded(
-                    child: Center(
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 5,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.16),
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(
-                            color: Colors.white.withValues(alpha: 0.28),
-                          ),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              artisanMode
-                                  ? Icons.handyman_rounded
-                                  : Icons.person_rounded,
-                              size: 15,
-                              color: Colors.white,
-                            ),
-                            const SizedBox(width: 6),
-                            Text(
-                              artisanMode ? 'Usta modu' : 'Müşteri modu',
-                              style: theme.textTheme.labelMedium?.copyWith(
-                                color: Colors.white,
-                                fontWeight: FontWeight.w800,
-                                letterSpacing: -0.1,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                  // Menü ile simetrik genişlik (başlık gerçekten ortada).
-                  const SizedBox(width: 40),
-                ],
-              ),
-              const SizedBox(height: 14),
-              // Avatar + altındaki kalem → profil / vitrin düzenleme.
-              Tooltip(
-                message: 'Profili düzenle',
-                child: Material(
-                  color: Colors.transparent,
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(40),
-                    onTap: () => context.push(RoutePaths.profileEdit),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 4,
-                      ),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(3),
-                            decoration: const BoxDecoration(
-                              gradient: AppColors.brandGradient,
-                              shape: BoxShape.circle,
-                            ),
-                            child: Container(
-                              padding: const EdgeInsets.all(2.5),
-                              decoration: const BoxDecoration(
-                                color: Color(0xFF13293F),
-                                shape: BoxShape.circle,
-                              ),
-                              child: ClipOval(
-                                child: SizedBox(
-                                  width: 72,
-                                  height: 72,
-                                  child: photo != null
-                                      ? AppImage(
-                                          handle: photo,
-                                          fit: BoxFit.cover,
-                                          width: 72,
-                                          height: 72,
-                                          memCacheWidth: 144,
-                                          memCacheHeight: 144,
-                                        )
-                                      : Container(
-                                          color: Colors.white12,
-                                          alignment: Alignment.center,
-                                          child: Text(
-                                            initials,
-                                            style: const TextStyle(
-                                              fontSize: 26,
-                                              fontWeight: FontWeight.w700,
-                                              color: Colors.white,
-                                            ),
-                                          ),
-                                        ),
-                                ),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          // Resmin altı: kalem + "Düzenle"
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 10,
-                              vertical: 4,
-                            ),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withValues(alpha: 0.14),
-                              borderRadius: BorderRadius.circular(20),
-                              border: Border.all(
-                                color: Colors.white.withValues(alpha: 0.28),
-                              ),
-                            ),
-                            child: const Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(
-                                  Icons.edit_outlined,
-                                  size: 14,
-                                  color: Colors.white,
-                                ),
-                                SizedBox(width: 4),
-                                Text(
-                                  'Düzenle',
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w700,
-                                    letterSpacing: 0.2,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
+    return SafeArea(
+      bottom: false,
+      child: ResponsiveCenter(
+        maxWidth: 720,
+        padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Üst şerit: menü (sol) + ad (orta) + bildirim (sağ).
+            Row(
+              children: [
+                const DrawerMenuButton(),
+                Expanded(
+                  child: Text(
+                    name.isEmpty ? 'Kullanıcı' : name,
+                    textAlign: TextAlign.center,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: -0.2,
                     ),
                   ),
                 ),
-              ),
-              const SizedBox(height: 10),
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Flexible(
-                    child: Text(
-                      name.isEmpty ? 'Kullanıcı' : name,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.titleLarge?.copyWith(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w800,
-                      ),
+                const NotificationBell(),
+              ],
+            ),
+            const SizedBox(height: 8),
+
+            // Instagram başlığı: avatar SOLDA, sayaçlar YANINDA (yatay).
+            Row(
+              children: [
+                _AvatarWithEdit(photo: photo, initials: initials),
+                const SizedBox(width: 8),
+                Expanded(child: _HeroStats(user: user)),
+              ],
+            ),
+            const SizedBox(height: 12),
+
+            // Bio: ad + mavi tik, meslek, hakkımda — hepsi SOLA dayalı.
+            Row(
+              children: [
+                Flexible(
+                  child: Text(
+                    name.isEmpty ? 'Kullanıcı' : name,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w800,
                     ),
                   ),
-                  if (user.phoneVerified) ...[
-                    const SizedBox(width: 6),
-                    const Icon(
-                      Icons.verified,
-                      size: 20,
-                      color: Color(0xFF60A5FA),
-                    ),
-                  ],
+                ),
+                if (user.phoneVerified) ...[
+                  const SizedBox(width: 5),
+                  Icon(Icons.verified, size: 16, color: palette.verified),
                 ],
-              ),
-              if (profession != null && profession.isNotEmpty) ...[
-                const SizedBox(height: 4),
-                Text(
+              ],
+            ),
+            if (profession != null && profession.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 2),
+                child: Text(
                   profession,
-                  overflow: TextOverflow.ellipsis,
                   style: theme.textTheme.bodySmall?.copyWith(
-                    color: Colors.white.withValues(alpha: 0.78),
+                    color: palette.inkMuted,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
+              ),
+            if (about != null && about.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Text(
+                  about,
+                  maxLines: 3,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.bodySmall,
+                ),
+              ),
+            const SizedBox(height: 12),
+
+            // Aksiyon çubuğu (IG: "Profili düzenle | Profili paylaş").
+            Row(
+              children: [
+                Expanded(
+                  child: _HeroAction(
+                    label: 'Profili düzenle',
+                    onTap: () => context.push(RoutePaths.profileEdit),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _HeroAction(
+                    label: 'Profilime bak',
+                    onTap: () =>
+                        context.push(RoutePaths.artisanProfile(user.uid)),
+                  ),
+                ),
               ],
-              const SizedBox(height: 16),
-              _HeroStats(user: user),
-            ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Avatar + sağ altında "+" rozeti (IG foto ekleme göstergesi).
+class _AvatarWithEdit extends StatelessWidget {
+  const _AvatarWithEdit({required this.photo, required this.initials});
+  final String? photo;
+  final String initials;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    return GestureDetector(
+      onTap: () => context.push(RoutePaths.profileEdit),
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(2.5),
+            decoration: const BoxDecoration(
+              gradient: AppColors.brandGradient,
+              shape: BoxShape.circle,
+            ),
+            child: Container(
+              padding: const EdgeInsets.all(2.5),
+              decoration: BoxDecoration(
+                color: palette.card,
+                shape: BoxShape.circle,
+              ),
+              child: ClipOval(
+                child: SizedBox(
+                  width: 78,
+                  height: 78,
+                  child: photo != null
+                      ? AppImage(
+                          handle: photo,
+                          fit: BoxFit.cover,
+                          width: 78,
+                          height: 78,
+                          memCacheWidth: 200,
+                          memCacheHeight: 200,
+                        )
+                      : Container(
+                          color: palette.primaryContainer,
+                          alignment: Alignment.center,
+                          child: Text(
+                            initials,
+                            style: TextStyle(
+                              fontSize: 28,
+                              fontWeight: FontWeight.w800,
+                              color: palette.primary,
+                            ),
+                          ),
+                        ),
+                ),
+              ),
+            ),
+          ),
+          Positioned(
+            right: 0,
+            bottom: 0,
+            child: Container(
+              padding: const EdgeInsets.all(2),
+              decoration: BoxDecoration(
+                color: palette.card,
+                shape: BoxShape.circle,
+              ),
+              child: Container(
+                padding: const EdgeInsets.all(3),
+                decoration: BoxDecoration(
+                  color: palette.primary,
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.add, size: 13, color: Colors.white),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// IG'deki gri, geniş, düşük kontrastlı aksiyon düğmesi.
+class _HeroAction extends StatelessWidget {
+  const _HeroAction({required this.label, required this.onTap});
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    return Material(
+      color: palette.surfaceMuted,
+      borderRadius: BorderRadius.circular(9),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(9),
+        onTap: onTap,
+        child: Container(
+          height: 34,
+          alignment: Alignment.center,
+          child: Text(
+            label,
+            style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                  fontWeight: FontWeight.w700,
+                ),
           ),
         ),
       ),
@@ -513,20 +527,21 @@ class _StatCell extends StatelessWidget {
                     Icon(icon, size: 16, color: const Color(0xFFFBBF24)),
                     const SizedBox(width: 2),
                   ],
+                  // IG: sayı iri ve koyu, etiket altında küçük ve soluk.
                   Text(
                     value,
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w800,
+                    style: theme.textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: -0.3,
                     ),
                   ),
                 ],
               ),
-              const SizedBox(height: 2),
+              const SizedBox(height: 1),
               Text(
                 label,
-                style: theme.textTheme.labelSmall?.copyWith(
-                  color: Colors.white.withValues(alpha: 0.72),
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: context.palette.inkMuted,
                 ),
               ),
             ],

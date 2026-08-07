@@ -54,8 +54,9 @@ void main() {
     // Sadeleştirme sonrası bölüm etiketleri (DÜKKÂNIM/İŞLER/TALEPLERİM)
     // kaldırıldı: tek profil + "Usta modu" anahtarı. Anahtarın varlığı,
     // usta bölümlerinin render olduğunun göstergesi.
-    // İki yerde geçer: başlıktaki mod rozeti + anahtar satırının başlığı.
-    expect(find.text('Usta modu'), findsNWidgets(2));
+    // Başlıktaki mod rozeti KALKTI (anahtar aynı bilgiyi veriyordu,
+    // mükerrerdi); geriye tek "Usta modu" başlığı kaldı — anahtarınki.
+    expect(find.text('Usta modu'), findsOneWidget);
     // Anahtarın alt yazısı yalnız anahtarda — usta modülleri render oldu.
     expect(
       find.textContaining('iş alabilir'),
