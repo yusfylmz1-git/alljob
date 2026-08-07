@@ -57,7 +57,7 @@ Faydalı olursa ekleyin: hangi hesap, ekran görüntüsü, hata mesajının ayn�
 | B-19 | 5.1.2 | **Sohbette ilan başlığı görünmüyor** — `ensureChatReady` alanları düşürüyor + kural sonradan yazmaya kapalı | 🟠 P1 | ✅ **düzeltildi + cihazda doğrulandı** |
 | B-17 | 1.x | Hesap değişiminde **ANR ("yanıt vermiyor") + çökme** — süre sınırsız çıkış zinciri | 🔴 P0 | ✅ **düzeltildi + cihazda doğrulandı** |
 | K-05 | 2.x | Usta hesabı ilk açılışta **Hemen Lazım varsayılan açık** gelsin | 🟡 P2 | 🤔 **karar bekliyor** |
-| K-08 | 5.7 | **Mesajlar listesine sekme** — genel mesajlar önce, ilan mesajları sonra | 🟡 P2 | 📋 **planlandı** (kullanıcı istedi) |
+| K-08 | 5.7 | **Mesajlar listesine sekme** (İlan · Genel) — varsayılan İlan, genelde okunmamış varsa o öne | 🟡 P2 | ✅ **karar verildi** → uygulanacak |
 | K-09 | 5.5 | Sohbet **görünümü WhatsApp/Instagram havası vermiyor** — işlevler çalışıyor, cila eksik | 🟡 P2 | 🤔 **kapsam belirsiz** |
 | K-10 | 5.6 | ⛔ **Maskeleme test EDİLMEDİ** — "gereksiz" sanılarak atlandı, ama kod aktif ve K-01 hâlâ açık | 🟠 P1 | ⚠️ **test edilmeli** |
 | K-06 | 2.1 | Profil başlığı **usta kartı gibi** olsun: foto solda, yanında isim + Takip Et, altında meslek/telefon | 🟡 P2 | 🤔 **K-02 ile birlikte** |
@@ -238,9 +238,9 @@ kullanıcı yine de ayrım istiyor:
 sohbet türünün doğası farklı — ilan sohbetleri iş akışına bağlı ve durumu
 var, genel sohbetler serbest.
 
-#### ⚠️ Varsayılan sekme hangisi olmalı?
+#### ✅ Varsayılan sekme kararı verildi
 
-Kullanıcı *"önce genel mesajlar"* dedi. **Ama bu tartışılmalı:**
+İlk istek *"önce genel mesajlar"*dı; tartışıldı ve **değiştirildi**:
 
 | | Varsayılan: Genel | Varsayılan: İlan |
 |---|---|---|
@@ -249,19 +249,29 @@ Kullanıcı *"önce genel mesajlar"* dedi. **Ama bu tartışılmalı:**
 | Bildirim | Seyrek | Sık |
 | Risk | Kullanıcı yeni iş mesajını **görmez** | — |
 
-Uygulamanın ana işi **hizmet pazaryeri**; mesajların çoğu ilan bazlı olacak.
-Varsayılan "Genel" olursa kullanıcı her açılışta boş/durgun bir listeye bakıp
-sekme değiştirmek zorunda kalır.
+Uygulamanın ana işi hizmet pazaryeri; mesajların çoğu ilan bazlı olacak.
+Varsayılan "Genel" olsaydı kullanıcı her açılışta durgun bir listeye bakıp
+sekme değiştirmek zorunda kalırdı.
 
-**Öneri:** varsayılan **İlan mesajları**, ikinci sekme Genel. Ya da
-**okunmamışı olan sekme** öne gelsin (akıllı varsayılan).
-→ Uygulamadan önce kullanıcıya sorulacak.
+> **KARAR (kullanıcı onayladı):**
+> 1. **Varsayılan sekme = İlan mesajları**
+> 2. **Akıllı istisna:** Genel'de **okunmamış varsa** o sekme öne gelir
+>
+> Yani "genelde iş odaklı, ama bekleyen genel mesaj varsa onu kaçırma".
 
 #### Yapılacaklar (test bitince)
-1. `chat_list_screen`'e iki sekme (`TabBar`): İlan · Genel
+1. `chat_list_screen`'e iki sekme (`TabBar`): **İlan · Genel**
 2. Ayrım zaten hazır: `thread.isJobChat`
-3. Her sekmede **kendi okunmamış rozeti**
-4. İlan sohbetlerinde **durum rozeti** (*"İş yürüyor"* / *"Tamamlandı"*) —
+3. Başlangıç sekmesi:
+   ```
+   genelde okunmamış > 0  →  Genel
+   aksi hâlde             →  İlan   (varsayılan)
+   ```
+   ⚠️ **Yalnız ilk açılışta** hesaplanmalı (`initialIndex`). Kullanıcı sekme
+   değiştirdikten sonra yeni mesaj gelince sekme **zıplamamalı** — okuma
+   akışını bozar.
+4. Her sekmede **kendi okunmamış rozeti**
+5. İlan sohbetlerinde **durum rozeti** (*"İş yürüyor"* / *"Tamamlandı"*) —
    ayrı iş, sekmeden bağımsız değerlendirilebilir
 
 #### Reddedilen alternatif: mesajları ilan detayına taşımak
