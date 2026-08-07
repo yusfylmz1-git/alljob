@@ -72,19 +72,30 @@ görünür olsun.
 
 ---
 
-## Uygulama sırası (önerilen)
+## Uygulama sırası
 
-| Faz | İş | Risk |
+| Faz | İş | Durum |
 |---|---|---|
-| **1** | Alt bar: work sekmesi → yalnız usta modunda "İlanlar" | Düşük |
-| **2** | Profil: HESABIM → yan menüye taşı | Düşük |
-| **3** | Profil başlığı: Instagram düzeni (avatar + sayaç + bio) | Orta |
-| **4** | "Profili Düzenle" birleştirme | Orta |
-| **5** | Usta profili (`artisan_profile_screen`): grid/sekme düzeni | Orta |
-| **6** | Müşteri sayaçları: CF + kural + geri dolum + deploy | **Yüksek** |
+| **1** | Alt bar: "İlanlar" yalnız usta modunda | ✅ `86858d7` |
+| **2** | Profil: HESABIM → `/profile/account` + yan menü | ✅ `86858d7` |
+| **3** | Profil başlığı: mod rozeti + 3'lü sayaç | ✅ `86858d7` |
+| **4** | "Profili Düzenle" tek giriş (usta vitrini kartı) | ✅ `b80f734` |
+| **5** | IG vitrin dili: grid 2px + dairesel highlights | ✅ `b80f734` |
+| **6** | Müşteri sayaçları: CF + kural + geri dolum + deploy | ⏸️ **backend** |
 
-**Faz 6 ayrı ele alınmalı** — tek backend işi ve deploy gerektiriyor.
-Faz 1-5 yalnız istemci, testle doğrulanabilir.
+### Faz 1-5 · yapılanlar özeti
+- Alt bar rol ayrımı yapmıyor; sekme adı role göre değişmiyor (B-16 kaynağı)
+- Profil = **içerik** (ilanlar, işler, takip); hesap işleri ayrı ekranda
+- Mod göstergesi **yazılı rozet** — renk tek başına yetmiyordu (B-16)
+- Usta sayaçları gerçek veriden (`completedJobs`, `averageRating`)
+- Tek düzenleme girişi; formlar birleştirilmedi (iki kaydetme yolu
+  birbirine bağlanmasın — bkz. B-04 dersi)
+
+### ⏸️ Faz 6 — neden bekliyor
+Müşteri profilinde **"değerlendirme" sayacı `—`** gösteriyor. Gerçek sayı
+için gerekenler değişmedi (yukarıdaki madde 4). Bu **tek başına bir backend
+işi**: CF + kural + geri dolum + deploy. İstemci tarafı hazır — `_HeroStats`
+içinde yalnız veri kaynağı bağlanacak.
 
 ---
 
