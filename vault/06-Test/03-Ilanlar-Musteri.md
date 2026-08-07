@@ -46,8 +46,7 @@
 - [x] **3.4.2** İlan durumu doğru yazıyor ("Teklif toplanıyor" vb.)
 - [x] **3.4.3** İlan detayı açılıyor, tüm bilgiler doğru
 - [x] **3.4.4** Fotoğraflar açılıyor, büyütülebiliyor
-- [ ] **3.4.5** **İlgilenen ustalar** bölümü görünüyor (usta ilgi bildirdiyse)
-      → ⏭️ **Bölüm 4'te doğrulanacak** (usta hesabı gerekiyor)
+- [x] **3.4.5** **İlgilenen ustalar** bölümü görünüyor ✅ (4.2.4'te doğrulandı)
 
 ## 3.5 İlan düzenleme ve silme
 
@@ -66,7 +65,8 @@
       ⚠️ **B-11** ("günlük hakkım bitti" seçeneği gereksiz)
 - [x] **3.6.2** İptal edilen ilan durumu "İptal edildi" oluyor
 - [ ] **3.6.3** İptal edilen ilan **usta feed'inden düşüyor**
-      → ⏭️ **Bölüm 4'te doğrulanacak** (usta hesabı gerekiyor)
+      → ⏭️ **hâlâ açık.** Bölüm 4'te sorulmadı; usta hesabındayken iptal
+      ettiğiniz bir ilanın listede OLMADIĞINI teyit edin (Bölüm 5'te kapatın)
 
 ---
 

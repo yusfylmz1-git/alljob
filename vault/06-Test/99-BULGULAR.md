@@ -48,9 +48,56 @@ Faydalı olursa ekleyin: hangi hesap, ekran görüntüsü, hata mesajının ayn�
 | B-09 | 3.1.4 | İl seçince **ekran yukarı kayıyor**; ilçeye odaklanmıyor, klavye kapanmıyor | 🟡 P2 | 🔧 **düzeltilecek** |
 | B-10 | 3.2.1 | Hemen Lazım'da **otomatik doldurma örnekleri çok aşağıda** — kategori kutusunun hemen altında olmalı | 🟡 P2 | 🔧 **düzeltilecek** |
 | B-11 | 3.6.1 | İlan iptal nedenlerinde **"günlük hakkım bitti" gereksiz** — hakkı yoksa zaten ilan açamıyor | 🟡 P2 | 🔧 **düzeltilecek** |
+| B-12 | 4.2.5 / 4.5 | **Telefona sistem push'u hiç gelmiyor** — uygulama içi bildirimler çalışıyor | 🔴 P0 | 🔬 **teşhis gerek** |
 | K-05 | 2.x | Usta hesabı ilk açılışta **Hemen Lazım varsayılan açık** gelsin | 🟡 P2 | 🤔 **karar bekliyor** |
 | K-06 | 2.1 | Profil başlığı **usta kartı gibi** olsun: foto solda, yanında isim + Takip Et, altında meslek/telefon | 🟡 P2 | 🤔 **K-02 ile birlikte** |
 | K-07 | 3.1.6 | Fiyat tipi ilan formunda yok — ~~bilinçli mi?~~ | — | ✅ **kapandı: bilinçli** |
+
+### B-12 · Sistem push'u gelmiyor — 🔴 P0, ÖNCE TEŞHİS
+
+**Belirti:** Uygulama içi bildirim listesi çalışıyor, tıklayınca doğru ilana
+gidiyor ✅ — ama **telefonun kendi bildirim çekmecesine hiçbir şey düşmüyor**.
+İki ayrı cihazda, ilan oluşturma senaryosunda doğrulandı.
+
+**Bu ayrım tam olarak kodun uyardığı tuzak** (`push_service.dart:94-100`):
+> *"Token yazımı App Check reddi / kural hatası / ağ yüzünden düşerse uygulama
+> 'çalışıyor' görünür ama `fcmTokens` boş kalır ve sistem push'u HİÇ gelmez —
+> in-app bildirimler Admin SDK ile yazıldığı için çalışmaya devam eder, bu da
+> sorunu görünmez kılar."*
+
+In-app çalışıp sistem push'unun gelmemesi ⇒ **`fcmTokens` büyük olasılıkla boş**.
+CF tarafı sağlam görünüyor (`functions/index.js:375` token yoksa
+*"Push skip {uid}: cihaz token'ı YOK"* loglar).
+
+#### Kod düzeltmesi DEĞİL olabilir — önce ölçün
+
+Bu bulguyu diğerleri gibi kuyruğa atmadan önce **tanılama okunmalı**; sebep
+yapılandırma da olabilir (izin, App Check, google-services.json).
+
+**1. Uygulamada:** Ayarlar → Bildirimler ekranı (`notification_prefs_screen`)
+→ en alttaki **tanılama satırı** ne yazıyor? Dört olasılık:
+
+| Satır | Anlamı | Yapılacak |
+|---|---|---|
+| "Bildirimler açık (cihaz kayıtlı)" | Token YAZILMIŞ → sorun cihaz/kanal veya CF tarafında | Aşağıdaki 2. adıma geç |
+| "Bildirim izni kapalı…" | Android 13+ POST_NOTIFICATIONS reddedilmiş | Sistem ayarından aç → "Yeniden dene" |
+| "Cihaz bildirimlere kaydedilemedi: …" | **Gerçek hata burada yazıyor** | Metni aynen not al — teşhis bu |
+| "Bildirim durumu bilinmiyor" | `registerFor` hiç çalışmamış | Giriş akışını incele |
+
+**2. Sunucuda:** `firebase functions:log` → *"Push skip"* satırı var mı?
+- Varsa → token yok, sorun **istemcide** (yukarıdaki tanılama söyler)
+- Yoksa ve gönderim loglanıyorsa → token var, sorun **cihazda** (bildirim
+  kanalı, pil optimizasyonu, MIUI kısıtı)
+
+#### Xiaomi/MIUI şüphesi
+Cihaz **Xiaomi 22101316G / Android 14** (oturum 1 notu). MIUI arka plan
+bildirimlerini agresif kısar; "Otomatik başlatma" kapalıysa uygulama kapalıyken
+push düşmez. **Ayrı bir marka tuzağı** — kodda düzeltilecek bir şey olmayabilir.
+Test: uygulama **açıkken** başka cihazdan ilan oluşturun; bildirim geliyorsa
+sorun MIUI kısıtı, gelmiyorsa token/kayıt sorunu.
+
+**Not:** Debug imzalı APK + App Check birlikte de token yazımını engelleyebilir
+(App Check reddi → `_lastError` dolar). Tanılama satırı bunu ayırt eder.
 
 ### Oturum 2 bulguları — kök neden analizi
 
@@ -322,8 +369,9 @@ Her oturumun sonunda nerede kaldığımızı buraya yazın.
 > - 7.2 — müşteri puan verdikten sonra ustanın "Değerlendir" şeridi duruyor mu?
 
 ### Oturum 2 — 2026-08-07
-- **Tamamlanan:** Bölüm 3 (İlanlar — Müşteri) ✅ · Bölüm 2'ye dönüş (vitrin düzenleme)
-- **🔜 KALINAN YER: Bölüm 4 — [[04-Ilanlar-Usta]]**
+- **Tamamlanan:** Bölüm 3 (İlanlar — Müşteri) ✅ · Bölüm 4 (İlanlar — Usta) ✅ ·
+  Bölüm 2'ye dönüş (vitrin düzenleme)
+- **🔜 KALINAN YER: Bölüm 5 — [[05-Mesajlar]] ⭐** (34 adım, ~30 dk)
 - **Yöntem kararı:** Test sürerken kod değiştirilmiyor. Bulgular biriktirilip
   **test bitince sırayla** düzeltilecek — yoksa her düzeltme sonrası yeni
   derleme gerekir ve karşılaştırma zemini kayar.
@@ -336,13 +384,24 @@ Her oturumun sonunda nerede kaldığımızı buraya yazın.
 - **Kullanıcı geri bildirimi:** "usta kartları ve ürünler basıldı hissi
   veriyor, güzel" — TapScale + şelale animasyonu cihazda onaylandı ✅
 
+**Bölüm 4 sonucu:** 20 adımın 16'sı geçti, akış **temiz**. İlgi bildirme
+tekilliği (4.2.3), geri çekme/tekrar bildirme (4.3), yönlendirme (4.5.3)
+hepsi doğru. Tek bulgu **B-12 (push)** — ama o 🔴 P0.
+
 > [!important] Sonraki oturumda buradan devam
-> **Bölüm 4'ten başla** ([[04-Ilanlar-Usta]], 20 adım ~15 dk) — usta hesabı
-> hazır. Bölüm 3'ten devreden iki adımı da orada kapat: **3.4.5** (ilgilenen
-> ustalar bölümü) ve **3.6.3** (iptal edilen ilan usta feed'inden düşüyor mu).
+> **Bölüm 5'ten başla** ([[05-Mesajlar]] ⭐, 34 adım ~30 dk) — testin **en
+> kritik bölümü**. Karşılıklı değerlendirme çıkmazının doğrulaması burada
+> (5.3: müşteri hiç yazmadan işi verirse usta yazabiliyor mu?).
 >
-> Test bitince (bölüm 4→9) düzeltme kuyruğuna geç: **B-02 → B-03 → B-04/B-05
-> → B-06 → B-07 → B-08 → B-09 → B-10 → B-11**, sonra K-05…K-07 kararları.
+> Bölüm 5'te kapatılacak devir adımları: **3.6.3** (iptal edilen ilan usta
+> feed'inden düştü mü) · **4.4.3** (seçilmeyen usta "Reddedildi" oluyor mu).
+>
+> **B-12 ölçümü** (5 dk, teste paralel): Ayarlar → Bildirimler → tanılama
+> satırını okuyun. Sonuç düzeltmenin ne olduğunu belirler — kod mu, izin mi,
+> MIUI mi. Detay: B-12 notu.
+>
+> Test bitince (bölüm 5→9) düzeltme kuyruğu: **B-12 (P0) → B-02 → B-03 →
+> B-04/B-05 → B-06 → B-07 → B-08 → B-09 → B-10 → B-11**, sonra K-05/K-06.
 
 ---
 

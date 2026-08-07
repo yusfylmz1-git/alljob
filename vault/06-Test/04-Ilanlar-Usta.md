@@ -12,22 +12,22 @@
 
 ## 4.1 İlan keşfi
 
-- [ ] **4.1.1** Usta modunda **yakındaki işler / iş ilanları** listesi görünüyor
-- [ ] **4.1.2** Müşteri hesabıyla açtığınız ilan **listede çıkıyor**
-  - Çıkmıyorsa: meslek eşleşmesi ve bölge filtresini kontrol edin
-- [ ] **4.1.3** Filtreler çalışıyor (kategori, il/ilçe)
-- [ ] **4.1.4** İlan detayı açılıyor, müşteri bilgileri görünüyor
-- [ ] **4.1.5** İlan fotoğrafları açılıyor
+- [x] **4.1.1** Usta modunda **yakındaki işler / iş ilanları** listesi görünüyor
+- [x] **4.1.2** Müşteri hesabıyla açtığınız ilan **listede çıkıyor**
+- [x] **4.1.3** Filtreler çalışıyor (kategori, il/ilçe)
+- [x] **4.1.4** İlan detayı açılıyor, müşteri bilgileri görünüyor
+- [x] **4.1.5** İlan fotoğrafları açılıyor
 
 ## 4.2 İlgi bildirme ⭐
 
-- [ ] **4.2.1** İlan detayında **"İletişime Geç"** düğmesi var
-- [ ] **4.2.2** Basınca ilgi kaydediliyor, **onay mesajı** çıkıyor
-- [ ] **4.2.3** ⚠️ **Aynı ilana ikinci kez** basın → ikinci kayıt oluşmamalı
-      (güncelleme olmalı, sayaç 1'de kalmalı)
-- [ ] **4.2.4** Müşteri tarafında **"İlgilenen Ustalar"da görünüyor**
-      (müşteri hesabıyla doğrulayın)
-- [ ] **4.2.5** Müşteriye **bildirim/push** gitti mi?
+- [x] **4.2.1** İlan detayında **"Bildirim Gönder"** düğmesi var
+      *(metin güncellendi — "İletişime Geç" değil, bilinçli)*
+- [x] **4.2.2** Basınca ilgi kaydediliyor, *"müşterinin mesajı bekleniyor"* ✅
+- [x] **4.2.3** ⚠️ İkinci kez basılamıyor — tekillik **doğru çalışıyor** ✅
+- [x] **4.2.4** Müşteri tarafında **"İlgilenen Ustalar"da görünüyor** ✅
+      *(3.4.5 de bununla kapandı)*
+- [x] **4.2.5** Müşteriye bildirim → **uygulama içi ✅ · telefon push'u ❌**
+      → ⚠️ **B-12** (🔴 P0)
 
 > [!warning] Kritik davranış
 > Usta ilgi bildirdikten sonra **sohbete yazamaz**. Müşteri ilk mesajı yazana
@@ -36,24 +36,23 @@
 
 ## 4.3 İlgi geri çekme
 
-- [ ] **4.3.1** Verilen ilgi geri çekilebiliyor
-- [ ] **4.3.2** Geri çekince müşterinin listesinden düşüyor
-- [ ] **4.3.3** ⚠️ Geri çekip **tekrar** ilgi bildirebiliyor musunuz?
-      (yeniden aktifleşmeli)
+- [x] **4.3.1** Verilen ilgi geri çekilebiliyor ✅
+- [x] **4.3.2** Geri çekince müşterinin listesinden düşüyor ✅
+- [x] **4.3.3** ⚠️ Geri çekip **tekrar** ilgi bildirilebiliyor ✅
 
 ## 4.4 Tekliflerim / İşlerim
 
-- [ ] **4.4.1** "Tekliflerim" listesi ilgi bildirdiğiniz ilanları gösteriyor
-- [ ] **4.4.2** Durum doğru ("Bekliyor" / "Kabul edildi" / "Reddedildi")
+- [x] **4.4.1** "İlgilendiğim İşler" sekmesinde görünüyor ✅
+- [x] **4.4.2** Durum doğru ("Bekliyor")
 - [ ] **4.4.3** Seçilmediğiniz ilan **"Reddedildi"** oluyor
-      (müşteri başka ustayı seçince)
+      → ⏭️ **Bölüm 5'te** (müşteri başka ustayı seçince dolar)
 
 ## 4.5 Bildirimler
 
-- [ ] **4.5.1** Yeni ilan açılınca **push** geliyor mu? (uygun meslek/bölgede)
-- [ ] **4.5.2** Bildirim listesinde görünüyor
-- [ ] **4.5.3** Bildirime tıklayınca **doğru ilana** gidiyor
-- [ ] **4.5.4** Uygulama kapalıyken de push geliyor mu?
+- [ ] **4.5.1** Yeni ilan açılınca **push** geliyor mu? → ❌ **B-12** (🔴 P0)
+- [x] **4.5.2** Bildirim listesinde görünüyor ✅ (uygulama içi)
+- [x] **4.5.3** Bildirime tıklayınca **doğru ilana** gidiyor ✅
+- [ ] **4.5.4** Uygulama kapalıyken de push geliyor mu? → ❌ **B-12**
 
 ---
 
