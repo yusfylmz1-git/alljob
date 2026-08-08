@@ -35,23 +35,20 @@ class FirebaseChatRepository implements ChatRepository {
   /// Son yazılan heal değeri — gereksiz chatMeta yazısını keser.
   final Map<String, String> _lastHealedMetaKey = {};
 
-  /// Sohbet kimliği — İLAN BAZLI.
+  /// Sohbet kimliği — KİŞİ BAZLI (2026-08-08).
   ///
-  /// [jobId] doluysa `chat_{müşteri}__{usta}__{jobId}`: her ilan kendi sohbet
-  /// odasını alır, aynı çift farklı ilanlarda karışmaz.
+  /// `chat_{müşteri}__{usta}` — bir çiftin **tek** sohbet odası vardır.
   ///
-  /// [jobId] boşsa ESKİ iki parçalı biçim (`chat_{müşteri}__{usta}`) üretilir —
-  /// ürün/eleman sohbetleri ilana bağlı değildir ve ilan bazlı şemadan önce
-  /// açılmış sohbetler bu kimlikle durmaya devam eder. İki biçim yan yana
-  /// yaşar; [_uidsFromChatId] ikisini de çözer.
-  static String chatIdFor(
-    String customerUid,
-    String artisanUid, {
-    String? jobId,
-  }) {
-    final base = 'chat_${customerUid}__$artisanUid';
-    return (jobId == null || jobId.isEmpty) ? base : '${base}__$jobId';
-  }
+  /// Eskiden ilan bazlıydı (`..__{jobId}`) ve aynı kişiyle her ilan yeni bir
+  /// oda açıyordu; mesaj listesi aynı kişiden birden çok satırla doluyordu.
+  /// Artık ilan yalnızca sohbetin *bağlamı*: `jobId`/`jobTitle` alanları
+  /// yazılmaya devam eder (başlık rozetinde görünür) ama kimliğe GİRMEZ.
+  ///
+  /// ESKİ üç parçalı sohbetler Firestore'da durmaya devam eder ve listede
+  /// görünür — [_uidsFromChatId] iki biçimi de çözer. Yalnızca YENİ sohbetler
+  /// tek odada toplanır.
+  static String chatIdFor(String customerUid, String artisanUid) =>
+      'chat_${customerUid}__$artisanUid';
 
   CollectionReference<Map<String, dynamic>> get _chats =>
       _db.collection('chats');
@@ -329,9 +326,8 @@ class FirebaseChatRepository implements ChatRepository {
   bool hasChatBetween({
     required String customerUid,
     required String artisanUid,
-    String? jobId,
   }) =>
-      _threads.containsKey(chatIdFor(customerUid, artisanUid, jobId: jobId));
+      _threads.containsKey(chatIdFor(customerUid, artisanUid));
 
   @override
   int unreadCount({required String chatId, required String uid}) {
@@ -382,7 +378,8 @@ class FirebaseChatRepository implements ChatRepository {
     String? jobId,
     String? jobTitle,
   }) async {
-    final id = chatIdFor(customerUid, artisanUid, jobId: jobId);
+    // Kimlik ilandan TÜREMEZ; jobId yalnızca bağlam olarak dokümana yazılır.
+    final id = chatIdFor(customerUid, artisanUid);
     final now = DateTime.now();
     final prev = _threads[id];
     _threads[id] = ChatThread(

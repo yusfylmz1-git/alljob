@@ -35,57 +35,17 @@ class ChatListScreen extends ConsumerStatefulWidget {
 /// Mesajlar listesinin görünüm kipi.
 enum _ChatFilter { tumu, okunmamis, arsiv }
 
-/// Üst sekme: ilan sohbetleri mi, genel sohbetler mi?
+/// TEK KUTU (2026-08-08).
 ///
-/// Sohbet artık ilan bazlı (`chat_{müşteri}__{usta}__{jobId}`); bir müşterinin
-/// aynı ustayla birden çok işi olabiliyor. İş konuşmaları ürün/eleman
-/// sohbetleriyle karışmasın diye liste iki eksende ayrılır. [_ChatFilter]
-/// (tümü/okunmamış/arşiv) bu eksenin İÇİNDE çalışır.
-enum _ChatScope { ilan, genel }
-
-class _ChatListScreenState extends ConsumerState<ChatListScreen>
-    with SingleTickerProviderStateMixin {
+/// Eskiden burada "İlan Mesajları | Genel" sekmeleri vardı: sohbet kimliği
+/// ilan bazlıydı, aynı çift her iş için ayrı oda açıyordu. Artık bir kişiyle
+/// tek sohbet var (`chat_{müşteri}__{usta}`), dolayısıyla ayıracak bir eksen
+/// de yok. Yalnızca [_ChatFilter] (tümü/okunmamış/arşiv) kaldı.
+class _ChatListScreenState extends ConsumerState<ChatListScreen> {
   String _query = '';
   bool _selectionMode = false;
   final Set<String> _selected = {};
   _ChatFilter _filter = _ChatFilter.tumu;
-  _ChatScope _scope = _ChatScope.ilan;
-  late final TabController _tabs = TabController(length: 2, vsync: this)
-    ..addListener(() {
-      if (_tabs.indexIsChanging) return;
-      final next = _tabs.index == 0 ? _ChatScope.ilan : _ChatScope.genel;
-      if (next == _scope) return;
-      // Sekme değişince seçim modu kapanır: seçili sohbetler diğer sekmede
-      // görünmüyor olabilir, "3 seçildi" yazıp boş liste göstermek yanıltıcı.
-      setState(() {
-        _scope = next;
-        _selectionMode = false;
-        _selected.clear();
-      });
-    });
-
-  @override
-  void dispose() {
-    _tabs.dispose();
-    super.dispose();
-  }
-
-  /// Bir sekmede okunmamış mesajı olan SOHBET sayısı.
-  ///
-  /// `unreadCount` sohbet başına en fazla 1 döndürüyor (son mesaj benden değil
-  /// ve görülmemişse) — yani rozet "kaç sohbette yeni mesaj var" demektir,
-  /// toplam mesaj sayısı değil. Arşivlenenler sayılmaz.
-  int _unreadIn(WidgetRef ref, {required _ChatScope scope}) {
-    final me = ref.read(currentUserProvider)?.uid;
-    final threads = ref.watch(myThreadsProvider).valueOrNull;
-    if (me == null || threads == null) return 0;
-    final repo = ref.read(chatRepositoryProvider);
-    return threads
-        .where((t) => (scope == _ChatScope.ilan) == t.isJobChat)
-        .where((t) => !t.isArchivedFor(me))
-        .where((t) => repo.unreadCount(chatId: t.id, uid: me) > 0)
-        .length;
-  }
 
   void _exitSelection() => setState(() {
         _selectionMode = false;
@@ -293,21 +253,7 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen>
           : SurfaceAppBar(
               title: 'Mesajlar',
               icon: Icons.chat_bubble_outline_rounded,
-              // İş konuşmaları ürün/eleman sohbetleriyle karışmasın.
-              // Rozetler: hangi sekmede okunmamış var, sekmeye girmeden görünür.
-              bottom: TabBar(
-                controller: _tabs,
-                tabs: [
-                  _ScopeTab(
-                    label: 'İlan Mesajları',
-                    unread: _unreadIn(ref, scope: _ChatScope.ilan),
-                  ),
-                  _ScopeTab(
-                    label: 'Genel',
-                    unread: _unreadIn(ref, scope: _ChatScope.genel),
-                  ),
-                ],
-              ),
+              // Sekme YOK: tüm sohbetler tek listede (bkz. _ChatListScreenState).
               actions: [
                 // Pasif (gri) ikon gradyan üzerinde kötü durur — sohbet
                 // yokken çöp kutusu hiç gösterilmez.
@@ -358,10 +304,8 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen>
           final repo = ref.watch(chatRepositoryProvider);
           final q = foldTrSearch(_query);
 
-          // Önce KAPSAM: ilan sohbetleri / genel sohbetler ayrı listelerdir.
-          final scoped = threads
-              .where((t) => (_scope == _ChatScope.ilan) == t.isJobChat)
-              .toList();
+          // Kapsam ayrımı YOK: ilan ve genel sohbetler tek listede.
+          final scoped = threads;
 
           // Arşiv sekmesi yalnız arşivlenenleri; diğer sekmeler arşivi GİZLER.
           final archivedCount =
@@ -469,11 +413,7 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen>
                                   _ChatFilter.okunmamis =>
                                     'Okunmamış mesaj yok.',
                                   _ChatFilter.arsiv => 'Arşiv boş.',
-                                  _ChatFilter.tumu =>
-                                    _scope == _ChatScope.ilan
-                                        ? 'Henüz ilan mesajınız yok. İlan '
-                                            'detayından ustalarla yazışın.'
-                                        : 'Eşleşen sohbet yok.',
+                                  _ChatFilter.tumu => 'Eşleşen sohbet yok.',
                                 },
                                 style: Theme.of(context)
                                     .textTheme
@@ -800,52 +740,6 @@ class _Empty extends StatelessWidget {
             ),
           ],
         ),
-      ),
-    );
-  }
-}
-
-/// Sekme başlığı + okunmamış rozeti.
-///
-/// [unread] = o sekmede okunmamış mesajı olan SOHBET sayısı (mesaj adedi
-/// değil — `unreadCount` sohbet başına en fazla 1 döndürür).
-class _ScopeTab extends StatelessWidget {
-  const _ScopeTab({required this.label, required this.unread});
-
-  final String label;
-  final int unread;
-
-  @override
-  Widget build(BuildContext context) {
-    final palette = context.palette;
-    return Tab(
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Flexible(child: Text(label, overflow: TextOverflow.ellipsis)),
-          if (unread > 0) ...[
-            const SizedBox(width: 6),
-            Container(
-              constraints: const BoxConstraints(minWidth: 18),
-              height: 18,
-              padding: const EdgeInsets.symmetric(horizontal: 5),
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                color: palette.danger,
-                borderRadius: BorderRadius.circular(9),
-              ),
-              child: Text(
-                unread > 9 ? '9+' : '$unread',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 10,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-            ),
-          ],
-        ],
       ),
     );
   }

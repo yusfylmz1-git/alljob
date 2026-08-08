@@ -827,8 +827,8 @@ void main() {
   // Sohbet artık İLAN BAZLI: `chat_{müşteri}__{usta}__{jobId}`. Aynı çift her
   // ilanda ayrı odada konuşur; eski iki parçalı kimlikler (ürün/eleman ve
   // geçiş öncesi kayıtlar) çalışmaya devam eder.
-  group('İlan bazlı sohbet kimliği', () {
-    test('aynı çift, iki ilan → İKİ AYRI sohbet', () async {
+  group('Kişi bazlı sohbet kimliği (tek kutu)', () {
+    test('aynı çift, iki ilan → TEK sohbet', () async {
       final chats = MockChatRepository();
       final a = await chats.startChat(
         customerUid: 'cust_1',
@@ -847,23 +847,26 @@ void main() {
         jobTitle: 'Mutfak dolabı',
       );
 
-      expect(a, isNot(b));
-      expect(a, 'chat_cust_1__art_1__job_a');
+      // Kimlik ilandan TÜREMEZ: ikinci ilan yeni oda açmaz.
+      expect(a, b);
+      expect(a, 'chat_cust_1__art_1');
       expect(chats.getThread(a)!.jobTitle, 'Banyo musluk');
-      expect(chats.getThread(b)!.jobTitle, 'Mutfak dolabı');
     });
 
-    test('jobId verilmezse ESKİ iki parçalı kimlik (genel sohbet)', () async {
+    test('jobId olsun olmasın kimlik AYNI', () async {
       final chats = MockChatRepository();
-      final id = await chats.startChat(
+      final withJob = await chats.startChat(
         customerUid: 'cust_1',
         customerName: 'Müşteri',
         artisanUid: 'art_1',
         artisanName: 'Usta',
+        jobId: 'job_a',
+        jobTitle: 'Banyo musluk',
       );
+      final withoutJob = MockChatRepository.chatIdFor('cust_1', 'art_1');
 
-      expect(id, 'chat_cust_1__art_1');
-      expect(chats.getThread(id)!.isJobChat, isFalse);
+      expect(withJob, withoutJob);
+      expect(withJob, 'chat_cust_1__art_1');
     });
 
     test('canSend: SERBEST — iki taraf da yazar; kilitli sohbette kimse '

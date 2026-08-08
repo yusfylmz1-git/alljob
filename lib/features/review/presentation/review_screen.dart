@@ -40,18 +40,16 @@ class _ReviewScreenState extends ConsumerState<ReviewScreen> {
       ? ReviewDirection.artisanToCustomer
       : ReviewDirection.customerToArtisan;
 
-  /// Değerlendirilen sohbetin kimliği. İlan üzerinden gelindiyse İLAN BAZLI
-  /// kimlik kullanılır (`..__{jobId}`) — aynı çift her iş için ayrı puan
-  /// verebilsin. İlan yoksa eski iki parçalı (genel sohbet) kimliği.
+  /// Değerlendirilen sohbetin kimliği — KİŞİ BAZLI (2026-08-08).
   ///
-  /// Kimlik HER İKİ YÖNDE de aynı: `chat_{müşteri}__{usta}[__{iş}]`. Usta
-  /// değerlendirirken müşterinin uid'i ilandan gelir.
+  /// `chat_{müşteri}__{usta}`, HER İKİ YÖNDE de aynı. Usta değerlendirirken
+  /// müşterinin uid'i ilandan gelir.
+  ///
+  /// Eskiden ilan bazlıydı; artık bir çiftin tek sohbeti olduğu için
+  /// [widget.jobId] kimliğe girmez — yalnızca değerlendirmenin hangi iş için
+  /// yazıldığını kaydetmekte kullanılır.
   String _chatIdFor({required String customerUid}) =>
-      FirebaseChatRepository.chatIdFor(
-        customerUid,
-        widget.artisanUid,
-        jobId: widget.jobId,
-      );
+      FirebaseChatRepository.chatIdFor(customerUid, widget.artisanUid);
 
   /// Sohbetin müşteri tarafı — İLANDAN okunur (tek kaynak).
   ///

@@ -17,7 +17,8 @@ abstract interface class ChatRepository {
 
   /// Müşteri ile usta arasında sohbet geçmişi var mı? Değerlendirme yalnızca
   /// sohbet geçmişi olan müşterilere açıktır (PRD §5, Ekran F).
-  /// [jobId] verilirse İLAN BAZLI sohbet aranır; verilmezse genel sohbet.
+  /// Bir çiftin TEK sohbeti vardır (kimlik ilandan türemez), bu yüzden ilan
+  /// bilgisi sormaya gerek yoktur.
   ///
   /// DİKKAT: yalnız BELLEKTEKİ sohbetlere bakar (liste akışı bir kez
   /// çalışmışsa dolu olur). Sohbet listesine hiç girilmeden bu soruya cevap
@@ -25,7 +26,6 @@ abstract interface class ChatRepository {
   bool hasChatBetween({
     required String customerUid,
     required String artisanUid,
-    String? jobId,
   });
 
   /// Sohbeti SUNUCUDAN okur (bellekte yoksa da bulur).
@@ -55,9 +55,9 @@ abstract interface class ChatRepository {
   /// Sohbeti başlatır / var olanı hazırlar. Firestore'da döküman **hazır**
   /// olunca chatId döner. Navigasyondan önce `await` edilmeli.
   ///
-  /// [jobId] verilirse sohbet İLAN BAZLIDIR: kimliği ilanı da içerir, yani aynı
-  /// müşteri–usta çifti her ilan için AYRI odada konuşur. Verilmezse genel
-  /// sohbet açılır (ürün/eleman akışları).
+  /// Bir çiftin TEK odası vardır: aynı kişiyle kaç ilan konuşulursa konuşulsun
+  /// sohbet aynı yerde devam eder. [jobId]/[jobTitle] yalnızca **bağlam**
+  /// olarak yazılır (sohbet başlığındaki ilan rozeti) — kimliğe girmez.
   Future<String> startChat({
     required String customerUid,
     required String customerName,
@@ -170,15 +170,9 @@ class MockChatRepository implements ChatRepository {
     );
   }
 
-  /// Firebase paritesi: [jobId] doluysa ilan bazlı 3 parçalı kimlik.
-  static String chatIdFor(
-    String customerUid,
-    String artisanUid, {
-    String? jobId,
-  }) {
-    final base = 'chat_${customerUid}__$artisanUid';
-    return (jobId == null || jobId.isEmpty) ? base : '${base}__$jobId';
-  }
+  /// Firebase paritesi: KİŞİ BAZLI tek kimlik (ilan kimliğe girmez).
+  static String chatIdFor(String customerUid, String artisanUid) =>
+      'chat_${customerUid}__$artisanUid';
 
   StreamController<List<ChatMessage>> _ctrl(String chatId) =>
       _msgControllers.putIfAbsent(
@@ -215,9 +209,8 @@ class MockChatRepository implements ChatRepository {
   bool hasChatBetween({
     required String customerUid,
     required String artisanUid,
-    String? jobId,
   }) =>
-      _threads.containsKey(chatIdFor(customerUid, artisanUid, jobId: jobId));
+      _threads.containsKey(chatIdFor(customerUid, artisanUid));
 
   @override
   Future<ChatThread?> fetchThread(String chatId) async => _threads[chatId];
@@ -270,7 +263,8 @@ class MockChatRepository implements ChatRepository {
     String? jobId,
     String? jobTitle,
   }) async {
-    final id = chatIdFor(customerUid, artisanUid, jobId: jobId);
+    // Kimlik ilandan TÜREMEZ; jobId yalnızca bağlam olarak saklanır.
+    final id = chatIdFor(customerUid, artisanUid);
     final now = DateTime.now();
     _threads.putIfAbsent(
       id,
