@@ -8,6 +8,7 @@ void main() {
       expect(compareVersions('1.0.0', '1.0.1'), lessThan(0));
       expect(compareVersions('1.2.0', '1.1.9'), greaterThan(0));
       expect(compareVersions('2.0.0', '1.9.9'), greaterThan(0));
+      expect(compareVersions('1.0.0', '0.9.9'), greaterThan(0));
     });
 
     test('eksik parça 0 sayılır', () {

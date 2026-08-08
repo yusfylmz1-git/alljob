@@ -1749,6 +1749,16 @@ class _ArtisanOfferSection extends ConsumerWidget {
       return;
     }
 
+    // MÜSAİTLİK KAPISI: müsait değilken yeni iş alınamaz. Aramada da
+    // görünmüyorsun; ilan sahibine haber vermek tutarsız olurdu.
+    if (!profile.isAvailable) {
+      context.showError(
+        'Şu an "müsait değil" görünüyorsunuz. İlgi bildirmek için '
+        'profilinizden müsaitliği açın.',
+      );
+      return;
+    }
+
     // H3: meslek + il/ilçe eşleşmesi (sunucu rules da aynı mantığı zorlar).
     if (!job.matchesArtisan(
       professionCodes: profile.professionCodes,

@@ -1169,6 +1169,24 @@ Future<void> startChatWithArtisan(
     return;
   }
   if (user.uid == detail.uid) return; // kendiyle sohbet olmaz
+
+  // MÜSAİTLİK KAPISI: müsait olmayan ustaya YENİ sohbet açılamaz.
+  //
+  // Kapsam bilinçli olarak dar: yalnız YENİ sohbet engellenir. Var olan
+  // sohbetler DEVAM EDER — müsaitlik "yeni iş almıyorum" demektir, "kimseyle
+  // konuşmuyorum" değil. Süren bir iş varsa teslim/sorun bildirme/
+  // değerlendirme hep o sohbetten yürür; kesilirse taraflar ortada kalır.
+  //
+  // Zaten sohbeti olan kullanıcı bu ekrandan değil, Mesajlar sekmesinden
+  // devam eder; oradaki giriş bu kontrolden etkilenmez.
+  if (!detail.profile.isAvailable) {
+    context.showInfo(
+      '${detail.displayName} şu an yeni iş almıyor. '
+      'Müsait olduğunda mesaj gönderebilirsin.',
+    );
+    return;
+  }
+
   final emailOk = await ensureEmailVerified(
     context,
     ref,
@@ -1214,17 +1232,52 @@ class _ChatBar extends ConsumerWidget {
     if (user != null && user.uid == detail.uid) {
       return const SizedBox.shrink();
     }
+    // Müsait değilse düğme pasif ve SEBEBİ yazılı — kullanıcı tıklayıp
+    // hata mesajı almasın, durumu önceden görsün. (Var olan sohbetler
+    // Mesajlar sekmesinden sürer; bu yalnız YENİ sohbeti kapatır.)
+    final available = detail.profile.isAvailable;
+
     return SafeArea(
       top: false,
       child: Padding(
         padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
         child: ResponsiveCenter(
           maxWidth: 760,
-          child: AppButton(
-            label: isGuest ? 'Sohbet için giriş yap' : 'Sohbet Başlat',
-            icon: isGuest ? Icons.login : Icons.chat_bubble_outline,
-            onPressed: () => startChatWithArtisan(context, ref, detail),
-          ),
+          child: available
+              ? AppButton(
+                  label: isGuest ? 'Sohbet için giriş yap' : 'Sohbet Başlat',
+                  icon: isGuest ? Icons.login : Icons.chat_bubble_outline,
+                  onPressed: () => startChatWithArtisan(context, ref, detail),
+                )
+              : Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 16, vertical: 14),
+                  decoration: BoxDecoration(
+                    color: context.palette.surfaceMuted,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: context.palette.border),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.do_not_disturb_on_outlined,
+                          size: 18, color: context.palette.inkMuted),
+                      const SizedBox(width: 8),
+                      Flexible(
+                        child: Text(
+                          'Şu an yeni iş almıyor',
+                          style: Theme.of(context)
+                              .textTheme
+                              .bodyMedium
+                              ?.copyWith(
+                                color: context.palette.inkMuted,
+                                fontWeight: FontWeight.w600,
+                              ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
         ),
       ),
     );
