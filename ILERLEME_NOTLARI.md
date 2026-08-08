@@ -7,7 +7,8 @@
 ---
 
 ## 🎯 Proje Hakkında
-- **Proje adı:** Sepette Hizmet (`sepette_hizmet` Dart paketi · `com.sepettehizmet.app` paket kimliği) — hizmet pazaryeri uygulaması. *(Oturum 78'e kadar "Ustasından" / `usta_cepte`.)*
+- **Proje adı:** **İlanda Hizmet** (`sepette_hizmet` Dart paketi · `com.sepettehizmet.app` paket kimliği) — hizmet pazaryeri uygulaması.
+  *(Marka üç kez değişti: "Ustasından"/`usta_cepte` → "Sepette Hizmet" → "İlanda Hizmet" (oturum 82). Paket adı, uygulama kimliği ve `kProMonthlyProductId` BİLEREK eski adında — değiştirmek veri/satın alma kaybettirir.)*
 - **Amaç:** Müşterileri (tamirat/tadilat ihtiyacı olanlar) bölge ve meslek bazlı ustalarla buluşturmak. TR pazarı.
 - **Platform:** Flutter — Android + iOS + Web
 - **Backend (hedef):** Firebase (Auth, Firestore, Storage, Cloud Functions, FCM)
@@ -23,9 +24,99 @@
 
 ## ✅ Son Durum (EN SON BURAYI OKU)
 
-**Tarih:** 2026-08-06
+**Tarih:** 2026-08-09
 
-**Oturum 81 (2026-08-06): KARŞILIKLI DEĞERLENDİRME ÇIKMAZI ÇÖZÜLDÜ + OBSİDİAN MİMARİ KASASI. 319/319 test, analyze 0. ⚠️ CİHAZ TESTİ BEKLİYOR. Kural/CF deploy GEREKMEDİ.**
+**Oturum 82 (2026-08-08/09): BÜYÜK SADELEŞTİRME — iş akışı kaldırıldı, profil
+birleştirildi, marka değişti. 68 commit · 492/492 test · analyze 0.
+✅ Kural + CF DEPLOY EDİLDİ. ⚠️ CİHAZ TESTİ BEKLİYOR.**
+
+### 🔴 YARIN İLK İŞ: CİHAZ TESTİ
+Bu oturumda ürünün yarısı değişti ama **hiçbiri cihazda denenmedi**. Sıra:
+1. `flutter clean && flutter run` (launcher ikonu yenilendi, önbellek şart)
+2. Profili Düzenle → telefon + Instagram + web gir → **kaydet** (kural yeni
+   deploy edildi; `permission-denied` gelirse kuralı kontrol et)
+3. Başkasının profiline gir → başlık kendi profilinle **aynı** görünmeli,
+   düğmeler "Mesaj | Takip et" olmalı
+4. Bio satırlarına dokun → telefon aramalı, Instagram uygulamayı açmalı
+5. Bir kişiyi değerlendir, sonra tekrar gir → "Değerlendirmeni Güncelle"
+   demeli ve form ESKİ puanla dolu gelmeli
+
+### Bu oturumda ne değişti (özet)
+
+**A) İŞ AKIŞI KALDIRILDI** (`12e0eca`)
+Teklif topla → "Ustayı Seç" → tamamlama onayı zinciri gitti. Usta ilan
+sahibine **doğrudan mesaj** atıyor. `job_detail_screen` 1994 → 909 satır.
+⚠️ **Tur B YAPILMADI:** `JobStatus` enum'ı (8 değer), `offers` koleksiyonu,
+56 CF referansı ve admin modülü DURUYOR. Enum değeri silmek veri göçü
+(kural 6) — canlıda `workerSelected`/`completed` ilan varsa okunamaz olur.
+
+**B) TEK MESAJ KUTUSU** (`f73cfe1`)
+`chatIdFor` artık `jobId` almıyor → kişi başına TEK sohbet. "İlan
+Mesajları | Genel" sekmeleri kalktı. Eski 3 parçalı sohbetler okunmaya
+devam ediyor (veri kaybı yok).
+
+**C) DEĞERLENDİRME KİŞİ BAZLI** (`55e56d8`)
+Kimlik `rev_{yazan}__{hedef}` → bir kişiye bir değerlendirme, ikincisi
+GÜNCELLER. **Sistem kilitliymiş:** kural `job.status in
+['completed','rated']` istiyordu, iş akışı kalkınca hiçbir ilan o duruma
+geçmiyordu → kimse puan yazamıyordu. Müşteri puanı artık herkese açık.
+⚠️ Kullanıcı kararı: **koşul YOK** (sohbet şartı bile). Sahte hesapla puan
+manipülasyonuna açık — v2'de sohbet şartı eklenebilir (altyapı hazır).
+
+**D) MARKA: "İlanda Hizmet"** (`d72c89e`)
+24 Dart metni + Android/iOS/web etiketi. Paket adı, `com.sepettehizmet.app`
+ve `kProMonthlyProductId` DEĞİŞMEDİ.
+
+**E) "Hemen Lazım" → "Kolay İş"** (`703acbe`)
+Süreler 24s/3/7 → **3/5/7**; Kolay İş her zaman **1 gün**. `JobDuration.day1`
+SİLİNMEDİ (Kolay İş kullanıyor + eski kayıtlar). Ana sayfada kendi tam
+genişlikli kartıyla öne çıktı. Depolama kodu `quick_support` DEĞİŞMEDİ.
+
+**F) PROFİL BİRLEŞTİRİLDİ** (`85334bc` · `ef88411` · `d547a4f`)
+- Ortak alanlar (telefon, sosyal medya, web, hakkımda) `artisanProfiles`'tan
+  **`users`**'a taşındı → her iki modda çalışıyor. Eski kopyalar okunuyor
+  ama artık aynalanmıyor (tek doğruluk kaynağı).
+- `AccountProfileEditScreen` **silindi**; tek düzenleme ekranı: üstte ortak
+  alanlar, altta (usta modunda) "USTA VİTRİNİ".
+- **Tek profil tasarımı:** yeni `core/widgets/profile_header.dart` — kendi
+  profilim, usta profili ve müşteri profili AYNI başlığı kullanıyor. Tek
+  fark düğmeler: "düzenle | bak" ↔ "Mesaj | Takip et".
+- "Vitrinim" kartı kalktı, müsaitlik sade anahtar olarak başlığa taşındı.
+
+**G) SOSYAL MEDYA DOĞRULAMA** (`3aacf4e`)
+Geçersiz girdi **sessizce siliniyordu** (`controller.text = normalized ?? ''`).
+Artık metin kalıyor + kırmızı hata sebebi. Boşluklu ad reddediliyor,
+noktalı ad (`ahmet.usta` — Instagram'da yaygın) artık KABUL ediliyor.
+Bio satırları tıklanabilir (telefon arar, link açar).
+
+**H) YARDIM YENİLENDİ** (`703acbe`)
+İçerik kaldırılmış özellikleri anlatıyordu (Eleman modülü, teklif toplama,
+maskeleme). 25 soru mevcut akışa göre yazıldı, "Eleman" sekmesi kalktı.
+
+### Deploy durumu (2026-08-09)
+```
+firestore.rules   ✅ DEPLOY EDİLDİ  (profileFieldsOk + değerlendirme kuralları)
+functions         ✅ DEPLOY EDİLDİ  (ratingAsCustomer + "Kolay İş" push metni)
+```
+> Functions deploy'unda "User code failed to load / Timeout after 10000"
+> alındı. Kod yerelde 1.6 sn'de yükleniyor → **ağ sorunu**.
+> `NODE_OPTIONS=--dns-result-order=ipv4first` ile geçti.
+> (bkz. `vault/05-Operasyon/Deploy-ve-Ortam.md` IPv4/IPv6 notu)
+
+### Bilinen açıklar / sonraki adımlar
+1. **Cihaz testi** (yukarıdaki 5 madde) — en öncelikli.
+2. **Tur B**: JobStatus enum sadeleştirme + `offers` koleksiyonu temizliği.
+   Öncesinde canlıda hangi durumda kaç ilan var BAKILMALI.
+3. Değerlendirmeye koşul (sohbet şartı) — v2.
+4. Küfür/argo filtresi + görsel NSFW taraması — büyümeye bırakıldı.
+5. `vault/06-Test/` defteri v2 (285 adım) hâlâ hiç koşulmadı.
+
+---
+
+<details>
+<summary>Oturum 81 (2026-08-06) — değerlendirme çıkmazı + kasa</summary>
+
+**Oturum 81: KARŞILIKLI DEĞERLENDİRME ÇIKMAZI ÇÖZÜLDÜ + OBSİDİAN MİMARİ KASASI. 319/319 test, analyze 0.**
 
 ### 🆕 Yeni oturuma başlarken
 1. **`CLAUDE.md`** kökte — ajan tarafından otomatik okunur, kasaya yönlendirir.
@@ -91,6 +182,9 @@ sohbet salt okunur kalmalı).
       yazmadan işi ver → usta yazabiliyor mu → iki taraf da puan verebiliyor mu)
 - [ ] Takılı kalmış eski sohbetler için migration gerekli mi karar ver
 - [ ] Oturum 80'den devreden cihaz testleri hâlâ bekliyor
+
+
+</details>
 
 ---
 
