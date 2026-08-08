@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../core/analytics/app_analytics.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/router/route_paths.dart';
 import '../../../core/theme/app_palette.dart';
@@ -15,17 +14,13 @@ import '../../../core/widgets/responsive_center.dart';
 import '../../../core/widgets/status_views.dart';
 import '../../../data/local/mock_database.dart' show kProfessionNames;
 import '../../../data/models/job.dart';
-import '../../../data/models/offer.dart';
 import '../../../data/models/report.dart';
 import '../../artisan/application/my_profile_controller.dart';
 import '../../auth/application/auth_controller.dart';
 import '../../auth/presentation/email_verification_gate.dart';
 import '../../chat/data/chat_providers.dart';
-import '../../chat/data/firebase_chat_repository.dart'
-    show FirebaseChatRepository;
 import '../../safety/presentation/report_sheet.dart';
 import '../data/job_providers.dart';
-import 'job_completion.dart';
 import 'widgets/job_widgets.dart';
 
 /// İlan detayı — müşteri teklifleri görür/seçer, usta teklif verir.
@@ -342,124 +337,54 @@ class _MetaRow extends StatelessWidget {
 // Müşteri: gelen teklifler + seçim
 // ---------------------------------------------------------------------------
 
+/// İlan sahibinin gördüğü bölüm — SADE (2026-08-08).
+///
+/// Eskiden burada "İlgilenen Ustalar" listesi, "Bu Ustayı Seç" akışı ve
+/// tamamlama onayı vardı. İş akışı kaldırıldı: ustalar doğrudan mesaj atar,
+/// sahip **Mesajlar**'dan görür ve kendi aralarında anlaşırlar.
 class _OwnerOffersSection extends ConsumerWidget {
   const _OwnerOffersSection({required this.job});
   final Job job;
 
-  /// Bu ustayla BU İLANA ait sohbeti hazırlar (döküman yazılana kadar bekler).
-  Future<String> _chatIdFor(WidgetRef ref, Offer offer) {
-    return ref.read(chatRepositoryProvider).startChat(
-          customerUid: job.customerId,
-          customerName: job.customerName,
-          customerPhotoUrl: job.customerPhotoUrl,
-          artisanUid: offer.artisanId,
-          artisanName: offer.artisanName,
-          artisanPhotoUrl: offer.artisanPhotoUrl,
-          jobId: job.jobId,
-          jobTitle: job.title,
-        );
-  }
-
-  Future<void> _openChat(BuildContext context, WidgetRef ref, Offer offer) async {
-    // Sunucu da zorlar (chats create + isEmailVerified, firestore.rules).
-    // Kapı olmadan doğrudan yazılırsa kural reddeder ve kullanıcı doğrulama
-    // akışına HİÇ yönlendirilmez — usta tarafındaki (`_sendInterest`) desenin
-    // aynısı burada da uygulanır.
-    final emailOk = await ensureEmailVerified(
-      context,
-      ref,
-      actionLabel: 'ustaya mesaj göndermek',
-    );
-    if (!emailOk || !context.mounted) return;
-    try {
-      final chatId = await _chatIdFor(ref, offer);
-      if (!context.mounted) return;
-      context.push(RoutePaths.chatThread(chatId));
-    } catch (e) {
-      if (!context.mounted) return;
-      // Sebebi ayır: e-posta kapısı yukarıda geçtiyse ret başka bir kural
-      // şartından gelir (üyelik/chatId biçimi) — o durumda "e-postanızı
-      // kontrol edin" demek yanıltıcı olur.
-      final denied = e.toString().contains('permission-denied');
-      context.showError(denied
-          ? 'Sohbet açma izniniz yok. Hesabınız askıya alınmış olabilir.'
-          : 'Sohbet açılamadı, tekrar deneyin.');
-      debugPrint('[chat] startChat hatası: $e');
-    }
-  }
-
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // İş bir ustaya bağlandıysa: yaşam döngüsü + sohbet + tamamlama/değerlendirme.
-    if (job.status.isAssigned) {
-      return _AssignedCard(job: job, isOwner: true);
-    }
-    if (job.effectiveStatus == JobStatus.expired) {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const _NoticeCard(
-            icon: Icons.timer_off_outlined,
-            text: 'Bu ilanın süresi doldu. Yeni bir ilan verebilirsiniz.',
-          ),
-          const SizedBox(height: 8),
-          _DeleteJobButton(job: job),
-        ],
-      );
-    }
-    if (job.status == JobStatus.cancelled) {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _NoticeCard(
-            icon: Icons.cancel_outlined,
-            text:
-                'İlan iptal edildi${job.cancelReason != null ? ' (${job.cancelReason!.labelTR})' : ''}.',
-          ),
-          const SizedBox(height: 8),
-          _DeleteJobButton(job: job),
-        ],
-      );
-    }
+    final palette = context.palette;
+    final theme = Theme.of(context);
+    final canEdit = job.status == JobStatus.open;
 
-    final offersAsync = ref.watch(offersForJobProvider(job.jobId));
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text('İlgilenen Ustalar',
-            style: Theme.of(context)
-                .textTheme
-                .titleMedium
-                ?.copyWith(fontWeight: FontWeight.w800)),
-        const SizedBox(height: 12),
-        offersAsync.when(
-          loading: () => const LoadingView(compact: true),
-          error: (_, _) => const _NoticeCard(
-            icon: Icons.error_outline,
-            text: 'İlgilenen ustalar yüklenemedi. Lütfen tekrar deneyin.',
+        Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: palette.infoSurface,
+            borderRadius: BorderRadius.circular(14),
           ),
-          data: (offers) {
-            if (offers.isEmpty) {
-              return const _NoticeCard(
-                icon: Icons.hourglass_empty,
-                text:
-                    'Henüz kimse iletişime geçmedi. Bölgenizdeki ustalar ilanınızı '
-                    'gördükçe sizinle iletişime geçecek.',
-              );
-            }
-            return Column(
-              children: [
-                for (final o in offers) ...[
-                  _OfferCard(
-                    offer: o,
-                    jobId: job.jobId,
-                    onChat: () => _openChat(context, ref, o),
-                  ),
-                  const SizedBox(height: 10),
-                ],
-              ],
-            );
-          },
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(Icons.chat_bubble_outline, size: 20, color: palette.info),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'İlanınla ilgilenen ustalar sana doğrudan mesaj atar. '
+                  'Gelen mesajları Mesajlar sekmesinden görebilirsin.',
+                  style: theme.textTheme.bodySmall
+                      ?.copyWith(fontWeight: FontWeight.w600),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+        SizedBox(
+          width: double.infinity,
+          child: FilledButton.icon(
+            onPressed: () => context.push(RoutePaths.chats),
+            icon: const Icon(Icons.forum_outlined, size: 18),
+            label: const Text('Mesajlara Git'),
+          ),
         ),
         const SizedBox(height: 8),
         Wrap(
@@ -472,24 +397,21 @@ class _OwnerOffersSection extends ConsumerWidget {
                 icon: const Icon(Icons.edit_outlined, size: 18),
                 label: const Text('Düzenle'),
               ),
-            TextButton.icon(
-              style: TextButton.styleFrom(foregroundColor: context.palette.danger),
-              onPressed: () => _cancelJob(context, ref, job),
-              icon: const Icon(Icons.cancel_outlined, size: 18),
-              label: const Text('İlanı İptal Et'),
-            ),
-            TextButton.icon(
-              style: TextButton.styleFrom(foregroundColor: context.palette.danger),
-              onPressed: () => _deleteJob(context, ref, job),
-              icon: const Icon(Icons.delete_outline, size: 18),
-              label: const Text('İlanı Sil'),
-            ),
+            if (canEdit)
+              TextButton.icon(
+                style: TextButton.styleFrom(foregroundColor: palette.danger),
+                onPressed: () => _cancelJob(context, ref, job),
+                icon: const Icon(Icons.cancel_outlined, size: 18),
+                label: const Text('İlanı İptal Et'),
+              ),
           ],
         ),
+        _DeleteJobButton(job: job),
       ],
     );
   }
 }
+
 
 /// İptal edilmiş / süresi dolmuş ilan için "İlanı Sil" düğmesi.
 class _DeleteJobButton extends ConsumerWidget {
@@ -690,763 +612,6 @@ class _EditJobSheetState extends State<_EditJobSheet> {
   }
 }
 
-/// Müşterinin ilgilenen ustaları incelerken gördüğü usta özet kartı (#5).
-class _OfferCard extends ConsumerWidget {
-  const _OfferCard({
-    required this.offer,
-    required this.onChat,
-    required this.jobId,
-  });
-  final Offer offer;
-  final VoidCallback onChat;
-  final String jobId;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: context.palette.card,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: context.palette.border),
-        boxShadow: AppTheme.softShadow,
-      ),
-      child: Column(
-        children: [
-          // Tıklayınca ustanın profiline git.
-          InkWell(
-            onTap: () =>
-                context.push(RoutePaths.artisanProfile(offer.artisanId)),
-            borderRadius: BorderRadius.circular(12),
-            child: Row(
-              children: [
-                CircleAvatar(
-                  radius: 26,
-                  backgroundColor: context.palette.primaryContainer,
-                  child: ClipOval(
-                    child: SizedBox(
-                      width: 52,
-                      height: 52,
-                      child: offer.artisanPhotoUrl != null
-                          ? AppImage(handle: offer.artisanPhotoUrl)
-                          : Icon(Icons.person,
-                              color: context.palette.onPrimaryContainer),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Flexible(
-                            child: Text(offer.artisanName,
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .titleSmall
-                                    ?.copyWith(fontWeight: FontWeight.w700),
-                                overflow: TextOverflow.ellipsis),
-                          ),
-                          if (offer.isVerified) ...[
-                            const SizedBox(width: 4),
-                            Icon(Icons.verified,
-                                size: 16, color: context.palette.verified),
-                          ],
-                        ],
-                      ),
-                      const SizedBox(height: 2),
-                      Row(
-                        children: [
-                          Icon(Icons.star_rounded,
-                              size: 15, color: context.palette.star),
-                          const SizedBox(width: 2),
-                          Text(
-                            '${offer.rating.toStringAsFixed(1)} (${offer.totalReviews})',
-                            style: Theme.of(context).textTheme.bodySmall,
-                          ),
-                          const SizedBox(width: 8),
-                          Text('${offer.experienceYears} yıl',
-                              style: Theme.of(context).textTheme.bodySmall),
-                          if (offer.isPremium) ...[
-                            const SizedBox(width: 8),
-                            const _PremiumTag(),
-                          ],
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-                Icon(Icons.chevron_right, color: context.palette.inkFaint),
-              ],
-            ),
-          ),
-          const Divider(height: 20),
-          // Bu ustayla BU İLANDAKİ sohbetin özeti: son mesaj + okunmamış
-          // sayısı. Müşteri ilan detayından çıkmadan kimin ne yazdığını görür.
-          _OfferChatPreview(offer: offer, jobId: jobId),
-          Row(
-            children: [
-              // "Ustayı Seç" BURADA DEĞİL: seçim, ustayla konuşulan sohbetin
-              // üstünden yapılır (§3). Müşteri önce yazışsın, sonra karar
-              // versin — liste üzerinden körlemesine seçim kalktı.
-              Expanded(
-                child: FilledButton.icon(
-                  onPressed: onChat,
-                  icon: const Icon(Icons.chat_bubble_outline, size: 18),
-                  label: const Text('Mesaj Gönder'),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// Usta tarafı: bildirim gönderildikten sonraki eylem satırı.
-///
-/// İletişimi MÜŞTERİ başlatır (§2). Bu yüzden "Sohbete Git" düğmesi ancak
-/// müşteri ilk mesajı yazdıysa görünür; öncesinde ne olacağını anlatan bir
-/// bilgi satırı durur. Böylece usta kilitli boş sohbete düşmez ve müşterinin
-/// listesinde hiç açılmamış sohbetler birikmez.
-class _ArtisanChatAccess extends ConsumerWidget {
-  const _ArtisanChatAccess({
-    required this.job,
-    required this.artisanUid,
-    required this.onOpenChat,
-    required this.onWithdraw,
-  });
-
-  final Job job;
-  final String artisanUid;
-  final VoidCallback onOpenChat;
-  final VoidCallback onWithdraw;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final palette = context.palette;
-    final chatId = artisanUid.isEmpty
-        ? ''
-        : FirebaseChatRepository.chatIdFor(
-            job.customerId,
-            artisanUid,
-            jobId: job.jobId,
-          );
-    final thread = ref.watch(chatThreadProvider(chatId)).valueOrNull;
-    // Müşteri yazmadıysa (veya sohbet hiç yoksa) sohbete giriş kapalı.
-    final canOpen = thread != null && thread.customerStarted;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        if (!canOpen)
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            decoration: BoxDecoration(
-              color: palette.infoSurface,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Row(
-              children: [
-                Icon(Icons.hourglass_empty_rounded,
-                    size: 18, color: palette.info),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    'Müşteri size yazdığında sohbet burada açılacak.',
-                    style: Theme.of(context)
-                        .textTheme
-                        .bodySmall
-                        ?.copyWith(color: palette.ink, height: 1.3),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        if (canOpen)
-          Row(
-            children: [
-              Expanded(
-                child: FilledButton.icon(
-                  onPressed: onOpenChat,
-                  icon: const Icon(Icons.chat_bubble_outline),
-                  label: const Text('Sohbete Git'),
-                ),
-              ),
-              const SizedBox(width: 10),
-              TextButton(
-                onPressed: onWithdraw,
-                child: const Text('Geri Çek'),
-              ),
-            ],
-          )
-        else
-          Align(
-            alignment: Alignment.centerRight,
-            child: TextButton(
-              onPressed: onWithdraw,
-              child: const Text('Geri Çek'),
-            ),
-          ),
-      ],
-    );
-  }
-}
-
-/// İlgilenen usta kartındaki sohbet özeti.
-///
-/// Sohbet ilan bazlı olduğundan (`chat_{müşteri}__{usta}__{jobId}`) bu ilana
-/// ait oda doğrudan bulunabilir. Sohbet hiç başlamamışsa "İletişimi siz
-/// başlatın" der — kurgu gereği ilk mesajı müşteri yazar.
-class _OfferChatPreview extends ConsumerWidget {
-  const _OfferChatPreview({required this.offer, required this.jobId});
-
-  final Offer offer;
-  final String jobId;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final me = ref.watch(currentUserProvider)?.uid;
-    if (me == null) return const SizedBox.shrink();
-
-    final chatId = FirebaseChatRepository.chatIdFor(
-      me,
-      offer.artisanId,
-      jobId: jobId,
-    );
-    // Sohbeti DOĞRUDAN izle. Eskiden `myThreadsProvider` (autoDispose)
-    // okunuyordu; o akış yalnız Mesajlar ekranı dinlediği için burada soğuk
-    // başlıyor ve ilk karede null dönüyordu → yazışma olsa bile "henüz
-    // mesajlaşmadınız" yazıyordu.
-    final thread = ref.watch(chatThreadProvider(chatId)).valueOrNull;
-    final palette = context.palette;
-    final theme = Theme.of(context);
-
-    if (thread == null || (thread.lastMessage ?? '').trim().isEmpty) {
-      return Padding(
-        padding: const EdgeInsets.only(bottom: 10),
-        child: Row(
-          children: [
-            Icon(Icons.forum_outlined, size: 15, color: palette.inkFaint),
-            const SizedBox(width: 6),
-            Expanded(
-              child: Text(
-                'Henüz mesajlaşmadınız — iletişimi siz başlatın.',
-                style: theme.textTheme.labelSmall
-                    ?.copyWith(color: palette.inkMuted),
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
-    final mine = thread.lastMessageSenderUid == me;
-    // Okunmamış: son mesaj karşı taraftan ve benim son okumamdan sonraysa.
-    // `unreadCount` bellek önbelleğine bağlı olduğundan (sohbet listesi hiç
-    // açılmadıysa 0 döner) burada thread'den doğrudan hesaplanır.
-    final lastRead = ref
-        .read(chatRepositoryProvider)
-        .lastReadBy(chatId: chatId, uid: me);
-    final unread = !mine &&
-            (lastRead == null || thread.updatedAt.isAfter(lastRead))
-        ? 1
-        : 0;
-
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: Row(
-        children: [
-          Icon(
-            mine ? Icons.reply_rounded : Icons.forum_rounded,
-            size: 15,
-            color: unread > 0 ? palette.primary : palette.inkFaint,
-          ),
-          const SizedBox(width: 6),
-          Expanded(
-            child: Text(
-              mine ? 'Siz: ${thread.lastMessage}' : thread.lastMessage!,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: theme.textTheme.labelSmall?.copyWith(
-                color: unread > 0 ? palette.ink : palette.inkMuted,
-                fontWeight: unread > 0 ? FontWeight.w700 : FontWeight.w500,
-              ),
-            ),
-          ),
-          if (unread > 0) ...[
-            const SizedBox(width: 6),
-            Container(
-              constraints: const BoxConstraints(minWidth: 18),
-              height: 18,
-              padding: const EdgeInsets.symmetric(horizontal: 5),
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                color: palette.primary,
-                borderRadius: BorderRadius.circular(9),
-              ),
-              child: Text(
-                unread > 9 ? '9+' : '$unread',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 10,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
-class _PremiumTag extends StatelessWidget {
-  const _PremiumTag();
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-      decoration: BoxDecoration(
-        color: context.palette.premiumSurface,
-        borderRadius: BorderRadius.circular(6),
-      ),
-      child: Text('Premium',
-          style: TextStyle(
-              color: context.palette.premium,
-              fontSize: 10,
-              fontWeight: FontWeight.w800)),
-    );
-  }
-}
-
-/// İlan üzerindeki sohbeti açar: kayıtlı [Job.chatId] veya seçili ustadan
-/// deterministik id. Sohbet dökümanı yoksa oluşturmayı dener (idempotent).
-Future<void> _openJobChat(BuildContext context, WidgetRef ref, Job job) async {
-  final artisanId = job.selectedArtisanId;
-  final stored = job.chatId;
-  if ((stored == null || stored.isEmpty) && artisanId == null) {
-    context.showError('Sohbet bulunamadı.');
-    return;
-  }
-  final repo = ref.read(chatRepositoryProvider);
-  try {
-    final String chatId;
-    if (artisanId != null) {
-      chatId = await repo.startChat(
-        customerUid: job.customerId,
-        customerName: job.customerName,
-        customerPhotoUrl: job.customerPhotoUrl,
-        artisanUid: artisanId,
-        artisanName: 'Usta',
-        artisanPhotoUrl: null,
-        jobId: job.jobId,
-        jobTitle: job.title,
-      );
-    } else {
-      chatId = stored!;
-      await repo.ensureChatReady(chatId);
-    }
-    if (!context.mounted) return;
-    context.push(RoutePaths.chatThread(chatId));
-  } catch (_) {
-    if (context.mounted) {
-      context.showError(
-          'Sohbet açılamadı. E-posta doğrulamanızı kontrol edip tekrar deneyin.');
-    }
-  }
-}
-
-/// İş bir ustaya bağlandığında müşteri/usta için: yaşam döngüsü + sohbet +
-/// tamamlama onayları + (müşteri) değerlendirme (#4, #10).
-class _AssignedCard extends ConsumerWidget {
-  const _AssignedCard({required this.job, required this.isOwner});
-  final Job job;
-  final bool isOwner;
-
-  Future<void> _busyGuard(
-      BuildContext context, Future<void> Function() action) async {
-    try {
-      await action();
-    } catch (_) {
-      if (context.mounted) context.showError('İşlem başarısız, tekrar deneyin.');
-    }
-  }
-
-  /// Usta seçimini geri alır (onaylı). İlan yeniden açılır; seçilmeyen
-  /// ustaların kilitli sohbetleri CF tarafından tekrar açılır.
-  Future<void> _cancelSelection(
-      BuildContext context, WidgetRef ref, Job job) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Seçimi iptal et'),
-        content: const Text(
-            'Usta seçiminiz iptal edilecek ve ilan yeniden teklif toplamaya '
-            'açılacak. İlgilenen ustalar sizinle tekrar yazışabilir.'),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Vazgeç')),
-          FilledButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Seçimi İptal Et')),
-        ],
-      ),
-    );
-    if (confirmed != true || !context.mounted) return;
-
-    try {
-      await ref.read(jobRepositoryProvider).cancelSelection(
-            jobId: job.jobId,
-            customerId: job.customerId,
-          );
-      if (context.mounted) {
-        context.showSuccess('Seçim iptal edildi; ilan yeniden açıldı.');
-      }
-    } catch (_) {
-      if (context.mounted) {
-        context.showError(
-            'Seçim iptal edilemedi. İş başladıysa "Sorun Bildir" ile ilerleyin.');
-      }
-    }
-  }
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final repo = ref.read(jobRepositoryProvider);
-    final status = job.status;
-    final copy = JobCompletionCopy.of(job, isOwner: isOwner);
-
-    // Şikayet açık: yaşam döngüsü donar; stepper yerine sorun paneli.
-    if (status == JobStatus.disputed) {
-      return _DisputePanel(job: job, isOwner: isOwner);
-    }
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _LifecycleStepper(job: job),
-        const SizedBox(height: 12),
-        JobCompletionStatusBanner(job: job, isOwner: isOwner),
-        const SizedBox(height: 12),
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: context.palette.card,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: context.palette.border),
-            boxShadow: AppTheme.softShadow,
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Sohbet — chatId yoksa seçili ustadan deterministik id üretilir.
-              if (job.chatId != null || job.selectedArtisanId != null)
-                SizedBox(
-                  width: double.infinity,
-                  child: FilledButton.icon(
-                    onPressed: () => _openJobChat(context, ref, job),
-                    icon: const Icon(Icons.chat_bubble_outline),
-                    label: const Text('Sohbete Git'),
-                  ),
-                ),
-
-              // Tamamlama onayları (iki taraflı, #10)
-              if (status == JobStatus.workerSelected ||
-                  status == JobStatus.inProgress) ...[
-                const SizedBox(height: 14),
-                JobConfirmRow(
-                  customerDone: job.customerConfirmedDone,
-                  artisanDone: job.artisanConfirmedDone,
-                ),
-                const SizedBox(height: 10),
-                SizedBox(
-                  width: double.infinity,
-                  child: FilledButton.icon(
-                    style: FilledButton.styleFrom(
-                        backgroundColor: context.palette.success),
-                    onPressed: copy.canConfirm
-                        ? () async {
-                            // Geri alınamaz adım — önce onay (B-18).
-                            final ok = await confirmJobDoneDialog(
-                              context,
-                              isOwner: isOwner,
-                            );
-                            if (!ok || !context.mounted) return;
-                            await _busyGuard(
-                              context,
-                              () => repo.confirmDone(
-                                  jobId: job.jobId, byCustomer: isOwner),
-                            );
-                          }
-                        : null,
-                    icon: const Icon(Icons.check_circle_outline),
-                    label: Text(
-                      copy.canConfirm
-                          ? copy.confirmLabel
-                          : copy.confirmedLabel,
-                    ),
-                  ),
-                ),
-                if (copy.showCountdown && job.autoCompleteAt != null) ...[
-                  const SizedBox(height: 8),
-                  _InlineNotice(
-                    icon: Icons.schedule,
-                    text: copy.remaining != null
-                        ? 'Otomatik tamamlanmaya kalan: '
-                            '${JobCompletionCopy.formatRemaining(copy.remaining!)} '
-                            '(${_formatDate(job.autoCompleteAt!)})'
-                        : 'Süre doldu; iş yakında otomatik tamamlanır.',
-                  ),
-                ],
-                // "İşe başladım" KALDIRILDI: usta işi bitirince doğrudan
-                // tamamlama onayı veriyor, arada ayrı bir adım yok. Durum
-                // alanı (`inProgress`) modelde duruyor — eski kayıtlar ve
-                // yönetici ekranları kırılmasın.
-                //
-                // Yerine müşteriye SEÇİM İPTALİ: usta işi yarıda bırakırsa ya
-                // da anlaşma bozulursa ilan yeniden açılır, diğer ustaların
-                // sohbetleri tekrar aktifleşir (kilitleri CF kaldırır).
-                if (status == JobStatus.workerSelected && isOwner) ...[
-                  const SizedBox(height: 8),
-                  SizedBox(
-                    width: double.infinity,
-                    child: TextButton.icon(
-                      onPressed: () => _cancelSelection(context, ref, job),
-                      icon: const Icon(Icons.undo_rounded, size: 18),
-                      label: const Text('Usta seçimini iptal et'),
-                    ),
-                  ),
-                ],
-              ],
-
-              // Tamamlandı → müşteri değerlendirir
-              if (status == JobStatus.completed) ...[
-                const SizedBox(height: 6),
-                if (isOwner)
-                  SizedBox(
-                    width: double.infinity,
-                    child: FilledButton.icon(
-                      onPressed: () => context.push(RoutePaths.review(
-                          job.selectedArtisanId!,
-                          jobId: job.jobId)),
-                      icon: const Icon(Icons.star_outline_rounded),
-                      label: const Text('Ustayı Değerlendir'),
-                    ),
-                  )
-                else
-                  const _InlineNotice(
-                    icon: Icons.check_circle,
-                    text: 'İş tamamlandı. Değerlendirme müşteriden bekleniyor.',
-                  ),
-              ],
-
-              if (status == JobStatus.rated)
-                const _InlineNotice(
-                  icon: Icons.verified,
-                  text: 'İş tamamlandı ve değerlendirildi. Teşekkürler!',
-                ),
-
-              // Müşteri iptal (tamamlanmadan önce, #11) + sorun bildirme
-              // (iki taraf da; tamamlandıktan sonra puanlamaya dek açık).
-              if (isOwner &&
-                      (status == JobStatus.workerSelected ||
-                          status == JobStatus.inProgress) ||
-                  status.canDispute) ...[
-                const SizedBox(height: 6),
-                Wrap(
-                  spacing: 4,
-                  children: [
-                    if (isOwner &&
-                        (status == JobStatus.workerSelected ||
-                            status == JobStatus.inProgress))
-                      TextButton.icon(
-                        style: TextButton.styleFrom(
-                            foregroundColor: context.palette.danger),
-                        onPressed: () => _cancelJob(context, ref, job),
-                        icon: const Icon(Icons.cancel_outlined, size: 18),
-                        label: const Text('İlanı İptal Et'),
-                      ),
-                    if (status.canDispute)
-                      TextButton.icon(
-                        style: TextButton.styleFrom(
-                            foregroundColor: context.palette.warning),
-                        onPressed: () => _reportDispute(context, ref, job,
-                            byCustomer: isOwner),
-                        icon: const Icon(Icons.report_gmailerrorred_outlined,
-                            size: 18),
-                        label: const Text('Sorun Bildir'),
-                      ),
-                  ],
-                ),
-              ],
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Anlaşmazlık (şikayet) akışı
-// ---------------------------------------------------------------------------
-
-/// İş `disputed` durumundayken gösterilen panel: kim, neden, ne zaman bildirdi;
-/// şikayeti açan taraf geri çekebilir; sohbet açık kalır (çözüm için).
-class _DisputePanel extends ConsumerWidget {
-  const _DisputePanel({required this.job, required this.isOwner});
-  final Job job;
-  final bool isOwner;
-
-  bool get _raisedByMe =>
-      (job.disputedBy == JobDisputeParty.customer && isOwner) ||
-      (job.disputedBy == JobDisputeParty.artisan && !isOwner);
-
-  Future<void> _withdraw(BuildContext context, WidgetRef ref) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Şikayeti geri çek'),
-        content: const Text(
-            'Şikayetinizi geri çekmek istiyor musunuz? İş kaldığı yerden '
-            'devam eder ve karşı taraf bilgilendirilir.'),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Vazgeç')),
-          FilledButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Geri Çek')),
-        ],
-      ),
-    );
-    if (confirmed != true) return;
-    try {
-      await ref.read(jobRepositoryProvider).withdrawDispute(job.jobId);
-      if (context.mounted) context.showInfo('Şikayet geri çekildi.');
-    } catch (_) {
-      if (context.mounted) {
-        context.showError('İşlem başarısız, tekrar deneyin.');
-      }
-    }
-  }
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final raiserLabel = job.disputedBy == JobDisputeParty.customer
-        ? 'Müşteri'
-        : 'Usta';
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: context.palette.card,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: context.palette.danger.withValues(alpha: 0.4)),
-        boxShadow: AppTheme.softShadow,
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: context.palette.dangerSurface,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Icon(Icons.report_gmailerrorred,
-                    color: context.palette.danger),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text('Sorun Bildirildi',
-                    style: Theme.of(context)
-                        .textTheme
-                        .titleMedium
-                        ?.copyWith(fontWeight: FontWeight.w800)),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Text(
-            _raisedByMe
-                ? 'Bu iş için sorun bildirdiniz. Sorun çözülene kadar iş '
-                    'beklemede; anlaşırsanız şikayeti geri çekebilirsiniz.'
-                : '$raiserLabel bu iş için sorun bildirdi. Sorun çözülene '
-                    'kadar iş beklemede. Sohbet üzerinden anlaşmayı '
-                    'deneyebilirsiniz.',
-            style: Theme.of(context).textTheme.bodyMedium,
-          ),
-          const SizedBox(height: 10),
-          if (job.disputeReason != null)
-            _MetaRow(
-                icon: Icons.label_outline,
-                text: 'Neden: ${job.disputeReason!.labelTR}'),
-          if (job.disputeNote != null && job.disputeNote!.isNotEmpty)
-            _MetaRow(icon: Icons.notes, text: job.disputeNote!),
-          if (job.disputedAt != null)
-            _MetaRow(
-                icon: Icons.schedule,
-                text: 'Bildirim tarihi: ${_formatDate(job.disputedAt!)}'),
-          const SizedBox(height: 12),
-          if (job.chatId != null || job.selectedArtisanId != null)
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton.icon(
-                onPressed: () => _openJobChat(context, ref, job),
-                icon: const Icon(Icons.chat_bubble_outline),
-                label: const Text('Sohbete Git'),
-              ),
-            ),
-          if (_raisedByMe) ...[
-            const SizedBox(height: 8),
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton.icon(
-                onPressed: () => _withdraw(context, ref),
-                icon: const Icon(Icons.undo, size: 18),
-                label: const Text('Şikayeti Geri Çek'),
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
-/// Neden + not alıp şikayet açar.
-Future<void> _reportDispute(BuildContext context, WidgetRef ref, Job job,
-    {required bool byCustomer}) async {
-  final result = await showModalBottomSheet<(JobDisputeReason, String)>(
-    context: context,
-    isScrollControlled: true,
-    builder: (_) => const _DisputeSheet(),
-  );
-  if (result == null) return;
-  try {
-    await ref.read(jobRepositoryProvider).reportDispute(
-          jobId: job.jobId,
-          byCustomer: byCustomer,
-          reason: result.$1,
-          note: result.$2,
-        );
-    if (context.mounted) {
-      context.showInfo('Sorun bildirildi. Karşı taraf bilgilendirildi.');
-    }
-  } catch (_) {
-    if (context.mounted) {
-      context.showError('Sorun bildirilemedi, lütfen tekrar deneyin.');
-    }
-  }
-}
-
 /// Şikayet formu: neden seçimi (zorunlu) + kısa açıklama (opsiyonel).
 class _DisputeSheet extends StatefulWidget {
   const _DisputeSheet();
@@ -1541,9 +706,6 @@ class _DisputeSheetState extends State<_DisputeSheet> {
   }
 }
 
-String _formatDate(DateTime d) =>
-    '${d.day.toString().padLeft(2, '0')}.${d.month.toString().padLeft(2, '0')}.${d.year}';
-
 /// İptal nedeni seçtirip ilanı iptal eder (#11).
 Future<void> _cancelJob(BuildContext context, WidgetRef ref, Job job) async {
   final reason = await showModalBottomSheet<JobCancelReason>(
@@ -1583,164 +745,32 @@ Future<void> _cancelJob(BuildContext context, WidgetRef ref, Job job) async {
   }
 }
 
-/// Yaşam döngüsü — kullanıcıya 3 evre (backend 8 durum aynı kalır).
-class _LifecycleStepper extends StatelessWidget {
-  const _LifecycleStepper({required this.job});
-  final Job job;
-
-  static const _steps = [
-    'Teklif',
-    'İş yürüyor',
-    'Kapandı',
-  ];
-
-  @override
-  Widget build(BuildContext context) {
-    final current = job.status.simpleStepIndex;
-    if (current == null) {
-      // disputed / cancelled / expired — _AssignedCard veya üst chip açıklar.
-      return _InlineNotice(
-        icon: Icons.info_outline,
-        text: job.status.simpleLabelTR,
-      );
-    }
-    return Row(
-      children: [
-        for (var i = 0; i < _steps.length; i++) ...[
-          _StepDot(
-            label: _steps[i],
-            done: i <= current,
-            current: i == current,
-          ),
-          if (i < _steps.length - 1)
-            Expanded(
-              child: Container(
-                height: 2,
-                margin: const EdgeInsets.only(bottom: 18),
-                color: i < current
-                    ? context.palette.primary
-                    : context.palette.border,
-              ),
-            ),
-        ],
-      ],
-    );
-  }
-}
-
-class _StepDot extends StatelessWidget {
-  const _StepDot(
-      {required this.label, required this.done, required this.current});
-  final String label;
-  final bool done;
-  final bool current;
-
-  @override
-  Widget build(BuildContext context) {
-    final color = done ? context.palette.primary : context.palette.inkFaint;
-    return SizedBox(
-      width: 54,
-      child: Column(
-        children: [
-          Container(
-            width: 22,
-            height: 22,
-            decoration: BoxDecoration(
-              color: done ? context.palette.primary : context.palette.card,
-              shape: BoxShape.circle,
-              border: Border.all(color: color, width: current ? 2.5 : 1.5),
-            ),
-            child: done
-                ? const Icon(Icons.check, size: 13, color: Colors.white)
-                : null,
-          ),
-          const SizedBox(height: 4),
-          Text(label,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 9.5,
-                height: 1.1,
-                color: color,
-                fontWeight: current ? FontWeight.w800 : FontWeight.w500,
-              )),
-        ],
-      ),
-    );
-  }
-}
-
-class _InlineNotice extends StatelessWidget {
-  const _InlineNotice({required this.icon, required this.text});
-  final IconData icon;
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Icon(icon, size: 18, color: context.palette.success),
-        const SizedBox(width: 8),
-        Expanded(
-            child: Text(text, style: Theme.of(context).textTheme.bodyMedium)),
-      ],
-    );
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Usta: teklif ver / güncelle / geri çek (#7, #8)
-// ---------------------------------------------------------------------------
-
-/// Usta: iş ilanını görünce müşteriyle doğrudan iletişime geçer (teklif yok).
-/// "İletişime Geç" hem bir ilgi kaydı (customer'ın "İlgilenen Ustalar"
-/// listesine düşer) oluşturur hem de anında sohbet açar.
+/// Ustanın gördüğü bölüm — SADE (2026-08-08).
+///
+/// Eskiden "Bildirim Gönder" ile ilgi kaydı (`offers`) oluşturulur, müşteri
+/// "Ustayı Seç" derdi. O ara adım kaldırıldı: usta **doğrudan mesaj atar**.
+///
+/// Kapılar korunuyor: e-posta doğrulama · askı · meslek/bölge eşleşmesi ·
+/// müsaitlik. Müsait olmayan usta aramada da görünmüyor; ilan sahibine
+/// yazabilmesi tutarsız olurdu.
 class _ArtisanOfferSection extends ConsumerWidget {
   const _ArtisanOfferSection({required this.job});
   final Job job;
 
-  /// Zaten iletişime geçilmişse yalnız sohbeti açar.
-  ///
-  /// ÖNEMLİ: Tekrar `submitOffer` çağrılmaz — döküman zaten varken `set()`
-  /// Firestore'da update sayılır; kural yalnız note/price/status'a izin verir
-  /// → permission-denied → "İletişim başlatılamadı" ve sohbet hiç açılmazdı.
-  Future<void> _openChat(BuildContext context, WidgetRef ref) async {
+  Future<void> _messageOwner(BuildContext context, WidgetRef ref) async {
     final user = ref.read(currentUserProvider);
     if (user == null) {
-      context.showError('Sohbete gitmek için giriş yapmalısınız.');
+      context.showError('Mesaj göndermek için giriş yapmalısınız.');
       return;
     }
-    final draft = ref.read(myProfileControllerProvider).valueOrNull;
-    try {
-      final chatId = await ref.read(chatRepositoryProvider).startChat(
-            customerUid: job.customerId,
-            customerName: job.customerName,
-            customerPhotoUrl: job.customerPhotoUrl,
-            artisanUid: user.uid,
-            artisanName: draft?.displayName ?? user.displayName,
-            artisanPhotoUrl: draft?.profilePhotoUrl ?? user.profilePhotoUrl,
-            jobId: job.jobId,
-            jobTitle: job.title,
-          );
-      if (!context.mounted) return;
-      context.push(RoutePaths.chatThread(chatId));
-    } catch (_) {
-      if (context.mounted) {
-        context.showError(
-            'Sohbet açılamadı. E-posta doğrulamanızı kontrol edip tekrar deneyin.');
-      }
+    if (user.suspended) {
+      context.showError('Hesabınız askıya alındığı için mesaj gönderilemez.');
+      return;
     }
-  }
 
-  /// Usta: ilanla ilgilendiğini müşteriye BİLDİRİR (idempotent).
-  ///
-  /// Sohbet AÇILMAZ ve usta sohbete atılmaz — kurgu böyle: usta yalnız haber
-  /// verir, sohbeti müşteri "Ustayı Seç" ile başlatır. İlgi kaydı yazılınca
-  /// `onOfferWritten` CF müşteriye bildirim + push yollar.
-  Future<void> _notifyInterest(BuildContext context, WidgetRef ref) async {
-    final user = ref.read(currentUserProvider);
     final draft = ref.read(myProfileControllerProvider).valueOrNull;
-    if (user == null || draft == null) {
-      context.showError('İletişime geçmek için profil bilgileriniz gerekli.');
+    if (draft == null) {
+      context.showError('Profil bilgileriniz yüklenemedi.');
       return;
     }
     final profile = draft.profile;
@@ -1748,231 +778,106 @@ class _ArtisanOfferSection extends ConsumerWidget {
       context.showError('Önce profilinizi (meslek + bölge) tamamlayın.');
       return;
     }
-
-    // MÜSAİTLİK KAPISI: müsait değilken yeni iş alınamaz. Aramada da
-    // görünmüyorsun; ilan sahibine haber vermek tutarsız olurdu.
     if (!profile.isAvailable) {
       context.showError(
-        'Şu an "müsait değil" görünüyorsunuz. İlgi bildirmek için '
+        'Şu an "müsait değil" görünüyorsunuz. Mesaj göndermek için '
         'profilinizden müsaitliği açın.',
       );
       return;
     }
-
-    // H3: meslek + il/ilçe eşleşmesi (sunucu rules da aynı mantığı zorlar).
     if (!job.matchesArtisan(
       professionCodes: profile.professionCodes,
       serviceAreas: profile.serviceAreas,
     )) {
       context.showError(
-          'Bu ilan meslek veya hizmet bölgenizle eşleşmiyor. '
-          'Profilinizdeki meslek ve bölgeleri kaydedip kontrol edin.');
+        'Bu ilan meslek veya hizmet bölgenizle eşleşmiyor. '
+        'Profilinizdeki meslek ve bölgeleri kaydedip kontrol edin.',
+      );
       return;
     }
 
-    // Sunucu da zorlar (offers create + isEmailVerified + eşleşme).
+    // Sunucu da zorlar (chats create + isEmailVerified).
     final emailOk = await ensureEmailVerified(
       context,
       ref,
-      actionLabel: 'ilan sahibine bildirim göndermek',
+      actionLabel: 'ilan sahibine mesaj göndermek',
     );
     if (!emailOk || !context.mounted) return;
 
-    final offerRepo = ref.read(offerRepositoryProvider);
-    // Liste stream yüklenmeden / geri çek sonrası: sunucudan net durum.
-    final existing = await offerRepo.myOfferFor(
-      jobId: job.jobId,
-      artisanUid: user.uid,
-    );
-    if (!context.mounted) return;
-
-    final now = DateTime.now();
-    final interest = Offer(
-      offerId: Offer.idFor(job.jobId, user.uid),
-      jobId: job.jobId,
-      jobTitle: job.title,
-      artisanId: user.uid,
-      customerId: job.customerId,
-      artisanName: draft.displayName,
-      artisanPhotoUrl: draft.profilePhotoUrl,
-      professionNameTR: profile.professionLabelsTR(kProfessionNames),
-      experienceYears: profile.experienceYears,
-      rating: profile.averageRating,
-      totalReviews: profile.totalReviews,
-      isVerified: profile.isVerified,
-      isPremium: profile.hasActivePremium,
-      priceType: JobPriceType.inspection,
-      price: null,
-      note: '',
-      status: OfferStatus.pending,
-      createdAt: existing?.createdAt ?? now,
-      updatedAt: now,
-    );
     try {
-      // Idempotent: yoksa create, withdrawn→pending, zaten aktifse no-op.
-      await offerRepo.submitOffer(interest);
-      if (existing == null) await AppAnalytics.sendOffer();
+      final chatId = await ref.read(chatRepositoryProvider).startChat(
+            customerUid: job.customerId,
+            customerName: job.customerName,
+            customerPhotoUrl: job.customerPhotoUrl,
+            artisanUid: user.uid,
+            artisanName: draft.displayName,
+            artisanPhotoUrl: draft.profilePhotoUrl,
+            jobId: job.jobId,
+            jobTitle: job.title,
+          );
       if (!context.mounted) return;
-      // ÖNEMLİ: aktif ilgide `submitOffer` HİÇBİR ŞEY yazmaz → CF tetiklenmez
-      // → bildirim de gitmez. "Gönderildi" demek yanıltıcı olurdu; mevcut
-      // kayıtta ayrı mesaj verilir. (`myOfferFor` withdrawn'ı null döndürür,
-      // yani geri çekilip yeniden bildirmek gerçek bir gönderimdir.)
-      if (existing == null) {
-        context.showSuccess('Bildirim gönderildi. Müşteri ilanında sizi görecek.');
-      } else {
-        context.showInfo('Zaten bu ilanla ilgilendiğinizi bildirdiniz.');
-      }
+      context.push(RoutePaths.chatThread(chatId));
     } catch (e) {
       if (!context.mounted) return;
-      final s = e.toString();
-      if (s.contains('permission-denied') || s.contains('PERMISSION_DENIED')) {
-        context.showError(
-            'Bildirim gönderilemedi: e-posta doğrulaması, profil eşleşmesi '
-            '(meslek/bölge kayıtlı mı?) veya oturum yetkisi. '
-            'Profili kaydedip tekrar deneyin.');
-      } else {
-        context.showError('Bildirim gönderilemedi, tekrar deneyin.');
-      }
-    }
-  }
-
-  Future<void> _withdraw(BuildContext context, WidgetRef ref) async {
-    final user = ref.read(currentUserProvider);
-    if (user == null) return;
-    try {
-      await ref
-          .read(offerRepositoryProvider)
-          .withdrawOffer(jobId: job.jobId, artisanUid: user.uid);
-      if (context.mounted) context.showInfo('İlgi geri çekildi.');
-    } catch (_) {
-      if (context.mounted) context.showError('İşlem başarısız, tekrar deneyin.');
+      final denied = e.toString().contains('permission-denied');
+      context.showError(denied
+          ? 'Mesaj gönderme izniniz yok. Hesabınız askıya alınmış olabilir.'
+          : 'Sohbet açılamadı, tekrar deneyin.');
+      debugPrint('[job] startChat hatası: $e');
     }
   }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final user = ref.watch(currentUserProvider);
-    final status = job.effectiveStatus;
-    final draft = ref.watch(myProfileControllerProvider).valueOrNull;
-    final profile = draft?.profile;
+    final palette = context.palette;
+    final theme = Theme.of(context);
 
-    // İş bu ustaya verildiyse: yaşam döngüsü + sohbet + tamamlama onayı.
-    if (job.selectedArtisanId != null && job.selectedArtisanId == user?.uid) {
-      return _AssignedCard(job: job, isOwner: false);
-    }
-    // İş kapandı/başkası seçildi/süre doldu.
-    if (status != JobStatus.open) {
-      return _NoticeCard(
+    if (!job.status.isActiveForOffers) {
+      return const _NoticeCard(
         icon: Icons.info_outline,
-        text: status == JobStatus.expired
-            ? 'Bu ilanın süresi doldu.'
-            : 'Bu ilan artık aktif değil.',
+        text: 'Bu ilan artık teklife açık değil.',
       );
     }
 
-    // H3: eşleşmeyen ustaya "Bildirim Gönder" gösterme.
-    final matches = profile != null &&
-        profile.professionCodes.isNotEmpty &&
-        profile.serviceAreas.isNotEmpty &&
-        job.matchesArtisan(
-          professionCodes: profile.professionCodes,
-          serviceAreas: profile.serviceAreas,
-        );
-    if (!matches) {
-      final incomplete = profile == null ||
-          profile.professionCodes.isEmpty ||
-          profile.serviceAreas.isEmpty;
-      return _NoticeCard(
-        icon: Icons.location_off_outlined,
-        text: incomplete
-            ? 'Bildirim göndermek için profilinizde en az bir meslek ve '
-                'hizmet bölgesi tanımlayın.'
-            : 'Bu ilan meslek veya hizmet bölgenizle eşleşmiyor. '
-                'Yalnızca uyumlu ilanlara teklif verebilirsiniz.',
-      );
-    }
-
-    // Zaten bildirildiyse: sohbete git / geri çek.
-    // Stream yüklenirken "Bildirim Gönder" göstermek mevcut teklife full set
-    // yarışına yol açıyordu → loading ayrımı.
-    final myOffersAsync = ref.watch(myOffersProvider(user?.uid ?? ''));
-    if (myOffersAsync.isLoading) {
-      return const Padding(
-        padding: EdgeInsets.symmetric(vertical: 24),
-        child: LoadingView(compact: true, label: 'İlgi durumu…'),
-      );
-    }
-    Offer? existing;
-    final myOffers = myOffersAsync.valueOrNull;
-    if (myOffers != null) {
-      for (final o in myOffers) {
-        if (o.jobId == job.jobId && o.status != OfferStatus.withdrawn) {
-          existing = o;
-          break;
-        }
-      }
-    }
-
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: context.palette.card,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: context.palette.border),
-        boxShadow: AppTheme.softShadow,
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-              existing != null
-                  ? 'Bildiriminiz gönderildi'
-                  : 'Bu işle ilgileniyor musunuz?',
-              style: Theme.of(context)
-                  .textTheme
-                  .titleMedium
-                  ?.copyWith(fontWeight: FontWeight.w800)),
-          const SizedBox(height: 6),
-          Text(
-            existing != null
-                ? 'Müşteriye bildirim gönderildi. İlanında "İlgilenen Ustalar" '
-                    'listesinde görünüyorsunuz. İletişimi müşteri başlatır.'
-                : 'İlgilendiğinizi müşteriye bildirin; size yazarsa işi '
-                    'konuşmaya başlarsınız.',
-            style: Theme.of(context)
-                .textTheme
-                .bodyMedium
-                ?.copyWith(color: context.palette.inkMuted),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: palette.infoSurface,
+            borderRadius: BorderRadius.circular(14),
           ),
-          const SizedBox(height: 12),
-          // Bildirim gönderildikten sonra birincil eylem YOK: sıra müşteride.
-          //
-          // "Sohbete Git" YALNIZ müşteri yazdıysa görünür. Aksi halde usta
-          // düğmeye basıp BOŞ bir sohbet dokümanı yaratıyordu: kendisi kilitli
-          // boş ekranda kalıyor, müşterinin listesi de hiç açmadığı sohbetlerle
-          // doluyordu (birden çok usta bildirim gönderince liste çöplüğe
-          // dönüyordu). İletişimi müşteri başlatır — düğme de o zaman gelir.
-          if (existing != null)
-            _ArtisanChatAccess(
-              job: job,
-              artisanUid: user?.uid ?? '',
-              onOpenChat: () => _openChat(context, ref),
-              onWithdraw: () => _withdraw(context, ref),
-            )
-          else
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton.icon(
-                onPressed: () => _notifyInterest(context, ref),
-                icon: const Icon(Icons.notifications_active_outlined),
-                label: const Text('Bildirim Gönder'),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(Icons.handyman_outlined, size: 20, color: palette.info),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'İlgileniyorsan ilan sahibine doğrudan mesaj at. '
+                  'Detayları kendi aranızda konuşup anlaşabilirsiniz.',
+                  style: theme.textTheme.bodySmall
+                      ?.copyWith(fontWeight: FontWeight.w600),
+                ),
               ),
-            ),
-        ],
-      ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+        SizedBox(
+          width: double.infinity,
+          child: FilledButton.icon(
+            onPressed: () => _messageOwner(context, ref),
+            icon: const Icon(Icons.chat_bubble_outline, size: 18),
+            label: const Text('Mesaj Gönder'),
+          ),
+        ),
+      ],
     );
   }
 }
+
 
 class _NoticeCard extends StatelessWidget {
   const _NoticeCard({required this.icon, required this.text});
