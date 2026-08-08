@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../data/local/mock_database.dart' show kProfessionNames;
 import '../../data/models/app_user.dart';
@@ -8,6 +9,7 @@ import '../../features/artisan/data/artisan_providers.dart';
 import '../../features/favorites/data/favorite_providers.dart';
 import '../../features/review/data/review_repository.dart';
 import '../router/route_paths.dart';
+import '../utils/snackbar_helper.dart';
 import '../theme/app_palette.dart';
 import 'app_image.dart';
 
@@ -314,19 +316,47 @@ class ProfileBioDetails extends StatelessWidget {
     final theme = Theme.of(context);
     final s = user.socialLinks;
 
-    final satirlar = <({IconData icon, String text})>[
-      if (user.publicPhone?.trim().isNotEmpty ?? false)
-        (icon: Icons.phone_outlined, text: user.publicPhone!.trim()),
-      if (s.website?.trim().isNotEmpty ?? false)
-        (icon: Icons.link_rounded, text: kisaUrl(s.website!)),
-      if (s.instagram?.trim().isNotEmpty ?? false)
-        (icon: Icons.camera_alt_outlined, text: '@${s.instagram!.trim()}'),
-      if (s.youtube?.trim().isNotEmpty ?? false)
-        (icon: Icons.play_circle_outline, text: s.youtube!.trim()),
-      if (s.tiktok?.trim().isNotEmpty ?? false)
-        (icon: Icons.music_note_outlined, text: '@${s.tiktok!.trim()}'),
-      if (s.whatsapp?.trim().isNotEmpty ?? false)
-        (icon: Icons.chat_outlined, text: s.whatsapp!.trim()),
+    // Her satır DOKUNULABİLİR: telefon arar, adresler uygulamayı/tarayıcıyı
+    // açar. Model zaten doğru URL'yi üretiyor (instagramUrl, whatsappUrl…),
+    // burada elle string kurmuyoruz.
+    final telefon = user.publicPhone?.trim() ?? '';
+    final satirlar = <({IconData icon, String text, String? url})>[
+      if (telefon.isNotEmpty)
+        (
+          icon: Icons.phone_outlined,
+          text: telefon,
+          url: 'tel:${telefon.replaceAll(RegExp(r'[^0-9+]'), '')}',
+        ),
+      if (s.websiteUrl != null)
+        (
+          icon: Icons.link_rounded,
+          text: kisaUrl(s.website!),
+          url: s.websiteUrl,
+        ),
+      if (s.instagramUrl != null)
+        (
+          icon: Icons.camera_alt_outlined,
+          text: '@${s.instagram!.trim()}',
+          url: s.instagramUrl,
+        ),
+      if (s.youtubeUrl != null)
+        (
+          icon: Icons.play_circle_outline,
+          text: s.youtube!.trim(),
+          url: s.youtubeUrl,
+        ),
+      if (s.tiktokUrl != null)
+        (
+          icon: Icons.music_note_outlined,
+          text: '@${s.tiktok!.trim()}',
+          url: s.tiktokUrl,
+        ),
+      if (s.whatsappUrl != null)
+        (
+          icon: Icons.chat_outlined,
+          text: s.whatsapp!.trim(),
+          url: s.whatsappUrl,
+        ),
     ];
 
     if (satirlar.isEmpty) return const SizedBox.shrink();
@@ -337,29 +367,46 @@ class ProfileBioDetails extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           for (final r in satirlar)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 3),
-              child: Row(
-                children: [
-                  Icon(r.icon, size: 13, color: palette.inkMuted),
-                  const SizedBox(width: 5),
-                  Flexible(
-                    child: Text(
-                      r.text,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.labelSmall?.copyWith(
-                        color: palette.inkMuted,
-                        fontWeight: FontWeight.w600,
+            InkWell(
+              onTap: r.url == null ? null : () => _ac(context, r.url!),
+              borderRadius: BorderRadius.circular(6),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 2),
+                child: Row(
+                  children: [
+                    Icon(r.icon, size: 13, color: palette.inkMuted),
+                    const SizedBox(width: 5),
+                    Flexible(
+                      child: Text(
+                        r.text,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.labelSmall?.copyWith(
+                          color: palette.inkMuted,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
         ],
       ),
     );
+  }
+
+  /// Bağlantıyı harici uygulamada açar; başarısızsa sessiz kalmaz.
+  static Future<void> _ac(BuildContext context, String url) async {
+    try {
+      final ok = await launchUrl(
+        Uri.parse(url),
+        mode: LaunchMode.externalApplication,
+      );
+      if (!ok && context.mounted) context.showError('Bağlantı açılamadı.');
+    } catch (_) {
+      if (context.mounted) context.showError('Bağlantı açılamadı.');
+    }
   }
 
   /// `https://ornek.com/yol` → `ornek.com/yol` — şema satırı şişiriyor.

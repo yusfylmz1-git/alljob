@@ -44,10 +44,30 @@ class SocialLinks {
 
   static bool _ok(String? s) => s != null && s.trim().isNotEmpty;
 
+  /// Bilinen sosyal medya alan adları — kullanıcı adı sanılmasınlar.
+  ///
+  /// `ahmet.usta` GEÇERLİ bir Instagram adıdır; "nokta varsa alan adıdır"
+  /// kuralı meşru adları da eliyordu. Onun yerine yalnız bu liste reddedilir.
+  static const _domains = {
+    'instagram.com', 'www.instagram.com', 'instagr.am',
+    'youtube.com', 'www.youtube.com', 'youtu.be',
+    'tiktok.com', 'www.tiktok.com', 'vm.tiktok.com',
+    'facebook.com', 'www.facebook.com', 'fb.com',
+    'x.com', 'twitter.com', 'www.twitter.com',
+    'wa.me', 'api.whatsapp.com',
+  };
+
+  /// Kullanıcı adında izin verilen karakterler: harf, rakam, `.`, `_`, `-`.
+  /// (Instagram/TikTok/YouTube'un ortak paydası.)
+  static final _handleOk = RegExp(r'^[A-Za-z0-9._-]+$');
+
   /// Girilen metni kullanıcı adına indirger: baştaki `@`, tam URL, sondaki
-  /// `/` ve sorgu parçaları atılır. Sonuç boşsa null döner.
+  /// `/` ve sorgu parçaları atılır. Sonuç geçersizse null döner.
   ///
   /// `https://instagram.com/ahmet_usta/?hl=tr` → `ahmet_usta`
+  ///
+  /// Hata SEBEBİ gerekiyorsa [handleError] kullanın — bu metot yalnız
+  /// "temiz değer ya da null" döndürür.
   static String? normalizeHandle(String? raw) {
     var s = (raw ?? '').trim();
     if (s.isEmpty) return null;
@@ -60,14 +80,72 @@ class SocialLinks {
           .where((p) => p.trim().isNotEmpty)
           .toList();
       if (parts.isEmpty) return null;
+      // "instagram.com/" gibi yalnız alan adı kaldıysa kullanıcı adı yok.
+      if (parts.length == 1 && _domains.contains(parts.first.toLowerCase())) {
+        return null;
+      }
       s = parts.last;
     }
     s = s.replaceFirst(RegExp(r'^@+'), '').trim();
     if (s.isEmpty) return null;
-    // Nokta içeren girdi kullanıcı adı değil, alan adıdır ("instagram.com"):
-    // kullanıcı yanlış alana site adresi yazmış demektir.
-    if (s.contains('.')) return null;
+    // Şemasız alan adı ("instagram.com") — kullanıcı yanlış alana site
+    // adresi yazmış demektir.
+    if (_domains.contains(s.toLowerCase())) return null;
+    // Boşluk/geçersiz karakter: hiçbir platformda böyle bir ad yok.
+    if (!_handleOk.hasMatch(s)) return null;
+    if (s.length > 40) return null;
     return s;
+  }
+
+  /// Kullanıcı adı için TÜRKÇE hata mesajı; sorun yoksa null.
+  ///
+  /// UI bunu `errorText` olarak gösterir — geçersiz girdiyi sessizce silmek
+  /// yerine NEDENİNİ söyler. Boş girdi hata değildir (alan isteğe bağlı).
+  static String? handleError(String? raw, {required String platform}) {
+    final s = (raw ?? '').trim();
+    if (s.isEmpty) return null;
+    if (normalizeHandle(s) != null) return null;
+
+    final temiz = s.replaceFirst(RegExp(r'^@+'), '').trim();
+    if (_domains.contains(temiz.toLowerCase()) ||
+        (temiz.contains('/') && normalizeHandle(temiz) == null)) {
+      return '$platform adresini değil, kullanıcı adını yazın.';
+    }
+    if (temiz.contains(' ')) {
+      return 'Kullanıcı adı boşluk içeremez.';
+    }
+    if (temiz.length > 40) {
+      return 'Kullanıcı adı çok uzun.';
+    }
+    return 'Yalnız harf, rakam, nokta, alt çizgi ve tire kullanın.';
+  }
+
+  /// WhatsApp numarası için hata mesajı; sorun yoksa null.
+  static String? whatsappError(String? raw) {
+    final s = (raw ?? '').trim();
+    if (s.isEmpty) return null;
+    if (normalizeWhatsapp(s) != null) return null;
+    if (!RegExp(r'[0-9]').hasMatch(s)) {
+      return 'Telefon numarası girin (ör. 0532 123 45 67).';
+    }
+    return 'Numara eksik ya da hatalı görünüyor.';
+  }
+
+  /// Web sitesi için hata mesajı; sorun yoksa null.
+  static String? websiteError(String? raw) {
+    final s = (raw ?? '').trim();
+    if (s.isEmpty) return null;
+    if (normalizeWebsite(s) != null) return null;
+    final lower = s.toLowerCase();
+    if (lower.startsWith('javascript:') ||
+        lower.startsWith('data:') ||
+        lower.startsWith('file:')) {
+      return 'Yalnız http/https adresleri kabul edilir.';
+    }
+    if (!s.contains('.')) {
+      return 'Geçerli bir adres girin (ör. ornek.com).';
+    }
+    return 'Adres anlaşılamadı (ör. ornek.com).';
   }
 
   /// WhatsApp numarasını E.164'e indirger. TR kısayolları desteklenir:

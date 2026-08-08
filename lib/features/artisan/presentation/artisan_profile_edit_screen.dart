@@ -926,14 +926,24 @@ class _SocialLinksSectionState extends State<_SocialLinksSection> {
     website: _website.text,
   );
 
-  /// Odak kaybında normalize edilmiş değeri kutuya geri yazar; böylece usta
-  /// tam URL yapıştırsa bile kaydedilen kullanıcı adını görür.
+  /// Alan başına hata mesajı (null = sorun yok). Odak kaybında hesaplanır.
+  final Map<String, String?> _errors = {};
+
+  /// Odak kaybında normalize edilmiş değeri kutuya geri yazar; böylece
+  /// kullanıcı tam URL yapıştırsa bile kaydedilecek adı görür.
+  ///
+  /// GEÇERSİZ girdi SİLİNMEZ (2026-08-09): eskiden `controller.text = ''`
+  /// yazılıyordu ve kullanıcı yazdığının neden kaybolduğunu anlamıyordu.
+  /// Artık metin kutuda kalır, altında kırmızı hata çıkar ve alan
+  /// kaydedilmez.
   Widget _field({
     required TextEditingController controller,
     required String label,
     required String hint,
     required IconData icon,
     required String? Function(String) normalize,
+    required String? Function(String) validate,
+    String? helper,
     TextInputType? keyboardType,
   }) {
     return Padding(
@@ -941,16 +951,29 @@ class _SocialLinksSectionState extends State<_SocialLinksSection> {
       child: Focus(
         onFocusChange: (hasFocus) {
           if (hasFocus) return;
-          final normalized = normalize(controller.text);
-          controller.text = normalized ?? '';
+          final ham = controller.text;
+          final hata = validate(ham);
+          final normalized = normalize(ham);
+          setState(() {
+            _errors[label] = hata;
+            // Yalnız GEÇERLİ girdi temizlenmiş hâliyle geri yazılır.
+            // Hatalı metin kutuda kalır ki kullanıcı düzeltebilsin.
+            if (hata == null) controller.text = normalized ?? '';
+          });
           _push();
         },
         child: TextField(
           controller: controller,
           keyboardType: keyboardType,
+          autocorrect: false,
+          enableSuggestions: false,
           decoration: InputDecoration(
             labelText: label,
             hintText: hint,
+            helperText: _errors[label] == null ? helper : null,
+            helperMaxLines: 2,
+            errorText: _errors[label],
+            errorMaxLines: 2,
             prefixIcon: Icon(icon),
             border: const OutlineInputBorder(),
           ),
@@ -968,8 +991,11 @@ class _SocialLinksSectionState extends State<_SocialLinksSection> {
           controller: _instagram,
           label: 'Instagram',
           hint: 'kullanici_adi',
+          helper: 'Bağlantıyı yapıştırabilirsiniz, kullanıcı adına çevrilir.',
           icon: Icons.camera_alt_outlined,
           normalize: SocialLinks.normalizeHandle,
+          validate: (v) =>
+              SocialLinks.handleError(v, platform: 'Instagram'),
         ),
         _field(
           controller: _youtube,
@@ -977,6 +1003,7 @@ class _SocialLinksSectionState extends State<_SocialLinksSection> {
           hint: 'kanal_adi',
           icon: Icons.play_circle_outline,
           normalize: SocialLinks.normalizeHandle,
+          validate: (v) => SocialLinks.handleError(v, platform: 'YouTube'),
         ),
         _field(
           controller: _tiktok,
@@ -984,14 +1011,17 @@ class _SocialLinksSectionState extends State<_SocialLinksSection> {
           hint: 'kullanici_adi',
           icon: Icons.music_note_outlined,
           normalize: SocialLinks.normalizeHandle,
+          validate: (v) => SocialLinks.handleError(v, platform: 'TikTok'),
         ),
         _field(
           controller: _whatsapp,
           label: 'WhatsApp iş hattı',
           hint: '0532 123 45 67',
+          helper: 'Profil telefonunuzdan farklı bir hat verebilirsiniz.',
           icon: Icons.chat_outlined,
           keyboardType: TextInputType.phone,
           normalize: SocialLinks.normalizeWhatsapp,
+          validate: SocialLinks.whatsappError,
         ),
         _field(
           controller: _website,
@@ -1000,6 +1030,7 @@ class _SocialLinksSectionState extends State<_SocialLinksSection> {
           icon: Icons.language_outlined,
           keyboardType: TextInputType.url,
           normalize: SocialLinks.normalizeWebsite,
+          validate: SocialLinks.websiteError,
         ),
       ],
     );

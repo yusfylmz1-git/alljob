@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/router/route_paths.dart';
 import '../../../core/theme/app_palette.dart';
@@ -16,7 +15,6 @@ import '../../../core/widgets/status_views.dart';
 import '../../../data/local/mock_database.dart' show kProfessionNames;
 import '../../../data/models/artisan_profile.dart';
 import '../../../data/models/review.dart';
-import '../../../data/models/social_links.dart';
 import '../../artisan/data/artisan_providers.dart';
 import '../../artisan/data/artisan_repository.dart';
 import '../../auth/application/auth_controller.dart';
@@ -132,11 +130,16 @@ class _ProfileBody extends ConsumerWidget {
                       const SizedBox(height: 16),
                     ],
 
-                    // Sosyal medya / iş hattı — usta eklediyse görünür.
-                    if (profile.socialLinks.hasAny) ...[
-                      _SocialLinksRow(links: profile.socialLinks),
-                      const SizedBox(height: 16),
-                    ],
+                    // SOSYAL MEDYA SATIRI BURADAN KALDIRILDI (2026-08-09).
+                    //
+                    // İki sorun vardı:
+                    //  1. Kaynağı ESKİ: `profile.socialLinks` artisanProfiles
+                    //     kaydından geliyordu; ortak alanlar `users` altına
+                    //     taşındıktan sonra kullanıcının yeni girdiği veri
+                    //     burada görünmüyordu.
+                    //  2. MÜKERRER: aynı bağlantılar başlıktaki bio
+                    //     satırlarında (ProfileBioDetails) zaten var ve
+                    //     onlar doğru kaynaktan okuyor.
 
                     // İş fotoğrafları — vitrinin kalbi (IG grid)
                     _Section(
@@ -315,80 +318,6 @@ class _ProfileBody extends ConsumerWidget {
           )
         else
           _ChatBar(detail: detail),
-      ],
-    );
-  }
-}
-
-/// Ustanın eklediği sosyal medya / iş hattı bağlantıları. Yalnız dolu olanlar
-/// çizilir; dokununca ilgili uygulama/tarayıcı açılır.
-class _SocialLinksRow extends StatelessWidget {
-  const _SocialLinksRow({required this.links});
-
-  final SocialLinks links;
-
-  Future<void> _open(BuildContext context, String url) async {
-    try {
-      final ok = await launchUrl(
-        Uri.parse(url),
-        mode: LaunchMode.externalApplication,
-      );
-      if (!ok && context.mounted) {
-        context.showError('Bağlantı açılamadı.');
-      }
-    } catch (_) {
-      if (context.mounted) context.showError('Bağlantı açılamadı.');
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final palette = context.palette;
-    final items = <({IconData icon, String label, String url})>[
-      if (links.instagramUrl != null)
-        (
-          icon: Icons.camera_alt_outlined,
-          label: 'Instagram',
-          url: links.instagramUrl!,
-        ),
-      if (links.youtubeUrl != null)
-        (
-          icon: Icons.play_circle_outline,
-          label: 'YouTube',
-          url: links.youtubeUrl!,
-        ),
-      if (links.tiktokUrl != null)
-        (
-          icon: Icons.music_note_outlined,
-          label: 'TikTok',
-          url: links.tiktokUrl!,
-        ),
-      if (links.whatsappUrl != null)
-        (icon: Icons.chat_outlined, label: 'WhatsApp', url: links.whatsappUrl!),
-      if (links.websiteUrl != null)
-        (
-          icon: Icons.language_outlined,
-          label: 'Web sitesi',
-          url: links.websiteUrl!,
-        ),
-    ];
-
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      children: [
-        for (final it in items)
-          ActionChip(
-            avatar: Icon(it.icon, size: 16, color: palette.primary),
-            label: Text(
-              it.label,
-              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
-            ),
-            onPressed: () => _open(context, it.url),
-            backgroundColor: palette.surfaceMuted,
-            side: BorderSide.none,
-            visualDensity: VisualDensity.compact,
-          ),
       ],
     );
   }
