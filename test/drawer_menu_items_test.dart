@@ -32,10 +32,11 @@ void main() {
   });
 
   group('ERİŞİM korundu (başka girişlerden)', () {
-    test('takip: profil ekranından açılıyor', () {
-      final profil =
-          read('lib/features/profile/presentation/profile_screen.dart');
-      expect(profil.contains('RoutePaths.favorites'), isTrue);
+    test('takip: profil sayaçlarından açılıyor', () {
+      // Kod ortak başlığa taşındı (2026-08-09): profile_header.dart.
+      final header = read('lib/core/widgets/profile_header.dart');
+      expect(header.contains('RoutePaths.favorites'), isTrue);
+      expect(header.contains('RoutePaths.followers'), isTrue);
     });
 
     test('bildirimler: zil ikonundan açılıyor', () {

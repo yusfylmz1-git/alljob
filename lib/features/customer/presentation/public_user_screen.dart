@@ -3,9 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/router/route_paths.dart';
-import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_palette.dart';
-import '../../../core/widgets/app_image.dart';
 import '../../../core/widgets/responsive_center.dart';
 import '../../../core/widgets/status_views.dart';
 import '../../../data/models/app_user.dart';
@@ -13,8 +11,10 @@ import '../../auth/application/auth_controller.dart';
 import '../../chat/data/chat_providers.dart';
 import '../../favorites/data/favorite_providers.dart';
 import '../../favorites/presentation/favorite_button.dart';
-import '../../review/data/review_repository.dart';
 import '../../review/presentation/widgets/review_cta.dart';
+import '../../../core/utils/snackbar_helper.dart';
+import '../../../core/widgets/profile_header.dart';
+import '../../../data/models/favorite.dart';
 
 /// Genel kullanıcı profili (`/u/:uid`) — usta vitrini OLMAYAN kişiler için.
 ///
@@ -74,206 +74,130 @@ class _Body extends ConsumerWidget {
     final me = ref.watch(currentUserProvider);
     final isMe = me != null && me.uid == user.uid;
 
-    final followers =
-        ref.watch(followersProvider(user.uid)).valueOrNull?.length;
-    final following =
-        ref.watch(favoritesProvider(user.uid)).valueOrNull?.length;
     final followsMe =
         ref.watch(isFollowedByProvider(user.uid)).valueOrNull ?? false;
-    final reviews =
-        ref.watch(reviewsForUserProvider(user.uid)).valueOrNull ?? const [];
 
     final name = user.displayName.trim();
-    final initials = name.isEmpty ? '?' : name.substring(0, 1).toUpperCase();
 
     return ListView(
       padding: EdgeInsets.zero,
       children: [
-        // Hero: usta profiliyle aynı görsel dil (gradyan + halkalı avatar).
-        Container(
-          decoration: BoxDecoration(
-            gradient: palette.heroGradient,
-            borderRadius:
-                const BorderRadius.vertical(bottom: Radius.circular(24)),
-          ),
-          child: SafeArea(
-            bottom: false,
-            child: ResponsiveCenter(
-              maxWidth: 760,
-              padding: const EdgeInsets.fromLTRB(12, 4, 12, 20),
-              child: Column(
-                children: [
-                  Row(
-                    children: [
-                      BackButton(
-                        color: Colors.white,
-                        onPressed: () => context.canPop()
-                            ? context.pop()
-                            : context.go(RoutePaths.home),
-                      ),
-                      const Spacer(),
-                      if (!isMe)
-                        FavoriteButton(
-                          artisanUid: user.uid,
-                          artisanName: user.displayName,
-                          photoUrl: user.profilePhotoUrl,
-                          filledBackground: true,
-                        ),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  Container(
-                    padding: const EdgeInsets.all(3),
-                    decoration: const BoxDecoration(
-                      gradient: AppColors.brandGradient,
-                      shape: BoxShape.circle,
+        // ORTAK BAŞLIK — usta profili ve kendi profilimle AYNI widget.
+        // Tek fark eylem düğmeleri: burada "Mesaj" + "Takip et".
+        SafeArea(
+          bottom: false,
+          child: ResponsiveCenter(
+            maxWidth: 720,
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Üst şerit: geri (sol) + ad (orta) + takip yıldızı (sağ).
+                Row(
+                  children: [
+                    BackButton(
+                      onPressed: () => context.canPop()
+                          ? context.pop()
+                          : context.go(RoutePaths.home),
                     ),
-                    child: Container(
-                      padding: const EdgeInsets.all(3),
-                      decoration: const BoxDecoration(
-                        color: Color(0xFF13293F),
-                        shape: BoxShape.circle,
-                      ),
-                      child: ClipOval(
-                        child: SizedBox(
-                          width: 92,
-                          height: 92,
-                          child: user.profilePhotoUrl != null
-                              ? AppImage(
-                                  handle: user.profilePhotoUrl,
-                                  fit: BoxFit.cover,
-                                  width: 92,
-                                  height: 92,
-                                  memCacheWidth: 220,
-                                  memCacheHeight: 220,
-                                )
-                              : Container(
-                                  color: Colors.white12,
-                                  alignment: Alignment.center,
-                                  child: Text(
-                                    initials,
-                                    style: const TextStyle(
-                                      fontSize: 34,
-                                      fontWeight: FontWeight.w800,
-                                      color: Colors.white,
-                                    ),
-                                  ),
-                                ),
+                    Expanded(
+                      child: Text(
+                        name.isEmpty ? 'Kullanıcı' : name,
+                        textAlign: TextAlign.center,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: -0.2,
                         ),
                       ),
                     ),
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Flexible(
-                        child: Text(
-                          name.isEmpty ? 'Kullanıcı' : name,
-                          overflow: TextOverflow.ellipsis,
-                          style: theme.textTheme.headlineSmall?.copyWith(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w800,
-                          ),
+                    if (!isMe)
+                      FavoriteButton(
+                        artisanUid: user.uid,
+                        artisanName: user.displayName,
+                        photoUrl: user.profilePhotoUrl,
+                      )
+                    else
+                      const SizedBox(width: 40),
+                  ],
+                ),
+                const SizedBox(height: 8),
+
+                ProfileHeader(
+                  user: user,
+                  actions: isMe
+                      ? Row(
+                          children: [
+                            Expanded(
+                              child: ProfileActionButton(
+                                label: 'Profili düzenle',
+                                onTap: () =>
+                                    context.push(RoutePaths.profileEdit),
+                              ),
+                            ),
+                          ],
+                        )
+                      : Row(
+                          children: [
+                            Expanded(
+                              child: ProfileActionButton(
+                                label: 'Mesaj',
+                                icon: Icons.chat_bubble_outline,
+                                onTap: () => _openChat(context, ref, me, user),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: _TakipDugmesi(user: user),
+                            ),
+                          ],
                         ),
-                      ),
-                      if (user.phoneVerified) ...[
-                        const SizedBox(width: 6),
-                        const Icon(Icons.verified,
-                            color: Color(0xFF60A5FA), size: 22),
-                      ],
-                    ],
-                  ),
-                  if (followsMe && !isMe)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 6),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 9, vertical: 3),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.18),
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(
-                              color: Colors.white.withValues(alpha: 0.3)),
-                        ),
-                        child: const Text(
-                          'Seni takip ediyor',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 11.5,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ),
-                    ),
-                  const SizedBox(height: 16),
-                  // Sayaçlar — profil ekranıyla aynı üçlü düzen.
-                  Row(
-                    children: [
-                      _Stat(
-                        value: '${following ?? 0}',
-                        label: 'takip',
-                        onTap: () => context.push(RoutePaths.favorites),
-                      ),
-                      _Stat(
-                        value: '${followers ?? 0}',
-                        label: 'takipçi',
-                        onTap: () => context.push(RoutePaths.followers),
-                      ),
-                      // "tamamlanan" DEĞİL "değerlendirme" (2026-08-08):
-                      // iş akışı kalktı, tamamlanan iş sayacı artık hiç
-                      // artmıyor — profilde donmuş bir 0 duruyordu.
-                      _Stat(
-                        value: '${reviews.length}',
-                        label: 'değerlendirme',
-                      ),
-                    ],
-                  ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
         ),
 
-        if (!isMe)
+        // "Seni takip ediyor" rozeti — başlığın altında, sola dayalı.
+        if (followsMe && !isMe)
           ResponsiveCenter(
-            maxWidth: 760,
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-            child: SizedBox(
-              width: double.infinity,
-              child: FilledButton.icon(
-                onPressed: () => _openChat(context, ref, me, user),
-                icon: const Icon(Icons.chat_bubble_outline, size: 18),
-                label: const Text('Mesaj Gönder'),
+            maxWidth: 720,
+            padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
+                decoration: BoxDecoration(
+                  color: palette.surfaceMuted,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  'Seni takip ediyor',
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: palette.inkMuted,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
               ),
             ),
           ),
 
-        // Değerlendirme bloğu — usta profiliyle AYNI (2026-08-08).
-        // Müşteri profili de puan alır ve puanı herkese görünür.
+        const SizedBox(height: 8),
+        Divider(color: palette.hairline, height: 24),
+
+        // ── Değerlendirmeler ──
+        // Usta olmayan profilde gösterilecek vitrin yok; puan + yorumlar
+        // sayfanın gövdesini oluşturur.
         ResponsiveCenter(
-          maxWidth: 760,
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+          maxWidth: 720,
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
           child: ReviewCta(targetUid: user.uid),
         ),
         ResponsiveCenter(
-          maxWidth: 760,
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-          child: ReviewList(targetUid: user.uid),
-        ),
-
-        // Usta olmayan kullanıcıda gösterilecek vitrin yok — sade kalır.
-        ResponsiveCenter(
-          maxWidth: 760,
+          maxWidth: 720,
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
-          child: Text(
-            isMe
-                ? 'Kendi profilin. Ustaysan vitrinini Profil → Usta modu ile '
-                    'açabilirsin.'
-                : 'Bu kullanıcı henüz usta vitrini açmamış.',
-            textAlign: TextAlign.center,
-            style: theme.textTheme.bodySmall?.copyWith(color: palette.inkMuted),
-          ),
+          child: ReviewList(targetUid: user.uid),
         ),
       ],
     );
@@ -311,42 +235,47 @@ class _Body extends ConsumerWidget {
   }
 }
 
-class _Stat extends StatelessWidget {
-  const _Stat({required this.value, required this.label, this.onTap});
-  final String value;
-  final String label;
-  final VoidCallback? onTap;
+/// "Takip et" / "Takiptesin" — [FavoriteButton]'ın metinli hâli.
+class _TakipDugmesi extends ConsumerWidget {
+  const _TakipDugmesi({required this.user});
+  final AppUser user;
 
   @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Expanded(
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 6),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                value,
-                style: theme.textTheme.titleLarge?.copyWith(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              const SizedBox(height: 1),
-              Text(
-                label,
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: Colors.white.withValues(alpha: 0.72),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
+  Widget build(BuildContext context, WidgetRef ref) {
+    final takipte =
+        ref.watch(isFavoriteProvider(user.uid)).valueOrNull ?? false;
+    return ProfileActionButton(
+      label: takipte ? 'Takiptesin' : 'Takip et',
+      filled: !takipte,
+      onTap: () async {
+        final me = ref.read(currentUserProvider);
+        if (me == null) {
+          context.push(RoutePaths.login);
+          return;
+        }
+        final fav = Favorite(
+          customerUid: me.uid,
+          artisanUid: user.uid,
+          artisanName: user.displayName,
+          photoUrl: user.profilePhotoUrl,
+          // Takip EDENİN snapshot'ı — karşı tarafın "Takipçiler" listesi
+          // ekstra okuma yapmadan dolsun.
+          customerName: me.displayName,
+          customerPhotoUrl: me.profilePhotoUrl,
+          createdAt: DateTime.now(),
+        );
+        try {
+          final eklendi =
+              await ref.read(favoriteRepositoryProvider).toggle(fav);
+          if (!context.mounted) return;
+          context.showInfo(
+              eklendi ? 'Takip ediliyor.' : 'Takipten çıkarıldı.');
+        } catch (_) {
+          if (context.mounted) {
+            context.showError('İşlem başarısız, tekrar deneyin.');
+          }
+        }
+      },
     );
   }
 }

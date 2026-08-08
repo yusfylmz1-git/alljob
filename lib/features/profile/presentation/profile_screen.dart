@@ -5,15 +5,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/router/route_paths.dart';
-import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_palette.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/phone_format.dart';
 import '../../../core/utils/snackbar_helper.dart';
-import '../../../core/widgets/app_image.dart';
 import '../../../core/widgets/app_menu_drawer.dart';
 import '../../../core/widgets/gradient_app_bar.dart';
 import '../../../core/widgets/notification_bell.dart';
+import '../../../core/widgets/profile_header.dart';
 import '../../../core/widgets/responsive_center.dart';
 import '../../../core/widgets/role_bottom_bar.dart';
 import '../../../data/local/mock_database.dart';
@@ -24,7 +23,6 @@ import '../../auth/application/auth_controller.dart';
 import '../../auth/data/auth_repository.dart';
 import '../../auth/presentation/phone_verification_sheet.dart';
 import '../../chat/data/chat_providers.dart';
-import '../../favorites/data/favorite_providers.dart';
 import '../../membership/membership_access.dart';
 import '../../membership/membership_package.dart';
 
@@ -201,9 +199,7 @@ class _Hero extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final palette = context.palette;
     final name = user.displayName.trim();
-    final initials = name.isEmpty ? '?' : name.substring(0, 1).toUpperCase();
     final photo = draft?.profilePhotoUrl ?? user.profilePhotoUrl;
     final profession = artisanMode && draft != null
         ? kProfessionNames[draft!.profile.profession]
@@ -243,88 +239,36 @@ class _Hero extends StatelessWidget {
             ),
             const SizedBox(height: 8),
 
-            // Instagram başlığı: avatar SOLDA, sayaçlar YANINDA (yatay).
-            Row(
-              children: [
-                _AvatarWithEdit(photo: photo, initials: initials),
-                const SizedBox(width: 8),
-                Expanded(child: _HeroStats(user: user)),
-              ],
-            ),
-            const SizedBox(height: 12),
-
-            // Bio: ad + mavi tik, meslek, hakkımda — hepsi SOLA dayalı.
-            Row(
-              children: [
-                Flexible(
-                  child: Text(
-                    name.isEmpty ? 'Kullanıcı' : name,
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.titleSmall?.copyWith(
-                      fontWeight: FontWeight.w800,
+            // ORTAK BAŞLIK — başkasının profiliyle AYNI widget.
+            // Tek fark eylem düğmeleri: burada "düzenle | bak",
+            // karşı tarafta "Mesaj | Takip et".
+            ProfileHeader(
+              user: user,
+              isMe: true,
+              photoOverride: photo,
+              aboutOverride: about,
+              professionOverride: profession,
+              onAvatarTap: () => context.push(RoutePaths.profileEdit),
+              avatarBadge: const _AvatarPlusBadge(),
+              extra: artisanMode ? _AvailabilitySwitch(draft: draft) : null,
+              actions: Row(
+                children: [
+                  Expanded(
+                    child: ProfileActionButton(
+                      label: 'Profili düzenle',
+                      onTap: () => context.push(RoutePaths.profileEdit),
                     ),
                   ),
-                ),
-                if (user.phoneVerified) ...[
-                  const SizedBox(width: 5),
-                  Icon(Icons.verified, size: 16, color: palette.verified),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: ProfileActionButton(
+                      label: 'Profilime bak',
+                      onTap: () =>
+                          context.push(RoutePaths.userProfile(user.uid)),
+                    ),
+                  ),
                 ],
-              ],
-            ),
-            if (profession != null && profession.isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.only(top: 2),
-                child: Text(
-                  profession,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: palette.inkMuted,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
               ),
-            if (about.isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.only(top: 4),
-                child: Text(
-                  about,
-                  maxLines: 3,
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.bodySmall,
-                ),
-              ),
-
-            // İletişim satırları — Instagram bio dili: küçük font, ikonlu,
-            // boş olan hiç çizilmez (2026-08-08).
-            _BioDetails(user: user),
-            const SizedBox(height: 12),
-
-            // Müsaitlik — SADE anahtar (2026-08-08): yalnız switch + "Müsait".
-            // Aksiyon çubuğunun ÜSTÜNDE duruyor; kapalıyken yazı sönükleşir,
-            // başka bir uyarı/alt metin yok. Eskiden ayrı bir menü satırıydı
-            // (ikon + başlık + iki satır açıklama) ve profilde yer kaplıyordu.
-            if (artisanMode) ...[
-              _AvailabilitySwitch(draft: draft),
-              const SizedBox(height: 10),
-            ],
-
-            // Aksiyon çubuğu (IG: "Profili düzenle | Profili paylaş").
-            Row(
-              children: [
-                Expanded(
-                  child: _HeroAction(
-                    label: 'Profili düzenle',
-                    onTap: () => context.push(RoutePaths.profileEdit),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: _HeroAction(
-                    label: 'Profilime bak',
-                    onTap: () =>
-                        context.push(RoutePaths.artisanProfile(user.uid)),
-                  ),
-                ),
-              ],
             ),
           ],
         ),
@@ -333,304 +277,25 @@ class _Hero extends StatelessWidget {
   }
 }
 
-/// Avatar + sağ altında "+" rozeti (IG foto ekleme göstergesi).
-class _AvatarWithEdit extends StatelessWidget {
-  const _AvatarWithEdit({required this.photo, required this.initials});
-  final String? photo;
-  final String initials;
+/// Avatarın sağ altındaki "+" rozeti — fotoğraf değiştirme göstergesi (IG).
+class _AvatarPlusBadge extends StatelessWidget {
+  const _AvatarPlusBadge();
 
   @override
   Widget build(BuildContext context) {
     final palette = context.palette;
-    return GestureDetector(
-      onTap: () => context.push(RoutePaths.profileEdit),
-      child: Stack(
-        clipBehavior: Clip.none,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(2.5),
-            decoration: const BoxDecoration(
-              gradient: AppColors.brandGradient,
-              shape: BoxShape.circle,
-            ),
-            child: Container(
-              padding: const EdgeInsets.all(2.5),
-              decoration: BoxDecoration(
-                color: palette.card,
-                shape: BoxShape.circle,
-              ),
-              child: ClipOval(
-                child: SizedBox(
-                  width: 78,
-                  height: 78,
-                  child: photo != null
-                      ? AppImage(
-                          handle: photo,
-                          fit: BoxFit.cover,
-                          width: 78,
-                          height: 78,
-                          memCacheWidth: 200,
-                          memCacheHeight: 200,
-                        )
-                      : Container(
-                          color: palette.primaryContainer,
-                          alignment: Alignment.center,
-                          child: Text(
-                            initials,
-                            style: TextStyle(
-                              fontSize: 28,
-                              fontWeight: FontWeight.w800,
-                              color: palette.primary,
-                            ),
-                          ),
-                        ),
-                ),
-              ),
-            ),
-          ),
-          Positioned(
-            right: 0,
-            bottom: 0,
-            child: Container(
-              padding: const EdgeInsets.all(2),
-              decoration: BoxDecoration(
-                color: palette.card,
-                shape: BoxShape.circle,
-              ),
-              child: Container(
-                padding: const EdgeInsets.all(3),
-                decoration: BoxDecoration(
-                  color: palette.primary,
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(Icons.add, size: 13, color: Colors.white),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// IG'deki gri, geniş, düşük kontrastlı aksiyon düğmesi.
-class _HeroAction extends StatelessWidget {
-  const _HeroAction({required this.label, required this.onTap});
-  final String label;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final palette = context.palette;
-    return Material(
-      color: palette.surfaceMuted,
-      borderRadius: BorderRadius.circular(9),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(9),
-        onTap: onTap,
-        child: Container(
-          height: 34,
-          alignment: Alignment.center,
-          child: Text(
-            label,
-            style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                  fontWeight: FontWeight.w700,
-                ),
-          ),
+    return Container(
+      width: 24,
+      height: 24,
+      decoration: BoxDecoration(
+        color: palette.primary,
+        shape: BoxShape.circle,
+        border: Border.all(
+          color: Theme.of(context).scaffoldBackgroundColor,
+          width: 2,
         ),
       ),
-    );
-  }
-}
-
-/// Instagram tarzı 3'lü sayaç şeridi (başlığın yanında).
-///
-/// Herkeste aynı: **takip · takipçi · (puan | tamamlanan)**.
-/// Usta modunda ve değerlendirme varsa 3. hücre puanı gösterir.
-/// Profil bio'sundaki iletişim satırları — Instagram dili.
-///
-/// Telefon, web sitesi ve sosyal medya hesapları küçük fontta, ikonlu tek
-/// satırlar hâlinde. Boş olan alan HİÇ çizilmez: yarısı boş bir liste
-/// profilin doluluk hissini düşürür.
-///
-/// Veri `users/{uid}` altından gelir (ortak alanlar) — usta olsun olmasın
-/// herkeste aynı.
-class _BioDetails extends StatelessWidget {
-  const _BioDetails({required this.user});
-
-  final AppUser user;
-
-  @override
-  Widget build(BuildContext context) {
-    final palette = context.palette;
-    final theme = Theme.of(context);
-    final s = user.socialLinks;
-
-    final satirlar = <({IconData icon, String text})>[
-      if (user.publicPhone?.trim().isNotEmpty ?? false)
-        (icon: Icons.phone_outlined, text: user.publicPhone!.trim()),
-      if (s.website?.trim().isNotEmpty ?? false)
-        (icon: Icons.link_rounded, text: _kisaUrl(s.website!)),
-      if (s.instagram?.trim().isNotEmpty ?? false)
-        (icon: Icons.camera_alt_outlined, text: '@${s.instagram!.trim()}'),
-      if (s.youtube?.trim().isNotEmpty ?? false)
-        (icon: Icons.play_circle_outline, text: s.youtube!.trim()),
-      if (s.tiktok?.trim().isNotEmpty ?? false)
-        (icon: Icons.music_note_outlined, text: '@${s.tiktok!.trim()}'),
-      if (s.whatsapp?.trim().isNotEmpty ?? false)
-        (icon: Icons.chat_outlined, text: s.whatsapp!.trim()),
-    ];
-
-    if (satirlar.isEmpty) return const SizedBox.shrink();
-
-    return Padding(
-      padding: const EdgeInsets.only(top: 6),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          for (final r in satirlar)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 3),
-              child: Row(
-                children: [
-                  Icon(r.icon, size: 13, color: palette.inkMuted),
-                  const SizedBox(width: 5),
-                  Flexible(
-                    child: Text(
-                      r.text,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.labelSmall?.copyWith(
-                        color: palette.inkMuted,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-
-  /// `https://ornek.com/yol` → `ornek.com/yol` — şema satırı şişiriyor.
-  static String _kisaUrl(String raw) {
-    var t = raw.trim();
-    for (final on in ['https://', 'http://', 'www.']) {
-      if (t.toLowerCase().startsWith(on)) t = t.substring(on.length);
-    }
-    return t.endsWith('/') ? t.substring(0, t.length - 1) : t;
-  }
-}
-
-class _HeroStats extends ConsumerWidget {
-  const _HeroStats({required this.user});
-  final AppUser user;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final followers =
-        ref.watch(followersProvider(user.uid)).valueOrNull?.length;
-    final following =
-        ref.watch(favoritesProvider(user.uid)).valueOrNull?.length;
-
-    // TEK SATIR, HERKESTE AYNI (Instagram düzeni). Eskiden usta/müşteri iki
-    // ayrı sayaç dizisi görüyordu; rol ayrımı kalktı.
-    //
-    // Usta modunda 3. hücre PUAN gösterir (vitrin argümanı); kapalıyken
-    // "tamamlanan" kalır. Müşteri puanı herkese AÇILMAZ — düşük puan teşhir
-    // olmasın (bkz. Firestore-Semasi notu).
-    final profile = user.isArtisan
-        ? ref.watch(myProfileControllerProvider).valueOrNull?.profile
-        : null;
-    final hasRating = (profile?.totalReviews ?? 0) > 0;
-
-    return Row(
-      children: [
-        _StatCell(
-          value: '${following ?? 0}',
-          label: 'takip',
-          onTap: () => context.push(RoutePaths.favorites),
-        ),
-        _StatCell(
-          value: '${followers ?? 0}',
-          label: 'takipçi',
-          // Takipçiler SEKMESİ — eskiden "Takip Ettiklerim" listesi açılıyordu
-          // (yanlış liste).
-          onTap: () => context.push(RoutePaths.followers),
-        ),
-        if (user.isArtisan && hasRating)
-          _StatCell(
-            value: (profile?.averageRating ?? 0).toStringAsFixed(1),
-            label: 'puan',
-            icon: Icons.star_rounded,
-          )
-        else
-          _StatCell(
-            value: user.isArtisan
-                ? '${profile?.completedJobs ?? 0}'
-                : '${user.completedJobsAsCustomer}',
-            label: 'tamamlanan',
-          ),
-      ],
-    );
-  }
-}
-
-class _StatCell extends StatelessWidget {
-  const _StatCell({
-    required this.value,
-    required this.label,
-    this.icon,
-    this.onTap,
-  });
-
-  final String value;
-  final String label;
-  final IconData? icon;
-  final VoidCallback? onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Expanded(
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 6),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  if (icon != null) ...[
-                    Icon(icon, size: 16, color: const Color(0xFFFBBF24)),
-                    const SizedBox(width: 2),
-                  ],
-                  // IG: sayı iri ve koyu, etiket altında küçük ve soluk.
-                  Text(
-                    value,
-                    style: theme.textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: -0.3,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 1),
-              Text(
-                label,
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: context.palette.inkMuted,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
+      child: const Icon(Icons.add, size: 14, color: Colors.white),
     );
   }
 }

@@ -173,9 +173,9 @@ void main() {
       expect(s.contains('ReviewList('), isTrue);
     });
 
-    test('müşteri profilinde "tamamlanan" yerine "değerlendirme"', () {
-      final s =
-          read('lib/features/customer/presentation/public_user_screen.dart');
+    test('sayaç "tamamlanan" yerine "değerlendirme" (ortak başlık)', () {
+      // 2026-08-09: sayaçlar ProfileStats'a taşındı; her profilde aynı.
+      final s = read('lib/core/widgets/profile_header.dart');
       expect(s.contains("label: 'değerlendirme'"), isTrue);
       expect(s.contains("label: 'tamamlanan'"), isFalse);
     });

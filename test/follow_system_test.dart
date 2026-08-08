@@ -93,9 +93,9 @@ void main() {
       final paths = read('lib/core/router/route_paths.dart');
       expect(paths.contains("followers = '/favorites?tab=followers'"), isTrue);
 
-      final profile =
-          read('lib/features/profile/presentation/profile_screen.dart');
-      expect(profile.contains('RoutePaths.followers'), isTrue);
+      // Sayaçlar ortak başlığa taşındı (2026-08-09).
+      final header = read('lib/core/widgets/profile_header.dart');
+      expect(header.contains('RoutePaths.followers'), isTrue);
     });
   });
 
@@ -111,7 +111,7 @@ void main() {
     test('profilde "Seni takip ediyor" rozeti var', () {
       final s = read(
           'lib/features/customer/presentation/artisan_profile_screen.dart');
-      expect(s.contains('_FollowsYouBadge'), isTrue);
+      expect(s.contains('_SeniTakipEdiyor'), isTrue);
       expect(s.contains('Seni takip ediyor'), isTrue);
     });
   });

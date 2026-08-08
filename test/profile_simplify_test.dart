@@ -128,19 +128,27 @@ void main() {
     });
 
     test('Instagram başlık düzeni: avatar solda, sayaçlar yanında', () {
-      expect(profile.contains('class _HeroStats'), isTrue);
-      expect(profile.contains('class _StatCell'), isTrue);
-      expect(profile.contains('class _AvatarWithEdit'), isTrue);
-      // Aksiyon çubuğu (Profili düzenle / Profilime bak)
-      expect(profile.contains('class _HeroAction'), isTrue);
+      // 2026-08-09: başlık ORTAK widget'a taşındı — kendi profilim ve
+      // başkasının profili aynı görünsün.
+      final header =
+          File('lib/core/widgets/profile_header.dart').readAsStringSync();
+      expect(header.contains('class ProfileHeader'), isTrue);
+      expect(header.contains('class ProfileStats'), isTrue);
+      expect(header.contains('class _Avatar'), isTrue);
+      expect(header.contains('class ProfileActionButton'), isTrue);
+      // Ekran düğmeleri veriyor; başlık onları çiziyor.
       expect(profile.contains("'Profili düzenle'"), isTrue);
+      expect(profile.contains('ProfileHeader('), isTrue);
     });
 
-    test('usta sayaçları gerçek veriden okunur', () {
-      // completedJobs / averageRating CF tarafından yazılır (kural 3);
-      // istemci uydurmaz.
-      expect(profile.contains('completedJobs'), isTrue);
-      expect(profile.contains('averageRating'), isTrue);
+    test('sayaçlar gerçek veriden okunur', () {
+      // Takip/takipçi provider'dan, değerlendirme sayısı reviews'tan.
+      // Hiçbiri istemcide uydurulmuyor (kural 3).
+      final header =
+          File('lib/core/widgets/profile_header.dart').readAsStringSync();
+      expect(header.contains('followersProvider'), isTrue);
+      expect(header.contains('favoritesProvider'), isTrue);
+      expect(header.contains('reviewsForUserProvider'), isTrue);
     });
   });
 }

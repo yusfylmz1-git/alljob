@@ -195,11 +195,12 @@ void main() {
   group('Profilde Instagram tarzı bilgi satırları', () {
     late String profil;
     setUpAll(() =>
-        profil = read('lib/features/profile/presentation/profile_screen.dart'));
+        profil = read('lib/core/widgets/profile_header.dart'));
 
-    test('_BioDetails çiziliyor', () {
-      expect(profil.contains('_BioDetails(user: user)'), isTrue);
-      expect(profil.contains('class _BioDetails'), isTrue);
+    test('ProfileBioDetails çiziliyor', () {
+      // 2026-08-09: ortak başlığa taşındı, artık HER İKİ profilde de var.
+      expect(profil.contains('ProfileBioDetails(user: user)'), isTrue);
+      expect(profil.contains('class ProfileBioDetails'), isTrue);
     });
 
     test('boş alan HİÇ çizilmiyor', () {
@@ -207,14 +208,16 @@ void main() {
     });
 
     test('küçük font (labelSmall) kullanıyor', () {
-      final i = profil.indexOf('class _BioDetails');
+      final i = profil.indexOf('class ProfileBioDetails');
       final blok = profil.substring(i, i + 3000);
       expect(blok.contains('labelSmall'), isTrue);
     });
 
     test('hakkımda HER İKİ MODDA da görünüyor', () {
       // Eskiden `artisanMode ? ... : null` idi.
-      expect(profil.contains('artisanMode ? draft?.profile.aboutText'), isFalse);
+      final ekran =
+          read('lib/features/profile/presentation/profile_screen.dart');
+      expect(ekran.contains('artisanMode ? draft?.profile.aboutText'), isFalse);
       expect(profil.contains('user.aboutText.trim()'), isTrue);
     });
   });
