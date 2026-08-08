@@ -111,7 +111,6 @@ class RoutePaths {
 
   // Usta: yakındaki işler + iletişimler + premium + bildirimler
   static const String panelJobs = '/panel/jobs';
-  static const String panelOffers = '/panel/offers';
   static const String panelPremium = '/panel/premium';
   static const String panelNotifications = '/panel/notifications';
 

@@ -7,7 +7,6 @@ import '../models/favorite.dart';
 import '../models/geo_models.dart';
 import '../models/job.dart';
 import '../models/offer.dart';
-import '../models/product.dart';
 import '../models/review.dart';
 
 /// Meslek/kategori kodu → Türkçe ad. professions.json ile senkron tut.
@@ -181,7 +180,6 @@ class MockDatabase {
   final Map<String, Job> jobs = {};
   final Map<String, Offer> offers = {};
   final Map<String, Favorite> favorites = {};
-  final Map<String, Product> products = {};
 
   /// jobs/offers/favorites değiştiğinde tetiklenir → mock repo'lar akışlarını
   /// yeniden yayar (Firestore snapshot dinleyicisinin bellek içi taklidi).
