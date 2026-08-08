@@ -132,6 +132,39 @@ Profil sayaçları da tek satıra indi: **takip · takipçi · (puan | tamamlana
 > `customerStarted` bayrağı KALDI — UI "konuşma başladı mı" bilgisini
 > kullanıyor, ama yazma iznini artık belirlemiyor.
 
-> ⚠️ **DEPLOY GEREKİYOR:** `firebase deploy --only firestore:rules`
-> Deploy edilmeden usta mesaj atmaya çalışınca sunucu **reddeder**
-> (istemci izin verir → "mesaj gönderilemedi" hatası).
+> ✅ **DEPLOY EDİLDİ (2026-08-08).** `firestore:rules` + `storage` +
+> `functions` yayında. Usta artık mesaj atabiliyor; müşteri sayaçları
+> (Faz 6) da canlı.
+
+
+---
+
+## 🧹 Sunucu tarafı temizliği (2026-08-08)
+
+İstemciden silinen modüllerin **backend kodu** da kaldırıldı ve deploy edildi.
+
+| Katman | Silinen |
+|---|---|
+| Cloud Functions | 8 fonksiyon (-550 satır) |
+| Firestore kuralları | 4 blok (-286 satır) |
+| Storage kuralları | `track/{uid}/...` yolu |
+| Admin paneli | Eleman moderasyon düğmeleri + `moderateStaffing` |
+
+**Canlıdan silinen fonksiyonlar:** `adminModerateProduct` ·
+`adminModerateStaffing` · `onProductReportWritten` · `onProductWritten` ·
+`onStaffNeedCreated` · `publishProduct` · `purgeRemovedProducts` ·
+`updateProductContent`
+
+> ⚠️ **Temizlik sırasında bir hata bulundu:** `cascadeProductsHideBits()`
+> üç yerden çağrılıyordu ama tanımı silinen blokta kalmıştı. Deploy
+> edilseydi **askıya alma ve usta gizleme çalışma zamanında patlayacaktı**.
+> Çağrılar da kaldırıldı.
+
+### Bilinçli korunanlar
+- **`ReportTarget` enum'ı** (`staffWorker`/`staffNeed`/`product`): `apiValue`
+  Firestore'a yazılmış; eski şikayet kayıtları bu değerleri taşıyor olabilir.
+  Silmek veri göçüdür (CLAUDE.md kural 6). Admin etiket eşlemesi de kaldı —
+  eski kayıt açılınca "Eleman profili" yazsın.
+- **`deleteAccount` CF'indeki koleksiyon taramaları**: eski kullanıcıların o
+  koleksiyonlardaki verisi hâlâ silinmeli (KVKK).
+- **`recomputeStats` içindeki `productsTotal`**: sayaç geçmişi bozulmasın.
