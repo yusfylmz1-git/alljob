@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="ic_launcher_background">#EA580C</color>
+    <color name="ic_launcher_background">#FFFFFF</color>
     <!-- FCM / bildirim vurgu rengi (status bar ikonu tint) -->
     <color name="notification_color">#E8611A</color>
 </resources>

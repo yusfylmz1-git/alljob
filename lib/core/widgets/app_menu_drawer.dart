@@ -73,6 +73,20 @@ class AppMenuDrawer extends ConsumerWidget {
     context.push(path);
   }
 
+  /// Başlıktaki logo → ana sayfa. Önce çekmece kapanır, sonra geçilir.
+  ///
+  /// [_open]'dan farklı olarak `go` kullanır: ana sayfa yığının DİBİ,
+  /// üstüne itilmemeli. `push` olsaydı geri tuşu kullanıcıyı ana sayfadan
+  /// bir önceki sekmeye geri atardı.
+  ///
+  /// Zaten ana sayfadaysak yalnız çekmece kapanır — gereksiz geçiş yok.
+  void _goHome(BuildContext context) {
+    final zatenAnaSayfa =
+        GoRouterState.of(context).uri.path == RoutePaths.home;
+    Navigator.pop(context);
+    if (!zatenAnaSayfa) context.go(RoutePaths.home);
+  }
+
   Future<void> _becomeArtisan(BuildContext context, WidgetRef ref) async {
     final router = GoRouter.of(context);
     final nav = Navigator.of(context, rootNavigator: true);
@@ -131,16 +145,33 @@ class AppMenuDrawer extends ConsumerWidget {
     return NavigationDrawer(
       children: [
         // Başlık: marka + kullanıcı kimliği.
+        //
+        // Bandın yüksekliğini LOGO belirler (satır yüksekliği ondan gelir),
+        // o yüzden daraltma logo + dikey padding üzerinden yapılır:
+        // logo 88 → 72, dikey iç boşluk 16 → 10. Yatayda 16 kalıyor,
+        // metin kenara yapışmasın.
         Container(
           margin: const EdgeInsets.fromLTRB(12, 12, 12, 8),
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
           decoration: BoxDecoration(
             gradient: context.palette.heroGradient,
             borderRadius: BorderRadius.circular(16),
           ),
           child: Row(
             children: [
-              const BrandMark(size: 88),
+              // Logo → ana sayfa. Çekmece kapanır, sonra geçilir.
+              Semantics(
+                button: true,
+                label: 'Ana sayfa',
+                child: Tooltip(
+                  message: 'Ana sayfa',
+                  child: InkWell(
+                    onTap: () => _goHome(context),
+                    customBorder: const CircleBorder(),
+                    child: const BrandMark(size: 72),
+                  ),
+                ),
+              ),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
