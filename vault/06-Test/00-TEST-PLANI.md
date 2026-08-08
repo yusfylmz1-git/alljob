@@ -1,10 +1,28 @@
-# 📱 Cihaz Test Planı
+# 📱 Cihaz Test Planı · v2
 
-> **Nasıl çalışıyoruz:** Siz telefonda sırayla test edersiniz, ben kod tarafından
-> eşlik ederim. Bir şey beklediğiniz gibi çalışmazsa **durun ve söyleyin** —
-> nedenini koddan bakarım, düzeltiriz, sonra devam ederiz.
+> **Neden yeni defter?** v1 (`_arsiv-v1/`) silinen modülleri test ediyordu
+> (Usta Çantası, Ajanda, Ürünler, Eleman) ve rol ayrımına göre yazılmıştı.
+> Ürün 2026-08-07/08'de sadeleşti; defter de sıfırdan yazıldı.
 
-**Cihaz:** ______________ · **Sürüm:** ______________ · **Başlangıç:** ____________
+**Cihaz:** ______________ · **Sürüm:** ______________ · **Başlangıç:** ________
+
+---
+
+## Uygulama şu an ne?
+
+Tek cümle: **müşteri ilan verir, usta iş alır; herkes herkesi takip edip
+mesajlaşır.**
+
+**Rol ayrımı YOK.** Herkes aynı ekranları görür; "Usta modu" anahtarı açıkken
+ek modüller belirir.
+
+| | Usta modu KAPALI | Usta modu AÇIK |
+|---|---|---|
+| Alt bar | Ana Sayfa · Keşfet · Mesajlar · Profil | **+ İlanlar** |
+| İlan verme | ✅ | ✅ |
+| Başkasının ilanını görme | ❌ | ✅ (müsaitse) |
+| Usta arama | ✅ | ✅ |
+| Takip etme | ✅ | ✅ |
 
 ---
 
@@ -12,114 +30,82 @@
 
 | # | Alan | Adım | Süre | Durum | Bulgu |
 |---|---|---|---|---|---|
-| 1 | [[01-Giris-ve-Hesap]] | 24 | ~15 dk | ✅ | B-01 (düzeltildi) |
-| 2 | [[02-Profil-ve-Rol]] | 22 | ~20 dk | ✅ | K-02 (karar bekliyor) |
-| 3 | [[03-Ilanlar-Musteri]] | 26 | ~25 dk | ⚠️ | B-02·B-06…B-11 · K-07 |
-| 4 | [[04-Ilanlar-Usta]] | 20 | ~15 dk | ⚠️ | **B-12** (push 🔴 P0) |
-| 5 | [[05-Mesajlar]] ⭐ | 34 | ~30 dk | ⚠️ | B-18·B-19 (düzeltildi) · K-08…K-11 |
-| 6 | [[06-Is-Tamamlama]] | 28 | ~25 dk | ⬜ | — |
-| 7 | [[07-Degerlendirme]] ⭐ | 20 | ~15 dk | ⬜ | — |
-| 8 | [[08-Guvenlik-ve-Sikayet]] | 19 | ~15 dk | ⬜ | — |
-| 9 | [[09-Yan-Moduller]] | 31 | ~30 dk | ⬜ | — |
+| 1 | [[01-Ilk-Acilis-ve-Giris]] | 22 | ~15 dk | ⬜ | — |
+| 2 | [[02-Ana-Sayfa-ve-Kesfet]] | 29 | ~20 dk | ⬜ | — |
+| 3 | [[03-Profil-ve-Usta-Modu]] ⭐ | 34 | ~25 dk | ⬜ | — |
+| 4 | [[04-Takip-Sistemi]] ⭐ | 31 | ~25 dk | ⬜ | — |
+| 5 | [[05-Ilan-Verme]] | 30 | ~25 dk | ⬜ | — |
+| 6 | [[06-Ilan-Alma-Usta]] ⭐ | 24 | ~20 dk | ⬜ | — |
+| 7 | [[07-Mesajlasma]] ⭐ | 32 | ~30 dk | ⬜ | — |
+| 8 | [[08-Is-Akisi]] ⭐ | 30 | ~25 dk | ⬜ | — |
+| 9 | [[09-Degerlendirme]] | 21 | ~15 dk | ⬜ | — |
+| 10 | [[10-Guvenlik-ve-Ayarlar]] | 32 | ~20 dk | ⬜ | — |
 
 **Durum:** ⬜ başlamadı · 🔄 sürüyor · ✅ geçti · ⚠️ bulgu var · ❌ kırık
 
----
-
-## 📊 Kalan iş (oturum 2 sonu — 2026-08-07)
-
-| | Adım |
-|---|---|
-| **Toplam** (6.5 eklendi, 5.6 iptal) | **220** |
-| ✅ Test edildi | **~126** |
-| ⏸️ 2. cihaz/hesap bekliyor | **9** |
-| ⛔ İptal (5.6 maskeleme) | **4** |
-| 🔜 **Kalan** | **~81** |
-
-**Kalanın dağılımı:**
-
-| Bölüm | Kalan | Süre |
-|---|---|---|
-| 6 · İş Tamamlama | 28 | ~25 dk |
-| 7 · Değerlendirme ⭐ | 20 | ~15 dk |
-| 8 · Güvenlik ve Şikayet | 19 | ~15 dk |
-| 9 · Yan Modüller | 31 | ~30 dk |
-| 5 · Mesajlar (artık) | 3 | — (2. hesap) |
-
-> **~1.5 saat kaldı.** Bölüm 6→7 zinciri bağlantılı, birlikte yapılmalı.
-> Bölüm 8 ve 9 bağımsız, istenen sırada.
-
-Bulgular → [[99-BULGULAR]]
-
-> [!tip] Tek seferde bitirmeyin
-> Bölüm bölüm ilerleyin. Her bölüm sonunda nerede kaldığınızı
-> [[99-BULGULAR]] içindeki oturum kaydına yazın.
->
-> **Acele ediyorsanız:** yalnız ⭐ işaretli 5 ve 7'yi yapın (~45 dk) — son
-> düzeltmelerin doğrulaması onlarda.
+**Toplam: 285 adım · ~3,5 saat.** Bulgular → [[99-BULGULAR]]
 
 ---
 
 ## ⚠️ Test öncesi hazırlık
 
 ### İki hesap gerekli
-Pazaryeri çift taraflı — müşteri ve usta **ayrı hesaplar** olmalı.
+Pazaryeri çift taraflı. **Aynı hesapla usta modunu açıp kapatmak yetmez** —
+kendi ilanınıza ilgi bildiremezsiniz.
 
-| Rol | Google hesabı | Not |
-|---|---|---|
-| Müşteri | ______________ | Ana test hesabı |
-| Usta | ______________ | İkinci cihaz veya çıkış-giriş |
+| Rol | Google hesabı |
+|---|---|
+| A (ilan veren) | ______________ |
+| B (usta) | ______________ |
 
-> [!tip] İki cihaz varsa çok daha rahat
-> Mesajlaşma ve karşılıklı değerlendirme tek cihazda sürekli hesap değiştirmeyi
-> gerektirir. İkinci bir telefon/emulator varsa kullanın.
+> **İki cihaz varsa çok daha rahat.** Mesajlaşma, takip bildirimi ve canlı
+> güncelleme testleri tek cihazda tam yapılamaz — v1'de 9 adım bu yüzden
+> ertelenmişti.
 
 ### Bilinmesi gerekenler
-- **E-posta doğrulaması zorunlu** — ilan açmak ve usta iletişimi için. Google
-  girişinde genelde otomatik `true` gelir.
-- **İlan limiti 5** — aynı anda en çok 5 açık ilan.
-- **Otomatik tamamlama 3 gün** — tek taraflı onayda. Cihazda beklenemez, kod
-  incelemesiyle doğrularız.
-- **Arşivleme 7 gün** — aynı şekilde beklenemez.
-
----
-
-## 🎯 Bu testin özel hedefi
-
-Son oturumda düzelttiğimiz **karşılıklı değerlendirme çıkmazı**. Kritik
-senaryo:
-
-> Müşteri sohbete **hiç mesaj yazmadan** doğrudan "Bu Ustayı Seç" der →
-> usta o sohbete yazabiliyor mu? → iş tamamlanınca **iki taraf da**
-> değerlendirebiliyor mu?
-
-**İlk yarısı ✅ DOĞRULANDI (5.3, oturum 2):** usta seçildikten sonra sohbete
-yazabiliyor, sistem mesajı düşüyor. Çıkmaz kalkmış.
-
-**İkinci yarısı bekliyor:** iş tamamlanınca iki tarafın da değerlendirebilmesi
-→ [[07-Degerlendirme]] 7.2.
+- **E-posta doğrulaması zorunlu** — ilan açmak, sohbet başlatmak, ilgi
+  bildirmek için. Google girişinde genelde otomatik gelir.
+- **İlan limiti 5** (aynı anda açık), **günlük 10**.
+- **Müsaitlik kapısı:** müsait olmayan usta aramada görünmez, yeni sohbet
+  alamaz, ilan listesini göremez. **Mevcut sohbetleri sürer.**
+- **Otomatik tamamlama 3 gün / arşivleme 7 gün** — cihazda beklenemez,
+  kod incelemesiyle doğrularız.
 
 ---
 
 ## Test sırası — neden böyle?
 
-Akış birbirine bağlı, sıra atlanmamalı:
-
 ```
-1 Giriş → 2 Profil/Rol → 3 İlan aç (müşteri)
-                            ↓
-                    4 İlgi bildir (usta)
-                            ↓
-                    5 Mesajlaş + usta seç
-                            ↓
-                    6 İşi tamamla
-                            ↓
-                    7 Değerlendir
-                            ↓
-              8 Güvenlik   9 Yan modüller (bağımsız)
+1 İlk açılış → 2 Ana Sayfa/Keşfet → 3 Profil + Usta modu
+                                          ↓
+                                    4 Takip sistemi
+                                          ↓
+                    5 İlan ver (A) → 6 İlgi bildir (B)
+                                          ↓
+                                    7 Mesajlaş + usta seç
+                                          ↓
+                                    8 İşi tamamla
+                                          ↓
+                                    9 Değerlendir
+                                          ↓
+                                   10 Güvenlik/Ayarlar
 ```
 
-8 ve 9 bağımsızdır, istediğiniz zaman yapılabilir.
+**1–4 bağımsız**, tek hesapla yapılabilir.
+**5–9 zincir**, iki hesap ister ve sıra atlanmamalı.
+**10 bağımsız.**
 
 ---
-İlgili: [[99-BULGULAR]] · [[Bilinen-Tuzaklar]]
+
+## 🎯 Bu testin özel hedefleri
+
+Son turda yapılan **büyük değişiklikler hiç cihazda görülmedi**:
+
+1. **Rol ayrımının kalkması** — tek profil + usta modu anahtarı (Bölüm 3)
+2. **Instagram takip sistemi** — iki sekme, karşılıklı rozet, bildirim (Bölüm 4)
+3. **Serbest mesajlaşma** — usta artık ilk mesajı atabilir (Bölüm 7)
+4. **Müsaitlik kapısı** — yeni iş engellenir, mevcut sohbet sürer (Bölüm 6/7)
+5. **Genel kullanıcı profili** `/u/:uid` (Bölüm 4)
+
+---
+İlgili: [[99-BULGULAR]] · [[Bilinen-Tuzaklar]] · eski defter: `_arsiv-v1/`
