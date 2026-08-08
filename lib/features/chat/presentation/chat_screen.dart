@@ -16,12 +16,9 @@ import '../../../core/widgets/responsive_center.dart';
 import '../../../core/widgets/status_views.dart';
 import '../../../data/models/blocked_user.dart';
 import '../../../data/models/chat.dart';
-import '../../../data/models/job.dart';
 import '../../../data/models/report.dart';
 import '../../auth/application/auth_controller.dart';
-import '../../jobs/application/select_artisan.dart';
 import '../../jobs/data/job_providers.dart';
-import '../../jobs/presentation/job_completion.dart';
 import '../../safety/data/safety_providers.dart';
 import '../../safety/presentation/report_sheet.dart';
 import '../../storage/storage_repository.dart';
@@ -735,18 +732,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         resizeToAvoidBottomInset: false,
         body: Column(
           children: [
-            // Bağlı iş varsa tamamlama durumu + hızlı onay (P0).
-            if (user != null)
-              _JobCompletionChatBar(
-                chatId: widget.chatId,
-                myUid: user.uid,
-                thread: thread,
-              ),
-            // İlan bazlı sohbette usta seçimi: müşteri anlaştığı ustanın
-            // sohbetinden işi verir (§3 — "Ustayı Seç" teklif listesinden
-            // buraya taşındı).
-            if (user != null && thread != null)
-              _JobSelectBar(thread: thread, myUid: user.uid),
+            // İŞ AKIŞI KALDIRILDI (2026-08-08): "Ustayı Seç" ve tamamlama
+            // onayı şeritleri gitti. Sohbet artık doğrudan iletişim — ilan
+            // sahibiyle usta anlaşmayı kendi aralarında yürütür.
             Expanded(
               child: messagesAsync.when(
                 loading: () => const LoadingView(label: 'Sohbet yükleniyor…'),
@@ -989,91 +977,6 @@ class _KeyboardSpacer extends StatelessWidget {
       duration: const Duration(milliseconds: 160),
       curve: Curves.easeOutCubic,
       height: MediaQuery.viewInsetsOf(context).bottom,
-    );
-  }
-}
-
-/// Müşteri: "Bu Ustayı Seç / İşi Ver" şeridi.
-///
-/// Sohbet İLAN BAZLI olduğundan hangi işin verileceği kesindir — liste ya da
-/// başlık seçimi gerekmez. Yalnız ilan sahibine ve yalnız ilan `open` iken
-/// görünür; seçimden sonra sahne [_JobCompletionChatBar]'a geçer.
-class _JobSelectBar extends ConsumerStatefulWidget {
-  const _JobSelectBar({required this.thread, required this.myUid});
-
-  final ChatThread thread;
-  final String myUid;
-
-  @override
-  ConsumerState<_JobSelectBar> createState() => _JobSelectBarState();
-}
-
-class _JobSelectBarState extends ConsumerState<_JobSelectBar> {
-  /// Çift dokunuş kilidi — iki kez seçim isteği gitmesin.
-  bool _busy = false;
-
-  Future<void> _select(Job job) async {
-    if (_busy) return;
-    setState(() => _busy = true);
-    try {
-      await selectArtisanForJob(
-        context,
-        ref,
-        job: job,
-        artisanId: widget.thread.artisanUid,
-        artisanName: widget.thread.artisanName,
-        artisanPhotoUrl: widget.thread.artisanPhotoUrl,
-        // Zaten bu sohbetteyiz; üstüne aynı sohbeti push etmek geri tuşunu bozar.
-        openChatAfter: false,
-      );
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final thread = widget.thread;
-    // Yalnız ilan sahibi seçer; usta bu şeridi hiç görmez.
-    if (thread.customerUid != widget.myUid) return const SizedBox.shrink();
-    if (!thread.isJobChat) return const SizedBox.shrink();
-
-    final job = ref.watch(jobProvider(thread.jobId!)).valueOrNull;
-    if (job == null || !canSelectArtisanFor(job)) {
-      return const SizedBox.shrink();
-    }
-
-    final palette = context.palette;
-    return Material(
-      color: palette.card,
-      elevation: 0.5,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
-        child: Row(
-          children: [
-            Icon(Icons.handyman_outlined, size: 20, color: palette.primary),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                'Bu ustayla anlaştıysanız işi verin',
-                style: Theme.of(context)
-                    .textTheme
-                    .bodyMedium
-                    ?.copyWith(fontWeight: FontWeight.w700),
-              ),
-            ),
-            const SizedBox(width: 8),
-            FilledButton.tonal(
-              style: FilledButton.styleFrom(
-                visualDensity: VisualDensity.compact,
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-              ),
-              onPressed: _busy ? null : () => _select(job),
-              child: const Text('Bu Ustayı Seç'),
-            ),
-          ],
-        ),
-      ),
     );
   }
 }
@@ -1947,154 +1850,3 @@ class _EmptyChatState extends State<_EmptyChat>
 // ---------------------------------------------------------------------------
 // Bağlı iş: sohbet üstü tamamlama şeridi
 // ---------------------------------------------------------------------------
-
-class _JobCompletionChatBar extends ConsumerWidget {
-  const _JobCompletionChatBar({
-    required this.chatId,
-    required this.myUid,
-    this.thread,
-  });
-
-  final String chatId;
-  final String myUid;
-
-  /// Sohbet başlığı — ilan bazlı sohbette bağlı ilanın kimliğini TAŞIR.
-  final ChatThread? thread;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    // İlan bazlı sohbette ilanı thread'in KENDİSİNDEN çöz. Eskiden yalnız
-    // `jobByChatIdProvider` kullanılıyordu; o, ilanın `chatId` ALANINI
-    // sorgular ve bu alan sadece `selectOffer` içinde yazılır. Alan
-    // yazılmamış/eşleşmemiş her durumda job null dönüyor, şerit hiç
-    // çizilmiyordu — yani "Değerlendir" düğmesi ortada yoktu ve kullanıcı
-    // tamamlanmış işte değerlendirmeye hiç ulaşamıyordu.
-    //
-    // Genel sohbetlerde (jobId yok) eski sorgu yedek olarak durur.
-    final linkedJobId = thread?.jobId;
-    final jobAsync = (linkedJobId != null && linkedJobId.isNotEmpty)
-        ? ref.watch(jobProvider(linkedJobId))
-        : ref.watch(jobByChatIdProvider(chatId));
-    final job = jobAsync.valueOrNull;
-    if (job == null) return const SizedBox.shrink();
-
-    final isOwner = job.customerId == myUid;
-    final palette = context.palette;
-
-    // 1) İş tamamlandı → ÇİFT TARAFLI değerlendirme hatırlatması.
-    //    Müşteri ustayı, usta müşteriyi puanlar. (Eleman-only sohbette job
-    //    olmadığı için buraya hiç girilmez.)
-    //
-    //    `rated` DE DAHİL: ilan, taraflardan BİRİ puan verince `rated` olur
-    //    (markRated). Yalnız `completed` aransaydı ikinci taraf için şerit tam
-    //    o anda kaybolur, karşılıklı değerlendirme hiçbir zaman tamamlanamazdı.
-    //    Zaten puan vermiş tarafa şerit "güncelleme" kapısı olarak kalır —
-    //    ReviewScreen mevcut kaydı ön-dolduruyor.
-    if (job.status == JobStatus.completed || job.status == JobStatus.rated) {
-      final artisanId = job.selectedArtisanId;
-      if (artisanId == null) return const SizedBox.shrink();
-      // Usta tarafı yalnız SEÇİLEN usta ise değerlendirebilir.
-      if (!isOwner && artisanId != myUid) return const SizedBox.shrink();
-      return Material(
-        color: palette.card,
-        elevation: 0.5,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
-          child: Row(
-            children: [
-              Icon(
-                Icons.star_outline_rounded,
-                color: palette.warning,
-                size: 22,
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  isOwner
-                      ? 'İş tamamlandı — ustayı değerlendirin'
-                      : 'İş tamamlandı — müşteriyi değerlendirin',
-                  style: Theme.of(
-                    context,
-                  ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w700),
-                ),
-              ),
-              FilledButton.tonal(
-                style: FilledButton.styleFrom(
-                  visualDensity: VisualDensity.compact,
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                ),
-                onPressed: () => context.push(
-                  RoutePaths.review(artisanId, jobId: job.jobId),
-                ),
-                child: const Text('Değerlendir'),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
-    // 2) Yalnız yürüyen / sorunlu ilan — onay şeridi.
-    final showActive = job.status.isInWork || job.status == JobStatus.disputed;
-    if (!showActive) return const SizedBox.shrink();
-
-    final copy = JobCompletionCopy.of(job, isOwner: isOwner);
-
-    return Material(
-      color: palette.card,
-      elevation: 0.5,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            JobCompletionStatusBanner(
-              job: job,
-              isOwner: isOwner,
-              compact: true,
-              onOpenJob: () => context.push(RoutePaths.jobDetail(job.jobId)),
-            ),
-            if (copy.canConfirm) ...[
-              const SizedBox(height: 8),
-              FilledButton.tonalIcon(
-                style: FilledButton.styleFrom(
-                  backgroundColor: palette.successSurface,
-                  foregroundColor: palette.success,
-                  visualDensity: VisualDensity.compact,
-                ),
-                onPressed: () async {
-                  // Geri alınamaz adım — önce onay (B-18).
-                  final ok = await confirmJobDoneDialog(
-                    context,
-                    isOwner: isOwner,
-                  );
-                  if (!ok || !context.mounted) return;
-                  try {
-                    await ref
-                        .read(jobRepositoryProvider)
-                        .confirmDone(jobId: job.jobId, byCustomer: isOwner);
-                    if (context.mounted) {
-                      context.showSuccess(
-                        isOwner
-                            ? 'Onayınız kaydedildi. Usta da onaylayınca iş kapanır.'
-                            : 'Teslim onayı kaydedildi. Müşteri de onaylayınca iş kapanır.',
-                      );
-                    }
-                  } catch (_) {
-                    if (context.mounted) {
-                      context.showError(
-                        'Onay kaydedilemedi. Bağlantıyı kontrol edip tekrar deneyin.',
-                      );
-                    }
-                  }
-                },
-                icon: const Icon(Icons.check_circle_outline, size: 18),
-                label: Text(copy.confirmLabel),
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-}
