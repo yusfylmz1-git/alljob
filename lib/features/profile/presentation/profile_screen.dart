@@ -464,7 +464,9 @@ class _HeroStats extends ConsumerWidget {
         _StatCell(
           value: '${followers ?? 0}',
           label: 'takipçi',
-          onTap: () => context.push(RoutePaths.favorites),
+          // Takipçiler SEKMESİ — eskiden "Takip Ettiklerim" listesi açılıyordu
+          // (yanlış liste).
+          onTap: () => context.push(RoutePaths.followers),
         ),
         if (user.isArtisan && hasRating)
           _StatCell(

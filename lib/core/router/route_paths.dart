@@ -79,7 +79,11 @@ class RoutePaths {
   static String jobDetail(String jobId) => '/jobs/$jobId';
 
   // Favoriler (oturum açmış müşteri)
+  // Takip ekranı — iki sekme (Takipçiler | Takip). Varsayılan: Takip.
   static const String favorites = '/favorites';
+
+  /// Takipçiler sekmesi açık gelsin (profil "takipçi" sayacı buraya gider).
+  static const String followers = '/favorites?tab=followers';
 
   // Müşteri profil sayfası (oturum açmış müşteri)
   static const String profile = '/profile';

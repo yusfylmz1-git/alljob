@@ -24,6 +24,7 @@ import '../../artisan/data/artisan_repository.dart';
 import '../../auth/application/auth_controller.dart';
 import '../../auth/presentation/email_verification_gate.dart';
 import '../../chat/data/chat_providers.dart';
+import '../../favorites/data/favorite_providers.dart';
 import '../../favorites/presentation/favorite_button.dart';
 
 /// Ekran D — Usta Profil Sayfası (salt okunur). Müşteri kartına dokununca açılır.
@@ -706,6 +707,8 @@ class _HeroHeader extends StatelessWidget {
                   ],
                 ],
               ),
+              // Instagram: karşı taraf beni takip ediyorsa rozet.
+              _FollowsYouBadge(otherUid: detail.uid),
               const SizedBox(height: 4),
               Text(
                 detail.professionNameTR,
@@ -1221,6 +1224,44 @@ class _ChatBar extends ConsumerWidget {
             label: isGuest ? 'Sohbet için giriş yap' : 'Sohbet Başlat',
             icon: isGuest ? Icons.login : Icons.chat_bubble_outline,
             onPressed: () => startChatWithArtisan(context, ref, detail),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// "Seni takip ediyor" rozeti (Instagram kalıbı).
+///
+/// Karşı taraf beni takip ediyorsa görünür; etmiyorsa hiç yer kaplamaz.
+/// Kendi profilimde de gizlidir (kimse kendini takip edemez).
+class _FollowsYouBadge extends ConsumerWidget {
+  const _FollowsYouBadge({required this.otherUid});
+  final String otherUid;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final me = ref.watch(currentUserProvider)?.uid;
+    if (me == null || me == otherUid) return const SizedBox.shrink();
+
+    final follows = ref.watch(isFollowedByProvider(otherUid)).valueOrNull ?? false;
+    if (!follows) return const SizedBox.shrink();
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 6),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.18),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.3)),
+        ),
+        child: const Text(
+          'Seni takip ediyor',
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 11.5,
+            fontWeight: FontWeight.w700,
           ),
         ),
       ),

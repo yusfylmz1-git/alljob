@@ -313,7 +313,9 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: RoutePaths.favorites,
-        builder: (_, _) => const FavoritesScreen(),
+        builder: (_, state) => FavoritesScreen(
+          initialTab: state.uri.queryParameters['tab'],
+        ),
       ),
       GoRoute(
         path: RoutePaths.profile,

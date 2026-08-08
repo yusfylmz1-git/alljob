@@ -9,23 +9,30 @@ import '../../../data/models/favorite.dart';
 import '../../auth/application/auth_controller.dart';
 import '../data/favorite_providers.dart';
 
-/// Bir ustayı favorilere ekleyip çıkaran kalp butonu (#14).
-/// Misafir dokununca girişe yönlenir. Yalnızca müşteriye anlamlıdır.
+/// Takip et / bırak düğmesi — HERKES İÇİN (Instagram gibi).
+///
+/// Misafir dokununca girişe yönlenir; kimse kendini takip edemez.
+/// Usta-özel alanlar (meslek/puan) İSTEĞE BAĞLI: sıradan bir kullanıcı
+/// takip edilirken boş kalır, listede o satır çizilmez
+/// ([Favorite.hasArtisanInfo]).
 class FavoriteButton extends ConsumerWidget {
   const FavoriteButton({
     super.key,
     required this.artisanUid,
     required this.artisanName,
-    required this.professionNameTR,
-    required this.rating,
-    required this.totalReviews,
+    this.professionNameTR = '',
+    this.rating = 0,
+    this.totalReviews = 0,
     this.photoUrl,
     this.filledBackground = false,
     this.compact = false,
   });
 
+  /// Takip EDİLECEK kullanıcı (usta olmak zorunda değil).
   final String artisanUid;
   final String artisanName;
+
+  /// Usta vitrini varsa doldurulur; yoksa boş.
   final String professionNameTR;
   final double rating;
   final int totalReviews;
@@ -64,8 +71,8 @@ class FavoriteButton extends ConsumerWidget {
         rating: rating,
         totalReviews: totalReviews,
         photoUrl: photoUrl,
-        // Ustanın "Sizi Takip Edenler" listesi için müşteri snapshot'ı —
-        // takip, ustaya adla görünür (ürün kararı; UI dili de "Takip Et").
+        // Takip EDENİN snapshot'ı — karşı tarafın "Takipçiler" listesi
+        // hızlı görünsün diye. Takip, takip edilene adla görünür.
         customerName: user.displayName,
         customerPhotoUrl: user.profilePhotoUrl,
         createdAt: DateTime.now(),
@@ -73,9 +80,7 @@ class FavoriteButton extends ConsumerWidget {
       try {
         final added = await ref.read(favoriteRepositoryProvider).toggle(fav);
         if (!context.mounted) return;
-        context.showInfo(added
-            ? 'Ustayı takip ediyorsunuz.'
-            : 'Takipten çıkarıldı.');
+        context.showInfo(added ? 'Takip ediliyor.' : 'Takipten çıkarıldı.');
       } catch (_) {
         if (context.mounted) {
           context.showError('İşlem başarısız, tekrar deneyin.');

@@ -293,6 +293,10 @@ class PushService {
       case 'job':
         final jobId = message.data['jobId'] as String?;
         return jobId == null ? null : RoutePaths.jobDetail(jobId);
+      case 'follow':
+        // Yeni takipçi → takip edenin profili.
+        final actorUid = message.data['actorUid'] as String?;
+        return actorUid == null ? null : RoutePaths.artisanProfile(actorUid);
       default:
         return null;
     }

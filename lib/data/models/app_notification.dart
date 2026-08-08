@@ -9,6 +9,7 @@ class AppNotification {
   const AppNotification({
     required this.id,
     required this.type,
+    this.actorUid,
     required this.title,
     required this.body,
     required this.read,
@@ -18,7 +19,7 @@ class AppNotification {
   });
 
   final String id;
-  final String type; // 'chat' | 'job' | 'system'
+  final String type; // 'chat' | 'job' | 'system' | 'follow'
   final String title;
   final String body;
   final bool read;
@@ -27,7 +28,12 @@ class AppNotification {
   final String? chatId; // type == 'chat'
   final String? jobId; // type == 'job'
 
+  /// Takip bildiriminde takip EDENİN uid'i (type == 'follow') — dokununca
+  /// onun profili açılır.
+  final String? actorUid;
+
   bool get isChat => type == 'chat';
+  bool get isFollow => type == 'follow';
 
   factory AppNotification.fromMap(String id, Map<String, dynamic> map) {
     return AppNotification(
@@ -40,6 +46,7 @@ class AppNotification {
           DateTime.now(),
       chatId: map['chatId'] as String?,
       jobId: map['jobId'] as String?,
+      actorUid: map['actorUid'] as String?,
     );
   }
 

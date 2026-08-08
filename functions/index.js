@@ -334,6 +334,11 @@ function pushCategoryFromData(data) {
   const t = data && data.type;
   if (t === "chat") return "chat";
   if (t === "job" && data.kind === "nearby") return "nearbyJobs";
+  // Takip bildirimi sosyal bir olay; "iş güncellemeleri" tercihine bağlamak
+  // yanlış olurdu (kullanıcı iş bildirimlerini kapatınca takipçi haberi de
+  // susardı). İstemcide ayrı bir tercih YOK → şimdilik chat kategorisiyle
+  // birlikte yönetilir (ikisi de kişiye özel/sosyal).
+  if (t === "follow") return "chat";
   return "jobUpdates";
 }
 
@@ -775,6 +780,54 @@ async function unlockJobChats(jobId) {
     logger.warn(`unlockJobChats failed for ${jobId}: ${e}`);
   }
 }
+
+
+/**
+ * TAKİP BİLDİRİMİ — biri seni takip edince haber verir (Instagram kalıbı).
+ *
+ * Tetikleyici: `favorites/{favId}` create. Kimlik deterministiktir
+ * (`followerUid__followedUid`), yani AYNI çift için tek doküman olur.
+ *
+ * SPAM KORUMASI: bildirim doküman kimliği `follow_{followerUid}` —
+ * takip-bırak-takip yapan biri AYNI dokümanı üzerine yazar, alıcının
+ * listesinde tek satır kalır. (Instagram da tekrar bildirim göstermez.)
+ * Push ise her create'te gider; bunu sınırlamak için ayrı bir debounce
+ * gerekirse `follow_meta` damgası eklenmelidir — şu an gerek görülmedi.
+ *
+ * Kendini takip create kuralda zaten yasak; yine de savunmacı kontrol var.
+ */
+exports.onFollowCreated = onDocumentCreated(
+    {document: "favorites/{favId}", region: REGION},
+    async (event) => {
+      const fav = event.data && event.data.data();
+      if (!fav) return;
+
+      // Alan adları TARİHSEL: customerUid = takip EDEN, artisanUid = takip
+      // EDİLEN (2026-08-08 yönsüzleştirme; veri göçü yapılmadı).
+      const followerUid = fav.customerUid;
+      const followedUid = fav.artisanUid;
+      if (!followerUid || !followedUid) return;
+      if (followerUid === followedUid) return;
+
+      const followerName =
+        (typeof fav.customerName === "string" && fav.customerName.trim()) ?
+          fav.customerName.trim() :
+          "Bir kullanıcı";
+
+      const title = "👤 Yeni takipçi";
+      const body = `${followerName} seni takip etmeye başladı.`;
+
+      await saveNotification(followedUid, `follow_${followerUid}`, {
+        type: "follow",
+        title,
+        body,
+        // İstemci bu uid ile profil sayfasını açar.
+        actorUid: followerUid,
+      });
+      await sendPushToUid(followedUid, title, body,
+          {type: "follow", actorUid: followerUid});
+    },
+);
 
 /**
  * Bir teklif (ilgi kaydı) her yazıldığında (oluşturma/güncelleme/geri çekme)

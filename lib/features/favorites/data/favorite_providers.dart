@@ -41,3 +41,20 @@ final isFavoriteProvider = StreamProvider.autoDispose.family<bool, String>(
         );
   },
 );
+
+/// Karşı taraf BENİ takip ediyor mu? ("Seni takip ediyor" rozeti.)
+///
+/// [otherUid] family anahtarı; ben oturumdan alınırım. `watchIsFavorite`
+/// TERS yönde çağrılır: takip eden karşı taraf, takip edilen benim.
+/// Yeni repo metodu gerekmedi — kayıt zaten `followerUid__followedUid`
+/// deterministik kimliğiyle duruyor.
+final isFollowedByProvider = StreamProvider.autoDispose.family<bool, String>(
+  (ref, otherUid) {
+    final me = ref.watch(currentUserProvider.select((u) => u?.uid));
+    if (me == null) return Stream.value(false);
+    return ref.watch(favoriteRepositoryProvider).watchIsFavorite(
+          customerUid: otherUid, // takip EDEN: karşı taraf
+          artisanUid: me, // takip EDİLEN: ben
+        );
+  },
+);

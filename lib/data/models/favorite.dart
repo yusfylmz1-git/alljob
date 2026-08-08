@@ -23,10 +23,13 @@ class Favorite {
     required this.customerUid,
     required this.artisanUid,
     required this.artisanName,
-    required this.professionNameTR,
-    required this.rating,
-    required this.totalReviews,
     required this.createdAt,
+    // Usta-özel alanlar: takip edilen usta DEĞİLSE anlamsızdır, boş kalır.
+    // (Herkes herkesi takip edebiliyor — 2026-08-08.) UI `hasArtisanInfo`
+    // ile kontrol eder; boşken meslek/puan satırı çizilmez.
+    this.professionNameTR = '',
+    this.rating = 0,
+    this.totalReviews = 0,
     this.photoUrl,
     this.customerName = '',
     this.customerPhotoUrl,
@@ -50,6 +53,11 @@ class Favorite {
 
   /// Takip edilenin görünen adı. (`artisanName` alanının yeni adı.)
   String get followedName => artisanName;
+
+  /// Takip edilen kişinin usta vitrini var mı? Yoksa meslek/puan satırı
+  /// çizilmez (sıradan kullanıcı takibi).
+  bool get hasArtisanInfo =>
+      professionNameTR.trim().isNotEmpty || totalReviews > 0;
 
   // Takip edenin snapshot'ı — "Takipçilerim" listesi hızlı görünsün diye.
   final String customerName;

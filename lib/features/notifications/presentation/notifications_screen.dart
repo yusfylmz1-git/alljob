@@ -295,6 +295,9 @@ class _NotificationTile extends StatelessWidget {
       context.push(RoutePaths.chatThread(notification.chatId!));
     } else if (notification.jobId != null) {
       context.push(RoutePaths.jobDetail(notification.jobId!));
+    } else if (notification.isFollow && notification.actorUid != null) {
+      // Takip bildirimi → takip edenin profili.
+      context.push(RoutePaths.artisanProfile(notification.actorUid!));
     }
   }
 
@@ -302,7 +305,10 @@ class _NotificationTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isChat = notification.isChat;
-    final color = isChat ? context.palette.info : context.palette.success;
+    final isFollow = notification.isFollow;
+    final color = isChat
+        ? context.palette.info
+        : (isFollow ? context.palette.primary : context.palette.success);
 
     return Material(
       color: notification.read
@@ -329,7 +335,9 @@ class _NotificationTile extends StatelessWidget {
                 child: Icon(
                   isChat
                       ? Icons.chat_bubble_outline_rounded
-                      : Icons.work_outline,
+                      : (isFollow
+                          ? Icons.person_add_alt_1_rounded
+                          : Icons.work_outline),
                   color: color,
                   size: 20,
                 ),
