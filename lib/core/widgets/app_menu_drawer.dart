@@ -21,13 +21,19 @@ import 'brand_mark.dart';
 /// Kompakt: varsayılan IconButton 48px padding metin satırını içeri iter;
 /// [visualDensity] + dar padding ile marka/başlık hizasına yaklaşır.
 class DrawerMenuButton extends ConsumerWidget {
-  const DrawerMenuButton({super.key, this.color = Colors.white});
+  const DrawerMenuButton({super.key, this.color});
 
-  final Color color;
+  /// İkon rengi. Verilmezse marka rengi (`palette.primary`) kullanılır.
+  ///
+  /// Eskiden varsayılan sabit `Colors.white`'tı; profil gibi hero gradyanı
+  /// OLMAYAN ekranlarda beyaz zemine beyaz ikon düşüyor ve menü
+  /// görünmüyordu. Gradyan üstünde duran ekranlar beyazı AÇIKÇA verir.
+  final Color? color;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final crossUnread = ref.watch(otherModeUnreadProvider);
+    final iconColor = color ?? context.palette.primary;
     return IconButton(
       tooltip: 'Menü',
       onPressed: () => Scaffold.of(context).openDrawer(),
@@ -42,7 +48,7 @@ class DrawerMenuButton extends ConsumerWidget {
         isLabelVisible: crossUnread > 0,
         smallSize: 9,
         backgroundColor: context.palette.danger,
-        child: Icon(Icons.menu_rounded, color: color, size: 24),
+        child: Icon(Icons.menu_rounded, color: iconColor, size: 24),
       ),
     );
   }

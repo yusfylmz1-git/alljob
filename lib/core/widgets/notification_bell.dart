@@ -11,10 +11,14 @@ import '../theme/app_palette.dart';
 /// gösterir (Instagram dili), dokununca bildirim merkezine gider.
 /// Misafirde gizlenir (bildirim oturum gerektirir).
 class NotificationBell extends ConsumerWidget {
-  const NotificationBell({super.key, this.color = Colors.white});
+  const NotificationBell({super.key, this.color});
 
-  /// İkon rengi — koyu hero üstünde beyaz, açık app bar üstünde tema rengi.
-  final Color color;
+  /// İkon rengi. Verilmezse marka rengi (`palette.primary`) kullanılır.
+  ///
+  /// Eskiden varsayılan sabit `Colors.white`'tı; profil gibi hero gradyanı
+  /// OLMAYAN ekranlarda beyaz zemine beyaz ikon düşüyor ve zil/menü
+  /// görünmüyordu. Gradyan üstünde duran ekranlar beyazı AÇIKÇA verir.
+  final Color? color;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -22,6 +26,7 @@ class NotificationBell extends ConsumerWidget {
     if (user == null) return const SizedBox.shrink();
 
     final unread = ref.watch(unreadNotificationCountProvider(user.uid));
+    final iconColor = color ?? context.palette.primary;
 
     return IconButton(
       tooltip: 'Bildirimler',
@@ -36,7 +41,7 @@ class NotificationBell extends ConsumerWidget {
       icon: Stack(
         clipBehavior: Clip.none,
         children: [
-          Icon(Icons.notifications_none_rounded, color: color),
+          Icon(Icons.notifications_none_rounded, color: iconColor),
           if (unread > 0)
             Positioned(
               right: -4,
@@ -47,7 +52,12 @@ class NotificationBell extends ConsumerWidget {
                 decoration: BoxDecoration(
                   color: context.palette.danger,
                   borderRadius: BorderRadius.circular(9),
-                  border: Border.all(color: Colors.white, width: 1.2),
+                  // Kenarlık rozeti zeminden ayırır: koyu temada beyaz halka
+                  // yamalı durur, sayfa zemininin rengi doğru olan.
+                  border: Border.all(
+                    color: Theme.of(context).scaffoldBackgroundColor,
+                    width: 1.2,
+                  ),
                 ),
                 child: Text(
                   unread >= kNotificationUnreadCap

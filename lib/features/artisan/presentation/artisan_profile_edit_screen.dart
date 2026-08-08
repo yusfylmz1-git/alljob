@@ -52,7 +52,8 @@ class ArtisanProfileEditScreen extends ConsumerWidget {
       appBar: const GradientAppBar(
         title: 'Profili Düzenle',
         icon: Icons.badge_outlined,
-        actions: [NotificationBell(), SizedBox(width: 4)],
+        // GradientAppBar KOYU: zil beyaz kalmalı.
+        actions: [NotificationBell(color: Colors.white), SizedBox(width: 4)],
       ),
       body: draftAsync.when(
         loading: () => const LoadingView(),

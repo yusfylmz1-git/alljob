@@ -158,7 +158,8 @@ class _HeroHeader extends ConsumerWidget {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              const DrawerMenuButton(),
+              // Hero gradyanı KOYU: ikonlar beyaz kalmalı.
+              const DrawerMenuButton(color: Colors.white),
               const SizedBox(width: 4),
               const BrandMark(size: 44),
               const SizedBox(width: 8),
@@ -174,7 +175,7 @@ class _HeroHeader extends ConsumerWidget {
                   ),
                 ),
               ),
-              const NotificationBell(),
+              const NotificationBell(color: Colors.white),
               if (user == null)
                 TextButton.icon(
                   style: TextButton.styleFrom(

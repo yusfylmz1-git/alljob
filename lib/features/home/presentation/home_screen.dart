@@ -132,7 +132,8 @@ class _HomeHero extends ConsumerWidget {
             children: [
               Row(
                 children: [
-                  const DrawerMenuButton(),
+                  // Hero gradyanı KOYU: ikonlar beyaz kalmalı.
+                  const DrawerMenuButton(color: Colors.white),
                   const SizedBox(width: 4),
                   const BrandMark(size: 40),
                   const SizedBox(width: 10),
@@ -159,7 +160,7 @@ class _HomeHero extends ConsumerWidget {
                       ],
                     ),
                   ),
-                  const NotificationBell(),
+                  const NotificationBell(color: Colors.white),
                   if (user == null)
                     TextButton.icon(
                       style: TextButton.styleFrom(
