@@ -39,10 +39,20 @@ void main() {
       expect(scr.contains('_NotAvailableNotice'), isTrue);
     });
 
-    test('"İlanlar" sekmesi yalnız usta modunda', () {
-      // Müşteri ilan VEREBİLİR ama başkalarının ilanlarını göremez.
+    test('İlanlar sekmesi KEŞFET içinde, kapılı', () {
+      // 2026-08-08: alt bardaki ayrı sekme kalktı, Keşfet'in 2. sekmesi oldu.
+      // Kapı orada: giriş → usta modu → müsaitlik.
       final bar = read('lib/core/widgets/role_bottom_bar.dart');
-      expect(bar.contains('final showWork = isArtisan;'), isTrue);
+      expect(bar.contains('showWork'), isFalse,
+          reason: 'Alt bardaki İlanlar sekmesi geri gelmiş.');
+
+      final exp = read(
+          'lib/features/customer/presentation/customer_dashboard_screen.dart');
+      expect(exp.contains('class _JobsTab'), isTrue);
+      expect(exp.contains('!user.isArtisan'), isTrue,
+          reason: 'Usta modu kapısı olmalı.');
+      expect(exp.contains('!draft.profile.isAvailable'), isTrue,
+          reason: 'Müsaitlik kapısı olmalı.');
     });
   });
 

@@ -18,6 +18,8 @@ import '../../../core/widgets/responsive_center.dart';
 import '../../../core/widgets/role_bottom_bar.dart';
 import '../../../core/widgets/skeleton.dart';
 import '../../auth/application/auth_controller.dart';
+import '../../artisan/application/my_profile_controller.dart';
+import '../../jobs/presentation/widgets/jobs_explore_panel.dart';
 import '../application/artisan_search_controller.dart';
 import 'widgets/artisan_card.dart';
 import 'widgets/detailed_search_sheet.dart';
@@ -48,8 +50,10 @@ class CustomerDashboardScreen extends ConsumerStatefulWidget {
 }
 
 class _CustomerDashboardScreenState
-    extends ConsumerState<CustomerDashboardScreen> {
+    extends ConsumerState<CustomerDashboardScreen>
+    with SingleTickerProviderStateMixin {
   final _scrollController = ScrollController();
+  late final TabController _tab = TabController(length: 2, vsync: this);
 
   @override
   void initState() {
@@ -78,6 +82,7 @@ class _CustomerDashboardScreenState
   @override
   void dispose() {
     _scrollController.dispose();
+    _tab.dispose();
     super.dispose();
   }
 
@@ -97,11 +102,27 @@ class _CustomerDashboardScreenState
       body: Column(
         children: [
           const _HeroHeader(),
-          // KEŞFET TEK LİSTE: yalnız ustalar. Ürünler modülü kaldırıldı
-          // (2026-08-08), İlanlar ise alt bardaki kendi sekmesinde.
-          // Tek sekme kalınca sekme çubuğu da gereksizleşti.
+          // KEŞFET İKİ SEKME: Ustalar | İlanlar (2026-08-08).
+          // İlan akışı alt bardaki ayrı sekmeden BURAYA taşındı — "usta ara"
+          // ve "iş ara" aynı keşif yüzeyinde toplandı.
+          Material(
+            color: context.palette.card,
+            child: TabBar(
+              controller: _tab,
+              tabs: const [
+                Tab(text: 'Ustalar', icon: Icon(Icons.handyman_rounded, size: 20)),
+                Tab(text: 'İlanlar', icon: Icon(Icons.campaign_rounded, size: 20)),
+              ],
+            ),
+          ),
           Expanded(
-            child: _ArtisansExplorePanel(scrollController: _scrollController),
+            child: TabBarView(
+              controller: _tab,
+              children: [
+                _ArtisansExplorePanel(scrollController: _scrollController),
+                const _JobsTab(),
+              ],
+            ),
           ),
         ],
       ),
@@ -580,5 +601,93 @@ class _Centered extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+
+/// Keşfet "İlanlar" sekmesi — erişim kapısı + liste.
+///
+/// İlan listesi yalnız **usta modu açık** ve **müsait** kullanıcıya görünür:
+/// müsait olmayan usta zaten aramada da çıkmaz, ilan sahibine haber veremez.
+/// Kapı burada tek yerde; panelin kendisi kapı bilmez.
+class _JobsTab extends ConsumerWidget {
+  const _JobsTab();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final user = ref.watch(currentUserProvider);
+    final palette = context.palette;
+    final theme = Theme.of(context);
+
+    Widget notice(IconData icon, String title, String body, {Widget? action}) {
+      return ListView(
+        padding: const EdgeInsets.all(28),
+        children: [
+          const SizedBox(height: 24),
+          Icon(icon, size: 44, color: palette.inkMuted),
+          const SizedBox(height: 14),
+          Text(
+            title,
+            textAlign: TextAlign.center,
+            style: theme.textTheme.titleMedium
+                ?.copyWith(fontWeight: FontWeight.w800),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            body,
+            textAlign: TextAlign.center,
+            style: theme.textTheme.bodyMedium?.copyWith(color: palette.inkMuted),
+          ),
+          if (action != null) ...[const SizedBox(height: 18), action],
+        ],
+      );
+    }
+
+    if (user == null) {
+      return notice(
+        Icons.login_rounded,
+        'İlanları görmek için giriş yap',
+        'İş ilanlarını görüntülemek ve teklif vermek için hesabına giriş yap.',
+        action: Center(
+          child: FilledButton(
+            onPressed: () => context.push(RoutePaths.login),
+            child: const Text('Giriş yap'),
+          ),
+        ),
+      );
+    }
+
+    if (!user.isArtisan) {
+      return notice(
+        Icons.handyman_outlined,
+        'İlanlar usta moduna özel',
+        'İş ilanlarını görmek için Profil sayfasından "Usta modu" anahtarını '
+        'aç. İlan vermek için usta olman gerekmez.',
+        action: Center(
+          child: FilledButton(
+            onPressed: () => context.push(RoutePaths.profile),
+            child: const Text('Profile git'),
+          ),
+        ),
+      );
+    }
+
+    final draft = ref.watch(myProfileControllerProvider).valueOrNull;
+    if (draft != null && !draft.profile.isAvailable) {
+      return notice(
+        Icons.do_not_disturb_on_outlined,
+        'Şu an müsait görünmüyorsun',
+        'Müsait olmadığın sürece ilan listesi kapalıdır; aramada da '
+        'görünmezsin. Profilinden müsaitliği açabilirsin.',
+        action: Center(
+          child: FilledButton(
+            onPressed: () => context.push(RoutePaths.profile),
+            child: const Text('Müsaitliği aç'),
+          ),
+        ),
+      );
+    }
+
+    return const JobsExplorePanel();
   }
 }

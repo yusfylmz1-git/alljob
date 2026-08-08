@@ -20,8 +20,6 @@ import '../../../data/local/mock_database.dart';
 import '../../../data/models/app_user.dart';
 import '../../../data/models/user_role.dart';
 import '../../artisan/application/my_profile_controller.dart';
-import '../../artisan/data/shop_completion.dart';
-import '../../artisan/presentation/widgets/shop_completion_banner.dart';
 import '../../auth/application/auth_controller.dart';
 import '../../auth/data/auth_repository.dart';
 import '../../auth/presentation/phone_verification_sheet.dart';
@@ -696,18 +694,10 @@ class _ShopVitrineCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final palette = context.palette;
-    final completion = ShopCompletion.from(user: user, draft: draft);
-
-    if (!completion.isComplete) {
-      return Padding(
-        padding: const EdgeInsets.only(bottom: 16),
-        child: ShopCompletionBanner(
-          completion: completion,
-          title: 'Vitrini tamamla — aramada görün',
-        ),
-      );
-    }
-
+    // "Vitrini tamamla" bandı BURADAN KALDIRILDI (2026-08-08): usta moduna
+    // geçince ekranın yarısını kaplayan bir uyarı çıkıyordu. Aynı bant artık
+    // yalnız "Profili Düzenle" ekranında görünür — kullanıcı zaten düzeltmeye
+    // gitmişken yol gösterir, profil sayfasını boğmaz.
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
       child: Material(

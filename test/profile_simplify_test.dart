@@ -15,18 +15,19 @@ void main() {
     late String bar;
     setUpAll(() => bar = read('lib/core/widgets/role_bottom_bar.dart'));
 
-    test('"İlanlar" sekmesi YALNIZ usta modunda görünür', () {
-      expect(bar.contains('final showWork = isArtisan;'), isTrue,
-          reason: 'showWork = user != null olsaydı sekme müşteride de '
-              'görünürdü (B-16 kaynağı).');
+    test('alt bar HERKESTE AYNI 4 sekme', () {
+      // 2026-08-08: "İlanlar" sekmesi Keşfet'e taşındı; alt barda rol bazlı
+      // hiçbir sekme kalmadı.
+      expect(bar.contains('showWork'), isFalse);
+      expect(bar.contains("label: 'Ana Sayfa'"), isTrue);
+      expect(bar.contains("label: 'Keşfet'"), isTrue);
+      expect(bar.contains("label: 'Mesajlar'"), isTrue);
+      expect(bar.contains("label: 'Profil'"), isTrue);
     });
 
     test('sekme adı role göre DEĞİŞMEZ', () {
-      // Eskiden: label: isArtisan ? 'İşler' : 'İlanlarım' → aynı sekme iki
-      // farklı isimle görünüyordu, "hangi moddayım?" karışıklığını besliyordu.
-      expect(bar.contains("isArtisan ? 'İşler' : 'İlanlarım'"), isFalse,
-          reason: 'Role göre değişen sekme adı geri gelmiş.');
-      expect(bar.contains("label: 'İlanlar'"), isTrue);
+      // Eskiden: label: isArtisan ? 'İşler' : 'İlanlarım'.
+      expect(bar.contains("isArtisan ? 'İşler' : 'İlanlarım'"), isFalse);
     });
   });
 

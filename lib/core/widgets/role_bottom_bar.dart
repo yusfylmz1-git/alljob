@@ -63,10 +63,9 @@ class MainBottomBar extends ConsumerWidget {
     final user = ref.watch(currentUserProvider);
     final unread = ref.watch(totalUnreadProvider);
     final isArtisan = user?.isArtisan ?? false;
-    // Alt bar rol ayrımı YAPMAZ: herkes aynı 4 sekmeyi görür
-    // (Ana Sayfa · Keşfet · Mesajlar · Profil). Usta modu açıkken 5. sekme
-    // "İlanlar" belirir — tek fark bu.
-    final showWork = isArtisan;
+    // Alt bar HERKESTE AYNI: Ana Sayfa · Keşfet · Mesajlar · Profil.
+    // "İlanlar" sekmesi 2026-08-08'de KEŞFET'e taşındı (orada 2. sekme) —
+    // "usta ara" ve "iş ara" aynı keşif yüzeyinde toplandı.
     final palette = context.palette;
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
@@ -140,18 +139,6 @@ class MainBottomBar extends ConsumerWidget {
                     selected: current == MainTab.explore,
                     onTap: () => go(MainTab.explore),
                   ),
-                  // "İlanlar" sekmesi YALNIZ usta modunda. Eskiden herkeste
-                  // vardı ve adı role göre değişiyordu (İlanlarım ⇄ İşler) —
-                  // bu, "hangi moddayım?" karışıklığının kaynaklarındandı
-                  // (B-16). Müşterinin kendi ilanları artık Profil ekranında.
-                  if (showWork)
-                    _NavItem(
-                      icon: Icons.handyman_outlined,
-                      activeIcon: Icons.handyman_rounded,
-                      label: 'İlanlar',
-                      selected: current == MainTab.work,
-                      onTap: () => go(MainTab.work),
-                    ),
                   _NavItem(
                     icon: Icons.chat_bubble_outline_rounded,
                     activeIcon: Icons.chat_bubble_rounded,
