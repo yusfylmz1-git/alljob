@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../features/auth/application/auth_controller.dart';
 import '../../features/auth/data/auth_repository.dart';
 import '../../features/chat/data/chat_providers.dart';
+import '../../data/models/app_user.dart';
 import '../constants/app_constants.dart';
 import '../router/route_paths.dart';
 import '../theme/accent_options.dart';
@@ -123,7 +124,6 @@ class AppMenuDrawer extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final user = ref.watch(currentUserProvider);
-    final theme = Theme.of(context);
     // NOT: Karşı moddaki okunmamış rozeti (`otherModeUnreadProvider`) burada
     // mod geçiş satırında duruyordu. O satırlar kalktı; rozet profildeki
     // "Usta modu" anahtarına taşındı (bkz. _ArtisanModeSwitch).
@@ -131,47 +131,12 @@ class AppMenuDrawer extends ConsumerWidget {
     return NavigationDrawer(
       children: [
         // Başlık: marka + kullanıcı kimliği.
-        Container(
-          margin: const EdgeInsets.fromLTRB(12, 12, 12, 8),
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            gradient: context.palette.heroGradient,
-            borderRadius: BorderRadius.circular(16),
-          ),
-          child: Row(
-            children: [
-              const BrandMark(size: 88, variant: BrandLogo.drawer),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      user == null
-                          ? AppConstants.appName
-                          : (user.displayName.isEmpty
-                              ? 'Kullanıcı'
-                              : user.displayName),
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                    Text(
-                      user == null
-                          ? 'Hoş geldiniz'
-                          : (user.isArtisan ? 'Usta Modu' : 'Müşteri Modu'),
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: Colors.white.withValues(alpha: 0.72),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
+        //
+        // Logo bandın ALTINDAN taşar ("askıda" duruyormuş hissi): bant
+        // inceldi, logo büyüdü (88 → 104) ve gölgeyle zeminden ayrıldı.
+        // Taşan parça Stack'in dışına çıktığı için kırpılmasın diye
+        // clipBehavior: none ve altta taşma kadar boşluk bırakılıyor.
+        _DrawerHeader(user: user),
 
         // --- Misafir ---
         if (user == null) ...[
@@ -263,6 +228,127 @@ class AppMenuDrawer extends ConsumerWidget {
             onTap: () => _signOut(context, ref),
           ),
       ],
+    );
+  }
+}
+
+/// Çekmece başlığı — logo bandın ALTINDAN taşar ("askıda" hissi).
+///
+/// Gradyan bant inceldi ve logo büyüdü (88 → 104); logonun alt yarısı bandın
+/// dışına sarkar, gölge de zeminden ayırır. Taşan parçanın kırpılmaması için
+/// iki şey gerekli:
+///   1. `Stack(clipBehavior: Clip.none)` — taşma çizilebilsin,
+///   2. dış `Padding`'in altında taşma kadar boşluk — sonraki menü satırı
+///      logonun üstüne binmesin.
+///
+/// Logoya dokunmak ana sayfaya götürür: `go` kullanılır (`push` değil) —
+/// çekmeceden ana sayfaya gidiş yığın büyütmemeli, aksi hâlde geri tuşu
+/// kullanıcıyı bir önceki sekmeye geri atardı.
+class _DrawerHeader extends StatelessWidget {
+  const _DrawerHeader({required this.user});
+
+  final AppUser? user;
+
+  /// Logonun bandın altına sarkan miktarı.
+  static const double _tasma = 26;
+  static const double _logoBoyut = 104;
+
+  void _anaSayfayaGit(BuildContext context) {
+    Navigator.pop(context); // önce çekmece kapanır
+    // Zaten ana sayfadaysak gereksiz geçiş yapma: yalnız çekmece kapansın.
+    final yol = GoRouterState.of(context).uri.path;
+    if (yol == RoutePaths.home) return;
+    context.go(RoutePaths.home);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final palette = context.palette;
+
+    final ad = user == null
+        ? AppConstants.appName
+        : (user!.displayName.isEmpty ? 'Kullanıcı' : user!.displayName);
+    final altYazi = user == null
+        ? 'Hoş geldiniz'
+        : (user!.isArtisan ? 'Usta Modu' : 'Müşteri Modu');
+
+    return Padding(
+      // Alt boşluk taşmayı karşılar; yoksa ilk menü satırı logonun altında
+      // kalırdı.
+      padding: const EdgeInsets.fromLTRB(12, 12, 12, 8 + _tasma),
+      child: Stack(
+        clipBehavior: Clip.none, // taşan logo kırpılmasın
+        children: [
+          // ── Gradyan bant (inceldi) ──
+          Container(
+            padding: const EdgeInsets.fromLTRB(
+              _logoBoyut + 20, // logoya yer aç
+              14,
+              16,
+              14,
+            ),
+            decoration: BoxDecoration(
+              gradient: palette.heroGradient,
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  ad,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                Text(
+                  altYazi,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: Colors.white.withValues(alpha: 0.72),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // ── Askıdaki logo: bandın altından taşar, ana sayfaya götürür ──
+          Positioned(
+            left: 8,
+            bottom: -_tasma,
+            child: Semantics(
+              button: true,
+              label: 'Ana sayfa',
+              child: Tooltip(
+                message: 'Ana sayfa',
+                child: InkWell(
+                  onTap: () => _anaSayfayaGit(context),
+                  customBorder: const CircleBorder(),
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.28),
+                          blurRadius: 14,
+                          offset: const Offset(0, 6),
+                        ),
+                      ],
+                    ),
+                    child: const BrandMark(
+                      size: _logoBoyut,
+                      variant: BrandLogo.drawer,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
