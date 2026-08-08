@@ -151,7 +151,10 @@ class _FollowTile extends StatelessWidget {
     final showArtisan = !followers && fav.hasArtisanInfo;
 
     return PremiumSurfaceCard(
-      onTap: () => context.push(RoutePaths.artisanProfile(otherUid)),
+      // Genel profil: usta vitrini varsa ekran `/artisan/:uid`'e devreder.
+      // Doğrudan artisanProfile'a gitmek, usta OLMAYAN kişide boş ekran
+      // gösteriyordu.
+      onTap: () => context.push(RoutePaths.userProfile(otherUid)),
       padding: const EdgeInsets.all(12),
       borderRadius: 16,
       child: Row(

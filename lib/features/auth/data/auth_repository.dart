@@ -60,6 +60,12 @@ abstract interface class AuthRepository {
 
   Future<void> signOut();
 
+  /// Başka bir kullanıcının HERKESE AÇIK profili (`users/{uid}`).
+  /// Ad, fotoğraf, doğrulama rozeti ve sayaçlar döner; telefon/e-posta
+  /// gibi hassas alanlar bu dokümanda ZATEN yoktur (ADR-11).
+  /// Kullanıcı yoksa null.
+  Future<AppUser?> fetchPublicUser(String uid);
+
   /// Yönetici erişimini etkinleştirir (yalnızca izinli e-postalar için).
   /// Sunucudaki `claimAdminAccess` CF, çağıranın e-postası izin listesinde ve
   /// doğrulanmışsa `admin:true` custom claim'i yazar; ardından token tazelenir

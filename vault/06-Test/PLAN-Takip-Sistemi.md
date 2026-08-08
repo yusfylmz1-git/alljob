@@ -114,8 +114,24 @@ mi? Instagram göndermez. **Debounce gerekir** (aynı çift için 24 saat).
 > bağlansaydı kullanıcı iş bildirimlerini kapatınca takipçi haberi de
 > susardı. Takip sosyal bir olay → `chat` kategorisiyle yönetiliyor.
 
-### Kalan (yapılmadı)
-- **Genel kullanıcı profili** (`/u/:uid`): şu an yalnız `/artisan/:uid` var.
-  Usta olmayan birinin profiline gidilemiyor — takip listesinden ada
-  dokununca usta profili ekranı açılıyor ve boş görünüyor. **Bir sonraki
-  adım bu.**
+### ✅ Genel kullanıcı profili (`/u/:uid`) — eklendi
+
+Usta vitrini olmayan kişiler için yeni ekran: `PublicUserScreen`.
+
+**Devretme mantığı:** ekran `users/{uid}` dokümanını okur; `hasArtisanProfile`
+true ise `/artisan/:uid`'e **pushReplacement** yapar. Böylece iki ayrı gerçek
+kaynak oluşmaz — usta vitrini tek yerde çizilir.
+
+**Veri yolu:** `AuthRepository.fetchPublicUser(uid)` (Firebase + Mock, kural 1).
+`users/{uid}` herkese açık okunur; e-posta/telefon o dokümanda ZATEN yok
+(ADR-11), yani ekran hassas veri sızdıramaz.
+
+**Gösterilenler:** avatar · ad + doğrulama rozeti · "Seni takip ediyor" ·
+takip/takipçi/tamamlanan sayaçları · Takip Et + Mesaj Gönder.
+
+**Yönlendirmeler `/u/:uid`'e çevrildi:** takip listesi satırı · uygulama içi
+takip bildirimi · push bildirimi. Öncesinde üçü de doğrudan
+`/artisan/:uid`'e gidiyordu → usta olmayan kişide **boş ekran**.
+
+> Regresyon testi bu hatayı yakaladı: değişikliklerden biri sessizce
+> uygulanmamıştı (metin eşleşmesi tutmadı), test kırıldı ve fark edildi.

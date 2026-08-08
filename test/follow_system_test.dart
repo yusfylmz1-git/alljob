@@ -147,7 +147,7 @@ void main() {
 
       final push = read('lib/features/notifications/data/push_service.dart');
       expect(push.contains("case 'follow':"), isTrue);
-      expect(push.contains('RoutePaths.artisanProfile(actorUid)'), isTrue);
+      expect(push.contains('RoutePaths.userProfile(actorUid)'), isTrue);
     });
   });
 
@@ -161,6 +161,51 @@ void main() {
       });
       expect(n.isFollow, isTrue);
       expect(n.actorUid, 'u_ali');
+    });
+  });
+
+  group('Genel kullanıcı profili (/u/:uid)', () {
+    test('rota ve ekran tanımlı', () {
+      final paths = read('lib/core/router/route_paths.dart');
+      expect(paths.contains('userProfile(String uid)'), isTrue);
+
+      final router = read('lib/core/router/app_router.dart');
+      expect(router.contains("path: '/u/:uid'"), isTrue);
+      expect(router.contains('PublicUserScreen'), isTrue);
+    });
+
+    test('usta profili varsa zengin ekrana DEVREDER', () {
+      // İki ayrı gerçek kaynak olmasın: usta vitrini olan kişi
+      // /artisan/:uid'de gösterilir.
+      final s =
+          read('lib/features/customer/presentation/public_user_screen.dart');
+      expect(s.contains('user.hasArtisanProfile'), isTrue);
+      expect(s.contains('RoutePaths.artisanProfile(uid)'), isTrue);
+    });
+
+    test('takip listesi GENEL profile gider (boş ekran hatası)', () {
+      // Eskiden doğrudan artisanProfile'a gidiliyordu; usta OLMAYAN kişide
+      // ekran boş açılıyordu.
+      final s =
+          read('lib/features/favorites/presentation/favorites_screen.dart');
+      expect(s.contains('RoutePaths.userProfile(otherUid)'), isTrue);
+    });
+
+    test('hassas veri gösterilmiyor', () {
+      // users/{uid} dokümanında e-posta/telefon zaten YOK (ADR-11);
+      // ekran da onları çizmeye kalkmamalı.
+      final s =
+          read('lib/features/customer/presentation/public_user_screen.dart');
+      expect(s.contains('user.email'), isFalse);
+      expect(s.contains('phoneNumber'), isFalse);
+    });
+
+    test('kendini takip/mesaj düğmeleri gizli', () {
+      final s =
+          read('lib/features/customer/presentation/public_user_screen.dart');
+      expect(s.contains('final isMe = me != null && me.uid == user.uid;'),
+          isTrue);
+      expect(s.contains('if (!isMe)'), isTrue);
     });
   });
 }

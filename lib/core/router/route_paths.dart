@@ -121,6 +121,10 @@ class RoutePaths {
   /// Herkese açık usta profil sayfası yolu.
   static String artisanProfile(String uid) => '/artisan/$uid';
 
+  /// Genel kullanici profili - usta vitrini olmayanlar icin.
+  /// Usta profili varsa ekran kendisi /artisan/:uid'e devreder.
+  static String userProfile(String uid) => '/u/$uid';
+
   // NOT: "Usta Çantası" (PRD-007) araç seti — hesap makineleri, AR ölçüm, PDF
   // teklif — 2026-08-07'de üründen TAMAMEN KALDIRILDI (kullanıcı kararı).
   // Rotalar, ekranlar, testler ve `ar_flutter_plugin_plus` / `pdf` /

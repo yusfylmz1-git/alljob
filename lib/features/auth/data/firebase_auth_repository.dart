@@ -583,6 +583,21 @@ class FirebaseAuthRepository implements AuthRepository {
   Future<void> signOut() => _auth.signOut();
 
   @override
+  Future<AppUser?> fetchPublicUser(String uid) async {
+    if (uid.trim().isEmpty) return null;
+    try {
+      final snap = await _userDoc(uid).get().timeout(_networkTimeout);
+      final data = snap.data();
+      if (!snap.exists || data == null) return null;
+      // E-posta/telefon bu dokümanda YOK (ADR-11) — fromMap boş bırakır.
+      return AppUser.fromMap(uid, data);
+    } catch (e) {
+      debugPrint('[auth] fetchPublicUser($uid) hatası: $e');
+      return null;
+    }
+  }
+
+  @override
   Future<void> deleteAccount() async {
     final fbUser = _auth.currentUser;
     if (fbUser == null) throw AuthException.notSignedIn;

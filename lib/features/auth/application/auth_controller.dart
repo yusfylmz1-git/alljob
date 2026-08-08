@@ -167,3 +167,13 @@ class AuthController extends AsyncNotifier<void> {
 final authControllerProvider = AsyncNotifierProvider<AuthController, void>(
   AuthController.new,
 );
+
+/// Başka bir kullanıcının herkese açık profili (`users/{uid}`).
+///
+/// Genel kullanıcı profil ekranı (`/u/:uid`) bunu okur. Usta profili olanlar
+/// için `/artisan/:uid` daha zengin bir vitrin gösterir; bu provider sıradan
+/// kullanıcılar içindir.
+final publicUserProvider =
+    FutureProvider.autoDispose.family<AppUser?, String>((ref, uid) {
+  return ref.watch(authRepositoryProvider).fetchPublicUser(uid);
+});

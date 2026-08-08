@@ -226,6 +226,22 @@ class MockAuthRepository implements AuthRepository {
   }
 
   @override
+  Future<AppUser?> fetchPublicUser(String uid) async {
+    await _delay();
+    // Mock'ta yalnız oturumdaki kullanıcı bilinir; başka uid için
+    // gösterilebilir bir iskelet döner (ekran boş kalmasın).
+    final me = _current;
+    if (me != null && me.uid == uid) return me;
+    if (uid.trim().isEmpty) return null;
+    return AppUser(
+      uid: uid,
+      displayName: 'Kullanıcı',
+      email: '',
+      createdAt: DateTime.now(),
+    );
+  }
+
+  @override
   Future<void> deleteAccount() async {
     await _delay();
     final user = _current;

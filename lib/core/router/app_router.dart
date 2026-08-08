@@ -21,6 +21,7 @@ import '../../features/chat/presentation/chat_list_screen.dart';
 import '../../features/chat/presentation/chat_screen.dart';
 import '../../features/customer/presentation/artisan_profile_screen.dart';
 import '../../features/customer/presentation/customer_dashboard_screen.dart';
+import '../../features/customer/presentation/public_user_screen.dart';
 import '../../features/home/presentation/home_screen.dart';
 import '../../features/jobs/presentation/create_job_screen.dart';
 import '../../features/jobs/presentation/job_detail_screen.dart';
@@ -202,6 +203,13 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/artisan/:uid',
         builder: (_, state) =>
             ArtisanProfileScreen(uid: state.pathParameters['uid']!),
+      ),
+      // Genel kullanıcı profili (usta olmayanlar). Usta ise ekran
+      // `/artisan/:uid`'e devreder.
+      GoRoute(
+        path: '/u/:uid',
+        builder: (_, state) =>
+            PublicUserScreen(uid: state.pathParameters['uid']!),
       ),
       GoRoute(
         path: RoutePaths.login,

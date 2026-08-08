@@ -297,7 +297,7 @@ class _NotificationTile extends StatelessWidget {
       context.push(RoutePaths.jobDetail(notification.jobId!));
     } else if (notification.isFollow && notification.actorUid != null) {
       // Takip bildirimi → takip edenin profili.
-      context.push(RoutePaths.artisanProfile(notification.actorUid!));
+      context.push(RoutePaths.userProfile(notification.actorUid!));
     }
   }
 
