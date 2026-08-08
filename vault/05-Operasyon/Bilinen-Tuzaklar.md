@@ -17,7 +17,7 @@ Bunlar kozmetik görünür ama değiştirmek **kullanıcı verisi kaybettirir**.
 | `kProMonthlyProductId = 'usta_cepte_pro_monthly'` | `membership/billing_config.dart` | Play Console'da ürün kimliği oluşturulduktan sonra **asla** değiştirilemez |
 | Firestore enum `apiValue`'ları | `data/models/*.dart` | Mevcut dokümanlar eski adı taşır → veri göçü gerekir |
 
-Marka adı "Usta Cepte" → "Sepette Hizmet" olarak değişti ama bu kimlikler
+Marka adı iki kez değişti ("Usta Cepte" → "Sepette Hizmet" → "İlanda Hizmet") ama bu kimlikler
 **bilerek** eski adında bırakıldı. Kullanıcıya görünmezler.
 
 ---

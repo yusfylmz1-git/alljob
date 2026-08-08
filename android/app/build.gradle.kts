@@ -42,7 +42,7 @@ android {
 
     defaultConfig {
         // Play Store'daki KALICI kimlik — ilk yüklemeden sonra ASLA değişemez.
-        // Marka "Sepette Hizmet" olduğundan yayın ÖNCESİ güncellendi
+        // Marka "İlanda Hizmet" olduğundan yayın ÖNCESİ güncellendi
         // (önceki: com.ustasindan.app, ondan önce: com.ustacepte.usta_cepte).
         // Her değişiklik Firebase'de YENİ Android app kaydı + yeni
         // google-services.json ister.

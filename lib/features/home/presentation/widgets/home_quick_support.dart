@@ -4,7 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../core/router/route_paths.dart';
 import '../../../../core/theme/app_palette.dart';
-import '../../../../core/widgets/app_image.dart';
+import '../../../../core/widgets/job_thumb.dart';
 import '../../../../core/widgets/tap_scale.dart';
 import '../../../../data/models/job.dart';
 import '../../../jobs/data/job_providers.dart';
@@ -53,9 +53,11 @@ class HomeQuickSupport extends ConsumerWidget {
           'Market, taşıma, kısa gidiş gibi hemen yapılması gereken işler',
           style: theme.textTheme.bodySmall?.copyWith(color: palette.inkMuted),
         ),
-        const SizedBox(height: 10),
+        const SizedBox(height: 8),
         SizedBox(
-          height: 158,
+          // Son İş İlanları şeridiyle AYNI yükseklik — iki ilan bölümü
+          // birbirinin devamı gibi okunsun.
+          height: 92,
           child: ListView.builder(
             scrollDirection: Axis.horizontal,
             padding: EdgeInsets.zero,
@@ -68,7 +70,15 @@ class HomeQuickSupport extends ConsumerWidget {
   }
 }
 
-/// Tek Hemen Lazım ilanı kartı: sahibinin fotoğrafı + adı + ilan başlığı.
+/// Tek Hemen Lazım ilanı kartı — DAR (2026-08-08).
+///
+/// Solda görsel: ilanda fotoğraf varsa küçük hâli, yoksa kategori ikonu
+/// ([JobThumb]). Sağda başlık + ilçe. "Son İş İlanları" kartıyla aynı
+/// düzendir; ayırt edici işaret sol üstteki turuncu ⚡ rozetidir.
+///
+/// Eskiden kart 158px yüksekti ve sahibinin profil fotoğrafını gösteriyordu.
+/// İlanın KENDİ görseli daha bilgilendirici; sahibin adı ilan detayında zaten
+/// var, vitrin satırında yer kaplıyordu.
 class _QuickSupportCard extends StatelessWidget {
   const _QuickSupportCard({required this.job});
 
@@ -78,15 +88,11 @@ class _QuickSupportCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final palette = context.palette;
-
-    // İlan sahibinin adı boş gelebilir (eski kayıt / silinmiş profil) —
-    // kartta boşluk bırakmamak için nötr bir karşılık kullanılır.
-    final ad = job.customerName.trim();
-    final gorunenAd = ad.isEmpty ? 'Komşunuz' : ad;
+    final yer = job.district.trim().isEmpty ? job.province : job.district;
 
     return TapScale(
       child: Container(
-        width: 200,
+        width: 236,
         margin: const EdgeInsets.only(right: 10),
         child: Material(
           color: palette.card,
@@ -95,117 +101,84 @@ class _QuickSupportCard extends StatelessWidget {
           child: InkWell(
             onTap: () => context.push(RoutePaths.jobDetail(job.jobId)),
             child: Container(
-              padding: const EdgeInsets.all(12),
+              padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(
                   color: palette.warning.withValues(alpha: 0.35),
                 ),
               ),
-              child: Column(
+              child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
+                  Stack(
                     children: [
-                      _CustomerAvatar(handle: job.customerPhotoUrl),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              gorunenAd,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: theme.textTheme.labelLarge?.copyWith(
-                                fontWeight: FontWeight.w800,
-                              ),
+                      JobThumb(
+                        photos: job.photos,
+                        category: job.category,
+                        size: 60,
+                      ),
+                      // Acil işareti: kart düzeni "Son İş İlanları" ile aynı
+                      // olduğu için ayrım bu rozetten okunur.
+                      Positioned(
+                        left: 0,
+                        top: 0,
+                        child: Container(
+                          padding: const EdgeInsets.all(3),
+                          decoration: BoxDecoration(
+                            color: palette.warning,
+                            borderRadius: const BorderRadius.only(
+                              topLeft: Radius.circular(12),
+                              bottomRight: Radius.circular(8),
                             ),
-                            Text(
-                              job.district.trim().isEmpty
-                                  ? job.province
-                                  : job.district,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: theme.textTheme.labelSmall?.copyWith(
-                                color: palette.inkMuted,
-                              ),
-                            ),
-                          ],
+                          ),
+                          child: const Icon(Icons.bolt_rounded,
+                              size: 13, color: Colors.white),
                         ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 10),
+                  const SizedBox(width: 10),
                   Expanded(
-                    child: Text(
-                      job.title,
-                      maxLines: 3,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        fontWeight: FontWeight.w700,
-                        height: 1.25,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  Row(
-                    children: [
-                      Icon(Icons.bolt_rounded,
-                          size: 14, color: palette.warning),
-                      const SizedBox(width: 3),
-                      Expanded(
-                        child: Text(
-                          kQuickSupportName,
-                          maxLines: 1,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          job.title,
+                          maxLines: 2,
                           overflow: TextOverflow.ellipsis,
-                          style: theme.textTheme.labelSmall?.copyWith(
-                            color: palette.warning,
-                            fontWeight: FontWeight.w800,
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            fontWeight: FontWeight.w700,
+                            height: 1.2,
                           ),
                         ),
-                      ),
-                    ],
+                        if (yer.trim().isNotEmpty) ...[
+                          const SizedBox(height: 4),
+                          Row(
+                            children: [
+                              Icon(Icons.place_outlined,
+                                  size: 13, color: palette.inkMuted),
+                              const SizedBox(width: 2),
+                              Expanded(
+                                child: Text(
+                                  yer,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: theme.textTheme.labelSmall
+                                      ?.copyWith(color: palette.inkMuted),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ],
+                    ),
                   ),
                 ],
               ),
             ),
           ),
-        ),
-      ),
-    );
-  }
-}
-
-/// İlan sahibinin küçük yuvarlak profil fotoğrafı; yoksa nötr kişi ikonu.
-class _CustomerAvatar extends StatelessWidget {
-  const _CustomerAvatar({required this.handle});
-
-  final String? handle;
-
-  @override
-  Widget build(BuildContext context) {
-    final palette = context.palette;
-    const size = 34.0;
-    if (handle == null || handle!.trim().isEmpty) {
-      return Container(
-        width: size,
-        height: size,
-        decoration: BoxDecoration(
-          color: palette.primary.withValues(alpha: 0.12),
-          shape: BoxShape.circle,
-        ),
-        child: Icon(Icons.person_rounded, size: 20, color: palette.primary),
-      );
-    }
-    return ClipOval(
-      child: SizedBox(
-        width: size,
-        height: size,
-        child: AppImage(
-          handle: handle,
-          fit: BoxFit.cover,
-          memCacheWidth: 96,
         ),
       ),
     );

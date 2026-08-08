@@ -22,10 +22,9 @@ class HomeQuickAccess extends ConsumerWidget {
     //
     // Ürünün ana işi: usta bul · ilan ver · hemen lazım.
     final hero = _HeroCta(
-      title: 'İhtiyacın olan\nustayı bul.',
-      subtitle: 'Güvenilir ustalar,\nprofesyonel hizmetler.',
+      title: 'İhtiyacın olan ustayı bul.',
+      subtitle: 'Güvenilir ustalar, profesyonel hizmetler.',
       ctaLabel: 'Usta Bul',
-      icon: Icons.handyman_rounded,
       onTap: () => context.go(RoutePaths.explore),
     );
 
@@ -63,21 +62,25 @@ class HomeQuickAccess extends ConsumerWidget {
   }
 }
 
-/// Görseldeki büyük gradient davet kartı: başlık + alt açıklama + dolgu CTA
-/// düğmesi, sağda yarı saydam dev ikon süsü. Marka mavisi köşegen gradient.
+/// Büyük gradient davet kartı — YATAY düzen (2026-08-08).
+///
+/// Solda başlık + açıklama, SAĞDA "Usta Bul" düğmesi. Eskiden düğme metnin
+/// ALTINDA duruyor, sağ üstte de 104px yarı saydam çekiç süsü vardı; kart
+/// gereksiz uzuyor ve çekiç hiçbir iş yapmadan yer kaplıyordu.
+///
+/// Düğme sağda dikey ortalı: göz başlığı okuyup doğal olarak sağa kayıyor,
+/// kart da ~70px kısalıyor — altındaki vitrin şeritleri ekrana giriyor.
 class _HeroCta extends StatelessWidget {
   const _HeroCta({
     required this.title,
     required this.subtitle,
     required this.ctaLabel,
-    required this.icon,
     required this.onTap,
   });
 
   final String title;
   final String subtitle;
   final String ctaLabel;
-  final IconData icon;
   final VoidCallback onTap;
 
   @override
@@ -92,7 +95,7 @@ class _HeroCta extends StatelessWidget {
           borderRadius: BorderRadius.circular(22),
           onTap: onTap,
           child: Container(
-            padding: const EdgeInsets.fromLTRB(22, 22, 22, 22),
+            padding: const EdgeInsets.fromLTRB(18, 16, 14, 16),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(22),
               gradient: LinearGradient(
@@ -102,84 +105,76 @@ class _HeroCta extends StatelessWidget {
               ),
               boxShadow: [
                 BoxShadow(
-                  color: palette.heroTop.withValues(alpha: 0.35),
-                  blurRadius: 24,
-                  offset: const Offset(0, 10),
+                  color: palette.heroTop.withValues(alpha: 0.30),
+                  blurRadius: 20,
+                  offset: const Offset(0, 8),
                 ),
               ],
             ),
-            child: Stack(
+            child: Row(
               children: [
-                // Sağ üstteki yarı saydam dev ikon süsü.
-                Positioned(
-                  right: -8,
-                  top: -6,
-                  child: Icon(
-                    icon,
-                    size: 104,
-                    color: Colors.white.withValues(alpha: 0.10),
-                  ),
-                ),
-                // width:infinity → Stack (dolayısıyla kart) tüm genişliği
-                // kaplar; aksi halde içerik kadar daralıp ortada küçük kalır.
-                SizedBox(
-                  width: double.infinity,
+                Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
                         title,
-                        style: theme.textTheme.headlineSmall?.copyWith(
+                        style: theme.textTheme.titleLarge?.copyWith(
                           color: Colors.white,
                           fontWeight: FontWeight.w800,
-                          height: 1.1,
+                          height: 1.15,
                         ),
                       ),
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 4),
                       Text(
                         subtitle,
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                          color: Colors.white.withValues(alpha: 0.82),
-                          height: 1.3,
-                        ),
-                      ),
-                      const SizedBox(height: 18),
-                      // Beyaz dolgu CTA düğmesi + ileri oku (içerik kadar).
-                      Align(
-                        alignment: Alignment.centerLeft,
-                        child: DecoratedBox(
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(14),
-                          ),
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 18,
-                              vertical: 12,
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Text(
-                                  ctaLabel,
-                                  style: theme.textTheme.labelLarge?.copyWith(
-                                    color: palette.heroBottom,
-                                    fontWeight: FontWeight.w800,
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                Icon(
-                                  Icons.arrow_forward_rounded,
-                                  size: 18,
-                                  color: palette.heroBottom,
-                                ),
-                              ],
-                            ),
-                          ),
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: Colors.white.withValues(alpha: 0.80),
+                          height: 1.25,
                         ),
                       ),
                     ],
+                  ),
+                ),
+                const SizedBox(width: 12),
+                // Çekiç süsünün DURDUĞU yer: artık işlevsiz ikon yerine
+                // birincil eylem burada.
+                DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(14),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.12),
+                        blurRadius: 8,
+                        offset: const Offset(0, 3),
+                      ),
+                    ],
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 11,
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.search_rounded,
+                          size: 20,
+                          color: palette.heroBottom,
+                        ),
+                        const SizedBox(height: 3),
+                        Text(
+                          ctaLabel,
+                          style: theme.textTheme.labelMedium?.copyWith(
+                            color: palette.heroBottom,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ],

@@ -1,4 +1,4 @@
-# 🚀 Sepette Hizmet — Proje Analizi, Test Haritası ve Token Tasarruf Rehberi
+# 🚀 İlanda Hizmet — Proje Analizi, Test Haritası ve Token Tasarruf Rehberi
 
 > **Oluşturulma Tarihi:** 2026-08-08  
 > **Amaç:** Geliştirme sürecinde token kullanımını en aza indirmek, mevcut test kapsamını haritalandırmak ve eksik test senaryolarını birlikte analiz etmek.

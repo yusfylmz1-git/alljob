@@ -24,11 +24,11 @@ const bool kBillingEnabled = true;
 
 /// Aylık Pro abonelik product id (Play Console ile birebir aynı olmalı).
 ///
-/// ⚠️ Marka "Sepette Hizmet"e geçti ama bu kimlikler BİLEREK eski adında
-/// bırakıldı: Play Console'da ürün kimliği oluşturulduktan sonra ASLA
-/// değiştirilemez ve kullanıcıya görünmez. Ürünler Console'da HENÜZ
-/// oluşturulmadıysa (checklist adım 1) burada `sepette_hizmet_pro_monthly`
-/// olarak yenilemek serbesttir — ama Console'daki adla birebir aynı olmalı.
+/// ⚠️ Marka iki kez değişti (Usta Cepte → Sepette Hizmet → İlanda Hizmet)
+/// ama bu kimlik BİLEREK ilk adında bırakıldı: Play Console'da ürün kimliği
+/// oluşturulduktan sonra ASLA değiştirilemez ve kullanıcıya görünmez.
+/// Ürünler Console'da HENÜZ oluşturulmadıysa (checklist adım 1) burada
+/// yenilemek serbesttir — ama Console'daki adla birebir aynı olmalı.
 const String kProMonthlyProductId = 'usta_cepte_pro_monthly';
 
 /// Yıllık (Console'da yoksa query "not found" loglar; zarar vermez).

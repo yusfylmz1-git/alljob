@@ -11,7 +11,7 @@ library;
 const kLegalContactEmail = 'aboneai.plus@gmail.com';
 
 /// Yasal metinler + hosting HTML marka adı (uygulama `AppConstants.appName` ile hizalı).
-const kAppBrandName = 'Sepette Hizmet';
+const kAppBrandName = 'İlanda Hizmet';
 
 /// Metinlerin "Son güncelleme" etiketi — içerik değişince güncelle.
 const kLegalUpdated = '15 Temmuz 2026';
@@ -69,12 +69,12 @@ const legalTerms = LegalDoc(
   sections: [
     LegalSection(
       body:
-          'Bu Kullanım Koşulları ("Koşullar"), Sepette Hizmet mobil ve web uygulamasının ("Uygulama") kullanımını düzenler. Uygulamaya kayıt olarak veya Uygulamayı kullanarak bu Koşulları kabul etmiş sayılırsınız. Koşulları kabul etmiyorsanız lütfen Uygulamayı kullanmayınız.',
+          'Bu Kullanım Koşulları ("Koşullar"), İlanda Hizmet mobil ve web uygulamasının ("Uygulama") kullanımını düzenler. Uygulamaya kayıt olarak veya Uygulamayı kullanarak bu Koşulları kabul etmiş sayılırsınız. Koşulları kabul etmiyorsanız lütfen Uygulamayı kullanmayınız.',
     ),
     LegalSection(
       heading: '1. Hizmetin Tanımı',
       body:
-          'Sepette Hizmet; tamirat, tadilat ve benzeri hizmetlere ihtiyaç duyan kullanıcılar ("Müşteri") ile bu hizmetleri sunan kullanıcıları ("Usta") buluşturan bir ARACI platformdur.\n\nSepette Hizmet, platform üzerinden ilan edilen veya anlaşılan işlerin TARAFI DEĞİLDİR. İşin yapılması, kalitesi, zamanlaması, bedeli ve ödemesi tamamen Müşteri ile Usta arasındadır. Uygulama üzerinden ödeme alınmaz ve ödemeye aracılık edilmez.',
+          'İlanda Hizmet; tamirat, tadilat ve benzeri hizmetlere ihtiyaç duyan kullanıcılar ("Müşteri") ile bu hizmetleri sunan kullanıcıları ("Usta") buluşturan bir ARACI platformdur.\n\nİlanda Hizmet, platform üzerinden ilan edilen veya anlaşılan işlerin TARAFI DEĞİLDİR. İşin yapılması, kalitesi, zamanlaması, bedeli ve ödemesi tamamen Müşteri ile Usta arasındadır. Uygulama üzerinden ödeme alınmaz ve ödemeye aracılık edilmez.',
     ),
     LegalSection(
       heading: '2. Hesap ve Güvenlik',
@@ -104,12 +104,12 @@ const legalTerms = LegalDoc(
     LegalSection(
       heading: '7. Fikri Mülkiyet',
       body:
-          'Uygulamanın yazılımı, tasarımı, logosu ve "Sepette Hizmet" markası Uygulama geliştiricisine aittir; izinsiz kopyalanamaz ve kullanılamaz. Kullanıcı içeriklerinin mülkiyeti kullanıcıya aittir.',
+          'Uygulamanın yazılımı, tasarımı, logosu ve "İlanda Hizmet" markası Uygulama geliştiricisine aittir; izinsiz kopyalanamaz ve kullanılamaz. Kullanıcı içeriklerinin mülkiyeti kullanıcıya aittir.',
     ),
     LegalSection(
       heading: '8. Sorumluluğun Sınırlandırılması',
       body:
-          'Uygulama "olduğu gibi" sunulur; kesintisiz veya hatasız çalışacağı garanti edilmez. Sepette Hizmet; kullanıcılar arasındaki iş, ödeme ve iletişimden doğan uyuşmazlıkların tarafı veya garantörü değildir. Mevzuatın izin verdiği azami ölçüde, dolaylı zararlardan sorumluluk kabul edilmez.',
+          'Uygulama "olduğu gibi" sunulur; kesintisiz veya hatasız çalışacağı garanti edilmez. İlanda Hizmet; kullanıcılar arasındaki iş, ödeme ve iletişimden doğan uyuşmazlıkların tarafı veya garantörü değildir. Mevzuatın izin verdiği azami ölçüde, dolaylı zararlardan sorumluluk kabul edilmez.',
     ),
     LegalSection(
       heading: '9. Hesabın Silinmesi',
@@ -140,7 +140,7 @@ const legalPrivacy = LegalDoc(
   sections: [
     LegalSection(
       body:
-          'Bu Gizlilik Politikası, Sepette Hizmet uygulamasını kullandığınızda hangi kişisel verilerin toplandığını, nasıl kullanıldığını ve haklarınızı açıklar. Kişisel verilerin işlenmesine ilişkin ayrıntılı bilgilendirme için KVKK Aydınlatma Metnine de bakabilirsiniz.',
+          'Bu Gizlilik Politikası, İlanda Hizmet uygulamasını kullandığınızda hangi kişisel verilerin toplandığını, nasıl kullanıldığını ve haklarınızı açıklar. Kişisel verilerin işlenmesine ilişkin ayrıntılı bilgilendirme için KVKK Aydınlatma Metnine de bakabilirsiniz.',
     ),
     LegalSection(
       heading: '1. Topladığımız Veriler',
@@ -201,12 +201,12 @@ const legalKvkk = LegalDoc(
   sections: [
     LegalSection(
       body:
-          'Bu aydınlatma metni, 6698 sayılı Kişisel Verilerin Korunması Kanunu ("KVKK") uyarınca, Sepette Hizmet uygulaması kullanıcılarının kişisel verilerinin işlenmesine ilişkin olarak hazırlanmıştır.',
+          'Bu aydınlatma metni, 6698 sayılı Kişisel Verilerin Korunması Kanunu ("KVKK") uyarınca, İlanda Hizmet uygulaması kullanıcılarının kişisel verilerinin işlenmesine ilişkin olarak hazırlanmıştır.',
     ),
     LegalSection(
       heading: '1. Veri Sorumlusu',
       body:
-          'Kişisel verileriniz, veri sorumlusu sıfatıyla Sepette Hizmet uygulaması geliştiricisi tarafından işlenmektedir. İletişim: $kLegalContactEmail',
+          'Kişisel verileriniz, veri sorumlusu sıfatıyla İlanda Hizmet uygulaması geliştiricisi tarafından işlenmektedir. İletişim: $kLegalContactEmail',
     ),
     LegalSection(
       heading: '2. İşlenen Kişisel Veri Kategorileri',
@@ -259,7 +259,7 @@ const legalDeletion = LegalDoc(
   sections: [
     LegalSection(
       body:
-          'Sepette Hizmet hesabınızı ve verilerinizi dilediğiniz an kalıcı olarak silebilirsiniz.',
+          'İlanda Hizmet hesabınızı ve verilerinizi dilediğiniz an kalıcı olarak silebilirsiniz.',
     ),
     LegalSection(
       heading: 'Uygulama içinden silme (önerilen)',

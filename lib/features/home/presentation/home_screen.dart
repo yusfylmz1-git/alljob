@@ -17,8 +17,8 @@ import 'widgets/home_guest_banner.dart';
 import 'widgets/home_quick_access.dart';
 import 'widgets/home_quick_support.dart';
 
-/// Ana Sayfa — Sepette Hizmet'in canlı vitrini. Uygulamaya giren önce burayı
-/// görür: sade karşılama + 3 ana aksiyon + "Bugün Sepette Hizmet'te" keşif
+/// Ana Sayfa — İlanda Hizmet'in canlı vitrini. Uygulamaya giren önce burayı
+/// görür: sade karşılama + 3 ana aksiyon + "Bugün İlanda Hizmet'te" keşif
 /// kartları + öne çıkan ustalar + minimal istatistik. Aşağı çekince
 /// veriye bağlı bölümler tazelenir.
 ///
@@ -48,7 +48,10 @@ class HomeScreen extends ConsumerWidget {
                 child: ListView(
                   // Aşağı çekme, içerik ekranı doldurmasa da çalışmalı.
                   physics: const AlwaysScrollableScrollPhysics(),
-                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
+                  // Üst boşluk dar: hero ile "Usta Bul" kartı arasında
+                  // gereksiz nefes vardı, vitrin şeritleri ekranın altına
+                  // düşüyordu.
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
                   children: _sections(isGuest: isGuest),
                 ),
               ),
@@ -81,21 +84,25 @@ class HomeScreen extends ConsumerWidget {
   /// Eskiden usta ve müşteri iki farklı sıralama görüyordu. Tek ürün, tek
   /// akış: usta bul · ilan ver · hemen lazım.
   ///
-  /// Sıra: aksiyon → Hemen Lazım → öne çıkanlar → keşif. Veriye bağlı
-  /// bölümler boşsa kendini gizler.
+  /// Sıra (2026-08-08, kullanıcı kararı):
+  ///   aksiyon → Öne Çıkan Ustalar → Son İş İlanları → Hemen Lazım → keşif
+  ///
+  /// Mantık: önce ARZ (ustalar), sonra TALEP (ilanlar). "Hemen Lazım" acil
+  /// ama dar bir niş; ilan akışından sonra gelir. Veriye bağlı bölümler
+  /// boşsa kendini gizler.
   ///
   /// NOT: "Platform istatistikleri" bölümü (HomeStats) KALDIRILDI —
   /// `adminStats/global` yalnız admine okunur (firestore.rules), yani normal
   /// kullanıcıda bölüm HER ZAMAN gizliydi. 146 satır ölü kod.
   List<Widget> _sections({required bool isGuest}) {
-    const gap = SizedBox(height: 24);
+    const gap = SizedBox(height: 22);
     return [
       if (isGuest) const HomeGuestBanner(),
       const HomeQuickAccess(),
       gap,
-      const HomeQuickSupport(), // ⚡ Hemen Lazım
+      const HomeFeatured(), // ⭐ Öne Çıkan Ustalar + Son İş İlanları
       gap,
-      const HomeFeatured(), // ⭐ Öne çıkan ustalar + son ilanlar
+      const HomeQuickSupport(), // ⚡ Hemen Lazım
       gap,
       const HomeDiscover(), // 🔥 Haftanın ustası + duyuru
     ];
@@ -126,7 +133,7 @@ class _HomeHero extends ConsumerWidget {
         bottom: false,
         child: ResponsiveCenter(
           maxWidth: 760,
-          padding: const EdgeInsets.fromLTRB(12, 4, 12, 16),
+          padding: const EdgeInsets.fromLTRB(12, 4, 12, 10),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [

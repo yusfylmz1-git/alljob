@@ -41,7 +41,7 @@ const kFaqItems = <FaqItem>[
   ),
   FaqItem(
     category: 'Genel',
-    question: 'Sepette Hizmet nedir?',
+    question: 'İlanda Hizmet nedir?',
     answer:
         'Bölgenizdeki ustaları meslek ve konumla bulmanızı, iş ilanı vermenizi '
         've güvenli sohbetle anlaşmanızı sağlayan bir hizmet pazaryeridir. '

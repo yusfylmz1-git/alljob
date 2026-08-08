@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/router/route_paths.dart';
 import '../../../../core/theme/app_palette.dart';
 import '../../../../core/widgets/app_image.dart';
+import '../../../../core/widgets/job_thumb.dart';
 import '../../../../core/widgets/tap_scale.dart';
 import '../../../../data/models/job.dart';
 import '../../../artisan/data/artisan_providers.dart';
@@ -118,7 +119,8 @@ class _FeaturedSection extends StatelessWidget {
         ),
         const SizedBox(height: 4),
         SizedBox(
-          height: tall ? 288 : 204,
+          // tall: fotoğraflı usta kartı · kısa: dar ilan satırı (JobThumb).
+          height: tall ? 288 : 92,
           child: ListView(
             scrollDirection: Axis.horizontal,
             padding: EdgeInsets.zero,
@@ -126,65 +128,6 @@ class _FeaturedSection extends StatelessWidget {
           ),
         ),
       ],
-    );
-  }
-}
-
-/// Ortak yatay kart kabuğu: etiket + içerik + dokunma.
-class _FeaturedCard extends StatelessWidget {
-  const _FeaturedCard({
-    required this.etiket,
-    required this.child,
-    required this.onTap,
-  });
-
-  final String etiket;
-  final Widget child;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final palette = context.palette;
-    return Container(
-      width: 210,
-      margin: const EdgeInsets.only(right: 10),
-      child: Material(
-        color: palette.card,
-        borderRadius: BorderRadius.circular(16),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(16),
-          onTap: onTap,
-          child: Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: palette.hairline),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                  decoration: BoxDecoration(
-                    color: palette.primary.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Text(
-                    etiket,
-                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                          color: palette.primary,
-                          fontWeight: FontWeight.w700,
-                        ),
-                  ),
-                ),
-                const SizedBox(height: 10),
-                Expanded(child: child),
-              ],
-            ),
-          ),
-        ),
-      ),
     );
   }
 }
@@ -409,6 +352,12 @@ class _EtiketRozet extends StatelessWidget {
   }
 }
 
+/// Son iş ilanı kartı — DAR (2026-08-08).
+///
+/// Solda görsel: ilanda fotoğraf varsa küçük hâli, yoksa meslek ikonu +
+/// rengi ([JobThumb]). Sağda başlık + ilçe. Eskiden kart 204px yüksekti ve
+/// görselsizdi; şeridi 112px'e indirmek ana sayfada bir bölüm daha
+/// görünmesini sağlıyor.
 class _IsKart extends StatelessWidget {
   const _IsKart({required this.is_});
   final Job is_;
@@ -416,41 +365,75 @@ class _IsKart extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return _FeaturedCard(
-      etiket: 'İş İlanı',
-      onTap: () => context.push(RoutePaths.jobDetail(is_.jobId)),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(Icons.campaign_rounded,
-              color: context.palette.primary, size: 28),
-          const SizedBox(height: 8),
-          Text(
-            is_.title,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: theme.textTheme.titleSmall
-                ?.copyWith(fontWeight: FontWeight.w700, height: 1.15),
-          ),
-          const Spacer(),
-          if (is_.district.trim().isNotEmpty)
-            Row(
-              children: [
-                Icon(Icons.place_outlined,
-                    size: 14, color: theme.colorScheme.onSurfaceVariant),
-                const SizedBox(width: 2),
-                Expanded(
-                  child: Text(
-                    is_.district,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.labelSmall?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant),
+    final palette = context.palette;
+    final yer = is_.district.trim().isEmpty ? is_.province : is_.district;
+
+    return TapScale(
+      child: Container(
+        width: 236,
+        margin: const EdgeInsets.only(right: 10),
+        child: Material(
+          color: palette.card,
+          borderRadius: BorderRadius.circular(16),
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: () => context.push(RoutePaths.jobDetail(is_.jobId)),
+            child: Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: palette.hairline),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  JobThumb(
+                    photos: is_.photos,
+                    category: is_.category,
+                    size: 60,
                   ),
-                ),
-              ],
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          is_.title,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            fontWeight: FontWeight.w700,
+                            height: 1.2,
+                          ),
+                        ),
+                        if (yer.trim().isNotEmpty) ...[
+                          const SizedBox(height: 4),
+                          Row(
+                            children: [
+                              Icon(Icons.place_outlined,
+                                  size: 13, color: palette.inkMuted),
+                              const SizedBox(width: 2),
+                              Expanded(
+                                child: Text(
+                                  yer,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: theme.textTheme.labelSmall
+                                      ?.copyWith(color: palette.inkMuted),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
-        ],
+          ),
+        ),
       ),
     );
   }

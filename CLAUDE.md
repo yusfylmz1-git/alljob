@@ -1,4 +1,4 @@
-# Sepette Hizmet — Ajan Talimatları
+# İlanda Hizmet — Ajan Talimatları
 
 Flutter + Firebase hizmet pazaryeri. 64K satır Dart, 5.1K satır Cloud Functions,
 1.3K satır güvenlik kuralı.
@@ -112,7 +112,7 @@ Deploy komutları ve tuzakları: `vault/05-Operasyon/Deploy-ve-Ortam.md`
 |---|---|
 | `kProMonthlyProductId = 'usta_cepte_pro_monthly'` | `membership/billing_config.dart` |
 
-Marka "Usta Cepte" → "Sepette Hizmet" değişti; bu kimlikler bilerek eski
+Marka iki kez değişti ("Usta Cepte" → "Sepette Hizmet" → "İlanda Hizmet"); bu kimlikler bilerek ilk
 adında. Değiştirmek kullanıcı verisi/satın alma kaybettirir.
 
 ## Dil

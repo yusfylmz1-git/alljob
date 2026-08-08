@@ -117,7 +117,7 @@ class PushService {
       return 'Bildirimler açık (cihaz kayıtlı).';
     }
     if (_lastStatus == AuthorizationStatus.denied) {
-      return 'Bildirim izni kapalı. Ayarlar → Uygulamalar → Sepette Hizmet → '
+      return 'Bildirim izni kapalı. Ayarlar → Uygulamalar → İlanda Hizmet → '
           'Bildirimler bölümünden açın, sonra "Yeniden dene"ye basın.';
     }
     if (_lastError != null) {

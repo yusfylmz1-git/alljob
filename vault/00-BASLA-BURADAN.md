@@ -1,4 +1,4 @@
-# 🏠 Sepette Hizmet — Mimari Kasa
+# 🏠 İlanda Hizmet — Mimari Kasa
 
 > **Bu kasanın amacı:** kod tabanını her oturumda yeniden taramadan çalışabilmek.
 > 64.000 satır Dart + 5.100 satır Cloud Functions + 1.300 satır güvenlik kuralı

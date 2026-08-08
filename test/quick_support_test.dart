@@ -85,20 +85,21 @@ void main() {
     expect(find.text('Koli taşınacak'), findsOneWidget);
     expect(find.text('Duvar boyama'), findsNothing);
 
-    // İlan sahibinin adı ve ilçesi kartta görünür.
-    expect(find.text('Ayşe K.'), findsOneWidget);
+    // İlçe kartta görünür. Sahibinin ADI artık GÖSTERİLMİYOR (2026-08-08):
+    // dar kartta ilanın kendi görseli + başlığı öncelikli, sahip bilgisi
+    // ilan detayında duruyor.
     expect(find.text('Osmangazi'), findsWidgets);
+    expect(find.text('Ayşe K.'), findsNothing);
   });
 
-  testWidgets('ilan sahibinin adı boşsa kart nötr bir ad gösterir',
-      (tester) async {
+  testWidgets('fotoğrafsız ilanda kategori ikonu gösterilir', (tester) async {
     await pump(tester, [
-      job(id: 'j1', title: 'Eczaneye gidilecek', customerName: '   '),
+      job(id: 'j1', title: 'Eczaneye gidilecek'),
     ]);
 
-    // Boş ad kartta boşluk bırakmamalı.
-    expect(find.text('Komşunuz'), findsOneWidget);
+    // Boş gri kutu yerine "Hemen Lazım" kategorisinin şimşek ikonu.
     expect(find.text('Eczaneye gidilecek'), findsOneWidget);
+    expect(find.byIcon(Icons.bolt_rounded), findsWidgets);
   });
 
   test('quickSupportJobsProvider yalnız Hemen Lazım ilanlarını süzer', () {
