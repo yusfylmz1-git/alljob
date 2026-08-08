@@ -17,8 +17,6 @@ import '../../../core/widgets/searchable_select_field.dart';
 import '../../../core/widgets/status_views.dart';
 import '../../../data/local/local_data_service.dart';
 import '../../../data/models/availability.dart';
-import '../data/shop_completion.dart';
-import 'widgets/shop_completion_banner.dart';
 import '../../../data/models/geo_models.dart';
 import '../../../data/models/artisan_profile.dart';
 import '../../../data/models/job.dart'
@@ -340,10 +338,11 @@ class _EditFormState extends ConsumerState<_EditForm> {
       child: ListView(
         padding: const EdgeInsets.all(20),
         children: [
-          // "Vitrini tamamla" bandı BURADA (profil sayfasından taşındı):
-          // kullanıcı zaten düzeltmeye gelmişken hangi adımın eksik olduğunu
-          // gösterir. Profil sayfasında ekranın yarısını kaplıyordu.
-          if (isArtisanMode) _CompletionHint(draft: draft),
+          // "Vitrini tamamla" bandı KALDIRILDI (2026-08-08): kullanıcı zaten
+          // formun içinde — hangi alanın boş olduğunu doğrudan görüyor.
+          // Formun tepesinde ayrıca uyarı göstermek yer kaplıyordu.
+          // (Bant `nearby_jobs_screen`'de duruyor: orada usta ilanları
+          // göremediğinde SEBEBİ açıklıyor, oradaki işlevi gerçek.)
 
           // --- Profil fotoğrafı ---
           _focusWrap(
@@ -1648,25 +1647,3 @@ class _TimeChip extends StatelessWidget {
   }
 }
 
-
-/// Düzenleme formunun başındaki "vitrini tamamla" bandı.
-/// Vitrin tamamsa hiç yer kaplamaz.
-class _CompletionHint extends ConsumerWidget {
-  const _CompletionHint({required this.draft});
-  final MyProfileDraft draft;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final user = ref.watch(currentUserProvider);
-    if (user == null) return const SizedBox.shrink();
-    final completion = ShopCompletion.from(user: user, draft: draft);
-    if (completion.isComplete) return const SizedBox.shrink();
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 16),
-      child: ShopCompletionBanner(
-        completion: completion,
-        title: 'Vitrini tamamla — aramada görün',
-      ),
-    );
-  }
-}

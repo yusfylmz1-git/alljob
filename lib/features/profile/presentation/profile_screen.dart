@@ -162,7 +162,6 @@ class _Body extends ConsumerWidget {
 
               // Usta modülleri (yalnız anahtar açıkken)
               if (artisanMode) ...[
-                _ArtisanHome(user: user, draft: draft),
                 const SizedBox(height: 8),
               ],
 
@@ -298,6 +297,15 @@ class _Hero extends StatelessWidget {
             // boş olan hiç çizilmez (2026-08-08).
             _BioDetails(user: user),
             const SizedBox(height: 12),
+
+            // Müsaitlik — SADE anahtar (2026-08-08): yalnız switch + "Müsait".
+            // Aksiyon çubuğunun ÜSTÜNDE duruyor; kapalıyken yazı sönükleşir,
+            // başka bir uyarı/alt metin yok. Eskiden ayrı bir menü satırıydı
+            // (ikon + başlık + iki satır açıklama) ve profilde yer kaplıyordu.
+            if (artisanMode) ...[
+              _AvailabilitySwitch(draft: draft),
+              const SizedBox(height: 10),
+            ],
 
             // Aksiyon çubuğu (IG: "Profili düzenle | Profili paylaş").
             Row(
@@ -732,139 +740,32 @@ class _ArtisanModeSwitch extends ConsumerWidget {
 // Usta dükkânı — müsaitlik, vitrin, işler (müşteri menüsü yok)
 // ---------------------------------------------------------------------------
 
-class _ArtisanHome extends ConsumerWidget {
-  const _ArtisanHome({required this.user, required this.draft});
-  final AppUser user;
+// Usta moduna özel profil bölümü KALDIRILDI (2026-08-08).
+//
+// İçindeki iki şey de başka yere taşındı:
+//   - "Vitrinim" kartı (Görüntüle | Düzenle) → başlıktaki "Profili düzenle"
+//     ve "Profilime bak" düğmeleri zaten aynı yerlere gidiyordu; kart
+//     mükerrerdi. Vitrin ayarları da artık Profili Düzenle içinde.
+//   - Müsaitlik satırı → başlığa taşındı ([_AvailabilitySwitch]), sade
+//     anahtar hâlinde.
+//
+// Geriye çizilecek bir şey kalmadığı için `_ArtisanHome` widget'ı da silindi.
+
+/// Müsaitlik anahtarı — SADE (2026-08-08).
+///
+/// Yalnız switch + "Müsait" yazısı. Kapalıyken yazı sönükleşir; ayrı bir
+/// uyarı metni ya da ikon YOK — durum anahtarın kendisinden okunuyor.
+///
+/// Eskiden ikon + başlık ("Şu an kapalısın") + iki satır açıklama taşıyan
+/// bir menü satırıydı ve profil sayfasında gereksiz yer kaplıyordu.
+class _AvailabilitySwitch extends ConsumerWidget {
+  const _AvailabilitySwitch({required this.draft});
   final MyProfileDraft? draft;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final profile = draft?.profile;
-    // Rozet için nearbyJobs / myOffers canlı dinlenmez — profil menüsü
-    // 100+ open job + tüm teklif snapshot'ını açık tutuyordu (maliyet/RAM).
-    final rating = profile?.averageRating ?? 0;
-    final reviews = profile?.totalReviews ?? 0;
-    final shopSubtitle = reviews > 0
-        ? '★ ${rating.toStringAsFixed(1)} · $reviews değerlendirme'
-        : 'Müşterilerin gördüğü dükkân';
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        // Sadeleştirme: bölüm etiketleri kalktı, mükerrerler temizlendi.
-        //  - "İŞLER" satırı → alt bardaki "İlanlar" sekmesiyle aynı yere
-        //    gidiyordu (mükerrer giriş).
-        //  - "TAKİPÇİLER" listesi → başlıktaki takipçi sayacı zaten var ve
-        //    dokununca aynı listeyi açıyor.
-        //  - "İlanlarım" BURADA YOK: `_CustomerHome` herkeste çiziliyor ve
-        //    o satır zaten orada. Usta modunda iki kez görünüyordu.
-        _Group(children: [_AvailabilityRow(draft: draft)]),
-        _ShopVitrineCard(user: user, draft: draft, shopSubtitle: shopSubtitle),
-      ],
-    );
-  }
-}
-
-/// Tek vitrin kartı: tamamla / görüntüle + düzenle (çift menü yok).
-class _ShopVitrineCard extends StatelessWidget {
-  const _ShopVitrineCard({
-    required this.user,
-    required this.draft,
-    required this.shopSubtitle,
-  });
-  final AppUser user;
-  final MyProfileDraft? draft;
-  final String shopSubtitle;
-
-  @override
-  Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final palette = context.palette;
-    // "Vitrini tamamla" bandı BURADAN KALDIRILDI (2026-08-08): usta moduna
-    // geçince ekranın yarısını kaplayan bir uyarı çıkıyordu. Aynı bant artık
-    // yalnız "Profili Düzenle" ekranında görünür — kullanıcı zaten düzeltmeye
-    // gitmişken yol gösterir, profil sayfasını boğmaz.
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 16),
-      child: Material(
-        color: palette.card,
-        borderRadius: BorderRadius.circular(16),
-        child: Container(
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: palette.border),
-            boxShadow: AppTheme.softShadow,
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Row(
-                children: [
-                  Icon(
-                    Icons.storefront_rounded,
-                    color: palette.primary,
-                    size: 22,
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Vitrinim',
-                          style: theme.textTheme.titleSmall?.copyWith(
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                        Text(
-                          shopSubtitle,
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: palette.inkMuted,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: () =>
-                          context.push(RoutePaths.artisanProfile(user.uid)),
-                      icon: const Icon(Icons.visibility_outlined, size: 18),
-                      label: const Text('Görüntüle'),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: FilledButton.icon(
-                      onPressed: () => context.push(RoutePaths.panelEdit),
-                      icon: const Icon(Icons.edit_outlined, size: 18),
-                      label: const Text('Düzenle'),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// "Müsaitlik" satırı — switch sağda; açmak Premium erişimi ister
-/// (beta'da herkese açık; yoksa Premium sayfasına yönlendirir).
-class _AvailabilityRow extends ConsumerWidget {
-  const _AvailabilityRow({required this.draft});
-  final MyProfileDraft? draft;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
     final profile = draft?.profile;
     final available = profile?.isAvailable ?? false;
 
@@ -890,24 +791,27 @@ class _AvailabilityRow extends ConsumerWidget {
       }
     }
 
-    return _MenuRow(
-      icon: available
-          ? Icons.check_circle_outline_rounded
-          : Icons.do_not_disturb_on_outlined,
-      iconColor: available
-          ? context.palette.success
-          : Theme.of(context).colorScheme.onSurfaceVariant,
-      iconSurface: available
-          ? context.palette.successSurface
-          : Theme.of(context).colorScheme.surfaceContainer,
-      title: available ? 'Müsaitsin' : 'Şu an kapalısın',
-      subtitle: available
-          ? 'Müşteriler seni "müsait" olarak görüyor'
-          : 'Aç: müşteri aramalarında görün',
-      trailing: Switch(
-        value: available,
-        onChanged: profile == null ? null : onChanged,
-      ),
+    return Row(
+      children: [
+        // Kompakt: varsayılan Switch 48px dokunma alanı satırı şişiriyor.
+        SizedBox(
+          height: 28,
+          child: Switch(
+            value: available,
+            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            onChanged: profile == null ? null : onChanged,
+          ),
+        ),
+        const SizedBox(width: 8),
+        Text(
+          'Müsait',
+          style: theme.textTheme.bodyMedium?.copyWith(
+            fontWeight: FontWeight.w700,
+            // Kapalıyken PASİF görünür (kullanıcı isteği): renk sönükleşir.
+            color: available ? palette.ink : palette.inkMuted,
+          ),
+        ),
+      ],
     );
   }
 }

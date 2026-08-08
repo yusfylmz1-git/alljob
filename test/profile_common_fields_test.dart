@@ -237,4 +237,58 @@ void main() {
       expect(rules.contains("'phoneNumber'"), isTrue);
     });
   });
+
+  group('Profil sadeleştirme (2026-08-08)', () {
+    late String profil;
+    late String form;
+    setUpAll(() {
+      profil = read('lib/features/profile/presentation/profile_screen.dart');
+      form = read(
+          'lib/features/artisan/presentation/artisan_profile_edit_screen.dart');
+    });
+
+    test('"Vitrinim" kartı KALKTI', () {
+      // Görüntüle/Düzenle düğmeleri başlıktaki ikiliyle mükerrerdi.
+      // Yorumda "eskiden şöyleydi" diye geçebilir; aranan KOD izi.
+      expect(profil.contains('_ShopVitrineCard('), isFalse);
+      expect(profil.contains("Text(\n                          'Vitrinim'"),
+          isFalse);
+      expect(profil.contains('_ArtisanHome('), isFalse);
+    });
+
+    test('müsaitlik SADE anahtar ve "Profilime bak" ÜSTÜNDE', () {
+      expect(profil.contains('_AvailabilitySwitch'), isTrue);
+      expect(profil.indexOf('_AvailabilitySwitch(draft: draft)'),
+          lessThan(profil.indexOf("label: 'Profilime bak'")));
+    });
+
+    test('anahtarın yanında yalnız "Müsait" yazıyor', () {
+      final i = profil.indexOf('class _AvailabilitySwitch');
+      final blok = profil.substring(i, i + 2600);
+      expect(blok.contains("'Müsait'"), isTrue);
+      // Eski uzun metinler gitti.
+      expect(blok.contains('Şu an kapalısın'), isFalse);
+      expect(blok.contains('Aç: müşteri aramalarında görün'), isFalse);
+    });
+
+    test('kapalıyken PASİF görünüyor (sönük renk)', () {
+      final i = profil.indexOf('class _AvailabilitySwitch');
+      final blok = profil.substring(i, i + 2600);
+      expect(blok.contains('available ? palette.ink : palette.inkMuted'),
+          isTrue);
+    });
+
+    test('vitrin tamamlama bandı düzenleme formunda YOK', () {
+      // Kullanıcı zaten formun içinde; hangi alanın boş olduğunu görüyor.
+      expect(form.contains('_CompletionHint'), isFalse);
+      expect(form.contains('ShopCompletionBanner'), isFalse);
+    });
+
+    test('bant ilan listesinde DURUYOR (oradaki işlevi gerçek)', () {
+      // Usta ilanları göremediğinde sebebini orada açıklıyor.
+      final nearby =
+          read('lib/features/jobs/presentation/nearby_jobs_screen.dart');
+      expect(nearby.contains('ShopCompletionBanner('), isTrue);
+    });
+  });
 }
