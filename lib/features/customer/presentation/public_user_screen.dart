@@ -13,6 +13,8 @@ import '../../auth/application/auth_controller.dart';
 import '../../chat/data/chat_providers.dart';
 import '../../favorites/data/favorite_providers.dart';
 import '../../favorites/presentation/favorite_button.dart';
+import '../../review/data/review_repository.dart';
+import '../../review/presentation/widgets/review_cta.dart';
 
 /// Genel kullanıcı profili (`/u/:uid`) — usta vitrini OLMAYAN kişiler için.
 ///
@@ -78,6 +80,8 @@ class _Body extends ConsumerWidget {
         ref.watch(favoritesProvider(user.uid)).valueOrNull?.length;
     final followsMe =
         ref.watch(isFollowedByProvider(user.uid)).valueOrNull ?? false;
+    final reviews =
+        ref.watch(reviewsForUserProvider(user.uid)).valueOrNull ?? const [];
 
     final name = user.displayName.trim();
     final initials = name.isEmpty ? '?' : name.substring(0, 1).toUpperCase();
@@ -216,9 +220,12 @@ class _Body extends ConsumerWidget {
                         label: 'takipçi',
                         onTap: () => context.push(RoutePaths.followers),
                       ),
+                      // "tamamlanan" DEĞİL "değerlendirme" (2026-08-08):
+                      // iş akışı kalktı, tamamlanan iş sayacı artık hiç
+                      // artmıyor — profilde donmuş bir 0 duruyordu.
                       _Stat(
-                        value: '${user.completedJobsAsCustomer}',
-                        label: 'tamamlanan',
+                        value: '${reviews.length}',
+                        label: 'değerlendirme',
                       ),
                     ],
                   ),
@@ -241,6 +248,19 @@ class _Body extends ConsumerWidget {
               ),
             ),
           ),
+
+        // Değerlendirme bloğu — usta profiliyle AYNI (2026-08-08).
+        // Müşteri profili de puan alır ve puanı herkese görünür.
+        ResponsiveCenter(
+          maxWidth: 760,
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+          child: ReviewCta(targetUid: user.uid),
+        ),
+        ResponsiveCenter(
+          maxWidth: 760,
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+          child: ReviewList(targetUid: user.uid),
+        ),
 
         // Usta olmayan kullanıcıda gösterilecek vitrin yok — sade kalır.
         ResponsiveCenter(

@@ -54,14 +54,13 @@ void main() {
       expect(mock.contains(r"'${base}__$jobId'"), isFalse);
     });
 
-    test('değerlendirme kişi bazlı sohbeti hedefliyor', () {
+    test('değerlendirme sohbete HİÇ bağlı değil', () {
+      // 2026-08-08: değerlendirme kimliği kişi çiftinden türüyor
+      // (rev_{yazan}__{hedef}); sohbet/ilan bağımlılığı tamamen kalktı.
       final review =
           read('lib/features/review/presentation/review_screen.dart');
-      expect(
-        review.contains(
-            'FirebaseChatRepository.chatIdFor(customerUid, widget.artisanUid)'),
-        isTrue,
-      );
+      expect(review.contains('chatIdFor'), isFalse);
+      expect(review.contains('FirebaseChatRepository'), isFalse);
     });
   });
 }

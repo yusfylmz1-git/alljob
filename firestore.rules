@@ -64,7 +64,8 @@ service cloud.firestore {
       // (suspended/suspendedAt) — yalnız CF yazar; kullanıcı kendini açamaz.
       // email/fcmTokens: create'te yasak; update'te yalnız SİLME (legacy temizlik).
       //
-      // MÜŞTERİ SAYAÇLARI (completedJobsAsCustomer, reviewCountAsCustomer):
+      // MÜŞTERİ SAYAÇLARI (completedJobsAsCustomer, reviewCountAsCustomer,
+      // ratingAsCustomer):
       // profil sadeleştirmesiyle herkese açık dokümana taşındı; yalnız CF
       // yazar (onJobWritten / onReviewWritten). İstemci yazabilseydi kendi
       // "tamamlanan iş" sayısını şişirirdi (CLAUDE.md kural 3).
@@ -72,7 +73,8 @@ service cloud.firestore {
         let changed = request.resource.data.diff(resource.data).affectedKeys();
         return !changed.hasAny(['phoneNumber', 'suspended', 'suspendedAt',
                                 'completedJobsAsCustomer',
-                                'reviewCountAsCustomer'])
+                                'reviewCountAsCustomer',
+                                'ratingAsCustomer'])
           && (!changed.hasAny(['email'])
               || !('email' in request.resource.data))
           && (!changed.hasAny(['fcmTokens'])
@@ -95,7 +97,8 @@ service cloud.firestore {
               .hasAny(['phoneNumber', 'suspended', 'suspendedAt',
                        'email', 'fcmTokens',
                        // Sayaçlar sıfırdan başlar; CF yazar (kural 3).
-                       'completedJobsAsCustomer', 'reviewCountAsCustomer'])
+                       'completedJobsAsCustomer', 'reviewCountAsCustomer',
+                       'ratingAsCustomer'])
         && phoneClaimOkFor('phoneVerified')
         && displayNameOk();
       allow update: if isSelf(uid)
@@ -487,40 +490,39 @@ service cloud.firestore {
     //  - Kendini değerlendirmek yasak; puan 1..5 tam sayı.
     // delete kapalı → `onReviewWritten` CF toplamları delta ile güvenle tutar.
     match /reviews/{reviewId} {
-      // ÇİFT YÖNLÜ: iş bitince iki taraf da puan verir.
-      //   {chatId}        → müşteri→usta (c2a; eski kayıtlarla aynı kimlik)
-      //   {chatId}__a2c   → usta→müşteri
-      // Kural chatId'yi kimlikten türetir: a2c ekini soyar.
+      // KİŞİ BAZLI (2026-08-08): herkes herkesi değerlendirebilir.
+      //
+      // Kimlik `rev_{yazan}__{hedef}` — ÇİFTE çakılı. "Bir kişiye bir
+      // değerlendirme" kısıtını kimliğin kendisi taşır: ikinci yazım aynı
+      // dokümana düşer, yani create değil update olur ve update kuralı
+      // yalnız YAZANA izin verir. Ayrı bir "daha önce yazmış mı" sorgusu
+      // gerekmez.
+      //
+      // ESKİ `chat_*` kimlikli kayıtlar okunmaya devam eder; aşağıdaki
+      // create kalıbı yalnız YENİ yazımları bağlar.
+      //
+      // ⚠️ KALDIRILAN KOŞUL: eskiden "iş tamamlanmış olmalı" (job.status in
+      // ['completed','rated']) şartı vardı. İş akışı kaldırılınca hiçbir ilan
+      // o duruma geçmez oldu → değerlendirme fiilen KİLİTLENMİŞTİ.
       function isA2C() {
         return request.resource.data.get('direction', 'c2a') == 'a2c';
       }
-      function reviewChatId() {
-        return isA2C() ? reviewId.split('__a2c')[0] : reviewId;
-      }
-      // Tamamlanmış iş: iki yön için de aynı iş dokümanı doğrulanır, yalnız
-      // "yazan taraf" farklıdır (c2a → müşteri, a2c → seçilen usta).
-      //
-      // ⚠️ `let` bağlaması `return` DEĞERLENDİRİLMEDEN ÖNCE çalışır. `get()`
-      // burada `let` ile alınırsa, jobId eksik/geçersizken kural motoru
-      // HATAYA DÜŞER ve `is string` / `exists` korumaları hiç devreye girmez
-      // → tamamlanmış işte bile create reddedilirdi. Bu yüzden `get()` doğrudan
-      // koşul zincirinin İÇİNDE, guard'lardan SONRA çağrılıyor.
-      function reviewJobOk() {
-        let job = get(/databases/$(database)/documents/jobs/$(request.resource.data.jobId)).data;
-        return job.customerId == request.resource.data.customerUID
-          && job.selectedArtisanId == request.resource.data.artisanUID
-          && job.status in ['completed', 'rated'];
-      }
-      function reviewUnlockedByCompletedJob() {
-        return request.resource.data.get('jobId', null) is string
-          && exists(/databases/$(database)/documents/jobs/$(request.resource.data.jobId))
-          && reviewJobOk();
-      }
-      // Yazan taraf, yöne göre doğru kişi mi?
+      // Yazan taraf, yöne göre doğru alanda mı?
       function reviewAuthorOk() {
         return isA2C()
           ? request.resource.data.artisanUID == request.auth.uid
           : request.resource.data.customerUID == request.auth.uid;
+      }
+      // Hedef = yazanın KARŞISINDAKİ alan.
+      function reviewTargetUid() {
+        return isA2C()
+          ? request.resource.data.customerUID
+          : request.resource.data.artisanUID;
+      }
+      // Kimlik, yazan+hedef çiftine ÇAKILI: başkasının adına ya da rastgele
+      // bir kimlikle değerlendirme yazılamaz.
+      function reviewIdOk() {
+        return reviewId == 'rev_' + request.auth.uid + '__' + reviewTargetUid();
       }
       // H5: herkes okur; gizlenenler istemcide elenir (alan bazlı filter yok).
       // Admin gizleme bayrağını okuyabilir; istemci hiddenByAdmin==true olanı göstermez.
@@ -531,19 +533,10 @@ service cloud.firestore {
         && request.resource.data.artisanUID is string
         && request.resource.data.customerUID != request.resource.data.artisanUID
         && reviewAuthorOk()
-        // Kimlik, sohbetin taraflarına ÇAKILI: rastgele kimlikle sahte
-        // değerlendirme yazılamaz. İlan bazlı sohbetlerde kimlik ilan
-        // numarasını da taşır → aynı çift her iş için ayrı puan verebilir.
-        && reviewChatId().matches('^chat_' + request.resource.data.customerUID
-            + '__' + request.resource.data.artisanUID + '($|__.*)')
-        && exists(/databases/$(database)/documents/chats/$(reviewChatId()))
+        && reviewIdOk()
         && request.resource.data.rating is int
         && request.resource.data.rating >= 1
-        && request.resource.data.rating <= 5
-        // TEK KOŞUL: iş tamamlanmış olmalı. "24 saat sohbet yaşı" yolu
-        // KALDIRILDI — istemci de artık yalnız tamamlanmış işte değerlendirme
-        // açıyor, iki tarafta da tek ve anlaşılır bir kural olsun.
-        && reviewUnlockedByCompletedJob();
+        && request.resource.data.rating <= 5;
       // Güncelleme: YALNIZ değerlendirmeyi YAZAN taraf (yöne göre müşteri ya
       // da usta); kimlik alanları (customerUID/artisanUID/chatId/direction)
       // değiştirilemez, puan yine 1..5 int.

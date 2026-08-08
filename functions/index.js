@@ -566,11 +566,20 @@ exports.onReviewWritten = onDocumentWritten(
           await snap.ref.set(
               {averageRating: n > 0 ? s / n : 0}, {merge: true});
 
-          // Herkese açık ADET (puan değil) — müşteri profilindeki sayaç.
-          // `n` private toplamdan okunur; increment yerine MUTLAK değer
+          // Herkese açık ADET + ORTALAMA (2026-08-08).
+          //
+          // Eskiden yalnız adet herkese açıktı, puanın kendisi private'ta
+          // kalıyordu: müşteri profili "vitrin değil" sayılıyor, düşük
+          // puanlı müşterinin damgalanmaması isteniyordu. Artık her profil
+          // aynı dili konuşuyor — usta da müşteri de aldığı puanı gösteriyor.
+          //
+          // `n`/`s` private toplamdan okunur; increment yerine MUTLAK değer
           // yazılır ki iki kayıt drift edemesin.
           await db.collection("users").doc(customerUid)
-              .set({reviewCountAsCustomer: n}, {merge: true});
+              .set({
+                reviewCountAsCustomer: n,
+                ratingAsCustomer: n > 0 ? s / n : 0,
+              }, {merge: true});
 
           logger.info(`customer rating updated for ${customerUid} ` +
             `(count ${countDelta}, sum ${sumDelta}, public ${n})`);

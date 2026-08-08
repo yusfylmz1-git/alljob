@@ -58,8 +58,12 @@ class RoutePaths {
 
   // Değerlendirme (oturum açmış müşteri)
   static const String reviewBase = '/review';
-  static String review(String artisanUid, {String? jobId}) =>
-      '/review/$artisanUid${jobId != null ? '?jobId=$jobId' : ''}';
+
+  /// Değerlendirme ekranı — [targetUid] puanı ALAN kişi (usta ya da müşteri).
+  ///
+  /// `jobId` parametresi KALDIRILDI: değerlendirme ilana değil KİŞİYE bağlı,
+  /// bir kişiye bir değerlendirme yazılır (ikincisi günceller).
+  static String review(String targetUid) => '/review/$targetUid';
 
   // İş ilanları (çift taraflı pazaryeri)
   static const String jobsBase = '/jobs';

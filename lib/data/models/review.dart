@@ -28,16 +28,17 @@ class ReviewTags {
   static bool isNegative(String tag) => negative.contains(tag);
 }
 
-/// Değerlendirmenin yönü — iş bitince İKİ TARAF da puan verir.
+/// Değerlendirmenin yönü.
+///
+/// Yön artık yalnızca "kim kimi puanladı" bilgisidir; GÖRÜNÜRLÜK ayrımı
+/// yapmaz — 2026-08-08'den beri müşteri profilinde de puan herkese açıktır.
 enum ReviewDirection {
-  /// Müşteri → usta (usta profilinde herkese açık puan).
+  /// Müşteri → usta.
   customerToArtisan,
 
-  /// Usta → müşteri. Puan YALNIZ USTALARA görünür: müşteri profili vitrin
-  /// değildir, düşük puanlı müşterinin hizmet alamaz hale gelmesi istenmez.
+  /// Usta → müşteri.
   artisanToCustomer;
 
-  /// Doküman kimliği eki: `{chatId}__c2a` / `{chatId}__a2c`.
   String get suffix => switch (this) {
         ReviewDirection.customerToArtisan => 'c2a',
         ReviewDirection.artisanToCustomer => 'a2c',
@@ -52,9 +53,30 @@ enum ReviewDirection {
 
   /// `reviews` doküman kimliği. Eski (yönsüz) kayıtlar düz `chatId` taşır;
   /// onlar [customerToArtisan] sayılır.
+  ///
+  /// YENİ kayıtlar bunu kullanmaz — bkz. [reviewDocId].
   static String docIdFor(String chatId, ReviewDirection dir) =>
       dir == customerToArtisan ? chatId : '${chatId}__${dir.suffix}';
 }
+
+/// Bir değerlendirmenin doküman kimliği — KİŞİ ÇİFTİNE bağlı (2026-08-08).
+///
+/// `rev_{yazan}__{hedef}`
+///
+/// Kimlik deterministik olduğu için **bir kişi bir kişiyi yalnızca bir kez**
+/// değerlendirebilir: ikinci gönderim aynı dokümanın üzerine yazar, yani
+/// otomatik olarak GÜNCELLEME olur. Sunucu tarafında ayrıca bir "daha önce
+/// yazmış mı" sorgusu gerekmez; kimliğin kendisi kısıtı taşır.
+///
+/// Eskiden kimlik `chatId` tabanlıydı ve sohbet ilan bazlı olduğu için aynı
+/// çift her iş için ayrı puan verebiliyordu. Sohbet kişi bazlına dönünce
+/// (bkz. `FirebaseChatRepository.chatIdFor`) o dayanak kalktı; kimlik artık
+/// doğrudan çifti anlatıyor.
+///
+/// ESKİ `chat_*` kimlikli kayıtlar Firestore'da durmaya devam eder ve
+/// okunur — yalnız yeni yazımlar bu biçimi alır.
+String reviewDocId({required String authorUid, required String targetUid}) =>
+    'rev_${authorUid}__$targetUid';
 
 /// `reviews` koleksiyonundaki değerlendirme dökümanı (PRD Ekran H, §3).
 /// Yalnızca 1–5 yıldız + hazır olumlu/olumsuz etiketler içerir (serbest metin yok).
@@ -82,6 +104,13 @@ class Review {
 
   /// Kimin kimi puanladığı. Eski kayıtlarda alan yoktur → müşteri→usta.
   final ReviewDirection direction;
+
+  /// Yazanın görünen adı — YÖNDEN BAĞIMSIZ.
+  ///
+  /// Alan adı (`customerDisplayName`) şemadan miras: a2c kayıtlarında bile
+  /// kaydı YAZAN tarafın adını taşır. Yeniden adlandırmak veri göçüdür
+  /// (CLAUDE.md kural 6), o yüzden anlamı burada okunur kılınıyor.
+  String get authorDisplayName => customerDisplayName;
 
   /// Puanı ALAN taraf.
   String get targetUid => direction == ReviewDirection.customerToArtisan

@@ -6,22 +6,28 @@ import '../../../core/theme/app_palette.dart';
 import '../../../core/utils/snackbar_helper.dart';
 import '../../../core/widgets/app_button.dart';
 import '../../../core/widgets/responsive_center.dart';
-import '../../../data/models/job.dart';
 import '../../../data/models/review.dart';
 import '../../artisan/data/artisan_providers.dart';
 import '../../auth/application/auth_controller.dart';
-import '../../chat/data/firebase_chat_repository.dart';
-import '../../jobs/data/job_providers.dart';
 import '../data/review_repository.dart';
 
-/// Ekran F — İş Sonu Değerlendirme. 1–5 yıldız + hazır etiketler.
-/// Serbest metin yorum yoktur (PRD §3).
+/// Değerlendirme ekranı — KİŞİ BAZLI (2026-08-08).
+///
+/// Herkes herkesi değerlendirebilir: müşteri ustayı, usta müşteriyi. Profil
+/// sayfasındaki "Değerlendir" düğmesi doğrudan buraya gelir.
+///
+/// **Bir kişiye bir değerlendirme.** Doküman kimliği `rev_{yazan}__{hedef}`
+/// olduğu için ikinci gönderim yeni kayıt açmaz, mevcut kaydı GÜNCELLER;
+/// ekran bunu dilinde de gösterir ("Değerlendirmeyi Güncelle").
+///
+/// Eskiden ekran ilana bağlıydı ve yalnız iş `completed` olunca açılıyordu.
+/// İş akışı kaldırılınca (2026-08-08) o koşul hiç sağlanmaz oldu — yani
+/// değerlendirme fiilen kilitliydi. İlan bağımlılığı tamamen kalktı.
 class ReviewScreen extends ConsumerStatefulWidget {
-  const ReviewScreen({super.key, required this.artisanUid, this.jobId});
-  final String artisanUid;
+  const ReviewScreen({super.key, required this.targetUid});
 
-  /// İlan üzerinden geliniyorsa: değerlendirme sonrası ilan `rated` olur (#4).
-  final String? jobId;
+  /// Puanı ALACAK kişi. Usta da olabilir müşteri de — ekran ayrım yapmaz.
+  final String targetUid;
 
   @override
   ConsumerState<ReviewScreen> createState() => _ReviewScreenState();
@@ -30,79 +36,52 @@ class ReviewScreen extends ConsumerStatefulWidget {
 class _ReviewScreenState extends ConsumerState<ReviewScreen> {
   int _rating = 0;
   final Set<String> _tags = {};
-
-  /// Bu ekranı açan kullanıcı USTA mı? Öyleyse değerlendirme yönü tersine
-  /// döner: usta müşteriyi puanlar (a2c).
-  bool get _iAmArtisan =>
-      ref.read(currentUserProvider)?.uid == widget.artisanUid;
-
-  ReviewDirection get _direction => _iAmArtisan
-      ? ReviewDirection.artisanToCustomer
-      : ReviewDirection.customerToArtisan;
-
-  /// Değerlendirilen sohbetin kimliği — KİŞİ BAZLI (2026-08-08).
-  ///
-  /// `chat_{müşteri}__{usta}`, HER İKİ YÖNDE de aynı. Usta değerlendirirken
-  /// müşterinin uid'i ilandan gelir.
-  ///
-  /// Eskiden ilan bazlıydı; artık bir çiftin tek sohbeti olduğu için
-  /// [widget.jobId] kimliğe girmez — yalnızca değerlendirmenin hangi iş için
-  /// yazıldığını kaydetmekte kullanılır.
-  String _chatIdFor({required String customerUid}) =>
-      FirebaseChatRepository.chatIdFor(customerUid, widget.artisanUid);
-
-  /// Sohbetin müşteri tarafı — İLANDAN okunur (tek kaynak).
-  ///
-  /// Eskiden usta tarafında `ref.read` ile okunuyordu ve stream ilk değerini
-  /// yaymadan çağrıldığı için null dönüyordu; ekran "önce sohbet gerekiyor"
-  /// deyip kullanıcıyı geri çeviriyordu. Artık `build` içinde `watch` edilen
-  /// ilandan geçiliyor, yarış yok.
-  String? _customerUidFrom(Job? job) => job?.customerId;
-
-  void _toggle(String tag) => setState(() {
-        if (!_tags.remove(tag)) _tags.add(tag);
-      });
-
   bool _sending = false;
 
-  /// Bu taraf daha önce değerlendirdiyse true: form ön-dolu gelir ve gönderim
-  /// mevcut kaydı GÜNCELLER.
+  /// Bu kişiyi daha önce değerlendirdiysem true: form ön-dolu gelir ve
+  /// gönderim mevcut kaydı günceller.
   bool _isUpdate = false;
+
+  /// Ön-dolgu denemesi bitti mi? Bitmeden form çizilirse kullanıcı boş yıldız
+  /// görür, sonra değerler altından değişir.
+  bool _yuklendi = false;
 
   @override
   void initState() {
     super.initState();
-    _loadExisting();
+    _mevcuduYukle();
   }
 
-  /// Mevcut değerlendirmeyi yükler (ön-dolgu).
-  ///
-  /// İlanı `future` ile BEKLER — `valueOrNull` ile okumak stream'in ilk
-  /// değerinden önce null döndürüyordu ve "daha önce değerlendirmiştim" hâli
-  /// kaçıyordu.
-  Future<void> _loadExisting() async {
-    if (widget.jobId == null) return;
+  Future<void> _mevcuduYukle() async {
+    final me = ref.read(currentUserProvider)?.uid;
+    if (me == null) {
+      if (mounted) setState(() => _yuklendi = true);
+      return;
+    }
     try {
-      final job = await ref.read(jobProvider(widget.jobId!).future);
-      final customerUid = _customerUidFrom(job);
-      if (customerUid == null || !mounted) return;
-      final existing = await ref.read(reviewRepositoryProvider).getMyReview(
-            customerUid: customerUid,
-            artisanUid: widget.artisanUid,
-            chatId: _chatIdFor(customerUid: customerUid),
-            direction: _direction,
+      final mevcut = await ref.read(reviewRepositoryProvider).getMyReview(
+            authorUid: me,
+            targetUid: widget.targetUid,
           );
       if (!mounted) return;
-      if (existing == null) return;
       setState(() {
+        _yuklendi = true;
+        if (mevcut == null) return;
         _isUpdate = true;
-        _rating = existing.rating;
+        _rating = mevcut.rating;
         _tags
           ..clear()
-          ..addAll(existing.tags);
+          ..addAll(mevcut.tags);
       });
-    } catch (_) {/* ön-dolgu kritik değil; form boş kalır */}
+    } catch (_) {
+      // Ön-dolgu kritik değil; form boş kalır ama ekran yine de açılır.
+      if (mounted) setState(() => _yuklendi = true);
+    }
   }
+
+  void _toggle(String tag) => setState(() {
+        if (!_tags.remove(tag)) _tags.add(tag);
+      });
 
   Future<void> _submit() async {
     if (_rating == 0) {
@@ -114,29 +93,21 @@ class _ReviewScreenState extends ConsumerState<ReviewScreen> {
 
     setState(() => _sending = true);
     try {
-      // İlanı BEKLE: müşteri uid'i tek kaynak olarak ilandan gelir.
-      final job = widget.jobId == null
-          ? null
-          : await ref.read(jobProvider(widget.jobId!).future);
-      final customerUid = _customerUidFrom(job);
-      if (customerUid == null) {
-        if (!mounted) return;
-        setState(() => _sending = false);
-        context.showError('Değerlendirme başlatılamadı, tekrar deneyin.');
-        return;
-      }
-      if (!mounted) return;
+      // Yön yalnız "kim kimi puanladı" bilgisidir; GÖRÜNÜRLÜĞÜ etkilemez.
+      // Hedefin usta profili varsa müşteri→usta, yoksa usta→müşteri sayılır.
+      final hedefUsta = await ref
+          .read(artisanDetailProvider(widget.targetUid).future)
+          .then<bool>((v) => v != null, onError: (_) => false);
+
       await ref.read(reviewRepositoryProvider).addReview(
-            artisanUid: widget.artisanUid,
-            customerUid: customerUid,
-            // a2c'de "customerDisplayName" alanı YAZAN ustanın adını taşır
-            // (kayıt sahibi kim ise onun görünen adı).
-            customerName: user.displayName,
-            chatId: _chatIdFor(customerUid: customerUid),
+            authorUid: user.uid,
+            targetUid: widget.targetUid,
+            authorName: user.displayName,
             rating: _rating,
             tags: _tags.toList(),
-            jobId: widget.jobId,
-            direction: _direction,
+            direction: hedefUsta
+                ? ReviewDirection.customerToArtisan
+                : ReviewDirection.artisanToCustomer,
           );
     } catch (_) {
       if (mounted) {
@@ -145,17 +116,14 @@ class _ReviewScreenState extends ConsumerState<ReviewScreen> {
       }
       return;
     }
-    // İlan üzerinden gelindiyse ilanı "değerlendirildi" olarak işaretle (#4).
-    if (widget.jobId != null) {
-      try {
-        await ref.read(jobRepositoryProvider).markRated(widget.jobId!);
-      } catch (_) {/* değerlendirme yazıldı; ilan işaretlemesi kritik değil */}
-    }
     if (!mounted) return;
 
-    // Profil ekranı ve usta paneli yeni puanı göstersin.
-    ref.invalidate(artisanDetailProvider(widget.artisanUid));
-    ref.invalidate(artisanReviewsProvider(widget.artisanUid));
+    // Hedefin profili ve listeleri yeni puanı göstersin.
+    ref.invalidate(artisanDetailProvider(widget.targetUid));
+    ref.invalidate(artisanReviewsProvider(widget.targetUid));
+    ref.invalidate(reviewsForUserProvider(widget.targetUid));
+    ref.invalidate(myReviewForProvider(
+        (authorUid: user.uid, targetUid: widget.targetUid)));
 
     context.showSuccess(_isUpdate
         ? 'Değerlendirmeniz güncellendi.'
@@ -168,72 +136,35 @@ class _ReviewScreenState extends ConsumerState<ReviewScreen> {
     final theme = Theme.of(context);
     final user = ref.watch(currentUserProvider);
 
-    // TEK KOŞUL: iş tamamlandıysa iki taraf da değerlendirir.
-    //
-    // Önceden üç ayrı async kontrol vardı (sohbet var mı + 24 saat sohbet yaşı
-    // + mevcut kayıt) ve her biri kendi yarış durumunu üretiyordu; sonuç
-    // kullanıcının çıkışsız "Önce sohbet gerekiyor" ekranında kalmasıydı.
-    // İlan zaten canlı izleniyor, ek kaynağa gerek yok.
-    final jobAsync =
-        widget.jobId != null ? ref.watch(jobProvider(widget.jobId!)) : null;
-    final job = jobAsync?.valueOrNull;
+    // Misafir yazamaz (kural: isSignedIn). Çıkışsız ekran bırakma.
+    if (user == null) {
+      return const _Bilgi(
+        icon: Icons.lock_outline_rounded,
+        baslik: 'Giriş gerekiyor',
+        metin: 'Değerlendirme yapabilmek için giriş yapmalısınız.',
+      );
+    }
 
-    // İlan yüklenene kadar karar verme.
-    if (widget.jobId != null && (jobAsync?.isLoading ?? false)) {
+    // Kendini değerlendirme (kural: customerUID != artisanUID).
+    if (user.uid == widget.targetUid) {
+      return const _Bilgi(
+        icon: Icons.person_outline_rounded,
+        baslik: 'Kendinizi değerlendiremezsiniz',
+        metin: 'Bu sayfa başka bir kullanıcıyı değerlendirmek içindir.',
+      );
+    }
+
+    if (!_yuklendi) {
       return Scaffold(
         appBar: AppBar(title: const Text('Değerlendir')),
         body: const Center(child: CircularProgressIndicator()),
       );
     }
 
-    final iAmParty = job != null &&
-        user != null &&
-        (job.customerId == user.uid || job.selectedArtisanId == user.uid);
-    final jobDone = job != null &&
-        (job.status == JobStatus.completed || job.status == JobStatus.rated);
-    // Güncelleme (mevcut kayıt) her zaman açık — puanını düzeltebilmeli.
-    final unlocked = _isUpdate ||
-        (iAmParty && jobDone && job.selectedArtisanId == widget.artisanUid);
-
-    if (!unlocked) {
-      return Scaffold(
-        appBar: AppBar(title: const Text('Değerlendir')),
-        body: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(32),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.schedule,
-                    size: 56, color: theme.colorScheme.onSurfaceVariant),
-                const SizedBox(height: 16),
-                Text('Değerlendirme henüz açılmadı',
-                    style: theme.textTheme.titleMedium),
-                const SizedBox(height: 8),
-                Text(
-                  'İş tamamlandıktan sonra siz ve karşı taraf birbirinizi '
-                  'değerlendirebilirsiniz.',
-                  textAlign: TextAlign.center,
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant),
-                ),
-                const SizedBox(height: 20),
-                // Çıkışsız ekran bırakma: kullanıcı buradan dönebilsin.
-                FilledButton.tonal(
-                  onPressed: () {
-                    if (context.canPop()) context.pop();
-                  },
-                  child: const Text('Geri dön'),
-                ),
-              ],
-            ),
-          ),
-        ),
-      );
-    }
-
     return Scaffold(
-      appBar: AppBar(title: const Text('Değerlendir')),
+      appBar: AppBar(
+        title: Text(_isUpdate ? 'Değerlendirmeyi Güncelle' : 'Değerlendir'),
+      ),
       body: ResponsiveCenter(
         maxWidth: 640,
         child: ListView(
@@ -253,8 +184,8 @@ class _ReviewScreenState extends ConsumerState<ReviewScreen> {
                     const SizedBox(width: 10),
                     Expanded(
                       child: Text(
-                        'Bu ustayı daha önce değerlendirdiniz. Gönderdiğinizde '
-                        'önceki değerlendirmeniz güncellenir.',
+                        'Bu kişiyi daha önce değerlendirdiniz. '
+                        'Gönderdiğinizde önceki değerlendirmeniz güncellenir.',
                         style: theme.textTheme.bodySmall?.copyWith(
                             color: context.palette.info,
                             fontWeight: FontWeight.w600),
@@ -265,7 +196,7 @@ class _ReviewScreenState extends ConsumerState<ReviewScreen> {
               ),
               const SizedBox(height: 16),
             ],
-            Text('İşi nasıl buldunuz?',
+            Text('Deneyimini nasıl buldun?',
                 style: theme.textTheme.titleMedium
                     ?.copyWith(fontWeight: FontWeight.w700)),
             const SizedBox(height: 12),
@@ -299,6 +230,54 @@ class _ReviewScreenState extends ConsumerState<ReviewScreen> {
               onPressed: _submit,
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Ekranın açılamadığı durumlar için ÇIKIŞI OLAN bilgi sayfası.
+class _Bilgi extends StatelessWidget {
+  const _Bilgi({
+    required this.icon,
+    required this.baslik,
+    required this.metin,
+  });
+
+  final IconData icon;
+  final String baslik;
+  final String metin;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Scaffold(
+      appBar: AppBar(title: const Text('Değerlendir')),
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 56, color: theme.colorScheme.onSurfaceVariant),
+              const SizedBox(height: 16),
+              Text(baslik, style: theme.textTheme.titleMedium),
+              const SizedBox(height: 8),
+              Text(
+                metin,
+                textAlign: TextAlign.center,
+                style: theme.textTheme.bodyMedium
+                    ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+              ),
+              const SizedBox(height: 20),
+              FilledButton.tonal(
+                onPressed: () {
+                  if (context.canPop()) context.pop();
+                },
+                child: const Text('Geri dön'),
+              ),
+            ],
+          ),
         ),
       ),
     );

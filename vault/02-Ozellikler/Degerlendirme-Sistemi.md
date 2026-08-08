@@ -1,37 +1,46 @@
 # Değerlendirme Sistemi
 
-Çift taraflı: iş tamamlanınca **müşteri ustayı**, **usta müşteriyi** puanlar.
+**KİŞİ BAZLI** (2026-08-08): herkes herkesi değerlendirebilir. Müşteri ustayı,
+usta müşteriyi. İlan ya da sohbet ön koşulu **yoktur**.
 
 Model: `lib/data/models/review.dart` · Ekran: `features/review/presentation/review_screen.dart`
+Ortak blok: `features/review/presentation/widgets/review_cta.dart`
+
+## Bir kişiye bir değerlendirme
+
+```
+reviews/rev_{yazan}__{hedef}
+```
+
+Kimlik çifte çakılıdır → aynı kişiye ikinci yazım **yeni kayıt açmaz, mevcut
+kaydın üzerine gider**. Kısıtı kimliğin kendisi taşır; "daha önce yazmış mı"
+diye sorgu gerekmez. Ekran da dilini buna göre kurar:
+"Değerlendir" ↔ "Değerlendirmeyi Güncelle".
+
+`reviewDocId(authorUid:, targetUid:)` üretir.
+
+> [!note] Eski kayıtlar
+> Kimlik önce `chatId` tabanlıydı (`{chatId}` / `{chatId}__a2c`). O kayıtlar
+> Firestore'da **durmaya devam eder ve okunur**; yalnız yeni yazımlar `rev_`
+> biçimini alır. `ReviewDirection.docIdFor` geriye uyum için duruyor.
 
 ## Yön (`ReviewDirection`)
 
-| Yön | Ek | Anlamı | Görünürlük |
-|---|---|---|---|
-| `customerToArtisan` | `c2a` | Müşteri → usta | **Herkese açık** — usta profilinde |
-| `artisanToCustomer` | `a2c` | Usta → müşteri | **Yalnız ustalara** |
+| Yön | Ek | Anlamı |
+|---|---|---|
+| `customerToArtisan` | `c2a` | Müşteri → usta |
+| `artisanToCustomer` | `a2c` | Usta → müşteri |
 
-> [!important] Neden a2c gizli?
-> Müşteri profili bir vitrin değildir. Düşük puanlı müşterinin hizmet alamaz
-> hale gelmesi istenmiyor — puan ustalara bir sinyal, müşteriye bir damga
-> değil.
+Yön artık **yalnızca "kim kimi puanladı"** bilgisidir; görünürlük ayrımı
+YAPMAZ. Hangi alana hangi uid'in yazılacağını belirler (`artisanUID` /
+`customerUID` şemadan miras).
 
-## Doküman kimliği
-
-```
-reviews/{chatId}          → c2a (eski, yönsüz kayıtlarla aynı biçim)
-reviews/{chatId}__a2c     → a2c
-```
-
-`ReviewDirection.docIdFor(chatId, dir)` üretir.
-
-> [!note] Geriye uyumluluk
-> Çift yönlü şemadan önce yalnız müşteri→usta vardı ve kimlik düz `chatId`'ydi.
-> `fromString(null)` → `customerToArtisan`, yani **alan eksikse eski kayıt**
-> sayılır. Bu yüzden c2a'ya ek verilmez.
-
-`chatId` ilan bazlıdır (`..__{jobId}`) → aynı çift her iş için ayrı puan
-verebilir. → [[Sohbet-Mimarisi]]
+> [!important] Görünürlük değişti
+> Eskiden a2c (müşteri puanı) **yalnız ustalara** görünürdü — "müşteri profili
+> vitrin değildir" gerekçesiyle. 2026-08-08'den beri **her profil aynı dili
+> konuşur**: müşteri de aldığı puanı herkese açık gösterir.
+> CF `ratingAsCustomer` + `reviewCountAsCustomer` alanlarını `users/{uid}`
+> altına yazar (ikisi de yalnız CF'e ait — kural 3).
 
 ## İçerik
 
@@ -40,62 +49,38 @@ verebilir. → [[Sohbet-Mimarisi]]
 
 ## Açılma koşulu
 
-`ReviewScreen` içinde:
+**YOK.** Giriş yapmış, askıya alınmamış herkes yazabilir. İki kısıt kalır:
+- kendini değerlendiremezsin (`customerUID != artisanUID`)
+- kimlik senin uid'inle başlamalı (`rev_{benim_uid}__{hedef}`)
 
-```dart
-final iAmParty = job.customerId == user.uid || job.selectedArtisanId == user.uid;
-final jobDone  = job.status == completed || job.status == rated;
-final unlocked = _isUpdate || (iAmParty && jobDone && job.selectedArtisanId == widget.artisanUid);
-```
-
-- **`_isUpdate` her zaman açar** — verilmiş puan düzeltilebilmeli
-- `rated` de kabul edilir: ilk taraf puan verince ilan `rated` olur; yalnız
-  `completed` aransaydı ikinci taraf değerlendirme yapamazdı
-
-## Rota tuzağı
-
-```
-/review/:uid?jobId=...
-```
-
-`uid` **her iki yönde de USTANIN uid'idir**. Ekran kendisi çözer:
-
-```dart
-bool get _iAmArtisan => currentUser.uid == widget.artisanUid;
-```
-
-`_iAmArtisan` ise yön `a2c`'ye döner ve hedef müşteri olur. Müşterinin uid'i
-**ilandan** okunur (`job.customerId`) — tek kaynak.
-
-> [!warning] Bu ekran iki kez kırıldı
-> 1. Müşteri uid'i `ref.read` ile sohbetten okunuyordu; stream ilk değerini
->    yaymadan `null` dönüyor, ekran "önce sohbet gerekiyor" deyip kullanıcıyı
->    geri çeviriyordu. → Artık `await ref.read(jobProvider(id).future)`.
-> 2. Sohbetteki "Değerlendir" düğmesi yanlış provider'a bağlıydı ve hiç
->    çizilmiyordu; kullanıcı ekrana ulaşamıyordu.
->
-> Ayrıntı: [[Bilinen-Tuzaklar]]
+> [!warning] Kaldırılan koşul
+> Kural eskiden `job.status in ['completed','rated']` istiyordu. İş akışı
+> kaldırılınca (2026-08-08) hiçbir ilan o duruma geçmez oldu → değerlendirme
+> **fiilen kilitlenmişti**. Kimse puan yazamıyordu.
 
 ## Giriş noktaları
 
-| Yer | Koşul |
+| Yer | Not |
 |---|---|
-| Sohbet — `_JobCompletionChatBar` | İş `completed` veya `rated` |
-| İlan detayı | `job_detail_screen.dart` |
+| Usta profili | `ReviewCta` — puan özeti + düğme |
+| Müşteri profili (`/u/:uid`) | `ReviewCta` + `ReviewList` |
+
+Rota: `/review/:uid` — `uid` puanı **ALAN** kişidir (usta ya da müşteri).
+`jobId` sorgu parametresi KALKTI.
 
 ## Gönderim sonrası
 
-1. `addReview(...)` — mevcut kayıt varsa **günceller** (form ön-dolu gelir)
-2. `markRated(jobId)` — ilan `rated` olur (kritik değil, hata yutulur)
-3. `ref.invalidate(artisanDetailProvider)` + `artisanReviewsProvider`
-4. CF `onReviewWritten` — ustanın ortalama puanını ve yorum sayısını yeniden
-   hesaplar (istemci ortalama yazmaz)
+1. `addReview(...)` — kimlik deterministik, varsa üzerine yazar
+2. `ref.invalidate` → `artisanDetailProvider` · `artisanReviewsProvider` ·
+   `reviewsForUserProvider` · `myReviewForProvider`
+3. CF `onReviewWritten` — ortalamayı ve sayıyı yeniden hesaplar
+   (istemci ortalama yazmaz — kural 3)
 
 ## Alan adı tuzağı
 
-a2c kayıtlarında `customerDisplayName` alanı **yazan ustanın** adını taşır —
-kayıt sahibinin görünen adıdır, hedefin değil. İsim şemadan miras; anlamı yöne
-göre değişir.
+`customerDisplayName` alanı **yazanın** adını taşır (a2c'de bile). İsim
+şemadan miras; `Review.authorDisplayName` getter'ı anlamı okunur kılar.
+Yeniden adlandırmak veri göçüdür (kural 6).
 
 ---
-İlgili: [[Is-Akisi-Durum-Makinesi]] · [[Sohbet-Mimarisi]] · [[Veri-Modelleri]]
+İlgili: [[Sohbet-Mimarisi]] · [[Veri-Modelleri]] · [[Guvenlik-Kurallari]]

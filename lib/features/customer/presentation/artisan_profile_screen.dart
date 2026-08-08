@@ -26,6 +26,7 @@ import '../../auth/presentation/email_verification_gate.dart';
 import '../../chat/data/chat_providers.dart';
 import '../../favorites/data/favorite_providers.dart';
 import '../../favorites/presentation/favorite_button.dart';
+import '../../review/presentation/widgets/review_cta.dart';
 
 /// Ekran D — Usta Profil Sayfası (salt okunur). Müşteri kartına dokununca açılır.
 /// E-posta asla gösterilmez. Telefon yalnız usta açık rıza verdiyse
@@ -273,6 +274,10 @@ class _ProfileBody extends ConsumerWidget {
                       const SizedBox(height: 14),
                     ],
 
+                    // Puan özeti + "Değerlendir" düğmesi. Her profilde aynı
+                    // blok durur (usta/müşteri ayrımı yok).
+                    ReviewCta(targetUid: detail.uid),
+                    const SizedBox(height: 12),
                     _ReviewsSection(reviews: detail.reviews),
                     const SizedBox(height: 12),
                   ],

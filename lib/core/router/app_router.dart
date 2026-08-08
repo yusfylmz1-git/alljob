@@ -287,11 +287,12 @@ final routerProvider = Provider<GoRouter>((ref) {
         ],
       ),
       GoRoute(
+        // :uid puanı ALAN kişidir — usta da olabilir müşteri de.
+        // jobId sorgu parametresi KALKTI: değerlendirme artık ilana değil
+        // kişiye bağlı (bkz. reviewDocId).
         path: '/review/:uid',
-        builder: (_, state) => ReviewScreen(
-          artisanUid: state.pathParameters['uid']!,
-          jobId: state.uri.queryParameters['jobId'],
-        ),
+        builder: (_, state) =>
+            ReviewScreen(targetUid: state.pathParameters['uid']!),
       ),
       // İş ilanları — sıralama önemli: /jobs/new ve /jobs/mine, /jobs/:jobId'den
       // ÖNCE tanımlanmalıdır (aksi halde :jobId onları da yakalar).
