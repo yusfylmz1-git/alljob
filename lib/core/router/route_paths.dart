@@ -113,10 +113,13 @@ class RoutePaths {
   // `/panel/notifications` eski bağlantılar için aynı ekrana gider.
   static const String notifications = '/notifications';
 
-  // Usta: yakındaki işler + iletişimler + premium + bildirimler
+  // Usta: yakındaki işler + premium
+  //
+  // panelNotifications ('/panel/notifications') KALDIRILDI: router'da
+  // karşılığı hiç tanımlanmamıştı, ona giden tek menü satırı kullanıcıyı
+  // hata sayfasına düşürüyordu. Bildirimler [notifications] yolunda.
   static const String panelJobs = '/panel/jobs';
   static const String panelPremium = '/panel/premium';
-  static const String panelNotifications = '/panel/notifications';
 
   /// Herkese açık usta profil sayfası yolu.
   static String artisanProfile(String uid) => '/artisan/$uid';

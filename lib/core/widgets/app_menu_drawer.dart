@@ -59,8 +59,11 @@ class DrawerMenuButton extends ConsumerWidget {
 ///
 /// İçerik duruma göre değişir:
 /// - Misafir: Google ile giriş.
-/// - Oturum açık: İş İlanı Ver, Takip Ettiklerim (+ usta modunda İlanlarım
-///   ve Bildirimler), Hesap Ayarları, Yardım, Görünüm, Çıkış.
+/// - Oturum açık: İş İlanı Ver (+ usta modunda İlanlarım), Hesap Ayarları,
+///   Yardım, Görünüm, Çıkış.
+///
+/// Takip ve bildirimler BURADA YOK: takip profildeki sayaçtan, bildirimler
+/// her ekranın sağ üstündeki zilden açılır.
 ///
 /// MOD GEÇİŞİ BURADA YOK: profildeki "Usta modu" anahtarından yapılır.
 /// İki ayrı yer olması hangi modda olunduğunu belirsizleştiriyordu (B-16).
@@ -224,26 +227,23 @@ class AppMenuDrawer extends ConsumerWidget {
             title: const Text('İş İlanı Ver'),
             onTap: () => _open(context, RoutePaths.newJob),
           ),
-          ListTile(
-            leading: const Icon(Icons.favorite_border),
-            title: const Text('Takip Ettiklerim'),
-            onTap: () => _open(context, RoutePaths.favorites),
-          ),
+          // "Takip Ettiklerim" ve "Bildirimler" satırları KALDIRILDI
+          // (2026-08-08): ikisinin de daha yakın girişi var — takip
+          // profildeki sayaçtan, bildirimler her ekranın sağ üstündeki
+          // zilden açılıyor. Menüde ikinci kez durmaları gereksizdi.
+          //
+          // Ayrıca "Bildirimler" satırı KIRIKTI: `/panel/notifications`
+          // rotası router'da hiç tanımlı değil, dokunan kullanıcı hata
+          // sayfasına düşüyordu.
 
           // Usta modülleri — yalnız anahtar açıkken.
-          if (user.isArtisan) ...[
+          if (user.isArtisan)
             ListTile(
               leading: const Icon(Icons.assignment_outlined),
               title: const Text('İlanlarım'),
               subtitle: const Text('Verdiğiniz hizmet ilanları'),
               onTap: () => _open(context, RoutePaths.myJobs),
             ),
-            ListTile(
-              leading: const Icon(Icons.notifications_none_rounded),
-              title: const Text('Bildirimler'),
-              onTap: () => _open(context, RoutePaths.panelNotifications),
-            ),
-          ],
 
           // Henüz usta profili yoksa dönüşüm çağrısı.
           if (!user.hasArtisanProfile) ...[
