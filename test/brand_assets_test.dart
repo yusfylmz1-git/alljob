@@ -9,23 +9,19 @@ import 'package:sepette_hizmet/core/widgets/brand_mark.dart';
 /// sessizce yedek ikona düşer, launcher ikonu ise üretim komutunda patlar.
 /// Bu yüzden dosya varlığı testle bağlanıyor.
 void main() {
-  group('BrandMark görselleri diskte var', () {
-    for (final v in BrandLogo.values) {
-      test('${v.name} → ${v.assetPath}', () {
-        expect(File(v.assetPath).existsSync(), isTrue,
-            reason: '${v.assetPath} yok — BrandMark yedek ikona düşer');
-      });
-    }
-
-    test('yan menü ayrı görsel kullanıyor', () {
-      final drawer = File('lib/core/widgets/app_menu_drawer.dart')
-          .readAsStringSync();
-      expect(drawer.contains('variant: BrandLogo.drawer'), isTrue);
+  group('BrandMark görseli diskte var', () {
+    test('logo.png duruyor', () {
+      expect(File(BrandMark.assetPath).existsSync(), isTrue,
+          reason: '${BrandMark.assetPath} yok — BrandMark yedek ikona düşer');
     });
 
-    test('her varyant FARKLI dosyaya bakıyor', () {
-      final yollar = BrandLogo.values.map((v) => v.assetPath).toSet();
-      expect(yollar.length, BrandLogo.values.length);
+    test('TEK görsel: yan menü de aynı logoyu kullanıyor', () {
+      // Bir süre ayrı bir yan_logo.png denendi, görünüm tutmadı.
+      // Çekmece başlığı tekrar ana logoya bağlı.
+      final drawer =
+          File('lib/core/widgets/app_menu_drawer.dart').readAsStringSync();
+      expect(drawer.contains('const BrandMark(size: 88)'), isTrue);
+      expect(drawer.contains('BrandLogo'), isFalse);
     });
   });
 

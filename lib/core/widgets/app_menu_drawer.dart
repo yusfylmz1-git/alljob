@@ -140,7 +140,7 @@ class AppMenuDrawer extends ConsumerWidget {
           ),
           child: Row(
             children: [
-              const BrandMark(size: 88, variant: BrandLogo.drawer),
+              const BrandMark(size: 88),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
