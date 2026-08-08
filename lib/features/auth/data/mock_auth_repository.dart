@@ -2,6 +2,7 @@ import 'dart:async';
 
 import '../../../core/utils/validators.dart';
 import '../../../data/models/app_user.dart';
+import '../../../data/models/social_links.dart';
 import '../../../data/models/user_role.dart';
 import '../../admin/data/admin_config.dart';
 import 'auth_repository.dart';
@@ -193,6 +194,9 @@ class MockAuthRepository implements AuthRepository {
   Future<void> updateUserProfile({
     String? displayName,
     String? profilePhotoUrl,
+    String? publicPhone,
+    SocialLinks? socialLinks,
+    String? aboutText,
   }) async {
     await _delay();
     final user = _current;
@@ -203,9 +207,15 @@ class MockAuthRepository implements AuthRepository {
       final nameErr = Validators.displayName(name);
       if (nameErr != null) throw AuthException(nameErr);
     }
+    // Firebase paritesi: boş dize = ALANI TEMİZLE (kural 1).
+    final t = publicPhone?.trim();
     final updated = user.copyWith(
       displayName: name,
       profilePhotoUrl: profilePhotoUrl,
+      publicPhone: (t == null || t.isEmpty) ? null : t,
+      clearPublicPhone: t != null && t.isEmpty,
+      socialLinks: socialLinks,
+      aboutText: aboutText?.trim(),
     );
     _store(updated);
     _emit(updated);

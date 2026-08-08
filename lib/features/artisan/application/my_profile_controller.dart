@@ -58,8 +58,25 @@ class MyProfileController extends AsyncNotifier<MyProfileDraft> {
       }
     }
     final user = ref.read(currentUserProvider);
-    final profile =
+    var profile =
         await ref.read(myProfileRepositoryProvider).getMyProfile(uid);
+
+    // ORTAK ALANLAR `users`'tan gelir (2026-08-08) — tek doğruluk kaynağı.
+    //
+    // Taslak hâlâ `ArtisanProfile` taşıyor (form onun üstünde çalışıyor), o
+    // yüzden değerler oraya KOPYALANIR. `users` boşsa usta kaydındaki ESKİ
+    // değer korunur: göç öncesi profiller ilk açılışta boş görünmesin.
+    if (user != null) {
+      profile = profile.copyWith(
+        publicPhone: user.publicPhone ?? profile.publicPhone,
+        socialLinks:
+            user.socialLinks.hasAny ? user.socialLinks : profile.socialLinks,
+        aboutText: user.aboutText.trim().isNotEmpty
+            ? user.aboutText
+            : profile.aboutText,
+      );
+    }
+
     return MyProfileDraft(
       displayName: user?.displayName ?? '',
       profilePhotoUrl: user?.profilePhotoUrl,
@@ -367,15 +384,29 @@ class MyProfileController extends AsyncNotifier<MyProfileDraft> {
     _lastSaveError = null;
     state = const AsyncLoading<MyProfileDraft>().copyWithPrevious(state);
     final result = await AsyncValue.guard(() async {
-      await ref.read(myProfileRepositoryProvider).saveMyProfile(
-            uid: sanitized.profile.uid,
-            displayName: sanitized.displayName,
-            profilePhotoUrl: sanitized.profilePhotoUrl,
-            profile: sanitized.profile,
-          );
+      // USTA VİTRİNİ — yalnız usta profili olanlarda. Müşteri modundaki
+      // kullanıcının artisanProfiles kaydı yoktur; yazmaya kalkmak kural
+      // ihlali üretirdi.
+      final ustaMi =
+          ref.read(currentUserProvider)?.hasArtisanProfile ?? false;
+      if (ustaMi) {
+        await ref.read(myProfileRepositoryProvider).saveMyProfile(
+              uid: sanitized.profile.uid,
+              displayName: sanitized.displayName,
+              profilePhotoUrl: sanitized.profilePhotoUrl,
+              profile: sanitized.profile,
+            );
+      }
+
+      // ORTAK ALANLAR — herkeste `users/{uid}` altına (2026-08-08).
+      // Tek doğruluk kaynağı burası; usta kaydındaki kopya artık
+      // güncellenmiyor, yalnız eski veriyi okumak için duruyor.
       await ref.read(authRepositoryProvider).updateUserProfile(
             displayName: sanitized.displayName,
             profilePhotoUrl: sanitized.profilePhotoUrl,
+            publicPhone: sanitized.profile.publicPhone ?? '',
+            socialLinks: sanitized.profile.socialLinks,
+            aboutText: sanitized.profile.aboutText,
           );
       return sanitized;
     });

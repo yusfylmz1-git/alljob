@@ -8,6 +8,7 @@ import 'package:google_sign_in/google_sign_in.dart';
 
 import '../../../core/utils/validators.dart';
 import '../../../data/models/app_user.dart';
+import '../../../data/models/social_links.dart';
 import '../../../data/models/user_role.dart';
 import 'auth_repository.dart';
 
@@ -538,6 +539,9 @@ class FirebaseAuthRepository implements AuthRepository {
   Future<void> updateUserProfile({
     String? displayName,
     String? profilePhotoUrl,
+    String? publicPhone,
+    SocialLinks? socialLinks,
+    String? aboutText,
   }) async {
     final fbUser = _auth.currentUser;
     if (fbUser == null) return;
@@ -549,33 +553,63 @@ class FirebaseAuthRepository implements AuthRepository {
       await fbUser.updateDisplayName(name);
     }
     if (profilePhotoUrl != null) await fbUser.updatePhotoURL(profilePhotoUrl);
+
     final data = <String, dynamic>{};
     if (name != null) data['displayName'] = name;
     if (profilePhotoUrl != null) data['profilePhotoURL'] = profilePhotoUrl;
-    if (data.isNotEmpty) {
-      await _userDoc(fbUser.uid).set(data, SetOptions(merge: true));
-      // Usta vitrininde ad/foto denormalize (liste ekstra okuma yapmasın).
-      if (_cached?.hasArtisanProfile == true) {
-        try {
-          await _db
-              .collection('artisanProfiles')
-              .doc(fbUser.uid)
-              .set(data, SetOptions(merge: true));
-        } catch (_) {
-          /* profil yoksa zararsız */
-        }
+
+    // ── Ortak profil alanları (2026-08-08) ──
+    // Boş dize = ALANI TEMİZLE. null "değiştirme" demek olduğundan
+    // kullanıcının numarasını silmesinin başka yolu yok.
+    String? yeniTelefon;
+    var telefonDegisti = false;
+    if (publicPhone != null) {
+      final t = publicPhone.trim();
+      yeniTelefon = t.isEmpty ? null : t;
+      data['publicPhone'] = yeniTelefon;
+      telefonDegisti = true;
+    }
+    if (socialLinks != null) data['socialLinks'] = socialLinks.toMap();
+    if (aboutText != null) data['aboutText'] = aboutText.trim();
+
+    if (data.isEmpty) return;
+
+    await _userDoc(fbUser.uid).set(data, SetOptions(merge: true));
+
+    // Usta vitrininde denormalize kopya (liste ekstra okuma yapmasın).
+    //
+    // DİKKAT: yalnız ad/foto aynalanır. `publicPhone`/`socialLinks`/
+    // `aboutText` artisanProfiles'a YAZILMAZ — tek doğruluk kaynağı
+    // `users`. Eski kayıtlardaki kopyalar okunmaya devam eder ama
+    // güncellenmez, yoksa iki kayıt birbirinden ayrışırdı.
+    final ayna = <String, dynamic>{};
+    if (name != null) ayna['displayName'] = name;
+    if (profilePhotoUrl != null) ayna['profilePhotoURL'] = profilePhotoUrl;
+    if (ayna.isNotEmpty && _cached?.hasArtisanProfile == true) {
+      try {
+        await _db
+            .collection('artisanProfiles')
+            .doc(fbUser.uid)
+            .set(ayna, SetOptions(merge: true));
+      } catch (_) {
+        /* profil yoksa zararsız */
       }
-      final cached = _cached;
-      if (cached != null) {
-        final updated = cached.copyWith(
-          displayName: name ?? cached.displayName,
-          profilePhotoUrl: profilePhotoUrl ?? cached.profilePhotoUrl,
-        );
-        _cached = updated;
-        // UI anında yenilensin (snapshot gecikse bile); aksi halde profil
-        // foto/ad kaydı uygulama yeniden açılana kadar eski kalıyordu.
-        _manualUpdates.add(updated);
-      }
+    }
+
+    final cached = _cached;
+    if (cached != null) {
+      final updated = cached.copyWith(
+        displayName: name ?? cached.displayName,
+        profilePhotoUrl: profilePhotoUrl ?? cached.profilePhotoUrl,
+        publicPhone: yeniTelefon,
+        clearPublicPhone: telefonDegisti && yeniTelefon == null,
+        socialLinks: socialLinks ?? cached.socialLinks,
+        aboutText: aboutText?.trim() ?? cached.aboutText,
+      );
+      _cached = updated;
+      // UI anında yenilensin (snapshot gecikse bile); aksi halde profil
+      // foto/ad kaydı uygulama yeniden açılana kadar eski kalıyordu.
+      _manualUpdates.add(updated);
     }
   }
 

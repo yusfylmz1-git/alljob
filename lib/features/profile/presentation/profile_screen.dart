@@ -209,7 +209,12 @@ class _Hero extends StatelessWidget {
     final profession = artisanMode && draft != null
         ? kProfessionNames[draft!.profile.profession]
         : null;
-    final about = artisanMode ? draft?.profile.aboutText.trim() : null;
+    // "Hakkımda" HER İKİ MODDA da görünür (2026-08-08): ortak alan artık
+    // `users` altında. Taslak yüklüyse ondan (yeni yazılan metin anında
+    // görünsün), değilse kullanıcı dokümanından.
+    final about = (draft?.profile.aboutText.trim().isNotEmpty ?? false)
+        ? draft!.profile.aboutText.trim()
+        : user.aboutText.trim();
 
     return SafeArea(
       bottom: false,
@@ -278,7 +283,7 @@ class _Hero extends StatelessWidget {
                   ),
                 ),
               ),
-            if (about != null && about.isNotEmpty)
+            if (about.isNotEmpty)
               Padding(
                 padding: const EdgeInsets.only(top: 4),
                 child: Text(
@@ -288,6 +293,10 @@ class _Hero extends StatelessWidget {
                   style: theme.textTheme.bodySmall,
                 ),
               ),
+
+            // İletişim satırları — Instagram bio dili: küçük font, ikonlu,
+            // boş olan hiç çizilmez (2026-08-08).
+            _BioDetails(user: user),
             const SizedBox(height: 12),
 
             // Aksiyon çubuğu (IG: "Profili düzenle | Profili paylaş").
@@ -430,6 +439,83 @@ class _HeroAction extends StatelessWidget {
 ///
 /// Herkeste aynı: **takip · takipçi · (puan | tamamlanan)**.
 /// Usta modunda ve değerlendirme varsa 3. hücre puanı gösterir.
+/// Profil bio'sundaki iletişim satırları — Instagram dili.
+///
+/// Telefon, web sitesi ve sosyal medya hesapları küçük fontta, ikonlu tek
+/// satırlar hâlinde. Boş olan alan HİÇ çizilmez: yarısı boş bir liste
+/// profilin doluluk hissini düşürür.
+///
+/// Veri `users/{uid}` altından gelir (ortak alanlar) — usta olsun olmasın
+/// herkeste aynı.
+class _BioDetails extends StatelessWidget {
+  const _BioDetails({required this.user});
+
+  final AppUser user;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    final theme = Theme.of(context);
+    final s = user.socialLinks;
+
+    final satirlar = <({IconData icon, String text})>[
+      if (user.publicPhone?.trim().isNotEmpty ?? false)
+        (icon: Icons.phone_outlined, text: user.publicPhone!.trim()),
+      if (s.website?.trim().isNotEmpty ?? false)
+        (icon: Icons.link_rounded, text: _kisaUrl(s.website!)),
+      if (s.instagram?.trim().isNotEmpty ?? false)
+        (icon: Icons.camera_alt_outlined, text: '@${s.instagram!.trim()}'),
+      if (s.youtube?.trim().isNotEmpty ?? false)
+        (icon: Icons.play_circle_outline, text: s.youtube!.trim()),
+      if (s.tiktok?.trim().isNotEmpty ?? false)
+        (icon: Icons.music_note_outlined, text: '@${s.tiktok!.trim()}'),
+      if (s.whatsapp?.trim().isNotEmpty ?? false)
+        (icon: Icons.chat_outlined, text: s.whatsapp!.trim()),
+    ];
+
+    if (satirlar.isEmpty) return const SizedBox.shrink();
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 6),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          for (final r in satirlar)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 3),
+              child: Row(
+                children: [
+                  Icon(r.icon, size: 13, color: palette.inkMuted),
+                  const SizedBox(width: 5),
+                  Flexible(
+                    child: Text(
+                      r.text,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: palette.inkMuted,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  /// `https://ornek.com/yol` → `ornek.com/yol` — şema satırı şişiriyor.
+  static String _kisaUrl(String raw) {
+    var t = raw.trim();
+    for (final on in ['https://', 'http://', 'www.']) {
+      if (t.toLowerCase().startsWith(on)) t = t.substring(on.length);
+    }
+    return t.endsWith('/') ? t.substring(0, t.length - 1) : t;
+  }
+}
+
 class _HeroStats extends ConsumerWidget {
   const _HeroStats({required this.user});
   final AppUser user;

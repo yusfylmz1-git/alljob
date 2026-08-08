@@ -367,7 +367,7 @@ class _EmptyNearby extends StatelessWidget {
               const SizedBox(height: 16),
               OutlinedButton(
                 onPressed: () => context.push(RoutePaths.panelEdit),
-                child: const Text('Vitrini düzenle'),
+                child: const Text('Profili düzenle'),
               ),
             ],
           ],

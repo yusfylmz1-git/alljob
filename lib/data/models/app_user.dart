@@ -1,3 +1,4 @@
+import 'social_links.dart';
 import 'user_role.dart';
 
 /// `users` koleksiyonundaki kullanıcı dökümanı.
@@ -23,6 +24,9 @@ class AppUser {
     this.profilePhotoUrl,
     this.completedJobsAsCustomer = 0,
     this.reviewCountAsCustomer = 0,
+    this.publicPhone,
+    this.socialLinks = SocialLinks.empty,
+    this.aboutText = '',
   });
 
   final String uid;
@@ -88,6 +92,36 @@ class AppUser {
   /// teşhir edilmesin. YALNIZ CF yazar (`onReviewWritten`).
   final int reviewCountAsCustomer;
 
+  // ─────────── ORTAK PROFİL ALANLARI (2026-08-08) ───────────
+  //
+  // Bu üçü eskiden YALNIZ `artisanProfiles` altındaydı; müşteri modunda
+  // telefon/sosyal medya/hakkımda girilemiyordu. Artık `users` altında —
+  // herkeste çalışır (usta olsun olmasın).
+  //
+  // Eski usta kayıtlarındaki kopyalar OKUNMAYA devam eder
+  // (`FirebaseAuthRepository` boşsa oradan doldurur); ilk kaydetmede buraya
+  // yazılır. Bkz. [[Profil-Ortak-Alanlar]].
+
+  /// Profilde herkese görünen telefon (isteğe bağlı).
+  ///
+  /// [phoneNumber]'dan FARKLI: o hassas, `private/contact` altında yaşar.
+  /// Bu alan kullanıcının BİLEREK yayınladığı numaradır — boşsa gösterilmez.
+  final String? publicPhone;
+
+  /// Sosyal medya + web sitesi (isteğe bağlı). Web sitesi ayrı alan değil,
+  /// `socialLinks.website` — tek doğruluk kaynağı.
+  final SocialLinks socialLinks;
+
+  /// "Hakkımda" metni (isteğe bağlı). Usta vitrinindeki tanıtım yazısının
+  /// her moda açılmış hâli.
+  final String aboutText;
+
+  /// Profilde gösterilecek herhangi bir ek bilgi var mı?
+  bool get hasProfileDetails =>
+      (publicPhone?.trim().isNotEmpty ?? false) ||
+      aboutText.trim().isNotEmpty ||
+      socialLinks.hasAny;
+
   /// Arayüz şu an usta modunda mı? (UI kapıları bunu kullanır.)
   bool get isArtisan => activeMode == UserRole.artisan;
   bool get isCustomer => activeMode == UserRole.customer;
@@ -105,6 +139,10 @@ class AppUser {
     String? adminRole,
     bool? suspended,
     bool clearAdmin = false,
+    String? publicPhone,
+    SocialLinks? socialLinks,
+    String? aboutText,
+    bool clearPublicPhone = false,
   }) {
     return AppUser(
       uid: uid,
@@ -125,6 +163,12 @@ class AppUser {
       // aynısı. Mevcut değer korunur.
       completedJobsAsCustomer: completedJobsAsCustomer,
       reviewCountAsCustomer: reviewCountAsCustomer,
+      // Telefonu SİLMEK için ayrı bayrak: `publicPhone: null` "değiştirme"
+      // demek olduğundan alanı temizlemenin başka yolu yok.
+      publicPhone:
+          clearPublicPhone ? null : (publicPhone ?? this.publicPhone),
+      socialLinks: socialLinks ?? this.socialLinks,
+      aboutText: aboutText ?? this.aboutText,
     );
   }
 
@@ -138,6 +182,10 @@ class AppUser {
         'phoneVerified': phoneVerified,
         'createdAt': createdAt.toIso8601String(),
         'profilePhotoURL': profilePhotoUrl,
+        // Ortak profil alanları — herkese açık (kullanıcı bilerek yayınlar).
+        'publicPhone': publicPhone,
+        'socialLinks': socialLinks.toMap(),
+        'aboutText': aboutText,
         // GÜVENLİK: phoneNumber / email / fcmTokens bu dökümana yazılmaz
         // (kural da engeller). Token: users/{uid}/private/push.
         //
@@ -165,6 +213,10 @@ class AppUser {
       createdAt: _parseDate(map['createdAt']),
       phoneNumber: map['phoneNumber'] as String?,
       profilePhotoUrl: map['profilePhotoURL'] as String?,
+      publicPhone: map['publicPhone'] as String?,
+      socialLinks: SocialLinks.fromMap(
+          (map['socialLinks'] as Map?)?.cast<String, dynamic>()),
+      aboutText: (map['aboutText'] as String?) ?? '',
       // CF yazar; alan yoksa 0 (henüz iş bitirmemiş/değerlendirilmemiş).
       completedJobsAsCustomer:
           (map['completedJobsAsCustomer'] as num?)?.toInt() ?? 0,

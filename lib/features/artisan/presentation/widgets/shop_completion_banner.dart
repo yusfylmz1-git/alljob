@@ -119,7 +119,7 @@ class ShopCompletionBanner extends StatelessWidget {
                 child: FilledButton.tonalIcon(
                   onPressed: () => _openEdit(context),
                   icon: const Icon(Icons.edit_outlined, size: 18),
-                  label: Text(next == null ? 'Vitrini düzenle' : 'Şimdi tamamla'),
+                  label: Text(next == null ? 'Profili düzenle' : 'Şimdi tamamla'),
                 ),
               ),
             ],

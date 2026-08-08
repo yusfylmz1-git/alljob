@@ -34,7 +34,6 @@ import '../../features/membership/membership_package.dart';
 import '../../features/membership/presentation/package_select_screen.dart';
 import '../../features/onboarding/onboarding_state.dart';
 import '../../features/onboarding/presentation/onboarding_screen.dart';
-import '../../features/profile/presentation/account_profile_edit_screen.dart';
 import '../../features/profile/presentation/profile_screen.dart';
 import '../../features/review/presentation/review_screen.dart';
 import '../../features/help/presentation/help_screen.dart';
@@ -331,8 +330,12 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (_, _) => const ProfileScreen(),
         routes: [
           GoRoute(
+            // TEK DÜZENLEME EKRANI (2026-08-08): ortak alanlar + (usta
+            // modunda) vitrin aynı sayfada. Eski AccountProfileEditScreen
+            // silindi; iki ayrı "profili düzenle" sayfası kullanıcıyı
+            // hangisinde ne olduğunu aramaya zorluyordu.
             path: 'edit',
-            builder: (_, _) => const AccountProfileEditScreen(),
+            builder: (_, _) => const ArtisanProfileEditScreen(),
           ),
           GoRoute(
             path: 'blocked',

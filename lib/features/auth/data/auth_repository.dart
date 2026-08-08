@@ -1,4 +1,5 @@
 import '../../../data/models/app_user.dart';
+import '../../../data/models/social_links.dart';
 import '../../../data/models/user_role.dart';
 
 /// Kimlik doğrulama soyutlaması.
@@ -52,10 +53,17 @@ abstract interface class AuthRepository {
   /// (Mavi tik'in ArtisanProfile tarafı [MyProfileRepository.markVerified] ile.)
   Future<AppUser> setPhoneVerified(String phoneE164);
 
-  /// Oturum açmış kullanıcının görünen ad / profil fotoğrafını günceller.
+  /// Oturum açmış kullanıcının ORTAK profil alanlarını günceller.
+  ///
+  /// Ortak = usta/müşteri fark etmez; hepsi `users/{uid}` altında yaşar.
+  /// Verilmeyen alan DEĞİŞMEZ. [publicPhone] alanını temizlemek için boş
+  /// dize gönderin — null "değiştirme" demektir.
   Future<void> updateUserProfile({
     String? displayName,
     String? profilePhotoUrl,
+    String? publicPhone,
+    SocialLinks? socialLinks,
+    String? aboutText,
   });
 
   Future<void> signOut();

@@ -330,6 +330,11 @@ class _EditFormState extends ConsumerState<_EditForm> {
       WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToFocus());
     }
 
+    // Vitrin bölümü YALNIZ usta modunda çizilir. `hasArtisanProfile` değil
+    // `isArtisan` (aktif mod): usta profili olan biri müşteri moduna geçtiğinde
+    // de sade formu görmeli.
+    final isArtisanMode = ref.watch(currentUserProvider)?.isArtisan ?? false;
+
     return ResponsiveCenter(
       maxWidth: 760,
       child: ListView(
@@ -338,7 +343,7 @@ class _EditFormState extends ConsumerState<_EditForm> {
           // "Vitrini tamamla" bandı BURADA (profil sayfasından taşındı):
           // kullanıcı zaten düzeltmeye gelmişken hangi adımın eksik olduğunu
           // gösterir. Profil sayfasında ekranın yarısını kaplıyordu.
-          _CompletionHint(draft: draft),
+          if (isArtisanMode) _CompletionHint(draft: draft),
 
           // --- Profil fotoğrafı ---
           _focusWrap(
@@ -431,7 +436,100 @@ class _EditFormState extends ConsumerState<_EditForm> {
           ),
           const SizedBox(height: 16),
 
-          // --- Hemen Lazım anahtarı (meslekten AYRI hizmet tercihi) ---
+          // --- Telefon (isteğe bağlı, herkese görünür) ---
+          _Label('Telefon Numarası'),
+          const SizedBox(height: 4),
+          _PhoneVisibilityTile(profile: profile),
+          const SizedBox(height: 20),
+
+          // --- Sosyal Medya + Web Sitesi (isteğe bağlı) ---
+          _Label('Sosyal Medya ve Web Sitesi'),
+          const SizedBox(height: 4),
+          Text(
+            'İsteğe bağlı. Eklerseniz profilinizde dokunulabilir bağlantı '
+            'olarak görünür; boş bıraktığınız alan gösterilmez.',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: 10),
+          _SocialLinksSection(
+            value: profile.socialLinks,
+            onChanged:
+                ({
+                  String? instagram,
+                  String? youtube,
+                  String? tiktok,
+                  String? whatsapp,
+                  String? website,
+                }) => _controller.setSocialLinks(
+                  instagram: instagram,
+                  youtube: youtube,
+                  tiktok: tiktok,
+                  whatsapp: whatsapp,
+                  website: website,
+                ),
+          ),
+          const SizedBox(height: 20),
+
+          // --- Hakkımda (isteğe bağlı) ---
+          _focusWrap(
+            id: 'about',
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _Label('Hakkımda'),
+                TextFormField(
+                  initialValue: profile.aboutText,
+                  maxLines: 4,
+                  maxLength: AppConstants.maxAboutLength,
+                  decoration: const InputDecoration(
+                    hintText: 'Kendinizi kısaca tanıtın',
+                    alignLabelWithHint: true,
+                  ),
+                  validator: (v) => Validators.freeText(
+                    v,
+                    max: AppConstants.maxAboutLength,
+                    field: 'Hakkımda',
+                  ),
+                  onChanged: _controller.setAbout,
+                ),
+              ],
+            ),
+          ),
+
+          // ══════════════ USTA VİTRİNİ ══════════════
+          //
+          // Yalnız usta modunda görünür. Müşteri modundaki kullanıcı meslek,
+          // hizmet bölgesi, iş fotoğrafı gibi alanlarla uğraşmaz — yukarıdaki
+          // ortak alanlar ona yeter.
+          //
+          // Ayrı bir "Vitrini Düzenle" sayfası YOK (2026-08-08): kullanıcı
+          // "Profili Düzenle" dedi mi her şeyi tek sayfada, tek Kaydet
+          // düğmesiyle bulmalı.
+          if (!isArtisanMode) const SizedBox(height: 8),
+          if (isArtisanMode) ...[
+            const SizedBox(height: 28),
+            Divider(color: context.palette.hairline),
+            const SizedBox(height: 14),
+            Text(
+              'USTA VİTRİNİ',
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                color: context.palette.inkMuted,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 0.6,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Müşterilerin sizi bulmasını sağlayan bilgiler.',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: context.palette.inkMuted,
+              ),
+            ),
+            const SizedBox(height: 16),
+
+          // --- Kolay İş anahtarı (meslekten AYRI hizmet tercihi) ---
           _QuickSupportSwitch(
             enabled: isQuickSupportProviderCodes(profile.professionCodes),
             hasProfession: profile.professionCodes
@@ -507,33 +605,6 @@ class _EditFormState extends ConsumerState<_EditForm> {
                 _controller.setExperience(int.tryParse(v.trim()) ?? 0),
           ),
           const SizedBox(height: 16),
-
-          // --- Hakkımda ---
-          _focusWrap(
-            id: 'about',
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                _Label('Hakkımda'),
-                TextFormField(
-                  initialValue: profile.aboutText,
-                  maxLines: 4,
-                  maxLength: AppConstants.maxAboutLength,
-                  decoration: const InputDecoration(
-                    hintText: 'Kendinizi ve işlerinizi kısaca tanıtın',
-                    alignLabelWithHint: true,
-                  ),
-                  validator: (v) => Validators.freeText(
-                    v,
-                    max: AppConstants.maxAboutLength,
-                    field: 'Hakkımda',
-                  ),
-                  onChanged: _controller.setAbout,
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 8),
 
           // --- Hizmet Bölgeleri ---
           _focusWrap(
@@ -655,47 +726,12 @@ class _EditFormState extends ConsumerState<_EditForm> {
               ],
             ),
           ),
-          const SizedBox(height: 24),
-
-          // --- İletişim görünürlüğü (telefon rızası) ---
-          _Label('İletişim'),
-          const SizedBox(height: 4),
-          _PhoneVisibilityTile(profile: profile),
-          const SizedBox(height: 24),
-
-          // --- Sosyal Medya / İş Hattı ---
-          _Label('Sosyal Medya ve Bağlantılar'),
-          const SizedBox(height: 4),
-          Text(
-            'İsteğe bağlı. Eklerseniz profilinizde dokunulabilir bağlantı '
-            'olarak görünür; boş bıraktığınız alan gösterilmez.',
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
-            ),
-          ),
-          const SizedBox(height: 10),
-          _SocialLinksSection(
-            value: profile.socialLinks,
-            onChanged:
-                ({
-                  String? instagram,
-                  String? youtube,
-                  String? tiktok,
-                  String? whatsapp,
-                  String? website,
-                }) => _controller.setSocialLinks(
-                  instagram: instagram,
-                  youtube: youtube,
-                  tiktok: tiktok,
-                  whatsapp: whatsapp,
-                  website: website,
-                ),
-          ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 20),
+          ], // ══════════ USTA VİTRİNİ sonu ══════════
 
           // --- Doğrulama (mavi tik) — form alanlarının altında, kaydetmeden
           // bağımsız tek seferlik işlem olduğu için en sona alındı. ---
-          const VerificationTile(artisanContext: true),
+          VerificationTile(artisanContext: isArtisanMode),
           const SizedBox(height: 28),
 
           AppButton(

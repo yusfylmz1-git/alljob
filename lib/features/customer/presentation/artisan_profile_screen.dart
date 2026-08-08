@@ -297,7 +297,7 @@ class _ProfileBody extends ConsumerWidget {
                     child: OutlinedButton.icon(
                       onPressed: () => context.push(RoutePaths.panelEdit),
                       icon: const Icon(Icons.edit_outlined, size: 18),
-                      label: const Text('Vitrini düzenle'),
+                      label: const Text('Profili düzenle'),
                     ),
                   ),
                   const SizedBox(width: 10),

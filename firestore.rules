@@ -90,6 +90,25 @@ service cloud.firestore {
           && request.resource.data.displayName.size() <= 60;
       }
 
+      // ORTAK PROFİL ALANLARI (2026-08-08) — publicPhone / socialLinks /
+      // aboutText. Kullanıcının BİLEREK yayınladığı bilgiler; yasaklı
+      // `phoneNumber` ile karıştırılmamalı (o hassas, private/contact'ta).
+      //
+      // Yalnız tip ve uzunluk tavanı doğrulanır: içerik denetimi istemcide
+      // (Validators) ve moderasyonda. Tavan olmadan bir kullanıcı dökümana
+      // megabaytlarca metin yazıp okuma maliyetini herkese ödetebilirdi.
+      function profileFieldsOk() {
+        let d = request.resource.data;
+        return (!('publicPhone' in d)
+                || d.publicPhone == null
+                || (d.publicPhone is string && d.publicPhone.size() <= 32))
+          && (!('aboutText' in d)
+                || (d.aboutText is string && d.aboutText.size() <= 1000))
+          && (!('socialLinks' in d)
+                || d.socialLinks == null
+                || d.socialLinks is map);
+      }
+
       allow read: if true;
       // create'te resource null olduğundan doğrudan yazılan anahtarlara bakılır.
       allow create: if isSelf(uid)
@@ -100,10 +119,12 @@ service cloud.firestore {
                        'completedJobsAsCustomer', 'reviewCountAsCustomer',
                        'ratingAsCustomer'])
         && phoneClaimOkFor('phoneVerified')
-        && displayNameOk();
+        && displayNameOk()
+        && profileFieldsOk();
       allow update: if isSelf(uid)
         && notSettingPublicPii()
         && phoneClaimOkFor('phoneVerified')
+        && profileFieldsOk()
         && (!request.resource.data.diff(resource.data).affectedKeys()
                 .hasAny(['displayName'])
             || displayNameOk());
