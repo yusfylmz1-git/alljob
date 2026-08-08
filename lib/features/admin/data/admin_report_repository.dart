@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 
-import '../../../data/models/report.dart';
 import 'admin_report.dart';
 
 /// Transcript'teki tek mesaj (yalnız moderasyon görünümü).
@@ -97,15 +96,6 @@ abstract interface class AdminReportRepository {
     required String reportId,
     required String chatId,
     int limit = 100,
-  });
-
-  /// Eleman modülü içeriğini gizler/gösterir (`adminModerateStaffing` CF).
-  /// [targetType] yalnız staffWorker | staffNeed olabilir.
-  Future<void> moderateStaffing({
-    required ReportTarget targetType,
-    required String targetId,
-    required bool hide,
-    String? note,
   });
 
   /// Şikayet edilen sohbet mesajını kaldırır / geri alır
@@ -225,21 +215,6 @@ class FirebaseAdminReportRepository implements AdminReportRepository {
       names: names,
       reportedMessageId: data['reportedMessageId'] as String?,
     );
-  }
-
-  @override
-  Future<void> moderateStaffing({
-    required ReportTarget targetType,
-    required String targetId,
-    required bool hide,
-    String? note,
-  }) async {
-    await _functions.httpsCallable('adminModerateStaffing').call<Object?>({
-      'targetType': targetType.apiValue,
-      'targetId': targetId,
-      'decision': hide ? 'hide' : 'unhide',
-      if (note != null && note.trim().isNotEmpty) 'note': note.trim(),
-    });
   }
 
   @override
@@ -364,21 +339,6 @@ class MockAdminReportRepository implements AdminReportRepository {
 
   /// Gizlenen hedefler (test doğrulaması için).
   final Set<String> hiddenTargets = {};
-
-  @override
-  Future<void> moderateStaffing({
-    required ReportTarget targetType,
-    required String targetId,
-    required bool hide,
-    String? note,
-  }) async {
-    final key = '${targetType.apiValue}/$targetId';
-    if (hide) {
-      hiddenTargets.add(key);
-    } else {
-      hiddenTargets.remove(key);
-    }
-  }
 
   /// Kaldırılan mesajların şikayet kimlikleri (test doğrulaması için).
   final Set<String> hiddenMessageReports = {};

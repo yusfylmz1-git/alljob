@@ -633,31 +633,6 @@ class _ReportDetailSheetState extends ConsumerState<_ReportDetailSheet> {
     }
   }
 
-  /// Eleman modülü içeriğini gizle/göster (adminModerateStaffing CF).
-  /// Sheet kapanmaz — yönetici ardından şikayeti karara bağlayabilir.
-  Future<void> _moderateStaffing(bool hide) async {
-    setState(() => _busy = true);
-    try {
-      await ref
-          .read(adminReportRepositoryProvider)
-          .moderateStaffing(
-            targetType: widget.report.target,
-            targetId: widget.report.targetId,
-            hide: hide,
-            note: _noteController.text,
-          );
-      if (!mounted) return;
-      setState(() => _busy = false);
-      context.showSuccess(
-        hide ? 'İçerik gizlendi.' : 'İçerik yeniden yayında.',
-      );
-    } catch (_) {
-      if (!mounted) return;
-      setState(() => _busy = false);
-      context.showError('İşlem başarısız oldu. Yetkinizi kontrol edin.');
-    }
-  }
-
   /// Şikayet edilen mesajı kaldır / geri al (adminModerateMessage CF).
   /// Hedef mesaj SUNUCUDA şikayet kaydından türetilir. Sheet kapanmaz —
   /// yönetici ardından şikayeti karara bağlayabilir.
@@ -856,28 +831,6 @@ class _ReportDetailSheetState extends ConsumerState<_ReportDetailSheet> {
                       label: const Text('Devral'),
                     );
                   },
-                ),
-              ],
-              // Eleman modülü hedefi: içerik doğrudan buradan indirilebilir
-              // (istemci listeleri moderationHidden=true kaydı göstermez).
-              if (r.target == ReportTarget.staffWorker ||
-                  r.target == ReportTarget.staffNeed) ...[
-                const SizedBox(height: 4),
-                Wrap(
-                  spacing: 10,
-                  runSpacing: 10,
-                  children: [
-                    OutlinedButton.icon(
-                      onPressed: _busy ? null : () => _moderateStaffing(true),
-                      icon: const Icon(Icons.visibility_off_outlined, size: 18),
-                      label: const Text('İçeriği gizle'),
-                    ),
-                    OutlinedButton.icon(
-                      onPressed: _busy ? null : () => _moderateStaffing(false),
-                      icon: const Icon(Icons.visibility_outlined, size: 18),
-                      label: const Text('Gizlemeyi kaldır'),
-                    ),
-                  ],
                 ),
               ],
               // Mesaj şikayeti: içeriği sohbetten kaldır / geri al. Hedef
