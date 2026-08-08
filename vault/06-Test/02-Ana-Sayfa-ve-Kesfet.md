@@ -16,8 +16,8 @@ Beklenen sıra (herkeste aynı):
 ```
 [Misafirse giriş şeridi]
 Usta Bul (büyük kart)
-[İş İlanı Ver] [Hemen Lazım]
-⚡ Hemen Lazım ilanları
+[İş İlanı Ver] [Kolay İş]
+⚡ Kolay İş ilanları
 ⭐ Öne Çıkan Ustalar
 📋 Son İş İlanları
 🔥 Haftanın Ustası / Duyuru
@@ -25,7 +25,7 @@ Usta Bul (büyük kart)
 
 - [ ] **2.1.1** "Usta Bul" kartı görünüyor, dokununca Keşfet açılıyor
 - [ ] **2.1.2** "İş İlanı Ver" ilan formunu açıyor
-- [ ] **2.1.3** "Hemen Lazım" formu **kategori seçili** açıyor
+- [ ] **2.1.3** "Kolay İş" formu **kategori seçili** açıyor
 - [ ] **2.1.4** ⚠️ **"Ürünler" ile ilgili hiçbir şey görünmemeli**
       (modül kaldırıldı)
 - [ ] **2.1.5** ⚠️ **"Usta Araçları" bölümü olmamalı**

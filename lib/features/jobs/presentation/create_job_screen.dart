@@ -165,7 +165,15 @@ class _CreateJobScreenState extends ConsumerState<CreateJobScreen> {
       customerConfirmedDone: false,
       artisanConfirmedDone: false,
       createdAt: now,
-      expiresAt: now.add(_duration.duration),
+      // Kolay İş süresi UI'da gizli — burada da ZORLANIR. Kullanıcı normal
+      // ilan formunda 7 gün seçip sonra kategoriyi Kolay İş'e çevirirse
+      // `_duration` eski değerinde kalırdı.
+      expiresAt: now.add(
+        (_category == kQuickSupportCategory
+                ? JobDuration.day1
+                : _duration)
+            .duration,
+      ),
     );
 
     try {
@@ -438,29 +446,50 @@ class _CreateJobScreenState extends ConsumerState<CreateJobScreen> {
                   title: 'Yayın Ayarları',
                   children: [
                     _Label('İlan Süresi'),
-                    SizedBox(
-                      width: double.infinity,
-                      child: SegmentedButton<JobDuration>(
-                        segments: const [
-                          ButtonSegment(
-                            value: JobDuration.day1,
-                            label: Text('24 saat'),
-                          ),
-                          ButtonSegment(
-                            value: JobDuration.day3,
-                            label: Text('3 gün'),
-                          ),
-                          ButtonSegment(
-                            value: JobDuration.day7,
-                            label: Text('7 gün'),
-                          ),
-                        ],
-                        selected: {_duration},
-                        showSelectedIcon: false,
-                        onSelectionChanged: (s) =>
-                            setState(() => _duration = s.first),
+                    // Kolay İş HER ZAMAN 1 gün: kısa iş kısa yaşar, seçim
+                    // sunmak gereksiz karar yükü. Normal ilanda 3/5/7.
+                    if (_category == kQuickSupportCategory)
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: context.palette.warningSurface,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(Icons.bolt_rounded,
+                                size: 18, color: context.palette.warning),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                '$kQuickSupportName ilanları 1 gün yayında '
+                                'kalır.',
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .bodySmall
+                                    ?.copyWith(fontWeight: FontWeight.w600),
+                              ),
+                            ),
+                          ],
+                        ),
+                      )
+                    else
+                      SizedBox(
+                        width: double.infinity,
+                        child: SegmentedButton<JobDuration>(
+                          // Seçenekler enum'dan türer — yeni bir süre
+                          // eklenince form kendiliğinden öğrenir.
+                          segments: [
+                            for (final d in JobDuration.selectable)
+                              ButtonSegment(value: d, label: Text(d.labelTR)),
+                          ],
+                          selected: {_duration},
+                          showSelectedIcon: false,
+                          onSelectionChanged: (s) =>
+                              setState(() => _duration = s.first),
+                        ),
                       ),
-                    ),
                   ],
                 ),
                 const SizedBox(height: 16),

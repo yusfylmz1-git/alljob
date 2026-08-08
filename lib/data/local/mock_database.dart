@@ -143,8 +143,8 @@ const kProfessionNames = <String, String>{
   'power_line': 'Elektrik Tesisatı (Bina)',
   'generator_install': 'Jeneratör Montaj',
   'ups': 'UPS / Kesintisiz Güç',
-  'other': 'Hemen Lazım',
-  'quick_support': 'Hemen Lazım',
+  'other': 'Kolay İş',
+  'quick_support': 'Kolay İş',
 };
 
 /// Bir ustanın bellek içi kaydı (users + artisanProfiles + reviews birleşimi).

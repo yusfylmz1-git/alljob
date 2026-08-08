@@ -65,7 +65,7 @@ void main() {
     // Yalnız klasik ilan var → başlık bile görünmemeli (boş başlık bırakmaz).
     await pump(tester, [job(id: 'j1', title: 'Duvar boyama', category: 'painter')]);
 
-    expect(find.text('Hemen Lazım'), findsNothing);
+    expect(find.text(kQuickSupportName), findsNothing);
     expect(find.text('Tümünü Gör →'), findsNothing);
   });
 
@@ -77,7 +77,7 @@ void main() {
     ]);
 
     // Başlık + tümünü gör bağlantısı.
-    expect(find.text('Hemen Lazım'), findsWidgets);
+    expect(find.text(kQuickSupportName), findsWidgets);
     expect(find.text('Tümünü Gör →'), findsOneWidget);
 
     // Yalnız Hemen Lazım ilanları — klasik ilan şeride SIZMAMALI.

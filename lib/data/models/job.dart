@@ -5,13 +5,17 @@ import 'geo_models.dart';
 /// düşer (bkz. [isQuickSupportProviderCodes]).
 ///
 /// Depolama kodu (`quick_support`) geriye uyum için DEĞİŞMEZ — yalnız
-/// kullanıcıya görünen ad "Hemen Lazım"dır ([kQuickSupportName]).
+/// kullanıcıya görünen ad değişir ([kQuickSupportName]).
 /// CF paritesi: functions/index.js QUICK_SUPPORT_CATEGORY.
 const kQuickSupportCategory = 'quick_support';
 
-/// Kullanıcıya görünen ad. Metinlerde bu sabit kullanılır ki ileride tek
-/// noktadan değiştirilebilsin.
-const kQuickSupportName = 'Hemen Lazım';
+/// Kullanıcıya görünen ad. Metinlerde bu sabit kullanılır ki tek noktadan
+/// değiştirilebilsin.
+///
+/// "Hemen Lazım" → "Kolay İş" (2026-08-08): eski ad aciliyet vaat ediyordu,
+/// oysa bu akış "acil" değil "kısa ve basit iş" demek. Depolama kodu ve
+/// `kOtherProfession` DEĞİŞMEDİ.
+const kQuickSupportName = 'Kolay İş';
 
 /// Usta profilinde Hemen Lazım hizmetini işaretleyen meslek kodu
 /// (JSON code: `other`, geriye uyum). Meslek listesinden AYRILMIŞTIR:
@@ -43,22 +47,39 @@ enum JobPriceType {
 }
 
 /// İlan yayında kalma süresi (#2). Varsayılan 3 gün.
+///
+/// Normal ilan: 3 / 5 / 7 gün ([selectable]).
+/// Kolay İş: HER ZAMAN [day1] — seçim sunulmaz, kısa iş kısa yaşar.
+///
+/// > [!warning] `day1` SİLİNMEZ
+/// > `apiValue` = enum adı = Firestore değeri (CLAUDE.md kural 6). `day1`
+/// > artık normal ilanda seçilemez ama Kolay İş onu kullanır ve eski
+/// > kayıtlarda da yazılıdır; sabiti kaldırmak veri göçüdür.
 enum JobDuration {
   day1,
   day3,
+  day5,
   day7;
 
   Duration get duration => switch (this) {
-        JobDuration.day1 => const Duration(hours: 24),
+        JobDuration.day1 => const Duration(days: 1),
         JobDuration.day3 => const Duration(days: 3),
+        JobDuration.day5 => const Duration(days: 5),
         JobDuration.day7 => const Duration(days: 7),
       };
 
   String get labelTR => switch (this) {
-        JobDuration.day1 => '24 saat',
+        JobDuration.day1 => '1 gün',
         JobDuration.day3 => '3 gün',
+        JobDuration.day5 => '5 gün',
         JobDuration.day7 => '7 gün',
       };
+
+  /// Normal ilan formunda SEÇİLEBİLEN süreler.
+  ///
+  /// `day1` listede yoktur: 24 saat normal ilan için fazla kısaydı, ilan
+  /// görülmeden düşüyordu. Kısa işler zaten Kolay İş akışına ait.
+  static const List<JobDuration> selectable = [day3, day5, day7];
 
   String get apiValue => name;
 

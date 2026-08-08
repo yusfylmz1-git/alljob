@@ -56,8 +56,8 @@ Yusuf YILMAZ ✓
 ## 3.4 Vitrin düzenleme (usta modu açık)
 
 - [ ] **3.4.1** Meslek seçimi çalışıyor (en fazla 5)
-- [ ] **3.4.2** ⭐ **Hemen Lazım anahtarı açıkken 5 meslek seçilebiliyor**
-      *(B-03: sayaç Hemen Lazım'ı saymamalı)*
+- [ ] **3.4.2** ⭐ **Kolay İş anahtarı açıkken 5 meslek seçilebiliyor**
+      *(B-03: sayaç Kolay İş'ı saymamalı)*
 - [ ] **3.4.3** Hizmet bölgesi (il/ilçe) eklenebiliyor
 - [ ] **3.4.4** "Hakkımda" yazılabiliyor
 - [ ] **3.4.5** İş fotoğrafı eklenebiliyor

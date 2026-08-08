@@ -60,6 +60,11 @@ void main() {
       // Ön dolgu varsa sayfa forma kayar (400 ms animasyon).
       await tester.pump(const Duration(milliseconds: 500));
 
+      // Ekran sona kayarken ListView aradaki SSS kartlarını sırayla inşa
+      // eder; tek pump animasyonu bitirmiyor. SSS listesi uzadıkça daha çok
+      // kare gerekiyor — pumpAndSettle animasyon durana kadar bekler.
+      await tester.pumpAndSettle();
+
       expect(
         find.widgetWithText(TextField, 'Uygulama hata bildirimi'),
         findsOneWidget,

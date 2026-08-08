@@ -22,16 +22,16 @@
 - [ ] **5.1.8** ⭐ **Fotoğraf yüklenirken "Yayınla"ya basın** →
       *"Fotoğraf yükleniyor, bekleyin"* uyarısı çıkmalı, ilan gitmemeli
       *(B-02: sessiz veri kaybı düzeltildi)*
-- [ ] **5.1.9** Süre seçimi (24 saat / 3 gün / 7 gün)
+- [ ] **5.1.9** Süre seçimi (3 gün / 5 gün / 7 gün) — Kolay İş'te seçim YOK, 1 gün sabit
 - [ ] **5.1.10** Zorunlu alan boşken kaydet engelleniyor, uyarı net
 - [ ] **5.1.11** Kaydedince ilan oluşuyor, İlanlarım'da görünüyor
 
-## 5.2 Hemen Lazım
+## 5.2 Kolay İş
 
-- [ ] **5.2.1** "Hemen Lazım" girişi kategoriyi **önceden seçili** açıyor
+- [ ] **5.2.1** "Kolay İş" girişi kategoriyi **önceden seçili** açıyor
 - [ ] **5.2.2** ⚠️ Örnek çipleri **kategorinin hemen altında** *(B-10)*
 - [ ] **5.2.3** Çipe dokununca başlık + açıklama doluyor
-- [ ] **5.2.4** İlan Ana Sayfa'daki "Hemen Lazım" şeridinde görünüyor
+- [ ] **5.2.4** İlan Ana Sayfa'daki "Kolay İş" şeridinde görünüyor
 
 ## 5.3 İlan limiti
 

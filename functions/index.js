@@ -1102,7 +1102,9 @@ exports.onJobCreated = onDocumentCreated(
       // kullanılmaz ("İstanbul'de" gibi hatalar oluşuyordu).
       // Hemen Lazım il geneline gittiğinden başlıkta İL yazar; ilçe zaten
       // gövdede görünür (aksi halde uzak bir ilçe "bölgenizde" sanılırdı).
-      const kind = isQuickSupport ? "Hemen Lazım ilanı" : "iş ilanı";
+      // Görünen ad "Kolay İş" (2026-08-08); depolama kodu quick_support
+      // olarak DEĞİŞMEDİ (istemci paritesi: kQuickSupportName).
+      const kind = isQuickSupport ? "Kolay İş ilanı" : "iş ilanı";
       const title =
         `${isQuickSupport ? "⚡ " : ""}${province} bölgesinde yeni ${kind}`;
       const district = job.district ? ` · ${job.district}` : "";

@@ -102,7 +102,7 @@ class HomeScreen extends ConsumerWidget {
       gap,
       const HomeFeatured(), // ⭐ Öne Çıkan Ustalar + Son İş İlanları
       gap,
-      const HomeQuickSupport(), // ⚡ Hemen Lazım
+      const HomeQuickSupport(), // ⚡ Kolay İş
       gap,
       const HomeDiscover(), // 🔥 Haftanın ustası + duyuru
     ];

@@ -31,7 +31,7 @@ değerlendirilir. Sıra bir davranış sözleşmesidir:
 | Ana ekran, keşfet | `/panel/**`, `/profile/**` |
 | Usta profilleri `/artisan/:uid` | `/chats/**`, `/review/**` |
 | Ürün **detayı** `/products/:id` | `/jobs/**` (istisna: `/jobs/quick` vitrini açık) |
-| Hemen Lazım vitrini `/jobs/quick` | `/favorites`, `/notifications`, `/tracking` |
+| Kolay İş vitrini `/jobs/quick` | `/favorites`, `/notifications`, `/tracking` |
 | Yasal metinler, yardım | `/products/new`, `/products/mine`, `/products/:id/edit` |
 
 ## Rota tablosu
@@ -54,9 +54,9 @@ değerlendirilir. Sıra bir davranış sözleşmesidir:
 ### İlan (jobs)
 | Yol | Not |
 |---|---|
-| `/jobs/new` · `/jobs/new?kind=quick` | `kind=quick` → Hemen Lazım kategorisi seçili açılır |
+| `/jobs/new` · `/jobs/new?kind=quick` | `kind=quick` → Kolay İş kategorisi seçili açılır |
 | `/jobs/mine` | İlanlarım |
-| `/jobs/quick` | Hemen Lazım vitrini (misafire açık) |
+| `/jobs/quick` | Kolay İş vitrini (misafire açık) |
 | `/jobs/:jobId` | İlan detayı |
 
 > [!warning] Rota sırası tuzağı
