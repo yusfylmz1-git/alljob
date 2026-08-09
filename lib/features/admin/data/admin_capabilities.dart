@@ -21,7 +21,6 @@ class AdminCapabilities {
   /// CF `DEFAULT_MODERATOR_CAPABILITIES` paritesi.
   static const Set<String> defaultModerator = {
     'reports.manage',
-    'disputes.manage',
     'users.read',
     'users.suspend',
     'jobs.read',
@@ -37,7 +36,6 @@ class AdminCapabilities {
   /// Tüm bilinen yetki kodları (UI checkbox).
   static const List<String> allCodes = [
     'reports.manage',
-    'disputes.manage',
     'users.read',
     'users.suspend',
     'jobs.read',
@@ -60,7 +58,6 @@ class AdminCapabilities {
 
   static String labelTR(String code) => switch (code) {
     'reports.manage' => 'Şikayet yönetimi',
-    'disputes.manage' => 'Anlaşmazlık hakemliği',
     'users.read' => 'Kullanıcı okuma',
     'users.suspend' => 'Kullanıcı askıya alma',
     'jobs.read' => 'İlan okuma',

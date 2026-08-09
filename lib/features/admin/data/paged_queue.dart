@@ -1,7 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 /// Cursor sayfalı bir kuyruğun durumu: birikmiş öğeler + daha var mı +
-/// "daha fazla yükleniyor" bayrağı. (Şikayet/anlaşmazlık/denetim kuyrukları
+/// "daha fazla yükleniyor" bayrağı. (Şikayet/denetim/ilan kuyrukları
 /// aynı kalıbı paylaşır — sabit tavan yerine aşamalı yükleme, ölçek.)
 class PagedData<T> {
   const PagedData({

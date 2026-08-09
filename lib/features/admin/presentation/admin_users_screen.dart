@@ -550,7 +550,7 @@ class _Chip extends StatelessWidget {
 }
 
 /// Bir kullanıcıyı UID ile yükleyip askıya al / geri aç eylem sayfasını açar.
-/// Şikayet ve anlaşmazlık detaylarından "kullanıcıyı yönet" için ortak giriş
+/// Şikayet detayından "kullanıcıyı yönet" için ortak giriş
 /// noktası — moderasyon döngüsünü kapatır (bildirimden tek dokunuşla askıya al).
 Future<void> showAdminUserActions(
   BuildContext context,

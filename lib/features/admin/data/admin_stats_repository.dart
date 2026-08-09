@@ -9,13 +9,9 @@ class AdminStatsSnapshot {
     this.artisansTotal = 0,
     this.productsTotal = 0,
     this.jobsOpen = 0,
-    this.jobsInProgress = 0,
-    this.jobsCompleted = 0,
-    this.jobsDisputed = 0,
     this.jobsCancelled = 0,
     this.jobsOther = 0,
     this.openReports = 0,
-    this.openDisputes = 0,
     this.updatedAt,
     this.rebuiltAt,
   });
@@ -25,23 +21,17 @@ class AdminStatsSnapshot {
   final int artisansTotal;
   final int productsTotal;
   final int jobsOpen;
-  final int jobsInProgress;
-  final int jobsCompleted;
-  final int jobsDisputed;
   final int jobsCancelled;
+
+  /// Tanınmayan durum — canlıda kalmış eski kayıtlar (`workerSelected`,
+  /// `completed`, `disputed`…) buraya düşer. Sıfırdan büyükse veri
+  /// temizliği yapılmamış demektir; hata değil.
   final int jobsOther;
   final int openReports;
-  final int openDisputes;
   final DateTime? updatedAt;
   final DateTime? rebuiltAt;
 
-  int get jobsTotal =>
-      jobsOpen +
-      jobsInProgress +
-      jobsCompleted +
-      jobsDisputed +
-      jobsCancelled +
-      jobsOther;
+  int get jobsTotal => jobsOpen + jobsCancelled + jobsOther;
 
   /// 24 saatten eski veya hiç güncellenmemiş.
   bool get isStale {
@@ -61,13 +51,9 @@ class AdminStatsSnapshot {
       artisansTotal: i('artisansTotal'),
       productsTotal: i('productsTotal'),
       jobsOpen: i('jobsOpen'),
-      jobsInProgress: i('jobsInProgress'),
-      jobsCompleted: i('jobsCompleted'),
-      jobsDisputed: i('jobsDisputed'),
       jobsCancelled: i('jobsCancelled'),
       jobsOther: i('jobsOther'),
       openReports: i('openReports'),
-      openDisputes: i('openDisputes'),
       updatedAt: t('updatedAt'),
       rebuiltAt: t('rebuiltAt'),
     );

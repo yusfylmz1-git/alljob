@@ -91,7 +91,6 @@ const ADMIN_BOOTSTRAP_EMAILS = new Set([
 // ile parite — chats/export/staff/audit/config YOK).
 const DEFAULT_MODERATOR_CAPABILITIES = Object.freeze([
   "reports.manage",
-  "disputes.manage",
   "users.read",
   "users.suspend",
   "jobs.read",

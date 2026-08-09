@@ -65,7 +65,7 @@ class _AdminGate extends ConsumerWidget {
 }
 
 /// Yönetici kabuğu (v2): geniş ekranda NavigationRail, dar ekranda alt bar.
-/// Sayfalar [IndexedStack] ile canlı kalır. Rozetler şikayet/anlaşmazlık.
+/// Sayfalar [IndexedStack] ile canlı kalır. Rozet: açık şikayet sayısı.
 class _AdminHomeScreen extends ConsumerStatefulWidget {
   const _AdminHomeScreen();
 
@@ -833,7 +833,7 @@ class _AdminLoginScreenState extends ConsumerState<_AdminLoginScreen> {
                     ),
                     SizedBox(height: 12),
                     Text(
-                      'Şikayet, anlaşmazlık, kullanıcı ve platform\n'
+                      'Şikayet, kullanıcı, ilan ve platform\n'
                       'moderasyonu için güvenli yönetim alanı.',
                       style: TextStyle(
                         color: AdminChrome.railMuted,

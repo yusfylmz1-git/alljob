@@ -159,8 +159,19 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                 icon: Icons.work_outline,
                 color: palette.primary,
                 subtitle: 'Açık ${stats.jobsOpen} · '
-                    'İptal ${stats.jobsCancelled}',
+                    'Kapalı ${stats.jobsCancelled}',
               ),
+              // Yalnız sıfırdan büyükse göster: canlıda kaldırılmış durum
+              // (`workerSelected`, `completed`…) yazan eski kayıt var demek.
+              // Hata değil — veri temizliği yapılmamış.
+              if (stats.jobsOther > 0)
+                _KpiCard(
+                  title: 'Eski durumlu ilan',
+                  value: '${stats.jobsOther}',
+                  icon: Icons.history_outlined,
+                  color: palette.inkMuted,
+                  subtitle: 'Kaldırılmış durum değeri taşıyor',
+                ),
             ]),
             const SizedBox(height: 24),
             Text(

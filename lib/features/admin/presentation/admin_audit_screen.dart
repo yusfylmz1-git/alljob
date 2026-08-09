@@ -9,7 +9,7 @@ import '../data/admin_audit_repository.dart';
 import '../data/admin_providers.dart';
 
 /// Yönetici denetim kaydı görüntüleyici (`adminAuditLogs`). Her yetkili eylem
-/// (rol atama, şikayet/anlaşmazlık kararı, askıya alma…) burada izlenir —
+/// (rol atama, şikayet kararı, askıya alma…) burada izlenir —
 /// hesap verebilirlik + KVKK/GDPR. Yalnız süper yöneticiye açık (gözetim).
 /// Kategori çipleri + aktör/hedef uid araması ile süzülür (istemci-tarafı,
 /// yüklü 200 kayıt penceresi üzerinde).

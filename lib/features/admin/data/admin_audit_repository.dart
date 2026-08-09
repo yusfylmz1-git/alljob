@@ -54,6 +54,7 @@ class AuditEntry {
     'resolve_report' => 'Şikayet karara bağlandı',
     'claim_report' => 'Şikayet üstlenildi',
     'release_report' => 'Şikayet bırakıldı',
+    // Artık üretilmiyor (hakemlik kalktı); ESKİ kayıtlar okunabilsin diye durur.
     'resolve_dispute' => 'Anlaşmazlık çözüldü',
     _ => action,
   };
@@ -86,8 +87,7 @@ enum AuditCategory {
   all('Tümü'),
   roles('Roller'),
   suspension('Askı'),
-  reports('Şikayet'),
-  disputes('Anlaşmazlık');
+  reports('Şikayet');
 
   const AuditCategory(this.labelTR);
   final String labelTR;
@@ -115,7 +115,6 @@ enum AuditCategory {
       'hide_message',
       'unhide_message',
     }.contains(e.action),
-    AuditCategory.disputes => e.action == 'resolve_dispute',
   };
 }
 
