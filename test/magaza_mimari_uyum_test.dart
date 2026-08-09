@@ -467,6 +467,38 @@ void main() {
     });
   });
 
+  group('Ürün formu — kategori seçimi aranabilir ve gruplu', () {
+    late String form;
+    setUpAll(() => form =
+        read('lib/features/products/presentation/product_edit_screen.dart'));
+
+    test('düz dropdown kalmadı', () {
+      expect(form.contains('DropdownButtonFormField<String>'), isFalse,
+          reason: '144 meslek düz listede aranamıyordu.');
+    });
+
+    test('aramalı + gruplu bileşen kullanılıyor', () {
+      expect(form.contains('SearchableSelectField<String>'), isTrue);
+      expect(form.contains('groupLabel:'), isTrue,
+          reason: 'Kategori başlıkları olmalı — beyaz yaka hizmetler '
+              'inşaat mesleklerinin arkasına düşmesin.');
+      expect(form.contains('searchHint:'), isTrue);
+    });
+
+    test('kategori verisi asset’ten gelir (mock sabitinden değil)', () {
+      // kProfessionNames kategori bilgisi TAŞIMAZ; gruplama yalnız
+      // professionsProvider ile mümkün.
+      expect(form.contains('professionsProvider'), isTrue);
+      // Yorumlarda adı geçebilir; aranan şey gerçek KULLANIM (import).
+      expect(form.contains('show kProfessionNames'), isFalse,
+          reason: 'Mock sabiti gruplama için yetersiz — import kalmamalı.');
+    });
+
+    test('Kolay İş anahtarı ürün kategorisi olarak listelenmez', () {
+      expect(form.contains('p.code != kOtherProfession'), isTrue);
+    });
+  });
+
   group('Aşama 0 — geri getirme bağları yerinde', () {
     test('mock veritabanında ürün koleksiyonu var (mock paritesi)', () {
       expect(MockDatabase().products, isEmpty,
