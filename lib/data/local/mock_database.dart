@@ -6,6 +6,7 @@ import '../models/availability.dart';
 import '../models/favorite.dart';
 import '../models/geo_models.dart';
 import '../models/job.dart';
+import '../models/product.dart';
 import '../models/review.dart';
 
 /// Meslek/kategori kodu → Türkçe ad. professions.json ile senkron tut.
@@ -191,6 +192,10 @@ class MockDatabase {
   // Çift taraflı pazaryeri koleksiyonları (bellek içi).
   final Map<String, Job> jobs = {};
   final Map<String, Favorite> favorites = {};
+
+  /// Mağaza ürün vitrini. Ürün modülü 2026-08-08'de kaldırılmış, 2026-08-10'da
+  /// Mağaza olarak geri getirilmiştir — bkz. `vault/06-Test/PLAN-Magaza.md`.
+  final Map<String, Product> products = {};
 
   /// jobs/favorites değiştiğinde tetiklenir → mock repo'lar akışlarını
   /// yeniden yayar (Firestore snapshot dinleyicisinin bellek içi taklidi).

@@ -96,6 +96,10 @@ class AppConstants {
   // bu tavan patolojik okuma sayısını sınırlar (CF + areaKeys[] ölçeğine kadar).
   static const int artisanFetchCap = 300;
 
+  // Mağaza (ürün vitrini) açık mı. Modül 2026-08-10'da geri getirildi;
+  // bayrak, tamamlanmadan yayına çıkmasın diye bir kapı olarak duruyor.
+  static const bool kProductsEnabled = true;
+
   // Asset yolları
   static const String provincesAsset = 'assets/data/provinces.json';
   static const String districtsAsset = 'assets/data/districts.json';

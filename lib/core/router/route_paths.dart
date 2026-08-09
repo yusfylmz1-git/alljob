@@ -132,6 +132,22 @@ class RoutePaths {
   /// Usta profili varsa ekran kendisi /artisan/:uid'e devreder.
   static String userProfile(String uid) => '/u/$uid';
 
+  // ---------------------------------------------------------------------
+  // MAĞAZA (ürün vitrini). PRD-006 olarak kurulup 2026-08-08'de kaldırıldı,
+  // 2026-08-10'da Mağaza adıyla geri getirildi — `vault/06-Test/PLAN-Magaza.md`.
+  //
+  // SIRA ÖNEMLİ: `/products/new` ve `/products/mine` router'da `/products/:id`
+  // ÖNCESİNDE tanımlanmalı, yoksa "new" bir ürün kimliği sanılır.
+  static const String productsBase = '/products';
+  static const String productNew = '/products/new';
+  static const String myProducts = '/products/mine';
+  static String productDetail(String id) => '/products/$id';
+  static String productEdit(String id) => '/products/$id/edit';
+
+  /// Bir kullanıcının ürün vitrini. Usta şartı YOK — herkes satabilir
+  /// (kullanıcı kararı 2026-08-10), yol adı geriye uyum için korundu.
+  static String artisanProducts(String uid) => '/artisan/$uid/products';
+
   // NOT: "Usta Çantası" (PRD-007) araç seti — hesap makineleri, AR ölçüm, PDF
   // teklif — 2026-08-07'de üründen TAMAMEN KALDIRILDI (kullanıcı kararı).
   // Rotalar, ekranlar, testler ve `ar_flutter_plugin_plus` / `pdf` /
