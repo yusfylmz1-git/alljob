@@ -584,77 +584,37 @@ service cloud.firestore {
       return request.resource.data.diff(resource.data).affectedKeys().hasOnly(keys);
     }
 
-    // jobs — iş ilanları (çift taraflı pazaryeri).
+    // jobs — müşterinin açtığı ilan. Bir DUYURUDUR: usta ilan sahibine
+    // doğrudan mesaj atar, anlaşma taraflar arasındadır.
+    //
     // Okuma: HERKES (Keşfet "İş İlanları" paneli misafire de açık; ilanlar
-    // pazaryeri gereği kamuya açık içeriktir). Oluşturma: yalnızca
-    // ilanı açan müşteri. Güncelleme:
-    //  - İlan sahibi (müşteri): teklif seçme, iptal, tamamlama onayı, puanlama.
-    //  - Seçilen usta: yalnızca durum + kendi tamamlama onayı.
-    //  - `offerCount` alanını yalnızca `onOfferWritten` Cloud Function'ı
-    //    (Admin SDK, kuralları bypass eder) yazar — istemciye izin YOK.
+    // pazaryeri gereği kamuya açık içeriktir).
+    //
+    // Eskiden burada usta seçimi (open → workerSelected), iki taraflı
+    // tamamlama onayı ve şikayet (disputed) geçişleri doğrulanırdı. O akış
+    // 2026-08-08'de kaldırıldı; kurallar da 2026-08-09'da sadeleşti.
+    // Durum yalnız üç değer alır: open · cancelled · expired.
     match /jobs/{jobId} {
       function isJobOwner() {
         return isSignedIn() && resource.data.customerId == request.auth.uid;
       }
-      function isSelectedArtisan() {
-        return isSignedIn() && resource.data.selectedArtisanId == request.auth.uid;
-      }
-
-      // `completed` yazılıyorsa iki tarafın onayı da (yeni veride) true olmalı —
-      // tek taraf işi kendi başına "tamamlandı" yapamaz (#10, sayaç bütünlüğü).
-      function completedHasBothConfirms() {
-        return request.resource.data.status != 'completed'
-          || (request.resource.data.customerConfirmedDone == true
-              && request.resource.data.artisanConfirmedDone == true);
-      }
-
-      // Anlaşmazlık (şikayet) alanları bu güncellemede DEĞİŞMİYOR mu?
-      function disputeKeysUnchanged() {
-        return !request.resource.data.diff(resource.data).affectedKeys()
-            .hasAny(['disputedBy', 'disputeReason', 'disputeNote',
-                     'disputedAt', 'statusBeforeDispute']);
-      }
-
-      // Şikayet akışı doğrulaması ([role]: 'customer' | 'artisan'). Üç geçerli hal:
-      //  A) Şikayetle ilgisiz güncelleme: durum disputed değil ve dispute
-      //     alanlarına dokunulmuyor.
-      //  B) Şikayet açma: yalnız aktif/tamamlanmış işte, bildiren taraf kendi
-      //     rolünü yazar, önceki durum statusBeforeDispute'a birebir kopyalanır
-      //     (geri çekişte dönülecek durum sahtelenemez).
-      //  C) Geri çekme: yalnız şikayeti AÇAN taraf, durum saklanan önceki
-      //     duruma döner ve dispute alanları silinir. disputed'dayken başka
-      //     hiçbir güncelleme (onay bayrağı dahil) yapılamaz — yaşam döngüsü donar.
-      function disputeOk(role) {
-        return (request.resource.data.status != 'disputed'
-                && resource.data.status != 'disputed'
-                && disputeKeysUnchanged())
-          || (resource.data.status in ['workerSelected', 'inProgress', 'completed']
-                && request.resource.data.status == 'disputed'
-                && request.resource.data.disputedBy == role
-                && request.resource.data.disputeReason is string
-                && request.resource.data.statusBeforeDispute == resource.data.status)
-          || (resource.data.status == 'disputed'
-                && resource.data.disputedBy == role
-                && request.resource.data.status == resource.data.statusBeforeDispute
-                && !request.resource.data.keys().hasAny(
-                    ['disputedBy', 'disputeReason', 'disputeNote',
-                     'disputedAt', 'statusBeforeDispute']));
-      }
 
       allow read: if true;
-      // M9: create allowlist — seçim/iptal/admin alanları seed edilemez.
+
+      // create allowlist — kaldırılmış iş akışı alanları (offerCount,
+      // selected*, chatId, *ConfirmedDone, dispute*) artık YAZILAMAZ.
+      // İstemci zaten göndermiyor; allowlist onu kural düzeyinde de kapatır.
       function jobCreateKeysOk() {
         return request.resource.data.keys().hasOnly([
           'customerId', 'customerName', 'customerPhotoURL',
           'title', 'description', 'category',
           'province', 'district', 'neighborhood',
           'photos', 'priceType', 'budget',
-          'status', 'offerCount',
-          'selectedOfferId', 'selectedArtisanId', 'chatId',
-          'customerConfirmedDone', 'artisanConfirmedDone', 'cancelReason',
+          'status', 'cancelReason',
           'createdAt', 'expiresAt', 'expiresAtMs', 'moderationHidden'
         ]);
       }
+
       // AÇIK İLAN LİMİTİ (5). Kural motoru count() yapamaz → sayaç
       // `users/{uid}/private/jobStats.openCount` içinde denormalize tutulur ve
       // yalnız CF yazar (onJobWritten). Doküman yoksa (ilk ilan) limit geçilir.
@@ -676,9 +636,6 @@ service cloud.firestore {
         && jobCreateKeysOk()
         && request.resource.data.customerId == request.auth.uid
         && request.resource.data.status == 'open'
-        && request.resource.data.offerCount == 0
-        && request.resource.data.customerConfirmedDone == false
-        && request.resource.data.artisanConfirmedDone == false
         && request.resource.data.title is string
         && request.resource.data.title.size() > 0
         && request.resource.data.title.size() <= 120
@@ -687,186 +644,31 @@ service cloud.firestore {
         && (!('photos' in request.resource.data)
             || (request.resource.data.photos is list
                 && request.resource.data.photos.size() <= 8))
-        && (!('selectedOfferId' in request.resource.data)
-            || request.resource.data.selectedOfferId == null)
-        && (!('selectedArtisanId' in request.resource.data)
-            || request.resource.data.selectedArtisanId == null)
-        && (!('chatId' in request.resource.data)
-            || request.resource.data.chatId == null)
         && (!('moderationHidden' in request.resource.data)
             || request.resource.data.moderationHidden == false)
         && !request.resource.data.keys()
               .hasAny(['moderatedBy', 'moderatedAt', 'adminModerationNote']);
-      // Sahip: yalnızca yaşam döngüsü alanları (ilan içeriği yayından sonra
-      // değişmez), KARŞI TARAFIN onayını değiştiremez (artisanConfirmedDone
-      // listede yok; confirmDone tx'i alanı değiştirmeden yazar → diff'e girmez)
-      // ve ilan 'open'a GERİ döndürülemez. Usta: yalnız durum + kendi onayı +
-      // şikayet; durumu ancak inProgress/completed/disputed'a (veya şikayet
-      // geri çekişinde saklanan önceki duruma) taşıyabilir.
-      // Usta seçimi yalnız open → workerSelected; atanan usta değişemez.
-      function ownerSelectTransitionOk() {
-        return request.resource.data.status != 'workerSelected'
-          || (resource.data.status == 'open'
-              && request.resource.data.selectedArtisanId is string
-              && request.resource.data.selectedOfferId is string);
-      }
-      // Atanan usta DEĞİŞTİRİLEMEZ. Tek istisna SEÇİM İPTALİ: müşteri
-      // workerSelected → open'a dönerken seçim alanları TEMİZLENİR (null).
-      // Yani "A ustasından B ustasına doğrudan geçiş" hâlâ yasak; iptal edip
-      // ilanı yeniden açmak gerekir (diğer ustalar da tekrar teklif verebilsin).
-      function ownerNoReassignArtisan() {
-        return !request.resource.data.diff(resource.data)
-              .affectedKeys().hasAny(['selectedArtisanId', 'selectedOfferId', 'chatId'])
-          || resource.data.get('selectedArtisanId', null) == null
-          || request.resource.data.get('selectedArtisanId', null)
-              == resource.data.get('selectedArtisanId', null)
-          || ownerCancelSelectionOk();
-      }
 
-      // Seçim iptali: yalnız workerSelected → open, yalnız seçim alanları
-      // sıfırlanarak. İş başladıysa (inProgress), tamamlandıysa ya da şikayet
-      // açıldıysa iptal YOK — o yollar dispute/admin ile çözülür.
-      function ownerCancelSelectionOk() {
-        return resource.data.status == 'workerSelected'
-          && request.resource.data.status == 'open'
-          && request.resource.data.get('selectedArtisanId', null) == null
-          && request.resource.data.get('selectedOfferId', null) == null
-          && request.resource.data.get('chatId', null) == null;
-      }
+      // Sahip iki şey yapabilir:
+      //  A) İlanı kapatmak (cancelled) — durum + iptal nedeni.
+      //  B) AÇIK ilanın içeriğini düzenlemek — yalnız üç alan. 1 saatlik
+      //     pencere istemcide kesilir (createdAt ISO string; kural zaman
+      //     aritmetiği yapamaz), asıl koruma "yalnız open + yalnız içerik".
+      //
+      // `expired` istemciye KAPALI: süre dolumu okuma anında hesaplanır
+      // (Job.effectiveStatus) ya da CF yazar — kullanıcı ilanını "süresi
+      // dolmuş" gösterip listeden gizleyemesin.
+      allow update: if !isSuspended()
+        && isJobOwner()
+        && ((changedOnly(['status', 'cancelReason'])
+              && request.resource.data.status == 'cancelled')
+            || (resource.data.status == 'open'
+                && changedOnly(['title', 'description', 'budget'])));
 
-      allow update: if completedHasBothConfirms()
-        && !isSuspended()
-        && ((isJobOwner()
-              && changedOnly(['status', 'selectedOfferId', 'selectedArtisanId',
-                    'chatId', 'customerConfirmedDone', 'cancelReason',
-                    'disputedBy', 'disputeReason', 'disputeNote',
-                    'disputedAt', 'statusBeforeDispute'])
-              // 'open'a dönüş YALNIZ seçim iptalinde (workerSelected → open,
-              // seçim alanları temizlenmiş). Tamamlanmış/şikayetli iş geri
-              // açılamaz.
-              && (request.resource.data.status != 'open'
-                  || ownerCancelSelectionOk())
-              && ownerSelectTransitionOk()
-              && ownerNoReassignArtisan()
-              && disputeOk('customer'))
-            // Sahip, AÇIK ilanın içeriğini düzenleyebilir (yalnız bu üç alan;
-            // yaşam döngüsü/sayaç alanlarına dokunamaz). 1 saatlik pencere
-            // istemcide kesilir (createdAt ISO string — kural zaman
-            // aritmetiği yapamaz); asıl koruma "yalnız open + yalnız içerik".
-            || (isJobOwner()
-                && resource.data.status == 'open'
-                && changedOnly(['title', 'description', 'budget']))
-            || (isSelectedArtisan()
-                && changedOnly(['status', 'artisanConfirmedDone',
-                      'disputedBy', 'disputeReason', 'disputeNote',
-                      'disputedAt', 'statusBeforeDispute'])
-                && (request.resource.data.status == resource.data.status
-                    || request.resource.data.status
-                        in ['inProgress', 'completed', 'disputed']
-                    || (resource.data.status == 'disputed'
-                        && request.resource.data.status
-                            == resource.data.statusBeforeDispute))
-                && disputeOk('artisan')));
-      // Sahip, ustaya BAĞLANMAMIŞ ilanı silebilir (open=açık/süresi dolmuş,
-      // cancelled=iptal). Aktif/tamamlanmış işler kayıt olarak kalır.
-      // Bağlı teklifleri `onJobWritten` CF temizler.
-      // `selectedArtisanId` kontrolü ŞART: iptal edilen ilanda durum
-      // `cancelled` olur ama usta ataması durursa iş gerçekten yaşanmıştır;
-      // silinirse ustanın kaydı ve anlaşmazlık kanıtı kaybolur.
-      allow delete: if isJobOwner()
-        && resource.data.status in ['open', 'cancelled']
-        && resource.data.get('selectedArtisanId', null) == null;
-    }
-
-    // offers — ilanlara verilen teklifler. Döküman ID'si = jobId__artisanId
-    // (bir usta bir ilana yalnızca 1 kez teklif verebilir, #1).
-    // Okuma: teklifi veren usta veya ilgili ilanın sahibi müşteri.
-    // Oluşturma/güncelleme: teklifi veren usta (fiyat/not/geri çekme);
-    // müşteri yalnızca seçim sırasında status alanını değiştirebilir.
-    match /offers/{offerId} {
-      // resource == null: var olmayan bir dökümanın get()'i (teklif verirken
-      // "önce oku" adımı) — kuralın null.data'ya düşüp reddetmesini önler.
-      // Teklifin bağlı olduğu ilan + usta profili (create'te get okumaları).
-      function jobOf(jobId) {
-        return get(/databases/$(database)/documents/jobs/$(jobId)).data;
-      }
-      function myArtisanProfile() {
-        return get(/databases/$(database)/documents/artisanProfiles/$(request.auth.uid)).data;
-      }
-      // H3: usta ilanla meslek + bölge eşleşmeli (istemci matchesArtisan paritesi).
-      function artisanMatchesOpenJob(job) {
-        let p = myArtisanProfile();
-        let areaKey = job.province + '|' + job.district;
-        let cat = job.category;
-        let isQs = cat == 'quick_support';
-        // Bölge: serviceAreaKeys (tercih). Boş/yoksa legacy serviceAreas
-        // (map listesi) — eski profiller keys heal olmadan reddedilmesin.
-        let keys = p.get('serviceAreaKeys', []);
-        // Hemen Lazım İL düzeyinde eşleşir (istemci paritesi:
-        // Job.matchesArtisan). Kurallar string ayıramadığından il listesi
-        // ayrı bir alanda tutulur; saveMyProfile + _healMatchFields yazar.
-        let provs = p.get('serviceProvinces', []);
-        let areaOk = isQs
-          ? (provs is list && provs.size() > 0 && provs.hasAny([job.province]))
-          : (keys is list && keys.size() > 0 && keys.hasAny([areaKey]));
-        // Meslek: Hemen Lazım → yalnız other/quick_support kodu;
-        // klasik → professions[] veya profession == category.
-        let proflist = p.get('professions', []);
-        let single = p.get('profession', '');
-        let isQsProvider = single == 'other' || single == 'quick_support'
-          || (proflist is list && proflist.hasAny(['other', 'quick_support']));
-        let profOk = isQs
-          ? isQsProvider
-          : ((proflist is list && proflist.hasAny([cat])) || single == cat);
-        // areaOk false + keys boş: create sırasında istemci keys yazmalı;
-        // keys dolu ama eşleşmiyorsa false. keys yok/boşken legacy alan yoksa
-        // false (güvenli ret). keys.size()==0 → istemci heal kaçırdıysa
-        // yine de profOk ile tek başına yetmez; area şart.
-        // NOT: rules map-list iterate edemez; legacy için keys zorunlu hale
-        // getirildi ama boş keys + profession-only ASLA yetmez.
-        // Pratik: saveMyProfile her zaman serviceAreaKeys yazar; heal await.
-        return areaOk && profOk;
-      }
-
-      allow read: if isSignedIn()
-        && (resource == null
-            || resource.data.artisanId == request.auth.uid
-            || resource.data.customerId == request.auth.uid);
-      // ID formatı jobId__artisanId KURALLA garanti (usta başına ilan başına tek
-      // teklif; rastgele ID ile sayaç şişirilemez). `customerId` ilanın GERÇEK
-      // sahibi olmalı (yanlış customerId, müşterinin teklifi hiç görememesine
-      // yol açardı) ve ilan hâlâ teklif topluyor olmalı.
-      // H4: süre dolmamış (expiresAtMs yoksa legacy — yalnız status).
-      function jobStillOpen(job) {
-        return job.status == 'open'
-          && (!('expiresAtMs' in job)
-              || request.time.toMillis() < job.expiresAtMs);
-      }
-      // E-posta doğrulama + H3 meslek/bölge + H4 süre.
-      allow create: if isSignedIn()
-        && !isSuspended()
-        && isEmailVerified()
-        && request.resource.data.artisanId == request.auth.uid
-        && offerId == request.resource.data.jobId + '__' + request.auth.uid
-        && request.resource.data.customerId
-            == jobOf(request.resource.data.jobId).customerId
-        && jobStillOpen(jobOf(request.resource.data.jobId))
-        && artisanMatchesOpenJob(jobOf(request.resource.data.jobId));
-      // M6: usta yalnız not/fiyat/geri çekme; accepted/rejected yazamaz.
-      // Müşteri yalnız status (seçim) + updatedAt.
-      allow update: if isSignedIn()
-        && !isSuspended()
-        && ((resource.data.artisanId == request.auth.uid
-              && changedOnly(['note', 'price', 'priceType', 'status', 'updatedAt'])
-              && request.resource.data.status in ['pending', 'withdrawn']
-              && request.resource.data.jobId == resource.data.jobId
-              && request.resource.data.artisanId == resource.data.artisanId
-              && request.resource.data.customerId == resource.data.customerId)
-            || (resource.data.customerId == request.auth.uid
-                && changedOnly(['status', 'updatedAt'])
-                && request.resource.data.status in
-                    ['pending', 'accepted', 'rejected']));
-      allow delete: if false;
+      // Sahip ilanını her zaman silebilir. Usta ataması / tamamlanmış iş
+      // kaydı diye bir şey yok; sohbetler ilandan bağımsız yaşar, silme
+      // mesaj geçmişini götürmez.
+      allow delete: if isJobOwner();
     }
 
     // reports — içerik/kullanıcı şikayetleri (UGC politikası, admin kuyruğu).

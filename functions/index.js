@@ -5,7 +5,6 @@
 // Amaç: istemci-tarafı "geçici çözümleri" sunucuya taşımak + push bildirimleri:
 //  1) Puan (rating) toplamlarını `artisanProfiles` üzerine denormalize et →
 //     müşteri araması artık her seferinde `reviews` koleksiyonunu TARAMAZ.
-//  2) `jobs.offerCount` sayacını sunucuda tut → istemci `FieldValue.increment`
 //     ve ona izin veren özel Firestore kuralı kaldırılabilir.
 //  3) Yeni sohbet mesajında alıcının cihaz(lar)ına FCM push bildirimi gönder
 //     (`onMessageCreated`) + geçersiz token'ları temizle.
@@ -181,19 +180,16 @@ function normalizeEmail(email) {
 // Tek döküman KPI: adminStats/global. Yazma yalnız CF; istemci okur.
 // Job bucket + report open transition pure helpers (test edilebilir).
 
-/** @param {string|undefined|null} status */
+/**
+ * Yalniz uc yasayan durum var (open/cancelled/expired). Canlida kalmis eski
+ * degerler (workerSelected, completed, disputed...) "jobsOther"a duser —
+ * sayimdan kaybolmasinlar diye.
+ * @param {string|undefined|null} status
+ */
 function jobStatsBucket(status) {
   switch (status) {
     case "open":
       return "jobsOpen";
-    case "workerSelected":
-    case "inProgress":
-      return "jobsInProgress";
-    case "completed":
-    case "rated":
-      return "jobsCompleted";
-    case "disputed":
-      return "jobsDisputed";
     case "cancelled":
     case "expired":
       return "jobsCancelled";
@@ -215,10 +211,8 @@ function jobStatsDelta(before, after) {
   };
   if (!before && after) {
     bump(jobStatsBucket(after.status), 1);
-    if (after.status === "disputed") bump("openDisputes", 1);
   } else if (before && !after) {
     bump(jobStatsBucket(before.status), -1);
-    if (before.status === "disputed") bump("openDisputes", -1);
   } else if (before && after) {
     const b = jobStatsBucket(before.status);
     const a = jobStatsBucket(after.status);
@@ -226,10 +220,6 @@ function jobStatsDelta(before, after) {
       bump(b, -1);
       bump(a, 1);
     }
-    const wasD = before.status === "disputed";
-    const isD = after.status === "disputed";
-    if (!wasD && isD) bump("openDisputes", 1);
-    if (wasD && !isD) bump("openDisputes", -1);
   }
   return d;
 }
@@ -735,63 +725,6 @@ async function jobChatDocs(jobId) {
 }
 
 /**
- * Seçilen usta DIŞINDAKİ tüm sohbetleri salt okunur yapar.
- *
- * İstemci bunu yapamaz: kurallar hem başkasının sohbetine yazmayı hem de
- * `lockedAt`/`lockReason` alanlarını istemci yazımına kapatır (aksi halde
- * seçilmeyen usta kendi kilidini açardı).
- */
-async function lockOtherJobChats(jobId, keepArtisanUid, reason) {
-  try {
-    const docs = await jobChatDocs(jobId);
-    const now = new Date().toISOString();
-    // 500'lük Firestore batch sınırı: teklif sayısı yüksek ilanlarda parçala.
-    let batch = db.batch();
-    let n = 0;
-    for (const d of docs) {
-      if (d.data().artisanUid === keepArtisanUid) continue;
-      if (d.data().lockedAt) continue; // zaten kilitli — dokunma
-      batch.update(d.ref, {lockedAt: now, lockReason: reason});
-      n += 1;
-      if (n % 450 === 0) {
-        await batch.commit();
-        batch = db.batch();
-      }
-    }
-    if (n % 450 !== 0) await batch.commit();
-    logger.info(`locked ${n} chat(s) for job ${jobId} (${reason})`);
-  } catch (e) {
-    logger.warn(`lockOtherJobChats failed for ${jobId}: ${e}`);
-  }
-}
-
-/** Seçim iptalinde kilitleri kaldırır (ilan yeniden teklif toplar). */
-async function unlockJobChats(jobId) {
-  try {
-    const docs = await jobChatDocs(jobId);
-    let batch = db.batch();
-    let n = 0;
-    for (const d of docs) {
-      if (!d.data().lockedAt) continue;
-      batch.update(d.ref, {
-        lockedAt: FieldValue.delete(),
-        lockReason: FieldValue.delete(),
-      });
-      n += 1;
-      if (n % 450 === 0) {
-        await batch.commit();
-        batch = db.batch();
-      }
-    }
-    if (n % 450 !== 0) await batch.commit();
-    logger.info(`unlocked ${n} chat(s) for job ${jobId}`);
-  } catch (e) {
-    logger.warn(`unlockJobChats failed for ${jobId}: ${e}`);
-  }
-}
-
-
-/**
  * TAKİP BİLDİRİMİ — biri seni takip edince haber verir (Instagram kalıbı).
  *
  * Tetikleyici: `favorites/{favId}` create. Kimlik deterministiktir
@@ -835,80 +768,6 @@ exports.onFollowCreated = onDocumentCreated(
       });
       await sendPushToUid(followedUid, title, body,
           {type: "follow", actorUid: followerUid});
-    },
-);
-
-/**
- * Bir teklif (ilgi kaydı) her yazıldığında (oluşturma/güncelleme/geri çekme)
- * ilgili ilanın `offerCount` alanını, çekilmemiş (withdrawn olmayan) teklif
- * sayısına göre YENİDEN HESAPLAR. Böylece sayaç her zaman tutarlıdır ve
- * istemcinin yazmasına gerek kalmaz.
- *
- * AYRICA: usta ilgisini bildirdiğinde (→ pending) MÜŞTERİYE haber verir.
- * Önceden istemci ustayı doğrudan sohbete atıyordu; artık usta yalnız bildirim
- * gönderiyor (bkz. `job_detail_screen.dart` `_notifyInterest`) — müşteri bu
- * bildirimi görmezse ilgiden hiç haberi olmaz.
- */
-exports.onOfferWritten = onDocumentWritten(
-    {document: "offers/{offerId}", region: REGION},
-    async (event) => {
-      const after = event.data && event.data.after && event.data.after.data();
-      const before =
-        event.data && event.data.before && event.data.before.data();
-      const jobId = (after && after.jobId) || (before && before.jobId);
-      if (!jobId) return;
-
-      const snap = await db
-          .collection("offers")
-          .where("jobId", "==", jobId)
-          .get();
-
-      let count = 0;
-      snap.forEach((d) => {
-        if ((d.data().status || "") !== "withdrawn") count += 1;
-      });
-
-      try {
-        await db.collection("jobs").doc(jobId).update({offerCount: count});
-        logger.info(`offerCount=${count} for job ${jobId}`);
-      } catch (e) {
-        // İlan silinmiş/yoksa güncelleme atlanır (zararsız).
-        logger.warn(`offerCount update skipped for ${jobId}: ${e}`);
-      }
-
-      // --- Müşteriye "usta ilgileniyor" bildirimi ---
-      // YALNIZ ilginin doğduğu an: yok→pending veya withdrawn→pending.
-      // pending→pending istemcide zaten no-op'tur (submitOffer aktif kayda
-      // yazmaz) → tetiklenmez; →withdrawn/accepted/rejected de bildirim değil.
-      const beforeStatus = (before && before.status) || null;
-      const afterStatus = (after && after.status) || null;
-      const becamePending =
-        afterStatus === "pending" && beforeStatus !== "pending";
-      if (!becamePending) return;
-      // Kendi ilanına ilgi (rules + matchesArtisan zaten engeller) — sessiz geç.
-      if (!after.customerId || after.artisanId === after.customerId) return;
-
-      // ÖNEMLİ — docId `offer_{offerId}` (= offer_{jobId}__{artisanId}):
-      // `job_{jobId}` KULLANILAMAZ, o kimlik "usta seçildi" bildirimine ait
-      // (onJobWritten) ve farklı ustaların ilgileri birbirini ezerdi. Bu
-      // biçimde usta başına ilan başına TEK satır olur; aynı usta geri çekip
-      // yeniden bildirirse satır tazelenir (bildirim yığılmaz).
-      const jobTitle = after.jobTitle || "ilanınız";
-      const artisanName = after.artisanName || "Bir usta";
-      const nTitle = "🔔 Bir usta işinizle ilgileniyor";
-      const nBody =
-        `${artisanName}, "${jobTitle}" ilanınız için sizinle çalışmak ` +
-        "istiyor. İlan sayfasından ustayı inceleyip seçebilirsiniz.";
-      // `chatId` YAZILMAZ: müşteri ilan detayına gitmeli (İlgilenen Ustalar
-      // listesi orada; sohbeti "Ustayı Seç" ile kendisi başlatır).
-      await saveNotification(after.customerId, `offer_${event.params.offerId}`, {
-        type: "job",
-        title: nTitle,
-        body: nBody,
-        jobId,
-      });
-      await sendPushToUid(after.customerId, nTitle, nBody,
-          {type: "job", jobId});
     },
 );
 
@@ -1212,18 +1071,12 @@ exports.onJobCreated = onDocumentCreated(
 /**
  * İş yaşam döngüsü tetikleyicisi (#tamamlama-mühendisliği):
  *
- * 1) İş `completed`/`rated` durumuna İLK geçtiğinde ustanın profilindeki
- *    `completedJobs` sayacını +1 artırır. Kurallar bu alanı istemciye kapatır;
- *    ayrıca kural gereği `completed` ancak İKİ tarafın onayı da true iken
- *    yazılabildiğinden sayaç şişirilemez.
+ * Tek isi kaldi: acik ilan sayacini (`users/{uid}/private/jobStats.openCount`)
+ * tazelemek. Kural (`jobs create`) o sayaci okuyup MAX_OPEN_JOBS kapisini
+ * uygular; sayac istemci yazimina kapalidir.
  *
- * 2) Tek taraf "işi tamamladım" dediğinde (onay bayrakları XOR) ilana
- *    `autoCompleteAt` son tarihini yazar ve KARŞI tarafa push gönderir.
- *    Süre dolunca `autoCompleteJobs` zamanlanmış fonksiyonu işi tamamlar —
- *    "unutulan iş sonsuza dek inProgress kalır" sorunu böyle çözülür.
- *
- * Döngü güvenliği: bu fonksiyonun kendi `autoCompleteAt` yazımı tetiklenmeyi
- * yeniler ama onay bayrakları değişmediği için her iki dal da atlanır.
+ * Ilan silinince de sayac duser — yoksa kullanici sildigi ilanlar yuzunden
+ * limite takili kalirdi.
  */
 exports.onJobWritten = onDocumentWritten(
     {document: "jobs/{jobId}", region: REGION},
@@ -1231,7 +1084,7 @@ exports.onJobWritten = onDocumentWritten(
       const before =
         event.data && event.data.before && event.data.before.data();
       const after = event.data && event.data.after && event.data.after.data();
-      // adminStats: bucket + openDisputes (silme dahil).
+      // adminStats: durum bucket'i (silme dahil).
       try {
         await applyStatsDelta(jobStatsDelta(before || null, after || null));
         if (!before && after) await bumpDaily("jobsCreated", 1);
@@ -1239,22 +1092,8 @@ exports.onJobWritten = onDocumentWritten(
         logger.warn(`adminStats job ${event.params.jobId}: ${e}`);
       }
       if (!after) {
-        // İlan silindi (kural: sahibi, ustaya bağlanmamış ilanı silebilir).
-        // Açık ilan sayacı düşsün, yoksa kullanıcı sildiği ilanlar yüzünden
-        // limite takılı kalırdı.
+        // Ilan silindi → acik ilan sayaci dussun.
         await refreshOpenJobCount(before && before.customerId);
-        // Bağlı teklifleri temizle — ustanın listesinde hayalet kayıt kalmasın.
-        // (Teklif silinmesi onOfferWritten'ı tetikler; o da ilan yoksa
-        // offerCount güncellemesini zaten atlar.)
-        const orphans = await db.collection("offers")
-            .where("jobId", "==", event.params.jobId)
-            .get();
-        if (orphans.empty) return;
-        const batch = db.batch();
-        orphans.forEach((d) => batch.delete(d.ref));
-        await batch.commit();
-        logger.info(
-            `job ${event.params.jobId} silindi; ${orphans.size} teklif temizlendi`);
         return;
       }
       const jobId = event.params.jobId;
@@ -1266,343 +1105,11 @@ exports.onJobWritten = onDocumentWritten(
         await refreshOpenJobCount(after.customerId);
       }
 
-      // 1) completed'a ilk geçiş → completedJobs +1.
-      //    `disputed`dan dönüş sayılmaz: disputed→completed yalnızca şikayet
-      //    geri çekişiyle olur ve iş completed'dan disputed'a giderken sayaç
-      //    zaten artmıştı (çift artış olmasın).
-      const doneStates = ["completed", "rated"];
-      const wasDone = !!before && doneStates.includes(before.status);
-      const isDone = doneStates.includes(after.status);
-      const fromDispute = !!before && before.status === "disputed";
-      if (!wasDone && !fromDispute && isDone && after.selectedArtisanId) {
-        try {
-          await db.collection("artisanProfiles")
-              .doc(after.selectedArtisanId)
-              .update({
-                completedJobs: FieldValue.increment(1),
-              });
-          logger.info(`completedJobs +1 for ${after.selectedArtisanId}`);
-        } catch (e) {
-          // Profil yoksa atla (zararsız).
-          logger.warn(
-              `completedJobs skipped for ${after.selectedArtisanId}: ${e}`);
-        }
-
-        // MÜŞTERİ tarafı sayacı — profil sadeleştirmesiyle (2026-08-07)
-        // müşteri profilinde de "tamamlanan" gösteriliyor. Ustanınkiyle
-        // simetrik: aynı koşul, aynı anda, çift artış korumasıyla.
-        // Herkese açık `users` dokümanında; istemci yazamaz (rules).
-        if (after.customerId) {
-          try {
-            await db.collection("users").doc(after.customerId).set({
-              completedJobsAsCustomer: FieldValue.increment(1),
-            }, {merge: true});
-            logger.info(`completedJobsAsCustomer +1 for ${after.customerId}`);
-          } catch (e) {
-            logger.warn(
-                `completedJobsAsCustomer skipped for ${after.customerId}: ${e}`);
-          }
-        }
-        // İş kapandı: sohbete şerit + değerlendirme daveti. Sohbet KİLİTLENMEZ
-        // — taraflar teslim sonrası konuşmaya devam edebilmeli; kapanma
-        // 7 gün sonra arşivleme ile olur (archiveCompletedChats).
-        if (after.chatId) {
-          await postSystemMessage(after.chatId,
-              "🎉 İş tamamlandı. Karşılıklı değerlendirme yapabilirsiniz.");
-        }
-        // Arşivleme saati bu damgadan sayılır (istemci yazamaz — rules).
-        if (!after.completedAt) {
-          try {
-            await db.collection("jobs").doc(jobId)
-                .update({completedAt: new Date().toISOString()});
-          } catch (e) {
-            logger.warn(`completedAt set failed for ${jobId}: ${e}`);
-          }
-        }
-      }
-
-      // 1b) Tek taraflı onay → karşı tarafa sohbette hatırlatma şeridi.
-      if (before && after.chatId) {
-        const custNew = after.customerConfirmedDone === true &&
-          before.customerConfirmedDone !== true;
-        const artNew = after.artisanConfirmedDone === true &&
-          before.artisanConfirmedDone !== true;
-        // Yalnız TEK taraf onaylıysa (ikisi de onaylıysa yukarıdaki
-        // "tamamlandı" şeridi zaten yazıldı, iki mesaj üst üste binmesin).
-        if ((custNew || artNew) && after.status !== "completed") {
-          await postSystemMessage(after.chatId, custNew ?
-            "📩 Müşteri işi tamamlandı olarak onayladı. Usta onayı bekleniyor." :
-            "📩 Usta teslimi onayladı. Müşteri onayı bekleniyor.");
-        }
-      }
-
-      // 2) Usta seçildi (open → workerSelected) → seçilen ustaya haber ver.
-      //    (Bu ana kadar seçilen usta push almıyordu — eksik bildirimdi.)
-      if (before && before.status === "open" &&
-          after.status === "workerSelected" && after.selectedArtisanId) {
-        const selTitle = "🎉 Bir iş için seçildiniz";
-        const selBody = `"${after.title || "İş"}" için müşteri sizi seçti. ` +
-          "Detayları sohbetten konuşabilirsiniz.";
-        await saveNotification(after.selectedArtisanId, `job_${jobId}`, {
-          type: "job",
-          title: selTitle,
-          body: selBody,
-          jobId,
-        });
-        await sendPushToUid(after.selectedArtisanId, selTitle, selBody,
-            {type: "job", jobId});
-
-        // Bu ilanın DİĞER sohbetlerini kilitle (salt okunur) — seçilmeyen
-        // ustalar yazmaya devam edemez. İstemci yapamaz: kural, başkasının
-        // sohbetine yazmayı ve `lockedAt` alanını tamamen kapatır.
-        await lockOtherJobChats(jobId, after.selectedArtisanId,
-            "otherArtisanSelected");
-
-        // Seçilen sohbete yaşam döngüsü şeridi.
-        if (after.chatId) {
-          await postSystemMessage(after.chatId,
-              "✅ Usta seçildi — iş başladı. İş bitince iki taraf da " +
-              "tamamlandı onayı verecek.");
-        }
-      }
-
-      // 2a) Seçim İPTAL (workerSelected → open): müşteri vazgeçti ya da usta
-      //     işi bıraktı. Kilitler açılır, ilan yeniden teklif toplar.
-      if (before && before.status === "workerSelected" &&
-          after.status === "open") {
-        await unlockJobChats(jobId);
-        // Seçilmiş ustanın sohbetine de bilgi düşülür (kilidi hiç konmamıştı).
-        if (before.chatId) {
-          await postSystemMessage(before.chatId,
-              "↩️ Müşteri usta seçimini iptal etti; ilan yeniden açıldı.");
-        }
-        // Kötüye kullanım freni: sürekli seç–iptal döngüsü ustaları oyalar.
-        // 3. iptalden sonra ilan kapanır (istemci sayacı yazamaz — burada).
-        const cancels = Number(before.selectionCancelCount || 0) + 1;
-        if (cancels >= 3) {
-          await db.collection("jobs").doc(jobId).update({
-            selectionCancelCount: cancels,
-            status: "cancelled",
-            cancelReason: "wrongPost",
-          });
-          const t = "İlan kapatıldı";
-          const b = "Bu ilanda usta seçimi 3 kez iptal edildi. " +
-            "Yeni bir ilan açabilirsiniz.";
-          await saveNotification(after.customerId, `job_${jobId}`,
-              {type: "job", title: t, body: b, jobId});
-          logger.warn(`job ${jobId} closed after ${cancels} cancels`);
-        } else {
-          await db.collection("jobs").doc(jobId)
-              .update({selectionCancelCount: cancels});
-        }
-      }
-
-      // 2b) Şikayet açıldı/geri çekildi → KARŞI tarafa bildirim + push.
-      //     (disputed'a geçişte autoCompleteAt varsa zamanlanmış CF onu
-      //     "aktif değil" diye kendisi temizler; iş otomatik TAMAMLANMAZ.)
-      const wasDisputed = !!before && before.status === "disputed";
-      const isDisputed = after.status === "disputed";
-      if (!wasDisputed && isDisputed) {
-        const raiser = after.disputedBy === "customer" ? "Müşteri" : "Usta";
-        const recipient = after.disputedBy === "customer" ?
-          after.selectedArtisanId :
-          after.customerId;
-        if (recipient) {
-          const reasonTr = DISPUTE_REASON_TR[after.disputeReason] || "Diğer";
-          const dTitle = "⚠️ İşle ilgili sorun bildirildi";
-          const dBody = `"${after.title || "İş"}" için ${raiser.toLowerCase()} ` +
-            `sorun bildirdi: ${reasonTr}. İş, sorun çözülene dek beklemede.`;
-          await saveNotification(recipient, `job_${jobId}`, {
-            type: "job",
-            title: dTitle,
-            body: dBody,
-            jobId,
-          });
-          await sendPushToUid(recipient, dTitle, dBody, {type: "job", jobId});
-        }
-      }
-      // Yönetici hakemliğiyle kapanan anlaşmazlıkta bu genel "geri çekildi"
-      // bildirimi atlanır: `adminResolveDispute` her iki tarafa kendi KESİN
-      // kararını (iptal / devam) ayrıca bildirir; ayrıca iptalde "kaldığı
-      // yerden devam ediyor" mesajı YANLIŞ olurdu.
-      if (wasDisputed && !isDisputed && after.adminResolved !== true) {
-        const recipient = before.disputedBy === "customer" ?
-          after.selectedArtisanId :
-          after.customerId;
-        if (recipient) {
-          const wTitle = "Sorun bildirimi geri çekildi";
-          const wBody = `"${after.title || "İş"}" için bildirilen sorun geri ` +
-            "çekildi; iş kaldığı yerden devam ediyor.";
-          await saveNotification(recipient, `job_${jobId}`, {
-            type: "job",
-            title: wTitle,
-            body: wBody,
-            jobId,
-          });
-          await sendPushToUid(recipient, wTitle, wBody, {type: "job", jobId});
-        }
-      }
-
-      // 3) Tek taraflı tamamlama onayı YENİ geldi → son tarih + push.
-      const custNew = after.customerConfirmedDone === true &&
-        !(before && before.customerConfirmedDone === true);
-      const artNew = after.artisanConfirmedDone === true &&
-        !(before && before.artisanConfirmedDone === true);
-      const oneSided = (after.customerConfirmedDone === true) !==
-        (after.artisanConfirmedDone === true);
-      const active = after.status === "workerSelected" ||
-        after.status === "inProgress";
-      if ((custNew || artNew) && oneSided && active && !after.autoCompleteAt) {
-        const deadline = new Date(
-            Date.now() + AUTO_COMPLETE_DAYS * 24 * 3600 * 1000).toISOString();
-        await db.collection("jobs").doc(jobId).update({
-          autoCompleteAt: deadline,
-        });
-
-        const recipient = custNew ? after.selectedArtisanId : after.customerId;
-        if (recipient) {
-          const who = custNew ? "Müşteri" : "Usta";
-          const cTitle = custNew ?
-            "Usta: müşteri işi onayladı" :
-            "Müşteri: usta işi teslim etti";
-          const cBody = `"${after.title || "İş"}" — ${who.toLowerCase()} ` +
-            `tamamlandı olarak işaretledi. Onayınızı verin; ` +
-            `${AUTO_COMPLETE_DAYS} gün içinde yanıt vermezseniz iş ` +
-            "otomatik tamamlanır.";
-          await saveNotification(recipient, `job_${jobId}`, {
-            type: "job",
-            title: cTitle,
-            body: cBody,
-            jobId,
-          });
-          await sendPushToUid(recipient, cTitle, cBody, {type: "job", jobId});
-        }
-      }
-    },
-);
-
-/**
- * Süresi dolan tek taraflı onayları kapatır: `autoCompleteAt <= şimdi` olan
- * ilanlardan hâlâ aktif (workerSelected/inProgress) ve tek taraflı onaylı
- * olanları `completed` yapar (onay bayrakları true'ya çekilir; `completedJobs`
- * artışını onJobWritten üstlenir), onay vermemiş tarafa bilgi push'u gönderir.
- * Uygun olmayanların (iptal/zaten tamam) süresi temizlenir.
- *
- * `autoCompleteAt` yalnızca bu dosyadaki CF'lerce UTC ISO string yazılır →
- * tek alanlı aralık sorgusu, composite index gerekmez.
- */
-exports.autoCompleteJobs = onSchedule(
-    {schedule: "every 6 hours", region: REGION, timeZone: "Europe/Istanbul"},
-    async () => {
-      const nowIso = new Date().toISOString();
-      const snap = await db.collection("jobs")
-          .where("autoCompleteAt", "<=", nowIso)
-          .limit(300)
-          .get();
-      if (snap.empty) return;
-
-      let completed = 0;
-      for (const d of snap.docs) {
-        const j = d.data();
-        const oneSided = (j.customerConfirmedDone === true) !==
-          (j.artisanConfirmedDone === true);
-        const active = j.status === "workerSelected" ||
-          j.status === "inProgress";
-
-        if (!(active && oneSided)) {
-          // İptal edilmiş/tamamlanmış vb. — bayat son tarihi temizle.
-          await d.ref.update({
-            autoCompleteAt: FieldValue.delete(),
-          });
-          continue;
-        }
-
-        await d.ref.update({
-          status: "completed",
-          customerConfirmedDone: true,
-          artisanConfirmedDone: true,
-          autoCompletedBySystem: true, // denetim izi
-          autoCompleteAt: FieldValue.delete(),
-          autoCompleteRemindedAt: FieldValue.delete(),
-        });
-        completed += 1;
-
-        // Her iki tarafa net bilgi; müşteriye değerlendirme CTA.
-        const parties = [j.customerId, j.selectedArtisanId].filter(Boolean);
-        for (const uid of parties) {
-          const isCustomer = uid === j.customerId;
-          const aTitle = "İş otomatik tamamlandı";
-          const aBody = isCustomer ?
-            `"${j.title || "İş"}" süre dolduğu için tamamlandı. ` +
-              "Ustanızı değerlendirmek için ilan detayına gidin." :
-            `"${j.title || "İş"}" süre dolduğu için tamamlandı olarak ` +
-              "işaretlendi. Teşekkürler.";
-          await saveNotification(uid, `job_${d.id}`, {
-            type: "job",
-            title: aTitle,
-            body: aBody,
-            jobId: d.id,
-          });
-          await sendPushToUid(uid, aTitle, aBody,
-              {type: "job", jobId: d.id});
-        }
-      }
-      logger.info(
-          `autoCompleteJobs: ${snap.size} aday, ${completed} tamamlandı`);
-    },
-);
-
-/**
- * Tek taraflı onayda son 24 saate giren işler için hatırlatma (gün ~2/3).
- * `autoCompleteRemindedAt` ile bir kez gönderilir.
- */
-exports.remindJobAutoComplete = onSchedule(
-    {schedule: "every 6 hours", region: REGION, timeZone: "Europe/Istanbul"},
-    async () => {
-      const now = Date.now();
-      const nowIso = new Date(now).toISOString();
-      // Son 36 saat içinde bitecek olanlar (hatırlatma penceresi).
-      const windowEnd = new Date(now + 36 * 3600 * 1000).toISOString();
-      const snap = await db.collection("jobs")
-          .where("autoCompleteAt", ">=", nowIso)
-          .where("autoCompleteAt", "<=", windowEnd)
-          .limit(300)
-          .get();
-      if (snap.empty) return;
-
-      let sent = 0;
-      for (const d of snap.docs) {
-        const j = d.data();
-        if (j.autoCompleteRemindedAt) continue;
-        const oneSided = (j.customerConfirmedDone === true) !==
-          (j.artisanConfirmedDone === true);
-        const active = j.status === "workerSelected" ||
-          j.status === "inProgress";
-        if (!(active && oneSided)) continue;
-
-        const recipient = j.customerConfirmedDone === true ?
-          j.selectedArtisanId :
-          j.customerId;
-        if (!recipient) continue;
-
-        const rTitle = "Hatırlatma: onayınız bekleniyor";
-        const rBody = `"${j.title || "İş"}" için karşı taraf onayladı. ` +
-          "Yakında otomatik tamamlanacak — şimdi onaylayabilir veya " +
-          "sorun bildirebilirsiniz.";
-        await saveNotification(recipient, `job_${d.id}_reminder`, {
-          type: "job",
-          title: rTitle,
-          body: rBody,
-          jobId: d.id,
-        });
-        await sendPushToUid(recipient, rTitle, rBody,
-            {type: "job", jobId: d.id});
-        await d.ref.update({
-          autoCompleteRemindedAt: new Date().toISOString(),
-        });
-        sent += 1;
-      }
-      logger.info(`remindJobAutoComplete: ${snap.size} aday, ${sent} push`);
+      // Eskiden burada uc dal daha vardi: completed'a gecis (completedJobs
+      // sayaci), usta secildi push'u + diger sohbetlerin kilitlenmesi, ve
+      // tek tarafli tamamlama onayi (autoCompleteAt + push). Is akisi
+      // 2026-08-08'de kalkti, bu gecisler artik URETILMIYOR — dallar sessizce
+      // hic atesenmiyordu. 2026-08-09'da silindi.
     },
 );
 
@@ -1647,70 +1154,29 @@ exports.deleteAccount = onCall(
         throw new HttpsError("unauthenticated", "Oturum gerekli.");
       }
       logger.info(`deleteAccount başladı: ${uid}`);
-      const activeStates = ["workerSelected", "inProgress", "disputed"];
 
-      // 1) Sahibi olduğu ilanlar.
+      // 1) Sahibi olduğu ilanlar → hepsi silinir.
+      //    İlan bir duyurudur; "usta atanmış aktif iş" diye bir şey yok, o
+      //    yüzden anonimleştirip saklamaya da gerek yok. Sohbetler ilandan
+      //    bağımsız yaşar — karşı tarafın mesaj geçmişi bundan etkilenmez.
       const myJobs = await db.collection("jobs")
           .where("customerId", "==", uid).get();
       for (const d of myJobs.docs) {
-        const j = d.data() || {};
-        if (j.status === "open" || j.status === "cancelled") {
-          await d.ref.delete(); // onJobWritten teklifleri temizler
-        } else if (activeStates.includes(j.status)) {
-          await d.ref.update({
-            status: "cancelled",
-            cancelReason: "Hesap silindi",
-            customerName: DELETED_USER_NAME,
-          });
-          if (j.selectedArtisanId) {
-            const t = "İş iptal edildi";
-            const b = `"${j.title || "İş"}" ilanının sahibi hesabını ` +
-              "sildiği için iş iptal edildi.";
-            await saveNotification(j.selectedArtisanId, `job_${d.id}`,
-                {type: "job", title: t, body: b, jobId: d.id});
-            await sendPushToUid(j.selectedArtisanId, t, b,
-                {type: "job", jobId: d.id});
-          }
-        } else {
-          // completed/rated — karşı tarafın iş geçmişi, yalnız ad anonimleşir.
-          await d.ref.update({customerName: DELETED_USER_NAME});
-        }
+        await d.ref.delete();
       }
 
-      // 2) Usta olarak seçildiği AKTİF işler → iptal + müşteriye bildirim.
-      const assigned = await db.collection("jobs")
-          .where("selectedArtisanId", "==", uid).get();
-      for (const d of assigned.docs) {
-        const j = d.data() || {};
-        if (!activeStates.includes(j.status)) continue;
-        await d.ref.update({
-          status: "cancelled",
-          cancelReason: "Usta hesabını sildi",
-        });
-        if (j.customerId) {
-          const t = "İş iptal edildi";
-          const b = `"${j.title || "İş"}" işindeki usta hesabını sildiği ` +
-            "için iş iptal edildi. Dilerseniz ilanı yeniden yayınlayın.";
-          await saveNotification(j.customerId, `job_${d.id}`,
-              {type: "job", title: t, body: b, jobId: d.id});
-          await sendPushToUid(j.customerId, t, b, {type: "job", jobId: d.id});
-        }
-      }
-
-      // 3) Verdiği teklifler + iki yönlü takip kayıtları + eleman modülü → sil.
+      // 2) İki yönlü takip kayıtları + eleman modülü → sil.
       //    Eleman: "iş arıyorum" kartı (worker_{uid}) + tüm eleman ilanları —
       //    herkese açık kart/ilan, hesap silindikten sonra YAYINDA KALAMAZ
       //    (KVKK; ayrıca işveren ölü hesaba yazmaya çalışmasın).
       const writer = db.bulkWriter();
-      const [myOffers, favsOut, favsIn, myStaffNeeds, myProducts] =
+      const [favsOut, favsIn, myStaffNeeds, myProducts] =
         await Promise.all([
-          db.collection("offers").where("artisanId", "==", uid).get(),
           db.collection("favorites").where("customerUid", "==", uid).get(),
           db.collection("favorites").where("artisanUid", "==", uid).get(),
           db.collection("staffNeeds").where("employerUid", "==", uid).get(),
           db.collection("products").where("ownerUid", "==", uid).get(),
         ]);
-      myOffers.forEach((d) => writer.delete(d.ref));
       favsOut.forEach((d) => writer.delete(d.ref));
       favsIn.forEach((d) => writer.delete(d.ref));
       myStaffNeeds.forEach((d) => writer.delete(d.ref));
@@ -1970,13 +1436,9 @@ exports.adminRebuildStats = onCall(
         artisansTotal: 0,
         productsTotal: 0,
         jobsOpen: 0,
-        jobsInProgress: 0,
-        jobsCompleted: 0,
-        jobsDisputed: 0,
         jobsCancelled: 0,
         jobsOther: 0,
         openReports: 0,
-        openDisputes: 0,
       };
 
       // users
@@ -2035,7 +1497,6 @@ exports.adminRebuildStats = onCall(
           const st = d.data().status;
           const b = jobStatsBucket(st);
           if (b) counts[b] = (counts[b] || 0) + 1;
-          if (st === "disputed") counts.openDisputes++;
         }
         lastJob = snap.docs[snap.docs.length - 1];
         if (snap.size < 400) break;
@@ -2650,88 +2111,6 @@ exports.adminModerateMessage = onCall(
 // (onJobWritten'in genel "geri çekildi" bildirimini bastırır), her iki tarafa
 // KESİN karar bildirilir ve denetim kaydı ATOMİK yazılır. İstemci `jobs`'a
 // doğrudan yazamaz — tüm mutasyon buradan geçer.
-exports.adminResolveDispute = onCall(
-    {region: REGION},
-    async (request) => {
-      const auth = request.auth;
-      await assertCap(auth, "disputes.manage");
-      const {jobId, decision, note} = request.data || {};
-      if (typeof jobId !== "string" ||
-          !["cancel", "restore"].includes(decision)) {
-        throw new HttpsError("invalid-argument", "Geçersiz istek.");
-      }
-      const ref = db.collection("jobs").doc(jobId);
-      const snap = await ref.get();
-      if (!snap.exists) {
-        throw new HttpsError("not-found", "İlan bulunamadı.");
-      }
-      const job = snap.data() || {};
-      if (job.status !== "disputed") {
-        throw new HttpsError(
-            "failed-precondition", "İlan anlaşmazlık durumunda değil.");
-      }
-
-      const del = FieldValue.delete();
-      const restored = job.statusBeforeDispute || "inProgress";
-      const newStatus = decision === "cancel" ? "cancelled" : restored;
-      const update = {
-        status: newStatus,
-        adminResolved: true,
-        // Anlaşmazlık alanlarını temizle (kayıt hakemlikle kapandı).
-        disputedBy: del,
-        disputeReason: del,
-        disputeNote: del,
-        disputedAt: del,
-        statusBeforeDispute: del,
-      };
-      if (decision === "cancel") {
-        // Serbest metin: istemci Job.cancelReason enum'u bunu null çözer
-        // (zararsız); asıl bağlam bildirimde + denetim kaydında.
-        update.cancelReason = "Yönetici kararı";
-      }
-
-      const batch = db.batch();
-      batch.update(ref, update);
-      await writeAuditLog({
-        actorUid: auth.uid,
-        action: "resolve_dispute",
-        targetType: "job",
-        targetId: jobId,
-        before: {status: "disputed", statusBeforeDispute: restored},
-        after: {decision, status: newStatus},
-      }, batch);
-      await batch.commit();
-
-      // Her iki tarafa KESİN kararı bildir (push + uygulama içi merkez). docId
-      // `dispute_{jobId}`: onJobWritten'in `job_{jobId}` kaydıyla çakışmaz.
-      const noteSuffix = (typeof note === "string" && note.trim()) ?
-        ` Yönetici notu: ${note.trim()}` : "";
-      const title = decision === "cancel" ?
-        "İş, yönetici kararıyla iptal edildi" :
-        "Anlaşmazlık kapatıldı — iş devam ediyor";
-      const body = (decision === "cancel" ?
-        `"${job.title || "İş"}" için bildirilen sorun sonucunda iş iptal ` +
-          "edildi." :
-        `"${job.title || "İş"}" için bildirilen sorun kapatıldı; iş kaldığı ` +
-          "yerden devam ediyor.") + noteSuffix;
-
-      for (const uid of [job.customerId, job.selectedArtisanId]) {
-        if (!uid) continue;
-        await saveNotification(uid, `dispute_${jobId}`, {
-          type: "job",
-          title,
-          body,
-          jobId,
-        });
-        await sendPushToUid(uid, title, body, {type: "job", jobId});
-      }
-
-      logger.info(
-          `dispute ${jobId} → ${decision} (${newStatus}) admin ${auth.uid}`);
-      return {ok: true};
-    },
-);
-
 // Yönetici bir kullanıcıyı askıya alır / geri açar (kötüye kullanım yönetimi).
 //
 // H2: e-posta public users'ta yok → admin arama Auth Admin SDK ile.
@@ -2808,7 +2187,6 @@ exports.adminUserSummary = onCall(
       const [
         jobsCreated,
         jobsActive,
-        offersMade,
         reportsAgainst,
         reportsBy,
         reviewsReceived,
@@ -2817,8 +2195,6 @@ exports.adminUserSummary = onCall(
         countOf(jobs.where("customerId", "==", target)),
         countOf(jobs.where("customerId", "==", target)
             .where("status", "==", "open")),
-        // offers KOK koleksiyondur ve alan adi artisanId'dir.
-        countOf(db.collection("offers").where("artisanId", "==", target)),
         countOf(reports.where("reportedUid", "==", target)),
         countOf(reports.where("reporterUid", "==", target)),
         // reviews KOK koleksiyon; alan adi artisanUID (buyuk harfli sonek).
@@ -2856,7 +2232,6 @@ exports.adminUserSummary = onCall(
         counts: {
           jobsCreated,
           jobsActive,
-          offersMade,
           reportsAgainst,
           reportsBy,
           reviewsReceived,
@@ -3079,14 +2454,14 @@ exports.adminModerateJob = onCall(
         after: {decision, ...update},
       });
 
-      // M8: force_cancel → taraflara bildirim + push.
+      // M8: force_cancel → ilan sahibine bildirim + push.
+      // (Eskiden secilen ustaya da giderdi; usta atamasi diye bir sey yok.)
       if (decision === "force_cancel") {
         const title = "İlan yönetici tarafından iptal edildi";
         const body = (typeof note === "string" && note.trim()) ?
           note.trim() :
           (before.title || "İlan") + " iptal edildi.";
         const customerId = before.customerId;
-        const artisanId = before.selectedArtisanId;
         if (customerId) {
           await saveNotification(customerId, `job_mod_${jobId}`, {
             type: "job",
@@ -3095,15 +2470,6 @@ exports.adminModerateJob = onCall(
             jobId,
           });
           await sendPushToUid(customerId, title, body, {type: "job", jobId});
-        }
-        if (artisanId && artisanId !== customerId) {
-          await saveNotification(artisanId, `job_mod_${jobId}`, {
-            type: "job",
-            title,
-            body,
-            jobId,
-          });
-          await sendPushToUid(artisanId, title, body, {type: "job", jobId});
         }
       }
 
@@ -4578,43 +3944,3 @@ function foldTrSearchJs(s) {
 const PRODUCT_CONTACT_RE =
   /(@[A-Za-z0-9._]{3,})|(\+?\d[\d\s\-()]{8,}\d)|([A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,})|(whatsapp|telegram|instagram|http:\/\/|https:\/\/|www\.)/i;
 
-exports.archiveCompletedChats = onSchedule(
-    {
-      schedule: "every 24 hours",
-      region: REGION,
-      timeZone: "Europe/Istanbul",
-    },
-    async () => {
-      const cutoff = new Date(
-          Date.now() - 7 * 24 * 60 * 60 * 1000,
-      ).toISOString();
-      const qs = await db.collection("jobs")
-          .where("completedAt", "<=", cutoff)
-          .limit(100)
-          .get();
-
-      let jobs = 0;
-      for (const doc of qs.docs) {
-        const d = doc.data() || {};
-        if (d.chatsArchivedAt) continue; // zaten arşivlendi
-        const docs = await jobChatDocs(doc.id);
-        const now = new Date().toISOString();
-        let batch = db.batch();
-        let n = 0;
-        for (const c of docs) {
-          if (c.data().lockedAt) continue; // kilitli (seçilmeyen usta) — dursun
-          batch.update(c.ref, {lockedAt: now, lockReason: "archived"});
-          n += 1;
-          if (n % 450 === 0) {
-            await batch.commit();
-            batch = db.batch();
-          }
-        }
-        if (n % 450 !== 0) await batch.commit();
-        await doc.ref.update({chatsArchivedAt: now});
-        jobs += 1;
-        logger.info(`archived ${n} chat(s) for job ${doc.id}`);
-      }
-      if (jobs) logger.info(`archiveCompletedChats: ${jobs} job(s)`);
-    },
-);

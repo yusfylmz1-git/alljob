@@ -75,18 +75,14 @@ class AdminStatsSnapshot {
 }
 
 /// Pure job status → stats field (CF `jobStatsBucket` paritesi).
+///
+/// Yalnız üç yaşayan durum var. Canlıda kalmış eski değerler
+/// (`workerSelected`, `completed`, `disputed`…) `jobsOther`a düşer —
+/// sayımdan kaybolmasınlar diye.
 String? jobStatsBucket(String? status) {
   switch (status) {
     case 'open':
       return 'jobsOpen';
-    case 'workerSelected':
-    case 'inProgress':
-      return 'jobsInProgress';
-    case 'completed':
-    case 'rated':
-      return 'jobsCompleted';
-    case 'disputed':
-      return 'jobsDisputed';
     case 'cancelled':
     case 'expired':
       return 'jobsCancelled';
@@ -111,10 +107,8 @@ Map<String, int> jobStatsDelta(
 
   if (before == null && after != null) {
     bump(jobStatsBucket(after['status'] as String?), 1);
-    if (after['status'] == 'disputed') bump('openDisputes', 1);
   } else if (before != null && after == null) {
     bump(jobStatsBucket(before['status'] as String?), -1);
-    if (before['status'] == 'disputed') bump('openDisputes', -1);
   } else if (before != null && after != null) {
     final b = jobStatsBucket(before['status'] as String?);
     final a = jobStatsBucket(after['status'] as String?);
@@ -122,10 +116,6 @@ Map<String, int> jobStatsDelta(
       bump(b, -1);
       bump(a, 1);
     }
-    final wasD = before['status'] == 'disputed';
-    final isD = after['status'] == 'disputed';
-    if (!wasD && isD) bump('openDisputes', 1);
-    if (wasD && !isD) bump('openDisputes', -1);
   }
   return d;
 }

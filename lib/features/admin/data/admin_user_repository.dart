@@ -125,7 +125,7 @@ class AdminUserSummary {
   /// Usta profili varsa premium/onay/puan alanları; yoksa null.
   final Map<String, dynamic>? artisan;
 
-  /// Sayaçlar: jobsCreated, jobsActive, offersMade, reportsAgainst,
+  /// Sayaçlar: jobsCreated, jobsActive, reportsAgainst,
   /// reportsBy, reviewsReceived, products. Sayım yapılamadıysa değer null.
   final Map<String, int?> counts;
 
@@ -587,7 +587,6 @@ class MockAdminUserRepository implements AdminUserRepository {
       counts: const {
         'jobsCreated': 0,
         'jobsActive': 0,
-        'offersMade': 0,
         'reportsAgainst': 0,
         'reportsBy': 0,
         'reviewsReceived': 0,

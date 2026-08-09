@@ -87,9 +87,15 @@ void main() {
     late String cf;
     setUpAll(() => cf = File('functions/index.js').readAsStringSync());
 
-    test('tamamlanan iş sayacı onJobWritten içinde artar', () {
+    test('tamamlanan iş sayacını artıran kod YOK (akış kalktı)', () {
+      // `completedJobsAsCustomer` eskiden iş `completed`a geçince artardı.
+      // İş tamamlama akışı 2026-08-08'de kalktı → o geçiş hiç üretilmiyor,
+      // artıran kod da 2026-08-09'da silindi. Alan modelde/kuralda duruyor
+      // (eski kayıtlar okunabilsin) ama hiçbir yerde gösterilmiyor.
+      //
+      // Bu kod geri gelirse: onu tetikleyecek bir durum geçişi var mı?
       expect(cf.contains('completedJobsAsCustomer: FieldValue.increment(1)'),
-          isTrue);
+          isFalse);
     });
 
     test('değerlendirme ADEDİ yazılır, PUAN yazılmaz', () {

@@ -755,22 +755,36 @@ void main() {
   });
 
   group('adminStats deltas (Wave 3 / PR6)', () {
-    test('jobStatsDelta create/open→disputed/delete', () {
+    test('jobStatsDelta create / open→cancelled / delete', () {
       expect(
         jobStatsDelta(null, {'status': 'open'}),
         {'jobsOpen': 1},
       );
       expect(
-        jobStatsDelta({'status': 'open'}, {'status': 'disputed'}),
-        {'jobsOpen': -1, 'jobsDisputed': 1, 'openDisputes': 1},
-      );
-      expect(
-        jobStatsDelta({'status': 'disputed'}, {'status': 'cancelled'}),
-        {'jobsDisputed': -1, 'jobsCancelled': 1, 'openDisputes': -1},
+        jobStatsDelta({'status': 'open'}, {'status': 'cancelled'}),
+        {'jobsOpen': -1, 'jobsCancelled': 1},
       );
       expect(
         jobStatsDelta({'status': 'open'}, null),
         {'jobsOpen': -1},
+      );
+      // Aynı bucket içinde kalan geçiş delta üretmez.
+      expect(
+        jobStatsDelta({'status': 'cancelled'}, {'status': 'expired'}),
+        isEmpty,
+      );
+    });
+
+    test('jobStatsDelta: kaldırılmış eski durumlar `jobsOther`a düşer', () {
+      // Canlıda `workerSelected`/`completed` yazan doküman kalmış olabilir —
+      // sayımdan kaybolmamalı, bilinmeyen kovaya girmeli.
+      expect(jobStatsBucket('workerSelected'), 'jobsOther');
+      expect(jobStatsBucket('completed'), 'jobsOther');
+      expect(jobStatsBucket('disputed'), 'jobsOther');
+      expect(jobStatsBucket(null), isNull);
+      expect(
+        jobStatsDelta({'status': 'completed'}, {'status': 'open'}),
+        {'jobsOther': -1, 'jobsOpen': 1},
       );
     });
 

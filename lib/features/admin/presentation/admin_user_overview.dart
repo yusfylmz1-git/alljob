@@ -210,7 +210,6 @@ class _CountGrid extends StatelessWidget {
   static const _labels = <String, String>{
     'jobsCreated': 'İlan',
     'jobsActive': 'Açık ilan',
-    'offersMade': 'Teklif',
     'reviewsReceived': 'Değerlendirme',
     'reportsAgainst': 'Hakkında şikayet',
     'reportsBy': 'Şikayet ettiği',
