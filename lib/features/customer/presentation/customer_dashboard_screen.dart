@@ -19,6 +19,7 @@ import '../../../core/widgets/role_bottom_bar.dart';
 import '../../../core/widgets/skeleton.dart';
 import '../../auth/application/auth_controller.dart';
 import '../../jobs/presentation/widgets/jobs_explore_panel.dart';
+import '../../products/presentation/widgets/magaza_sekmesi.dart';
 import '../application/artisan_search_controller.dart';
 import 'widgets/artisan_card.dart';
 import 'widgets/detailed_search_sheet.dart';
@@ -52,7 +53,7 @@ class _CustomerDashboardScreenState
     extends ConsumerState<CustomerDashboardScreen>
     with SingleTickerProviderStateMixin {
   final _scrollController = ScrollController();
-  late final TabController _tab = TabController(length: 2, vsync: this);
+  late final TabController _tab = TabController(length: 3, vsync: this);
 
   @override
   void initState() {
@@ -106,9 +107,10 @@ class _CustomerDashboardScreenState
       body: Column(
         children: [
           const _HeroHeader(),
-          // KEŞFET İKİ SEKME: Ustalar | İlanlar (2026-08-08).
-          // İlan akışı alt bardaki ayrı sekmeden BURAYA taşındı — "usta ara"
-          // ve "iş ara" aynı keşif yüzeyinde toplandı.
+          // KEŞFET ÜÇ SEKME: Ustalar | İlanlar | Mağaza.
+          // İlan akışı alt bardaki ayrı sekmeden BURAYA taşındı (2026-08-08);
+          // Mağaza 2026-08-10'da eklendi — "usta ara", "iş ara" ve "ürün ara"
+          // aynı keşif yüzeyinde toplandı.
           Material(
             color: context.palette.card,
             child: TabBar(
@@ -116,6 +118,7 @@ class _CustomerDashboardScreenState
               tabs: const [
                 Tab(text: 'Ustalar', icon: Icon(Icons.handyman_rounded, size: 20)),
                 Tab(text: 'İlanlar', icon: Icon(Icons.campaign_rounded, size: 20)),
+                Tab(text: 'Mağaza', icon: Icon(Icons.storefront_rounded, size: 20)),
               ],
             ),
           ),
@@ -125,6 +128,8 @@ class _CustomerDashboardScreenState
               children: [
                 _ArtisansExplorePanel(scrollController: _scrollController),
                 const _JobsTab(),
+                // Erişim kapısı YOK — misafir de görebilir (bkz. MagazaSekmesi).
+                const MagazaSekmesi(),
               ],
             ),
           ),

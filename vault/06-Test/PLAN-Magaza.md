@@ -233,7 +233,30 @@ sunulmaz (Kolay İş'in 1 gün yaklaşımının aynısı).
 
 ---
 
-## Aşama 4 — Gezinme / yerleşim (KARAR VERİLDİ)
+## Aşama 4 — TAMAMLANDI (2026-08-10) · MODÜL AÇIK
+
+Modül artık kullanıcıya **erişilebilir**.
+
+| Ne | Sonuç |
+|---|---|
+| Keşfet sekmesi | `TabController` 2 → **3**: Ustalar \| İlanlar \| **Mağaza** |
+| Mağaza alt bölümleri | **Ürünler \| Talepler** (`MagazaSekmesi`) |
+| Rotalar | 5 ürün rotası router'a bağlandı |
+| Talep formu | `/jobs/new?kind=product` → kategori seçili açılır |
+| Talep listesi | `productRequestsProvider` — `openJobsProvider`'dan süzülür |
+| Erişim kapısı | **YOK** — misafir de görür |
+
+**Yazma/okuma ayrımı:** `/products/new`, `/products/mine` ve `.../edit`
+oturum ister; vitrin ve ürün detayı misafire açık (Ustalar sekmesi gibi).
+
+**Süre:** ürün talebi sabit **7 gün** — formda zorlanır, kullanıcı
+kategoriyi sonradan değiştirse bile geçerli (Kolay İş'in 1 gün deseni).
+
+Doğrulama: `flutter build web --release` **başarılı**.
+
+---
+
+## Aşama 4 notları (yerleşim kararı)
 
 Mağaza, Keşfet'te **üçüncü sekme**:
 

@@ -4,7 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../data/models/app_user.dart';
-import '../../data/models/job.dart' show kQuickSupportCategory;
+import '../../data/models/job.dart'
+    show kProductRequestCategory, kQuickSupportCategory;
 import '../../features/notifications/presentation/notification_prefs_screen.dart';
 import '../../features/notifications/presentation/notifications_screen.dart';
 import '../../features/artisan/presentation/artisan_profile_edit_screen.dart';
@@ -33,6 +34,10 @@ import '../../features/membership/membership_package.dart';
 import '../../features/membership/presentation/package_select_screen.dart';
 import '../../features/onboarding/onboarding_state.dart';
 import '../../features/onboarding/presentation/onboarding_screen.dart';
+import '../../features/products/presentation/artisan_products_screen.dart';
+import '../../features/products/presentation/my_products_screen.dart';
+import '../../features/products/presentation/product_detail_screen.dart';
+import '../../features/products/presentation/product_edit_screen.dart';
 import '../../features/profile/presentation/profile_screen.dart';
 import '../../features/review/presentation/review_screen.dart';
 import '../../features/help/presentation/help_screen.dart';
@@ -116,7 +121,14 @@ final routerProvider = Provider<GoRouter>((ref) {
               loc != RoutePaths.quickSupportJobs) ||
           loc.startsWith(RoutePaths.favorites) ||
           loc.startsWith(RoutePaths.notifications) ||
-          loc.startsWith(RoutePaths.profile);
+          loc.startsWith(RoutePaths.profile) ||
+          // MAĞAZA: vitrin ve ürün detayı misafire AÇIK (Ustalar sekmesi
+          // gibi) — yalnız yazma yolları oturum ister. "Herkes satabilir"
+          // kararı satıcı rolünü kaldırdı, ama oturumu kaldırmadı.
+          loc == RoutePaths.productNew ||
+          loc == RoutePaths.myProducts ||
+          (loc.startsWith('${RoutePaths.productsBase}/') &&
+              loc.endsWith('/edit'));
 
       // Misafir: keşif + profilleri gezebilir; korunan bölgeler girişe yönlenir.
       if (user == null) {
@@ -292,11 +304,14 @@ final routerProvider = Provider<GoRouter>((ref) {
       // ÖNCE tanımlanmalıdır (aksi halde :jobId onları da yakalar).
       GoRoute(
         path: RoutePaths.newJob,
-        // ?kind=quick → form Hemen Lazım kategorisi seçili açılır.
+        // ?kind=quick   → Kolay İş kategorisi seçili açılır.
+        // ?kind=product → Ürün Talebi (Mağaza > Talepler > "İlan Ver").
         builder: (_, state) => CreateJobScreen(
-          initialCategory: state.uri.queryParameters['kind'] == 'quick'
-              ? kQuickSupportCategory
-              : null,
+          initialCategory: switch (state.uri.queryParameters['kind']) {
+            'quick' => kQuickSupportCategory,
+            'product' => kProductRequestCategory,
+            _ => null,
+          },
         ),
       ),
       GoRoute(
@@ -313,6 +328,39 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/jobs/:jobId',
         builder: (_, state) =>
             JobDetailScreen(jobId: state.pathParameters['jobId']!),
+      ),
+
+      // ── MAĞAZA (ürün vitrini) ──
+      // Sıralama tuzağı `jobs` ile aynı: /products/new ve /products/mine,
+      // '/products/:productId'den ÖNCE tanımlanmalı — yoksa "new" bir ürün
+      // kimliği olarak yakalanır.
+      GoRoute(
+        path: RoutePaths.productNew,
+        builder: (_, _) => const ProductEditScreen(),
+      ),
+      GoRoute(
+        path: RoutePaths.myProducts,
+        builder: (_, _) => const MyProductsScreen(),
+      ),
+      GoRoute(
+        path: '/products/:productId/edit',
+        builder: (_, state) => ProductEditScreen(
+          productId: state.pathParameters['productId'],
+        ),
+      ),
+      GoRoute(
+        path: '/products/:productId',
+        builder: (_, state) => ProductDetailScreen(
+          productId: state.pathParameters['productId']!,
+        ),
+      ),
+      // Bir kişinin tüm vitrini ("Tümünü Gör"). Usta şartı yok.
+      GoRoute(
+        path: '/artisan/:uid/products',
+        builder: (_, state) => ArtisanProductsScreen(
+          uid: state.pathParameters['uid']!,
+          sellerName: state.uri.queryParameters['ad'],
+        ),
       ),
       GoRoute(
         path: RoutePaths.favorites,

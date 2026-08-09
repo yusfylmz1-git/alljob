@@ -376,6 +376,75 @@ void main() {
     });
   });
 
+  group('Aşama 4 — modül kullanıcıya AÇILDI', () {
+    late String router;
+    late String kesfet;
+    setUpAll(() {
+      router = read('lib/core/router/app_router.dart');
+      kesfet = read(
+          'lib/features/customer/presentation/customer_dashboard_screen.dart');
+    });
+
+    test('Keşfet üç sekme: Ustalar | İlanlar | Mağaza', () {
+      expect(kesfet.contains('TabController(length: 3'), isTrue,
+          reason: 'Sekme sayısı 3 olmalı; 2 kalırsa Mağaza sekmesi '
+              'oluşturulur ama TabBarView ile eşleşmez ve çöker.');
+      expect(kesfet.contains("Tab(text: 'Mağaza'"), isTrue);
+      expect(kesfet.contains('MagazaSekmesi()'), isTrue);
+    });
+
+    test('Mağaza sekmesinde erişim kapısı YOK', () {
+      final s = read(
+          'lib/features/products/presentation/widgets/magaza_sekmesi.dart');
+      expect(s.contains('isArtisan'), isFalse,
+          reason: 'Usta modu şartı olmamalı.');
+      expect(s.contains('RoutePaths.login'), isFalse,
+          reason: 'Misafir de Mağaza sekmesini görebilmeli — İlanlar '
+              'sekmesindeki giriş kapısı buraya TAŞINMAMALI.');
+    });
+
+    test('ürün rotaları /products/:id ÖNCESİNDE tanımlı', () {
+      // Sıra bozulursa "new" ve "mine" birer ürün kimliği sanılır ve
+      // kullanıcı ürün ekleme ekranı yerine "bulunamadı" görür.
+      final yeni = router.indexOf('RoutePaths.productNew');
+      final benim = router.indexOf('RoutePaths.myProducts');
+      final detay = router.indexOf("path: '/products/:productId'");
+      expect(yeni, greaterThan(0));
+      expect(benim, greaterThan(0));
+      expect(detay, greaterThan(0));
+      expect(yeni, lessThan(detay), reason: '/products/new önce gelmeli.');
+      expect(benim, lessThan(detay), reason: '/products/mine önce gelmeli.');
+    });
+
+    test('ürün YAZMA yolları oturum ister, okuma istemez', () {
+      expect(router.contains('loc == RoutePaths.productNew'), isTrue);
+      expect(router.contains('loc == RoutePaths.myProducts'), isTrue);
+      expect(router.contains("loc.endsWith('/edit')"), isTrue);
+      // Detay yolu needsLogin listesinde OLMAMALI (misafire açık).
+      expect(router.contains("loc.startsWith('/products/') &&\n"), isFalse);
+    });
+
+    test('talep formu ?kind=product ile açılır ve süresi SABİT 7 gün', () {
+      expect(router.contains("'product' => kProductRequestCategory"), isTrue);
+      final form = read('lib/features/jobs/presentation/create_job_screen.dart');
+      expect(
+          form.contains('kProductRequestCategory => JobDuration.day7'), isTrue,
+          reason: 'Süre sunucuda değil formda zorlanıyor; kullanıcı '
+              'kategoriyi sonradan değiştirse bile 7 gün olmalı.');
+      expect(form.contains('kProductRequestCategory: '), isTrue,
+          reason: 'Kategori seçicide görünmeli.');
+    });
+
+    test('talep listesi ayrı sorgu açmaz', () {
+      final p = read('lib/features/jobs/data/job_providers.dart');
+      expect(p.contains('productRequestsProvider'), isTrue);
+      final blok = p.substring(p.indexOf('productRequestsProvider'));
+      expect(blok.contains('openJobsProvider'), isTrue,
+          reason: 'quickSupportJobsProvider ile aynı desen — açık ilanlar '
+              'üzerinden süzülmeli, yeni indeks gerektirmemeli.');
+    });
+  });
+
   group('Aşama 0 — geri getirme bağları yerinde', () {
     test('mock veritabanında ürün koleksiyonu var (mock paritesi)', () {
       expect(MockDatabase().products, isEmpty,

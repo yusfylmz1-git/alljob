@@ -39,6 +39,22 @@ hem müşteri hem usta olabilir.
 > Geri tuşu: Ana Sayfa'da sistemden çıkar, diğer sekmelerde önce Ana Sayfa'ya
 > döner (sekme geçişi `context.go` — geçmiş yığını bırakmaz).
 
+## Keşfet — 3 sekme
+
+| Sekme | İçerik | Kapı |
+|---|---|---|
+| Ustalar | Usta arama | Yok |
+| İlanlar | İş ilanları | **Giriş + usta modu** |
+| **Mağaza** | Ürünler \| Talepler | **Yok** — misafir dâhil |
+
+Mağaza 2026-08-10'da eklendi. Kapısı bilerek yoktur: herkes satabildiği için
+herkes bakabilmeli. Yazma yolları router'da oturum ister.
+
+**Talepler** = "şu ürüne ihtiyacım var" ilanları (`jobs` içinde
+`product_request` kategorisi). Bunlar **usta feed'ine düşmez**; bildirim
+anlık değil, günlük özet olarak ilgili satıcılara gider
+(`sendProductRequestDigest`, her gün 19:00).
+
 ## Açılış kapıları — sırayla
 
 `app_router.dart` global `redirect`. **Sıra önemlidir**, üstteki alttakini ezer:

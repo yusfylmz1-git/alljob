@@ -54,10 +54,25 @@ değerlendirilir. Sıra bir davranış sözleşmesidir:
 ### İlan (jobs)
 | Yol | Not |
 |---|---|
-| `/jobs/new` · `/jobs/new?kind=quick` | `kind=quick` → Kolay İş kategorisi seçili açılır |
+| `/jobs/new` · `/jobs/new?kind=…` | `kind=quick` → Kolay İş · `kind=product` → **Ürün Talebi** |
 | `/jobs/mine` | İlanlarım |
 | `/jobs/quick` | Kolay İş vitrini (misafire açık) |
 | `/jobs/:jobId` | İlan detayı |
+
+### Mağaza (products)
+
+Modül 2026-08-08'de kaldırılmış, **2026-08-10'da geri getirilmiştir**.
+Plan: `vault/06-Test/PLAN-Magaza.md`.
+
+| Yol | Not |
+|---|---|
+| `/products/new` · `/products/mine` | **Oturum ister** |
+| `/products/:id/edit` | Oturum ister |
+| `/products/:id` | Ürün detayı — **misafire açık** |
+| `/artisan/:uid/products` | Bir kişinin vitrini (usta şartı yok) |
+
+> Okuma misafire açık, yazma oturum ister. "Herkes satabilir" kararı satıcı
+> *rolünü* kaldırdı, oturum şartını değil.
 
 > [!warning] Rota sırası tuzağı
 > `/jobs/new`, `/jobs/mine`, `/jobs/quick` mutlaka `/jobs/:jobId`'den **önce**

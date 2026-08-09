@@ -31,6 +31,16 @@ final quickSupportJobsProvider = Provider<List<Job>>((ref) {
   return jobs.where((j) => j.isQuickSupport).toList(growable: false);
 });
 
+/// Mağaza > Talepler: açık ürün talepleri, en yeni üstte.
+///
+/// [openJobsProvider] üzerinden süzülür — [quickSupportJobsProvider] ile
+/// aynı desen: ayrı sorgu/indeks açmaz. Bu talepler USTA feed'ine düşmez
+/// (`Job.matchesArtisan` erken `false` döner); burası tek görünür yerleri.
+final productRequestsProvider = Provider<List<Job>>((ref) {
+  final jobs = ref.watch(openJobsProvider).valueOrNull ?? const <Job>[];
+  return jobs.where((j) => j.isProductRequest).toList(growable: false);
+});
+
 /// Müşterinin kendi ilanları (İlanlarım).
 final myJobsProvider = StreamProvider.family<List<Job>, String>(
   (ref, customerUid) =>

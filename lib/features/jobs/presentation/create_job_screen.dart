@@ -166,10 +166,14 @@ class _CreateJobScreenState extends ConsumerState<CreateJobScreen> {
       // Kolay İş süresi UI'da gizli — burada da ZORLANIR. Kullanıcı normal
       // ilan formunda 7 gün seçip sonra kategoriyi Kolay İş'e çevirirse
       // `_duration` eski değerinde kalırdı.
+      //
+      // Ürün talebi de SABİT 7 gün (kullanıcı kararı): seçim sunulmaz.
       expiresAt: now.add(
-        (_category == kQuickSupportCategory
-                ? JobDuration.day1
-                : _duration)
+        switch (_category) {
+          kQuickSupportCategory => JobDuration.day1,
+          kProductRequestCategory => JobDuration.day7,
+          _ => _duration,
+        }
             .duration,
       ),
     );
@@ -446,7 +450,34 @@ class _CreateJobScreenState extends ConsumerState<CreateJobScreen> {
                     _Label('İlan Süresi'),
                     // Kolay İş HER ZAMAN 1 gün: kısa iş kısa yaşar, seçim
                     // sunmak gereksiz karar yükü. Normal ilanda 3/5/7.
-                    if (_category == kQuickSupportCategory)
+                    // Ürün talebi HER ZAMAN 7 gün (kullanıcı kararı).
+                    if (_category == kProductRequestCategory)
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: context.palette.surfaceMuted,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(Icons.storefront_outlined,
+                                size: 18, color: context.palette.primary),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                '$kProductRequestName ilanları 7 gün yayında '
+                                'kalır.',
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .bodySmall
+                                    ?.copyWith(fontWeight: FontWeight.w600),
+                              ),
+                            ),
+                          ],
+                        ),
+                      )
+                    else if (_category == kQuickSupportCategory)
                       Container(
                         width: double.infinity,
                         padding: const EdgeInsets.all(12),
@@ -622,14 +653,17 @@ class _CategoryDropdown extends ConsumerWidget {
       loading: () => const LinearProgressIndicator(),
       error: (_, _) => const Text('Meslek listesi yüklenemedi'),
       data: (professions) {
-        // Hemen Lazım en üstte; usta mesleği "other" ilan kategorisi değil.
+        // Kolay İş ve Ürün Talebi en üstte; usta mesleği "other" ilan
+        // kategorisi değil.
         final labels = <String, String>{
           kQuickSupportCategory: '⚡ $kQuickSupportName',
+          kProductRequestCategory: '🛒 $kProductRequestName',
           for (final p in professions)
             if (p.code != kOtherProfession) p.code: p.nameTR,
         };
         final codes = [
           kQuickSupportCategory,
+          kProductRequestCategory,
           ...professions
               .where((p) => p.code != kOtherProfession)
               .map((p) => p.code),
@@ -647,10 +681,12 @@ class _CategoryDropdown extends ConsumerWidget {
           hint: 'Kategori seçin',
           searchHint: 'Meslek ara (örn. avukat, elektrik…)',
           prefixIcon: Icons.handyman_outlined,
-          groupLabel: (c) => c == kQuickSupportCategory
-              ? kQuickSupportName
-              : ProfessionCategory.label(
-                  kategoriler[c] ?? ProfessionCategory.diger),
+          groupLabel: (c) => switch (c) {
+            kQuickSupportCategory => kQuickSupportName,
+            kProductRequestCategory => kProductRequestName,
+            _ => ProfessionCategory.label(
+                kategoriler[c] ?? ProfessionCategory.diger),
+          },
           onSelected: onChanged,
         );
       },
