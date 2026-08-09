@@ -24,6 +24,89 @@
 
 ## ✅ Son Durum (EN SON BURAYI OKU)
 
+**Tarih:** 2026-08-10
+
+**Oturum 84: CİHAZ TESTİ BULGULARI GİDERİLDİ. Tek commit (`b9bfac8`,
++3237/−1257) · 586/586 test · analyze 0.**
+
+### 🔴 SIRADAKİ İŞ: `adminBulkPlanUpdate` DEPLOY EDİLECEK
+
+Bu oturumun kod işi bitti ama **bir yeni Cloud Function canlıda yok**.
+Export sayısı **40 → 41** oldu:
+
+```bash
+firebase deploy --only functions:adminBulkPlanUpdate
+```
+
+Deploy edilmiş olanlar (oturum 83 sonrası, bu oturum içinde):
+- `firestore.rules` — sohbet kimliği iki sıra + bildirim `delete` izni ✅
+- `deleteAccount` düzeltmesi (madde 13b, BulkWriter NOT_FOUND) ✅
+
+> Tekrar hatırlatma: CF deploy'u **silme** gerektiriyorsa etkileşimsiz
+> ortamda durur. Bu sefer yalnız EKLEME var, sorun çıkmamalı.
+
+Deploy sonrası kalan iş cihaz testi (aşağıdaki "Kalanlar").
+
+### Oturum 84'te ne yapıldı
+
+Kaynak: `vault/06-Test/Yapılacaklar.md` — cihaz testinde bulunan 13 madde
+ve "yeni yapılacaklar" listesinin 1. maddesi. Her maddenin kök nedeni ve
+kararı o dosyada duruyor; burada yalnız mimari sonuçlar:
+
+**Sohbet kimliği role bağlıydı** → `chat_{müşteri}__{usta}` biçimi rolü
+kimliğe gömüyordu, rol ise giriş noktasına göre değişiyordu (ilan detayında
+"ilanı veren = müşteri", profilde "ben = müşteri"). Aynı çift iki kutu
+açıyordu. Kimlik artık uid'leri **alfabetik sıralıyor**. ⚠️ Kural da
+değişti — yalnız eski sırayı kabul etseydi sohbetlerin ~yarısı
+`permission-denied` alırdı. Veri göçü YAPILMADI; eski kimlikli sohbetler
+üyelikle sorgulandığı için listede kalır.
+
+**Müsaitlik kapısı dört girişten yalnız birinde vardı.** İlan detayı
+kapılıydı; ilan kartındaki avatar → profil → "Sohbet et" yolu açıktı.
+Ortak kapı: `artisan/application/availability_gate.dart`. Kapı **eylemde**,
+gezinmede değil — profili gizlemek deliği kapatmazdı. Yalnız istemcide
+çalışır, güvenlik sınırı DEĞİL.
+
+**`isAvailableAt` premium'a bağlandı** — hesaplanan getter olduğu için veri
+yazılmaz; "Premium beta ücretsiz" anahtarı kapanınca kapı kendiliğinden
+iner, açılınca kalkar. Veriyi gerçekten değiştirmek gerekirse admin
+"Toplu Plan" ekranı (superadmin · zorunlu kuru çalışma · ikinci onay ·
+ödemeli aboneleri atlar) → **yeni CF `adminBulkPlanUpdate`**.
+
+**Meslekler kategorilendi** — 132 → **144**, 13 kategori. Avukat zaten
+vardı; sorun yokluk değil düz listede bulunamamaktı. 4 ad aramaya uygun
+hale geldi ama **`apiValue` kodları değişmedi** (kural 6, göç yok).
+
+**Değerlendirme etiketleri yöne ayrıldı** (`positiveFor`/`negativeFor`) —
+usta bir müşteriyi "Temiz işçilik" diye puanlayamaz. `isNegative` her iki
+listeye bakar, çünkü eski kayıtlar karşı yönün etiketlerini taşıyor.
+
+**Hesap silme kapsamı** — ölçüt iki yönlü: kişisel veriyi sil, kötüye
+kullanım kaydını koru. `reports` KALIR (yalnız `reporterUid` düşer), yoksa
+"şikayet edilince hesabı sil, temize çık" açığı doğardı.
+
+**Haftanın Ustası gerçekten rotasyona girdi** — kod puana göre sıralayıp
+`.first` alıyordu, yani puan değişmedikçe aynı usta sonsuza kadar kalıyordu.
+ISO hafta numarası % aday sayısı; sunucuya alan yazılmaz, aynı hafta herkes
+aynı ustayı görür.
+
+**Diğer:** ilan kartı ilanı verenin avatarıyla başlıyor · normal ilanda ilçe
+şartı kalktı (sunucu zaten yalnız ile bakıyordu, sapma kapandı) · bildirim
+ekranı sadeleşti + Temizle · sosyal medya silme geri okumada geri geliyordu
+("alan YOK" ile "alan var ama BOŞ" ayrımı).
+
+### ⏳ Oturum 84'ten kalanlar
+
+- **Onboarding'e Kolay İş tanıtımı** — içerik/tasarım kararı bekliyor.
+- **Telefon doğrulamada `unknown`** — kodda görünür hata yok, cihaz konsol
+  logu gerekiyor.
+- **İl bazlı Haftanın Ustası** — kullanıcı kararı bekliyor: (a) kullanıcının
+  iline göre (b) il il rotasyon. Rotasyon çalıştığı için acil değil.
+
+---
+
+## 📌 Oturum 83 (arşiv)
+
 **Tarih:** 2026-08-09
 
 **Oturum 83: TUR B + web/admin/test defteri. 10 commit · 471/471 test ·
