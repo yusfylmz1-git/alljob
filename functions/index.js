@@ -99,6 +99,11 @@ const DEFAULT_MODERATOR_CAPABILITIES = Object.freeze([
   "artisans.moderate",
   "reviews.moderate",
   "stats.read",
+  // Mağaza (ürün vitrini) — 2026-08-10'da geri geldi. "Herkes satabilir"
+  // olduğu için moderasyon yükü ustaya kısıtlı olduğu dönemden yüksek;
+  // okuma + gizleme varsayılan moderatör setinde.
+  "products.read",
+  "products.moderate",
 ]);
 
 const ALL_CAPABILITIES = new Set([
@@ -111,6 +116,9 @@ const ALL_CAPABILITIES = new Set([
   // Manuel premium tanimlama/iptal — para etkili. Varsayilan moderatorde
   // BILEREK yok; superadmin veya acikca yetkilendirilmis admin kullanir.
   "finance.manage",
+  // Ürünü Storage'tan kalıcı silme (hard_purge). GERİ DÖNÜŞÜ YOK — bu yüzden
+  // varsayılan moderatörde değil; superadmin zaten muaf.
+  "products.purge",
 ]);
 
 // "log-only" | "enforce" — Wave 2: enforce (missing field → DEFAULT set).
@@ -1077,6 +1085,33 @@ exports.onJobCreated = onDocumentCreated(
  * Ilan silinince de sayac duser — yoksa kullanici sildigi ilanlar yuzunden
  * limite takili kalirdi.
  */
+// products create/update/delete → productsTotal (yalnız "active" ürünler
+// sayılır; draft/paused/removed hariç). Ana Sayfa "büyüyor" sayacı için.
+//
+// Bu sayacı YALNIZ burası yazar; `adminRebuildStats` aynı ölçütle yeniden
+// sayar (status == "active"). İkisi ayrışırsa sayaç sürüklenir.
+exports.onProductWritten = onDocumentWritten(
+    {document: "products/{productId}", region: REGION},
+    async (event) => {
+      const beforeActive =
+        event.data && event.data.before && event.data.before.exists &&
+        event.data.before.data().status === "active";
+      const afterActive =
+        event.data && event.data.after && event.data.after.exists &&
+        event.data.after.data().status === "active";
+      try {
+        if (!beforeActive && afterActive) {
+          await applyStatsDelta({productsTotal: 1});
+          await bumpDaily("productsActivated", 1);
+        } else if (beforeActive && !afterActive) {
+          await applyStatsDelta({productsTotal: -1});
+        }
+      } catch (e) {
+        logger.warn(`adminStats product: ${e}`);
+      }
+    },
+);
+
 exports.onJobWritten = onDocumentWritten(
     {document: "jobs/{jobId}", region: REGION},
     async (event) => {
@@ -2440,7 +2475,14 @@ exports.adminSetUserSuspended = onCall(
         }
       }
 
-      // Askıya alınan kullanıcının HERKESE AÇIK eleman içeriği yayından düşer:
+      // Askıya alınan kullanıcının HERKESE AÇIK ürünleri yayından düşer;
+      // askı kalkınca geri gelir. Bit ayrı tutulur (`hiddenByUserSuspend`),
+      // böylece askı kalkarken moderatörün ayrıca gizlediği ürün açılmaz.
+      try {
+        await cascadeProductsHideBits(uid, "hiddenByUserSuspend", suspended);
+      } catch (e) {
+        logger.warn(`product cascade skipped for ${uid}: ${e}`);
+      }
 
       await writeAuditLog({
         actorUid: auth.uid,
@@ -2575,6 +2617,18 @@ exports.adminSetArtisanFlags = onCall(
       }
       const before = snap.data() || {};
       await ref.set(patch, {merge: true});
+
+      // Profil gizlenirse o kişinin ürünleri de yayından düşer (PRD-006 K9).
+      // Gizli profilin vitrini Keşfet'te durmaya devam etmemeli.
+      if (typeof moderationHidden === "boolean") {
+        try {
+          await cascadeProductsHideBits(
+              uid.trim(), "hiddenByArtisanHide", moderationHidden);
+        } catch (e) {
+          logger.warn(`artisan hide product cascade: ${e}`);
+        }
+      }
+
       await writeAuditLog({
         actorUid: auth.uid,
         action: "set_artisan_flags",
@@ -4147,4 +4201,445 @@ function foldTrSearchJs(s) {
 
 const PRODUCT_CONTACT_RE =
   /(@[A-Za-z0-9._]{3,})|(\+?\d[\d\s\-()]{8,}\d)|([A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,})|(whatsapp|telegram|instagram|http:\/\/|https:\/\/|www\.)/i;
+
+exports.publishProduct = onCall(
+    CONSUMER_CALL_OPTS,
+    async (request) => {
+      const auth = request.auth;
+      if (!auth) {
+        throw new HttpsError("unauthenticated", "Oturum gerekli.");
+      }
+      if (auth.token.suspended === true) {
+        throw new HttpsError("permission-denied", "Hesap askida.");
+      }
+      const productId = (request.data && request.data.productId) || "";
+      if (typeof productId !== "string" || !productId.trim()) {
+        throw new HttpsError("invalid-argument", "productId gerekli.");
+      }
+      const ref = db.collection("products").doc(productId.trim());
+      const snap = await ref.get();
+      if (!snap.exists) {
+        throw new HttpsError("not-found", "Urun bulunamadi.");
+      }
+      const d = snap.data() || {};
+      if (d.ownerUid !== auth.uid) {
+        throw new HttpsError("permission-denied", "Bu urun size ait degil.");
+      }
+      if (d.status !== "draft" && d.status !== "pending_review") {
+        throw new HttpsError(
+            "failed-precondition",
+            "Yalniz taslak veya incelemedeki urun yayinlanabilir.",
+        );
+      }
+      const title = String(d.title || "").trim();
+      const description = String(d.description || "").trim();
+      const photos = Array.isArray(d.photos) ? d.photos : [];
+      const categoryCode = String(d.categoryCode || "").trim();
+      const province = String(d.province || "").trim();
+      if (title.length < 3 || title.length > 80 ||
+          description.length < 10 || description.length > 2000 ||
+          !categoryCode || photos.length < 1 || photos.length > 8 ||
+          !province) {
+        throw new HttpsError(
+            "failed-precondition",
+            "Yayin icin zorunlu alanlar eksik veya gecersiz.",
+        );
+      }
+      if (d.priceType !== "negotiable") {
+        const amt = Number(d.priceAmount);
+        if (!(amt > 0)) {
+          throw new HttpsError(
+              "failed-precondition",
+              "Sabit/baslangic fiyati gerekli.",
+          );
+        }
+      }
+
+      // Rate limit: 10 / Istanbul day + 30s burst
+      const rlRef = db.collection("adminRateLimits")
+          .doc(`product_publish_${auth.uid}`);
+      const day = istanbulDayKey();
+      await db.runTransaction(async (tx) => {
+        const rlSnap = await tx.get(rlRef);
+        const r = rlSnap.exists ? (rlSnap.data() || {}) : {};
+        const lastMs = Number(r.lastAtMs || 0);
+        const dayCount = r.dayKey === day ? Number(r.dayCount || 0) : 0;
+        if (lastMs && Date.now() - lastMs < 30 * 1000) {
+          throw new HttpsError(
+              "resource-exhausted",
+              "Cok sik yayin denemesi. Biraz sonra tekrar deneyin.",
+          );
+        }
+        if (dayCount >= 10) {
+          throw new HttpsError(
+              "resource-exhausted",
+              "Gunluk urun yayin limitine ulastiniz (10). Yarin tekrar deneyin.",
+          );
+        }
+        tx.set(rlRef, {
+          lastAtMs: Date.now(),
+          dayKey: day,
+          dayCount: dayCount + 1,
+        }, {merge: true});
+      });
+
+      // Active cap
+      const activeQ = await db.collection("products")
+          .where("ownerUid", "==", auth.uid)
+          .where("status", "in", ["active", "paused", "out_of_stock"])
+          .limit(51)
+          .get();
+      if (activeQ.size >= 50 && d.status === "draft") {
+        throw new HttpsError(
+            "failed-precondition",
+            "En fazla 50 aktif/duraklatilmis urun tutabilirsiniz.",
+        );
+      }
+
+      // Force review config
+      let forceReview = false;
+      try {
+        const cfg = await db.collection("adminConfig").doc("runtime").get();
+        forceReview = cfg.exists &&
+          cfg.data() && cfg.data().productsForceReview === true;
+      } catch (_) { /* ignore */ }
+
+      const contactHit = PRODUCT_CONTACT_RE.test(title + " " + description);
+      let nextStatus = "active";
+      let moderationNote = null;
+      if (forceReview || contactHit) {
+        nextStatus = "pending_review";
+        if (contactHit) moderationNote = "auto_contact_pattern";
+      }
+
+      const bits = {
+        hiddenByModeration: d.hiddenByModeration === true,
+        hiddenByUserSuspend: d.hiddenByUserSuspend === true,
+        hiddenByArtisanHide: d.hiddenByArtisanHide === true,
+      };
+      const now = new Date().toISOString();
+      const patch = {
+        status: nextStatus,
+        moderationHidden: recomputeModerationHidden(bits),
+        updatedAt: now,
+        titleFold: foldTrSearchJs(title),
+      };
+      if (!d.publishedAt) patch.publishedAt = now;
+      if (moderationNote) patch.moderationNote = moderationNote;
+
+      await ref.set(patch, {merge: true});
+      return {
+        ok: true,
+        status: nextStatus,
+        moderationHidden: patch.moderationHidden,
+      };
+    },
+);
+
+/**
+ * Yayindaki urun icerigini gunceller - her zaman pending_review (K4/K33).
+ */
+
+exports.updateProductContent = onCall(
+    CONSUMER_CALL_OPTS,
+    async (request) => {
+      const auth = request.auth;
+      if (!auth) {
+        throw new HttpsError("unauthenticated", "Oturum gerekli.");
+      }
+      if (auth.token.suspended === true) {
+        throw new HttpsError("permission-denied", "Hesap askida.");
+      }
+      const data = request.data || {};
+      const productId = data.productId;
+      if (typeof productId !== "string" || !productId.trim()) {
+        throw new HttpsError("invalid-argument", "productId gerekli.");
+      }
+      const title = String(data.title || "").trim();
+      const description = String(data.description || "").trim();
+      const categoryCode = String(data.categoryCode || "").trim();
+      const photos = Array.isArray(data.photos) ? data.photos : [];
+      if (title.length < 3 || title.length > 80 ||
+          description.length < 10 || description.length > 2000 ||
+          !categoryCode || photos.length < 1 || photos.length > 8) {
+        throw new HttpsError("invalid-argument", "Icerik alanlari gecersiz.");
+      }
+      const ref = db.collection("products").doc(productId.trim());
+      const snap = await ref.get();
+      if (!snap.exists) {
+        throw new HttpsError("not-found", "Urun bulunamadi.");
+      }
+      const d = snap.data() || {};
+      if (d.ownerUid !== auth.uid) {
+        throw new HttpsError("permission-denied", "Bu urun size ait degil.");
+      }
+      if (d.status === "draft" || d.status === "removed") {
+        throw new HttpsError(
+            "failed-precondition",
+            "Taslak icerigi dogrudan kaydedin; kaldirilmis urun duzenlenemez.",
+        );
+      }
+      const bits = {
+        hiddenByModeration: d.hiddenByModeration === true,
+        hiddenByUserSuspend: d.hiddenByUserSuspend === true,
+        hiddenByArtisanHide: d.hiddenByArtisanHide === true,
+      };
+      const now = new Date().toISOString();
+      await ref.set({
+        title,
+        titleFold: foldTrSearchJs(title),
+        description,
+        categoryCode,
+        photos,
+        status: "pending_review",
+        moderationHidden: recomputeModerationHidden(bits),
+        updatedAt: now,
+      }, {merge: true});
+      return {ok: true, status: "pending_review"};
+    },
+);
+
+exports.adminModerateProduct = onCall(
+    {region: REGION},
+    async (request) => {
+      const auth = request.auth;
+      const data = request.data || {};
+      const decision = data.decision;
+      const productId = data.productId;
+      const note = typeof data.note === "string" ? data.note.trim() : "";
+
+      if (typeof productId !== "string" || !productId.trim()) {
+        throw new HttpsError("invalid-argument", "productId gerekli.");
+      }
+      const allowed = [
+        "hide", "unhide", "approve", "reject", "force_remove", "hard_purge",
+      ];
+      if (!allowed.includes(decision)) {
+        throw new HttpsError("invalid-argument", "Gecersiz karar.");
+      }
+      if (decision === "hard_purge") {
+        if (auth && auth.token.role === "superadmin") {
+          // ok
+        } else {
+          await assertCap(auth, "products.purge");
+        }
+      } else {
+        await assertCap(auth, "products.moderate");
+      }
+
+      const ref = db.collection("products").doc(productId.trim());
+      const snap = await ref.get();
+      if (!snap.exists) {
+        throw new HttpsError("not-found", "Urun bulunamadi.");
+      }
+      const d = snap.data() || {};
+      const now = new Date().toISOString();
+      const bits = {
+        hiddenByModeration: d.hiddenByModeration === true,
+        hiddenByUserSuspend: d.hiddenByUserSuspend === true,
+        hiddenByArtisanHide: d.hiddenByArtisanHide === true,
+      };
+
+      if (decision === "hard_purge") {
+        try {
+          const bucket = getStorage().bucket();
+          await bucket.deleteFiles({
+            prefix: `product/${d.ownerUid}/${productId.trim()}`,
+          });
+        } catch (e) {
+          logger.warn(`product hard_purge storage: ${e}`);
+        }
+        await ref.delete();
+        await writeAuditLog({
+          actorUid: auth.uid,
+          action: "moderate_product",
+          targetType: "product",
+          targetId: productId.trim(),
+          before: {status: d.status, moderationHidden: d.moderationHidden},
+          after: {decision: "hard_purge"},
+        });
+        return {ok: true, decision};
+      }
+
+      const patch = {
+        moderatedBy: auth.uid,
+        moderatedAt: now,
+        updatedAt: now,
+      };
+      if (note) patch.adminModerationNote = note.slice(0, 300);
+
+      if (decision === "hide") {
+        bits.hiddenByModeration = true;
+        patch.hiddenByModeration = true;
+      } else if (decision === "unhide") {
+        bits.hiddenByModeration = false;
+        patch.hiddenByModeration = false;
+      } else if (decision === "approve") {
+        if (d.status === "pending_review") patch.status = "active";
+        if (!d.publishedAt) patch.publishedAt = now;
+        patch.moderationNote = FieldValue.delete();
+      } else if (decision === "reject") {
+        patch.status = "draft";
+        if (note) patch.moderationNote = note.slice(0, 300);
+      } else if (decision === "force_remove") {
+        bits.hiddenByModeration = true;
+        patch.hiddenByModeration = true;
+        patch.status = "removed";
+        patch.removedBy = "admin";
+        patch.removedAt = now;
+        if (note) patch.removedReason = note.slice(0, 300);
+      }
+      patch.moderationHidden = recomputeModerationHidden(bits);
+
+      await ref.set(patch, {merge: true});
+
+      // Notify owner on reject / force_remove
+      if ((decision === "reject" || decision === "force_remove") &&
+          d.ownerUid) {
+        const t = decision === "reject" ?
+          "Urun yayini reddedildi" : "Urun kaldirildi";
+        const b = decision === "reject" ?
+          `"${d.title || "Urun"}" taslaga alindi. Duzenleyip yeniden yayinlayin.` :
+          `"${d.title || "Urun"}" yonetim tarafindan kaldirildi.`;
+        try {
+          await saveNotification(d.ownerUid, `product_${productId.trim()}`, {
+            type: "product",
+            title: t,
+            body: b,
+            productId: productId.trim(),
+          });
+          await sendPushToUid(d.ownerUid, t, b, {
+            type: "product",
+            productId: productId.trim(),
+          });
+        } catch (e) {
+          logger.warn(`product moderate notify: ${e}`);
+        }
+      }
+
+      await writeAuditLog({
+        actorUid: auth.uid,
+        action: "moderate_product",
+        targetType: "product",
+        targetId: productId.trim(),
+        before: {
+          status: d.status,
+          moderationHidden: d.moderationHidden === true,
+        },
+        after: {decision, ...patch},
+      });
+      return {ok: true, decision, moderationHidden: patch.moderationHidden};
+    },
+);
+
+/**
+ * Askiya alma / usta gizleme cascade - urun hide bits.
+ */
+async function cascadeProductsHideBits(ownerUid, bitField, value) {
+  const qs = await db.collection("products")
+      .where("ownerUid", "==", ownerUid)
+      .limit(100)
+      .get();
+  if (qs.empty) return;
+  const batch = db.batch();
+  const now = new Date().toISOString();
+  qs.docs.forEach((doc) => {
+    const d = doc.data() || {};
+    const bits = {
+      hiddenByModeration: d.hiddenByModeration === true,
+      hiddenByUserSuspend: d.hiddenByUserSuspend === true,
+      hiddenByArtisanHide: d.hiddenByArtisanHide === true,
+    };
+    bits[bitField] = value === true;
+    const patch = {
+      [bitField]: value === true,
+      moderationHidden: recomputeModerationHidden(bits),
+      updatedAt: now,
+    };
+    batch.set(doc.ref, patch, {merge: true});
+  });
+  await batch.commit();
+}
+
+// Report auto-hide for products (threshold 3 unique reporters).
+
+exports.onProductReportWritten = onDocumentWritten(
+    {document: "reports/{reportId}", region: REGION},
+    async (event) => {
+      const before =
+        event.data && event.data.before && event.data.before.exists;
+      const after =
+        event.data && event.data.after && event.data.after.exists;
+      if (before || !after) return; // only create
+      const r = event.data.after.data() || {};
+      if (r.targetType !== "product") return;
+      const productId = r.targetId;
+      if (!productId) return;
+      const ref = db.collection("products").doc(productId);
+      try {
+        await db.runTransaction(async (tx) => {
+          const snap = await tx.get(ref);
+          if (!snap.exists) return;
+          const d = snap.data() || {};
+          const count = Number(d.reportCount || 0) + 1;
+          const bits = {
+            hiddenByModeration: d.hiddenByModeration === true,
+            hiddenByUserSuspend: d.hiddenByUserSuspend === true,
+            hiddenByArtisanHide: d.hiddenByArtisanHide === true,
+          };
+          const patch = {
+            reportCount: count,
+            updatedAt: new Date().toISOString(),
+          };
+          if (count >= 3) {
+            bits.hiddenByModeration = true;
+            patch.hiddenByModeration = true;
+            patch.moderationHidden = true;
+            patch.moderatedBy = "system";
+            patch.moderatedAt = new Date().toISOString();
+            patch.adminModerationNote = "auto_hide_report_threshold";
+          } else {
+            patch.moderationHidden = recomputeModerationHidden(bits);
+          }
+          tx.set(ref, patch, {merge: true});
+        });
+      } catch (e) {
+        logger.warn(`onProductReportWritten: ${e}`);
+      }
+    },
+);
+
+// Soft-delete purge (30 days)
+exports.purgeRemovedProducts = onSchedule(
+    {
+      schedule: "every 24 hours",
+      region: REGION,
+      timeZone: "Europe/Istanbul",
+    },
+    async () => {
+      const cutoff = new Date(
+          Date.now() - 30 * 24 * 60 * 60 * 1000,
+      ).toISOString();
+      const qs = await db.collection("products")
+          .where("status", "==", "removed")
+          .where("removedAt", "<=", cutoff)
+          .limit(50)
+          .get();
+      for (const doc of qs.docs) {
+        const d = doc.data() || {};
+        try {
+          if (d.ownerUid) {
+            const bucket = getStorage().bucket();
+            await bucket.deleteFiles({
+              prefix: `product/${d.ownerUid}/${doc.id}`,
+            });
+          }
+        } catch (e) {
+          logger.warn(`purge product storage ${doc.id}: ${e}`);
+        }
+        await doc.ref.delete();
+        logger.info(`purged product ${doc.id}`);
+      }
+    },
+);
 

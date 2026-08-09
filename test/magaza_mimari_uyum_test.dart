@@ -189,6 +189,79 @@ void main() {
     });
   });
 
+  group('Aşama 2 — sunucu tarafı geri geldi', () {
+    late String cf;
+    late String rules;
+    setUpAll(() {
+      cf = read('functions/index.js');
+      rules = read('firestore.rules');
+    });
+
+    test('altı ürün fonksiyonu tanımlı', () {
+      for (final f in [
+        'onProductWritten',
+        'publishProduct',
+        'updateProductContent',
+        'adminModerateProduct',
+        'onProductReportWritten',
+        'purgeRemovedProducts',
+      ]) {
+        expect(cf.contains('exports.$f'), isTrue, reason: '$f eksik.');
+      }
+    });
+
+    test('cascade ÇAĞRILIYOR — tanımı olup çağrısı olmayan hâl tekrarlanmasın',
+        () {
+      // b6940ec'de cascadeProductsHideBits tanımı silinmiş ama üç çağrı
+      // yerinde kalmıştı; deploy edilseydi askıya alma ÇALIŞMA ZAMANINDA
+      // patlayacaktı. Şimdi tersi tehlike: tanım var, çağrı unutulmuş.
+      expect(cf.contains('async function cascadeProductsHideBits'), isTrue);
+      final calls = RegExp(r'await cascadeProductsHideBits\(')
+          .allMatches(cf)
+          .length;
+      expect(calls, greaterThanOrEqualTo(2),
+          reason: 'Askıya alma ve profil gizleme cascade çağırmalı; '
+              'bulunan: $calls');
+    });
+
+    test('yayın kapısı sunucuda — istemci status ile active yapamaz', () {
+      expect(rules.contains('ownerNeverPublishesViaStatus'), isTrue,
+          reason: 'İstemci status yazarak yayına geçebilseydi '
+              'publishProduct kapısı (rate limit, iletişim deseni, '
+              'aktif ürün tavanı) tamamen atlanırdı.');
+    });
+
+    test('ürün kuralı USTA şartı aramaz', () {
+      // Kural bloğunu izole et — başka blokların isArtisan'ı sayılmasın.
+      final basla = rules.indexOf('match /products/{productId}');
+      expect(basla, greaterThan(0));
+      final blok = rules.substring(basla, rules.indexOf('match /reports/'));
+      expect(blok.contains('isArtisan'), isFalse,
+          reason: 'Herkes satabilir; kural usta şartı koymamalı.');
+      expect(blok.contains('isEmailVerified()'), isTrue,
+          reason: 'E-posta doğrulaması şartı DURMALI (spam kapısı).');
+    });
+
+    test('products yetkileri tanımlı, purge varsayılan moderatörde DEĞİL', () {
+      expect(cf.contains('"products.read"'), isTrue);
+      expect(cf.contains('"products.moderate"'), isTrue);
+      expect(cf.contains('"products.purge"'), isTrue);
+
+      final varsayilanBasla = cf.indexOf('DEFAULT_MODERATOR_CAPABILITIES');
+      final varsayilan =
+          cf.substring(varsayilanBasla, cf.indexOf('ALL_CAPABILITIES'));
+      expect(varsayilan.contains('"products.purge"'), isFalse,
+          reason: 'hard_purge geri dönüşsüz — varsayılan moderatörde olmamalı.');
+    });
+
+    test('hesap silme ürünleri ve storage klasörünü kapsıyor', () {
+      expect(cf.contains('collection("products").where("ownerUid"'), isTrue,
+          reason: 'Silinen hesabın ürünleri kalmamalı (KVKK).');
+      expect(cf.contains('"product"'), isTrue,
+          reason: 'STORAGE_FOLDERS product klasörünü içermeli.');
+    });
+  });
+
   group('Aşama 0 — geri getirme bağları yerinde', () {
     test('mock veritabanında ürün koleksiyonu var (mock paritesi)', () {
       expect(MockDatabase().products, isEmpty,

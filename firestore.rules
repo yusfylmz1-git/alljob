@@ -687,6 +687,138 @@ service cloud.firestore {
       // mesaj geçmişini götürmez.
       allow delete: if isJobOwner();
     }
+    // ------------------------------------------------------------------
+    // MAĞAZA — ürün vitrini. PRD-006 olarak kurulmuş, 2026-08-08'de
+    // kaldırılmış, 2026-08-10'da Mağaza adıyla geri getirilmiştir.
+    // Bkz. vault/06-Test/PLAN-Magaza.md
+    //
+    // USTA ŞARTI YOK (kullanıcı kararı "herkes satabilir"): ölçüt
+    // oturum + e-posta doğrulaması + askıda olmamak. Moderasyon yükü
+    // bu yüzden yüksek — sunucu alanları istemciye tamamen kapalı.
+    //
+    // İki eksenli görünürlük: (1) status, (2) moderationHidden.
+    // Yayına geçiş (active) İSTEMCİDEN YAPILAMAZ — yalnız publishProduct
+    // CF'i status'ü active'e çeker (ownerNeverPublishesViaStatus).
+    match /products/{productId} {
+      function productClientKeysOk() {
+        // Create ve update merge sonrası tüm anahtarlar bu listede olmalı.
+        return request.resource.data.keys().hasOnly([
+          'schemaVersion', 'ownerUid', 'ownerName', 'ownerPhotoURL',
+          'title', 'titleFold', 'description', 'categoryCode',
+          'tags', 'tagsFold', 'photos', 'priceType', 'priceAmount',
+          'currency', 'condition', 'quantity', 'province', 'district',
+          'status', 'moderationHidden', 'createdAt', 'updatedAt',
+          'soldAt', 'removedAt', 'removedBy', 'removedReason',
+          'hiddenByModeration', 'hiddenByUserSuspend', 'hiddenByArtisanHide',
+          'featured', 'publishedAt', 'reportCount', 'viewCount',
+          'moderatedBy', 'moderatedAt', 'adminModerationNote',
+          'moderationNote'
+        ]);
+      }
+      function productServerFieldsLocked() {
+        return !request.resource.data.diff(resource.data).affectedKeys()
+            .hasAny([
+              'moderationHidden', 'hiddenByModeration', 'hiddenByUserSuspend',
+              'hiddenByArtisanHide', 'featured', 'publishedAt', 'reportCount',
+              'viewCount', 'moderatedBy', 'moderatedAt', 'adminModerationNote',
+              'moderationNote', 'ownerUid', 'createdAt', 'schemaVersion'
+            ]);
+      }
+      function productContentUnchanged() {
+        return request.resource.data.get('title', '') == resource.data.get('title', '')
+          && request.resource.data.get('description', '') == resource.data.get('description', '')
+          && request.resource.data.get('categoryCode', '') == resource.data.get('categoryCode', '')
+          && request.resource.data.get('photos', []) == resource.data.get('photos', []);
+      }
+      // Draft'ta içerik serbest; diğer status'larda content yalnız CF.
+      function productContentDraftOnly() {
+        return resource.data.status == 'draft'
+          || productContentUnchanged();
+      }
+      function ownerStatusTransitionOk() {
+        let from = resource.data.status;
+        let to = request.resource.data.status;
+        return (from == 'draft' && to == 'draft')
+          || (from == 'draft' && to == 'removed')
+          || (from == 'pending_review' && to == 'removed')
+          || (from == 'active' && to in
+              ['active', 'paused', 'out_of_stock', 'sold', 'removed'])
+          || (from == 'paused' && to in ['paused', 'active', 'removed'])
+          || (from == 'out_of_stock' && to in
+              ['out_of_stock', 'active', 'removed'])
+          || (from == 'sold' && to in ['sold', 'removed'])
+          || (from == 'removed' && to == 'draft');
+      }
+      function ownerNeverPublishesViaStatus() {
+        return !(request.resource.data.status == 'active'
+            && resource.data.status in ['draft', 'pending_review']);
+      }
+      function ownerSoftDeleteFieldsOk() {
+        return request.resource.data.status != 'removed'
+          || (request.resource.data.removedBy == 'owner'
+              && request.resource.data.removedAt is string);
+      }
+      function ownerRestoreOk() {
+        return request.resource.data.status != 'draft'
+          || resource.data.status != 'removed'
+          || resource.data.get('removedBy', '') == 'owner';
+      }
+      function pendingReviewLocked() {
+        return resource.data.status != 'pending_review'
+          || (request.resource.data.status == 'removed'
+              && request.resource.data.removedBy == 'owner'
+              && request.resource.data.diff(resource.data).affectedKeys()
+                  .hasOnly(['status', 'removedAt', 'removedBy',
+                    'removedReason', 'updatedAt']));
+      }
+      function productFieldsBasicOk() {
+        return request.resource.data.ownerUid == request.auth.uid
+          && request.resource.data.title is string
+          && request.resource.data.title.size() <= 80
+          && request.resource.data.description is string
+          && request.resource.data.description.size() <= 2000
+          && request.resource.data.photos is list
+          && request.resource.data.photos.size() <= 8
+          && request.resource.data.priceType in
+              ['fixed', 'negotiable', 'from']
+          && request.resource.data.condition in
+              ['new', 'like_new', 'used', 'handmade']
+          && request.resource.data.province is string
+          && request.resource.data.province.size() <= 40
+          && request.resource.data.updatedAt is string
+          && request.resource.data.ownerName is string
+          && request.resource.data.ownerName.size() >= 1
+          && request.resource.data.ownerName.size() <= 60;
+      }
+
+      allow read: if true;
+      // Create: yalnız draft; moderationHidden zorunlu false.
+      allow create: if isSignedIn()
+        && !isSuspended()
+        && isEmailVerified()
+        && productClientKeysOk()
+        && productFieldsBasicOk()
+        && request.resource.data.status == 'draft'
+        && request.resource.data.moderationHidden == false
+        && request.resource.data.createdAt is string
+        && request.resource.data.schemaVersion == 1;
+      // Update: sahibi + sunucu alanları kilitli + geçiş allowlist.
+      allow update: if isSignedIn()
+        && !isSuspended()
+        && isEmailVerified()
+        && resource.data.ownerUid == request.auth.uid
+        && request.resource.data.ownerUid == request.auth.uid
+        && productClientKeysOk()
+        && productServerFieldsLocked()
+        && productFieldsBasicOk()
+        && ownerStatusTransitionOk()
+        && ownerNeverPublishesViaStatus()
+        && ownerSoftDeleteFieldsOk()
+        && ownerRestoreOk()
+        && pendingReviewLocked()
+        && productContentDraftOnly();
+      allow delete: if false;
+    }
 
     // reports — içerik/kullanıcı şikayetleri (UGC politikası, admin kuyruğu).
     // YALNIZCA oluşturma/güncelleme (kendi şikayeti, deterministik ID:

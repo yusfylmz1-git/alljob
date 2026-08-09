@@ -108,7 +108,42 @@ mock'a da yazılır ve **güvenlik kurallarının davranışını taklit etmeli*
 
 ---
 
-## Aşama 2 — "Herkes satabilir" sonuçları
+## Aşama 2 — TAMAMLANDI (2026-08-10)
+
+Sunucu tarafı toplu geri geldi. **6 CF + 134 satır kural + 3 yetki.**
+
+| Ne | Sonuç |
+|---|---|
+| 6 ürün CF'i | `functions/index.js`, export 41 → **47** |
+| `cascadeProductsHideBits` | Tanım + **2 çağrı** (askı, profil gizleme) |
+| Firestore kuralları | 840 → **973 satır**, dry-run derlendi ✅ |
+| `products.read/moderate` | Varsayılan moderatör setinde |
+| `products.purge` | **Varsayılan DIŞINDA** (geri dönüşsüz) |
+| Hesap silme + storage | Zaten kapsıyordu, ek iş çıkmadı |
+
+Kural bloğu **usta şartı içermiyordu** — `isSignedIn` + `isEmailVerified` +
+`!isSuspended`. "Herkes satabilir" kararıyla uyumlu, olduğu gibi kondu.
+
+### 🔴 DEPLOY BEKLİYOR
+
+```bash
+firebase deploy --only firestore:rules
+firebase deploy --only functions:onProductWritten,functions:publishProduct,\
+functions:updateProductContent,functions:adminModerateProduct,\
+functions:onProductReportWritten,functions:purgeRemovedProducts
+```
+
+Yalnız **ekleme** var, silme yok → etkileşimsiz ortamda takılmaz.
+`adminSetUserSuspended` ve `adminSetArtisanFlags` de değişti (cascade
+çağrısı eklendi) — onlar da yeniden deploy edilmeli.
+
+> ⚠️ Modül kullanıcıya hâlâ **kapalı**: rotalar router'a bağlanmadı,
+> Keşfet sekmesi yok (Aşama 4). Deploy güvenli — canlıda kimse ürün
+> ekranına ulaşamaz.
+
+---
+
+## Aşama 2 notları — "Herkes satabilir" sonuçları
 
 Bu karar eski sistemin varsayımını değiştiriyor (eski: yalnız usta satar).
 

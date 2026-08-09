@@ -1,6 +1,6 @@
 # Cloud Functions Haritası
 
-**Tek dosya:** `functions/index.js` — 5.127 satır, 51 fonksiyon
+**Tek dosya:** `functions/index.js` — 4.645 satır, **47 fonksiyon**
 **Bölge:** `europe-west1` (sabit `REGION`)
 **Runtime:** firebase-functions 7 + firebase-admin 14 (2. nesil)
 
@@ -8,10 +8,14 @@
 
 | Tetikleyici | Adet |
 |---|---|
-| `onCall` (istemci çağırır) | 37 |
-| `onDocumentWritten` | 9 |
-| `onDocumentCreated` | 4 |
-| `onSchedule` | 6 |
+| `onCall` (istemci çağırır) | 35 |
+| `onDocumentWritten` | 7 |
+| `onDocumentCreated` | 3 |
+| `onSchedule` | 2 |
+
+> [!warning] Canlıda 41, yerelde 47 (2026-08-10)
+> Mağaza modülünün 6 ürün fonksiyonu geri geldi ama **deploy edilmedi**.
+> Deploy sırası ve komutu: `vault/06-Test/PLAN-Magaza.md` §Aşama 2.
 
 > [!important] CF'ler neden var?
 > Üç iş istemciye **asla** bırakılmaz:
@@ -33,6 +37,8 @@
 | `onReviewWritten` | `reviews/{reviewId}` | Ustanın ortalama puanı + yorum sayısı |
 | `onUserWritten` | `users/{uid}` | Kullanıcı türevleri |
 | `onArtisanProfileWritten` | `artisanProfiles/{uid}` | Profil türevleri |
+| `onProductWritten` | `products/{productId}` | `productsTotal` sayacı (yalnız `active`) |
+| `onProductReportWritten` | `reports/{reportId}` | 3 şikayette ürünü otomatik gizler |
 | `onProductWritten` | `products/{productId}` | Ürün türevleri |
 | `onReportWritten` | `reports/{reportId}` | Şikayet kuyruğu |
 | `onProductReportWritten` | `reports/{reportId}` | Ürün şikayeti |
@@ -95,6 +101,44 @@ kaydı bırakır. → [[Admin-Paneli]]
 > düğmesi yoktur. Yalnız kampanya bitişi / toplu düzeltme gibi veriyi gerçekten
 > değiştirmek gerektiğinde kullanılır. `dryRun: true` ile önce sayım alınır;
 > `onlyWithoutActivePremium` (varsayılan true) ödemeli aktif aboneleri atlar.
+
+## Mağaza (ürün vitrini)
+
+Modül 2026-08-08'de kaldırılmış, **2026-08-10'da geri getirilmiştir**.
+Plan: `vault/06-Test/PLAN-Magaza.md`.
+
+**Kim satabilir:** herkes. Usta olma şartı YOK (kullanıcı kararı). Kural
+yalnız oturum + e-posta doğrulaması + askıda olmamak arar.
+
+**Yayın istemciden yapılamaz.** İstemci `status`'ü `active`'e çekemez
+(`ownerNeverPublishesViaStatus`); yayın tek kapıdan geçer:
+
+| Kapı | `publishProduct` içinde |
+|---|---|
+| Hız sınırı | 10/gün + 30 sn burst (`adminRateLimits`) |
+| Aktif ürün tavanı | 50 (`active` + `paused` + `out_of_stock`) |
+| İletişim deseni | `PRODUCT_CONTACT_RE` → `pending_review` |
+| Zorunlu inceleme | `adminConfig/runtime.productsForceReview` |
+
+**Görünürlük iki eksenli:** `status` **ve** `moderationHidden`. İkincisi üç
+bitten türer (`recomputeModerationHidden`):
+
+| Bit | Kim koyar |
+|---|---|
+| `hiddenByModeration` | Moderatör (`adminModerateProduct`) veya 3 şikayet |
+| `hiddenByUserSuspend` | Hesap askıya alınınca (`adminSetUserSuspended`) |
+| `hiddenByArtisanHide` | Profil gizlenince (`adminSetArtisanFlags`) |
+
+> [!warning] `cascadeProductsHideBits` — tanım ve çağrı birlikte yaşar
+> `b6940ec`'de fonksiyonun **tanımı silinmiş ama üç çağrısı kalmıştı**;
+> deploy edilseydi askıya alma çalışma zamanında patlayacaktı. Bitler ayrı
+> tutulur ki askı kalkarken moderatörün ayrıca gizlediği ürün açılmasın.
+
+> [!danger] `hard_purge` geri dönüşsüz
+> Storage'tan dosyaları siler, dokümanı yok eder. `products.purge` yetkisi
+> **varsayılan moderatörde yoktur** — superadmin veya açıkça yetkilendirilmiş
+> admin. Yumuşak silme (`removed`) 30 gün sonra `purgeRemovedProducts` ile
+> temizlenir.
 
 ## Ortak yardımcılar
 
