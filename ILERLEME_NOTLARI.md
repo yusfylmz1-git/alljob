@@ -26,11 +26,44 @@
 
 **Tarih:** 2026-08-09
 
-**Oturum 82 (2026-08-08/09): BÜYÜK SADELEŞTİRME — iş akışı kaldırıldı, profil
-birleştirildi, marka değişti. 68 commit · 492/492 test · analyze 0.
-✅ Kural + CF DEPLOY EDİLDİ. ⚠️ CİHAZ TESTİ BEKLİYOR.**
+**Oturum 83: Tur B adım 1 — ölü iş akışı kodu silindi + kasa gerçeğe
+hizalandı. 489/489 test · analyze 0. Canlı veriye DOKUNULMADI.**
 
-### 🔴 YARIN İLK İŞ: CİHAZ TESTİ
+### 🔴 HÂLÂ İLK İŞ: CİHAZ TESTİ (oturum 82'den devrediyor)
+Aşağıdaki 5 madde **hâlâ yapılmadı**. Oturum 82'de ürünün yarısı değişti,
+oturum 83 buna dokunmadı (yalnız ölü kod sildi) — yani liste aynen geçerli.
+
+### Oturum 83'te ne yapıldı
+
+**Silinen ölü kod** (`671d1b8`) — üründen hiçbir yol ulaşmıyordu, yalnız
+kendi testleri ayakta tutuyordu:
+- `select_artisan.dart` (105 st) · `job_completion.dart` (381 st)
+- `job_confirm_dialog_test.dart` (yalnız silinen diyalogu test ediyordu)
+- `canSelectArtisanFor` testi **korundu**, `effectiveStatus` üzerinden
+  yeniden yazıldı (süre kapısı hâlâ geçerli bir kural).
+- `direct_contact_test`'e "bu dosyalar geri gelmesin" bekçisi eklendi.
+
+**Kasa gerçeğe hizalandı:** `Is-Akisi-Durum-Makinesi.md` kaldırılmış akışı
+canlıymış gibi anlatıyordu → başına uyarı + "Kalıntılar" envanteri eklendi,
+eski bölümler TARİHSEL işaretlendi. `Bilinen-Tuzaklar.md`'ye "iş akışı
+CF'leri sessizce ölü" tuzağı eklendi.
+
+### ⚠️ Tur B YARIM — sayım yapılamadı
+Kalan iş (`JobStatus` enum sadeleştirme, `offers` koleksiyonu, ~56 CF
+referansı, admin ihtilaf modülü) **canlı sayım olmadan yapılamaz**:
+enum değeri silmek veri göçüdür (kural 6), o durumda ilan varsa okunamaz olur.
+
+**Sayım denendi, erişim yok:** makinede `gcloud` kurulu değil, ADC yok,
+servis hesabı anahtarı yok. Firebase CLI oturumu var ama onun token'ıyla
+Firestore'a sorgu atmak uygun bir yol değil.
+→ **Gereken:** Firebase konsolundan `jobs` koleksiyonunda status dağılımı
+(`workerSelected`/`inProgress`/`completed`/`rated`/`disputed` kaç adet?) ve
+`offers` doküman sayısı. Hepsi 0 ise silme güvenli; değilse önce göç.
+
+Envanterin tamamı: `vault/02-Ozellikler/Is-Akisi-Durum-Makinesi.md`
+→ "Kalıntılar" tablosu.
+
+### Oturum 82 cihaz testi listesi (yapılacak)
 Bu oturumda ürünün yarısı değişti ama **hiçbiri cihazda denenmedi**. Sıra:
 1. `flutter clean && flutter run` (launcher ikonu yenilendi, önbellek şart)
 2. Profili Düzenle → telefon + Instagram + web gir → **kaydet** (kural yeni
@@ -41,7 +74,7 @@ Bu oturumda ürünün yarısı değişti ama **hiçbiri cihazda denenmedi**. Sı
 5. Bir kişiyi değerlendir, sonra tekrar gir → "Değerlendirmeni Güncelle"
    demeli ve form ESKİ puanla dolu gelmeli
 
-### Bu oturumda ne değişti (özet)
+### Oturum 82'de ne değişti (özet)
 
 **A) İŞ AKIŞI KALDIRILDI** (`12e0eca`)
 Teklif topla → "Ustayı Seç" → tamamlama onayı zinciri gitti. Usta ilan
@@ -105,8 +138,8 @@ functions         ✅ DEPLOY EDİLDİ  (ratingAsCustomer + "Kolay İş" push met
 
 ### Bilinen açıklar / sonraki adımlar
 1. **Cihaz testi** (yukarıdaki 5 madde) — en öncelikli.
-2. **Tur B**: JobStatus enum sadeleştirme + `offers` koleksiyonu temizliği.
-   Öncesinde canlıda hangi durumda kaç ilan var BAKILMALI.
+2. **Tur B (yarım)**: adım 1 (ölü kod) oturum 83'te bitti. Kalan adım 2
+   (enum + `offers` + CF + admin) **canlı sayıma bağlı** — yukarı bak.
 3. Değerlendirmeye koşul (sohbet şartı) — v2.
 4. Küfür/argo filtresi + görsel NSFW taraması — büyümeye bırakıldı.
 5. `vault/06-Test/` defteri v2 (285 adım) hâlâ hiç koşulmadı.

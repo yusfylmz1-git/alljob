@@ -1,6 +1,17 @@
 # İş Akışı — Durum Makinesi
 
-Projenin kalbi. Bir ilanın doğumundan kapanışına kadar geçtiği tüm durumlar.
+> [!warning] BU AKIŞ ARTIK ÇALIŞMIYOR (2026-08-08, oturum 82–83)
+> Teklif topla → "Ustayı Seç" → tamamlama onayı zinciri **UI'dan kaldırıldı**.
+> Usta ilan sahibine **doğrudan mesaj atar**; anlaşma taraflar arasındadır.
+> Bu not artık **tarihsel/veri referansı** — canlı davranışı anlatmaz.
+>
+> **Bugün gerçekte olan:** ilan `open` doğar, süresi dolunca `expired` olur,
+> müşteri isterse `cancelled` yapar. Diğer beş durum canlıda **üretilmiyor**;
+> yalnızca eski kayıtlar okunabilsin diye enum'da duruyorlar.
+>
+> Ne silindi (oturum 83): `select_artisan.dart`, `job_completion.dart`.
+> Ne duruyor ve neden: aşağıdaki "Kalıntılar" bölümü.
+
 Model: `lib/data/models/job.dart` → `enum JobStatus`
 
 ## Durumlar
@@ -57,7 +68,26 @@ Model: `lib/data/models/job.dart` → `enum JobStatus`
 `effectiveStatus` — alan `open` olsa bile süresi dolmuşsa `expired` sayar.
 Seçim kapısı bunu kullanır (`canSelectArtisanFor`).
 
-## Geçişler: kim yazar?
+## Kalıntılar — duruyor ama çağrılmıyor (oturum 83 envanteri)
+
+Aşağıdakiler koddadır, derlenir, testleri geçer — ama **üründen hiçbir yol
+onlara ulaşmaz**. Silmek veri göçü gerektirdiği için bekletiliyorlar.
+
+| Ne | Nerede | Neden duruyor |
+|---|---|---|
+| `JobStatus` 6 değer (`workerSelected`, `inProgress`, `completed`, `rated`, `disputed` …) | `job.dart` | Kural 6: enum değeri silmek veri göçü. Canlıda o durumda ilan varsa **okunamaz** olur. Önce sayım şart. |
+| `offers` koleksiyonu + `Offer` modeli + 2 repo | `jobs/data/*offer*` | Yazan UI yok; eski kayıtlar duruyor. CF `onOfferWritten` hâlâ dinliyor. |
+| `selectOffer`, `cancelSelection`, `markStarted`, `confirmDone`, `reportDispute`, `withdrawDispute`, `markRated` | `job_repository.dart` (+ Firebase/Mock) | Arayüzde ve iki uygulamada duruyor; **yalnız kendi testleri çağırıyor**. |
+| `customerConfirmedDone` / `artisanConfirmedDone` alanları | `job.dart` | Yazan yok; okunuyor. |
+| Admin ihtilaf modülü | `features/admin/` | `disputed` üretilmiyor → pratikte boş liste. |
+| ~56 CF referansı (`autoCompleteJobs`, `remindJobAutoComplete`, `onOfferWritten`, `lockOtherJobChats` …) | `functions/index.js` | Tetikleyen durum geçişi olmadığı için **sessizce hiç ateşlenmiyor**. |
+
+> [!danger] Silmeden önce SAYIM
+> `jobs` koleksiyonunda status dağılımı ve `offers` boyutu ölçülmeden hiçbiri
+> silinmemeli. Sayım için canlı Firestore okuma erişimi gerekir
+> (Firebase konsolu ya da servis hesabı anahtarı + `firebase-admin`).
+
+## Geçişler: kim yazar? (TARİHSEL — bu geçişler artık tetiklenmiyor)
 
 | Geçiş | Yazan | Nasıl |
 |---|---|---|
@@ -70,7 +100,10 @@ Seçim kapısı bunu kullanır (`canSelectArtisanFor`).
 | → `expired` | CF | Zamanlanmış |
 | `completedAt` damgası | **Yalnız CF** | Kural istemciye kapatır |
 
-## Tam akış — adım adım
+## Tam akış — adım adım (TARİHSEL: 2026-08-08 öncesi)
+
+> Aşağıdaki 7 adım **artık yaşanmıyor**. Eski kayıtları yorumlamak ve
+> CF'lerin neden yazıldığını anlamak için saklanıyor.
 
 ### 1. İlan oluşur
 Müşteri ilan açar. **Limit: aynı anda en çok 5 açık ilan**
