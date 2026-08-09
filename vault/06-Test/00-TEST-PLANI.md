@@ -1,8 +1,11 @@
-# 📱 Cihaz Test Planı · v2
+# 📱 Cihaz Test Planı · v3
 
-> **Neden yeni defter?** v1 (`_arsiv-v1/`) silinen modülleri test ediyordu
-> (Usta Çantası, Ajanda, Ürünler, Eleman) ve rol ayrımına göre yazılmıştı.
-> Ürün 2026-08-07/08'de sadeleşti; defter de sıfırdan yazıldı.
+> **v3 nesi farklı?** v2, iş akışını (teklif → usta seç → tamamlama onayı)
+> test ediyordu; o akış 2026-08-08/09'da **kaldırıldı**. `08-Is-Akisi.md`
+> tamamen geçersiz kaldığı için silindi, yerine ilan ömrü geldi. Ayrıca hiç
+> test edilmeyen **admin paneli** ve **tanıtım sitesi** eklendi.
+>
+> Dayanak: [[Mevcut-Akislar]] — akışlar koddan çıkarıldı (2026-08-09).
 
 **Cihaz:** ______________ · **Sürüm:** ______________ · **Başlangıç:** ________
 
@@ -10,19 +13,25 @@
 
 ## Uygulama şu an ne?
 
-Tek cümle: **müşteri ilan verir, usta iş alır; herkes herkesi takip edip
-mesajlaşır.**
+Tek cümle: **kullanıcı ilan verir ya da usta arar; iki taraf doğrudan
+mesajlaşıp anlaşır.**
 
-**Rol ayrımı YOK.** Herkes aynı ekranları görür; "Usta modu" anahtarı açıkken
-ek modüller belirir.
+**Rol ayrımı YOK.** Aynı hesap hem müşteri hem usta olabilir; "usta modu"
+profil doldurulunca açılır.
 
 | | Usta modu KAPALI | Usta modu AÇIK |
 |---|---|---|
-| Alt bar | Ana Sayfa · Keşfet · Mesajlar · Profil | **+ İlanlar** |
+| Alt bar | Ana Sayfa · Keşfet · **İşler** · Mesajlar · Profil | (aynı) |
+| "İşler" sekmesi | **Kendi ilanlarım** | **Yakındaki ilanlar** |
 | İlan verme | ✅ | ✅ |
-| Başkasının ilanını görme | ❌ | ✅ (müsaitse) |
-| Usta arama | ✅ | ✅ |
-| Takip etme | ✅ | ✅ |
+| Başkasının ilanına mesaj | ❌ | ✅ (dört kapıdan geçerse) |
+| Usta arama · takip | ✅ | ✅ |
+
+> [!warning] İlan bir DUYURUDUR
+> Usta **atanmaz**, iş "tamamlandı" **denmez**. Usta ilan sahibine doğrudan
+> mesaj atar. Durum üç tane: **Yayında · Kaldırıldı · Süresi doldu**.
+> Ekranda "Teklif toplanıyor" / "İş yürüyor" görürseniz **eski kod geri
+> gelmiş** → bulgu yazın.
 
 ---
 
@@ -35,23 +44,52 @@ ek modüller belirir.
 | 3 | [[03-Profil-ve-Usta-Modu]] ⭐ | 34 | ~25 dk | ⬜ | — |
 | 4 | [[04-Takip-Sistemi]] ⭐ | 31 | ~25 dk | ⬜ | — |
 | 5 | [[05-Ilan-Verme]] | 30 | ~25 dk | ⬜ | — |
-| 6 | [[06-Ilan-Alma-Usta]] ⭐ | 24 | ~20 dk | ⬜ | — |
+| 6 | [[06-Ilan-Alma-Usta]] ⭐ | 31 | ~25 dk | ⬜ | — |
 | 7 | [[07-Mesajlasma]] ⭐ | 32 | ~30 dk | ⬜ | — |
-| 8 | [[08-Is-Akisi]] ⭐ | 30 | ~25 dk | ⬜ | — |
-| 9 | [[09-Degerlendirme]] | 21 | ~15 dk | ⬜ | — |
+| 8 | [[08-Ilan-Omru-ve-Yonetimi]] ⭐ | 37 | ~25 dk | ⬜ | — |
+| 9 | [[09-Degerlendirme]] ⭐ | 25 | ~20 dk | ⬜ | — |
 | 10 | [[10-Guvenlik-ve-Ayarlar]] | 32 | ~20 dk | ⬜ | — |
+| 11 | [[11-Admin-Paneli]] 🖥️ | 57 | ~25 dk | ⬜ | — |
+| 12 | [[12-Tanitim-Sitesi]] 🖥️ | 35 | ~15 dk | ⬜ | — |
 
 **Durum:** ⬜ başlamadı · 🔄 sürüyor · ✅ geçti · ⚠️ bulgu var · ❌ kırık
+🖥️ = tarayıcıda yapılır, telefon gerekmez.
 
-**Toplam: 285 adım · ~3,5 saat.** Bulgular → [[99-BULGULAR]]
+**Toplam: 395 adım · ~4,5 saat.** Bulgular → [[99-BULGULAR]]
 
 ---
 
 ## ⚠️ Test öncesi hazırlık
 
-### İki hesap gerekli
+### 1. Deploy edilmiş mi?
+
+> Oturum 83'ün kural + CF değişiklikleri **deploy edilmeden** test etmeyin;
+> `permission-denied` hataları gerçek bulgu sanılır.
+
+```bash
+NODE_OPTIONS=--dns-result-order=ipv4first firebase deploy --only firestore:rules,functions
+```
+"delete function?" sorusuna **evet**: `onOfferWritten`, `autoCompleteJobs`,
+`remindJobAutoComplete`, `adminResolveDispute`, `archiveCompletedChats`.
+
+Siteler:
+```bash
+firebase deploy --only hosting:alljob1          # tanıtım
+flutter build web --target lib/main_admin.dart --release
+firebase deploy --only hosting:alljob1-admin    # yönetim
+```
+
+### 2. Temiz kurulum
+
+```bash
+flutter clean && flutter run
+```
+`clean` **şart** — launcher ikonu ve logo derleme önbelleğinde kalır.
+
+### 3. İki hesap gerekli
+
 Pazaryeri çift taraflı. **Aynı hesapla usta modunu açıp kapatmak yetmez** —
-kendi ilanınıza ilgi bildiremezsiniz.
+kendi ilanınıza mesaj atamazsınız.
 
 | Rol | Google hesabı |
 |---|---|
@@ -59,17 +97,17 @@ kendi ilanınıza ilgi bildiremezsiniz.
 | B (usta) | ______________ |
 
 > **İki cihaz varsa çok daha rahat.** Mesajlaşma, takip bildirimi ve canlı
-> güncelleme testleri tek cihazda tam yapılamaz — v1'de 9 adım bu yüzden
-> ertelenmişti.
+> güncelleme testleri tek cihazda tam yapılamaz.
 
-### Bilinmesi gerekenler
-- **E-posta doğrulaması zorunlu** — ilan açmak, sohbet başlatmak, ilgi
-  bildirmek için. Google girişinde genelde otomatik gelir.
+### 4. Bilinmesi gerekenler
+
+- **E-posta doğrulaması zorunlu** — ilan açmak ve mesaj atmak için.
+  Google girişinde genelde otomatik gelir.
 - **İlan limiti 5** (aynı anda açık), **günlük 10**.
-- **Müsaitlik kapısı:** müsait olmayan usta aramada görünmez, yeni sohbet
-  alamaz, ilan listesini göremez. **Mevcut sohbetleri sürer.**
-- **Otomatik tamamlama 3 gün / arşivleme 7 gün** — cihazda beklenemez,
-  kod incelemesiyle doğrularız.
+- **Müsaitlik kapısı:** müsait olmayan usta aramada görünmez ve yeni ilana
+  mesaj atamaz. **Mevcut sohbetleri sürer.**
+- **Sohbet kişi başına TEK** — aynı çift kaç ilan konuşursa konuşsun tek kutu.
+- **Değerlendirme kişiye** — aynı kişiyi ikinci kez puanlamak GÜNCELLER.
 
 ---
 
@@ -80,32 +118,37 @@ kendi ilanınıza ilgi bildiremezsiniz.
                                           ↓
                                     4 Takip sistemi
                                           ↓
-                    5 İlan ver (A) → 6 İlgi bildir (B)
+                    5 İlan ver (A) → 6 İlana mesaj at (B)
                                           ↓
-                                    7 Mesajlaş + usta seç
+                                    7 Mesajlaş
                                           ↓
-                                    8 İşi tamamla
+                            8 İlanı yönet / kaldır
                                           ↓
                                     9 Değerlendir
                                           ↓
                                    10 Güvenlik/Ayarlar
+                                          ↓
+                       11 Admin paneli · 12 Tanıtım sitesi  (tarayıcı)
 ```
 
 **1–4 bağımsız**, tek hesapla yapılabilir.
 **5–9 zincir**, iki hesap ister ve sıra atlanmamalı.
-**10 bağımsız.**
+**10 bağımsız · 11–12 tarayıcıda**, telefondan bağımsız.
 
 ---
 
-## 🎯 Bu testin özel hedefleri
+## 🎯 Bu turun özel hedefleri
 
-Son turda yapılan **büyük değişiklikler hiç cihazda görülmedi**:
+Oturum 82 ve 83'te **ürünün yarısı değişti, hiçbiri cihazda görülmedi**:
 
-1. **Rol ayrımının kalkması** — tek profil + usta modu anahtarı (Bölüm 3)
-2. **Instagram takip sistemi** — iki sekme, karşılıklı rozet, bildirim (Bölüm 4)
-3. **Serbest mesajlaşma** — usta artık ilk mesajı atabilir (Bölüm 7)
-4. **Müsaitlik kapısı** — yeni iş engellenir, mevcut sohbet sürer (Bölüm 6/7)
-5. **Genel kullanıcı profili** `/u/:uid` (Bölüm 4)
+1. **İş akışının kaldırılması** — durum 8'den 3'e indi (Bölüm 8)
+2. **İlan silme serbest** — mesajlaşılan ilan da silinebiliyor, **sohbet
+   duruyor** (8.3.5 — en kritik adım)
+3. **Tek sohbet kutusu** — kişi başına tek, ilan bazlı değil (6.3.7)
+4. **Kişi bazlı değerlendirme** — ikinci puan günceller (9.3)
+5. **Tek profil tasarımı** — başkasının profili kendi profilin gibi (Bölüm 3)
+6. **Yeni marka + logo** — "İlanda Hizmet" (Bölüm 12)
+7. **Admin paneli sadeleşti** — anlaşmazlık sekmesi kalktı (Bölüm 11)
 
 ---
-İlgili: [[99-BULGULAR]] · [[Bilinen-Tuzaklar]] · eski defter: `_arsiv-v1/`
+İlgili: [[Mevcut-Akislar]] · [[99-BULGULAR]] · [[Bilinen-Tuzaklar]] · eski defter: `_arsiv-v1/`

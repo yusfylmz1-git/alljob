@@ -15,9 +15,10 @@ Görevin tipine göre **yalnız ilgili notu** aç. Hepsini okuma.
 
 | Görev | Önce oku | Sonra |
 |---|---|---|
-| Sohbet / mesajlaşma | [[Sohbet-Mimarisi]] | [[Is-Akisi-Durum-Makinesi]] |
-| İlan, teklif, usta seçimi | [[Is-Akisi-Durum-Makinesi]] | [[Sohbet-Mimarisi]] |
-| Değerlendirme / puan | [[Degerlendirme-Sistemi]] | [[Is-Akisi-Durum-Makinesi]] |
+| **"Ürün ne yapıyor?"** | [[Mevcut-Akislar]] | — |
+| Sohbet / mesajlaşma | [[Sohbet-Mimarisi]] | [[Mevcut-Akislar]] |
+| İlan yaşam döngüsü | [[Is-Akisi-Durum-Makinesi]] | [[Mevcut-Akislar]] |
+| Değerlendirme / puan | [[Degerlendirme-Sistemi]] | [[Mevcut-Akislar]] |
 | Yeni ekran / rota | [[Navigasyon-ve-Rotalar]] | [[Katman-Mimarisi]] |
 | Veri okuma/yazma | [[Repository-Deseni]] | [[Firestore-Semasi]] |
 | Cloud Function | [[Cloud-Functions-Haritasi]] | [[Guvenlik-Kurallari]] |
@@ -43,8 +44,10 @@ Görevin tipine göre **yalnız ilgili notu** aç. Hepsini okuma.
 - [[Mimari-Kararlar]] — ADR: verilen kararlar ve gerekçeleri
 
 ### 02-Ozellikler — iş mantığı
-- [[Is-Akisi-Durum-Makinesi]] — ilanın doğumundan kapanışına tam yaşam döngüsü
-- [[Sohbet-Mimarisi]] — ilan bazlı sohbet, kilit, yazma izni
+- [[Mevcut-Akislar]] ⭐ — **ürün bugün ne yapıyor?** Roller, sekmeler, kapılar,
+  limitler. Cihaz test defterinin dayanağı.
+- [[Is-Akisi-Durum-Makinesi]] — ilan yaşam döngüsü (3 durum) + kaldırılan akış
+- [[Sohbet-Mimarisi]] — kişi bazlı sohbet, kilit, yazma izni
 - [[Degerlendirme-Sistemi]] — çift taraflı puanlama
 - [[Ozellik-Envanteri]] — 21 modülün ne yaptığı, tek satırlık özet
 

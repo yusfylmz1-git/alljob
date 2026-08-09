@@ -35,18 +35,27 @@
 - [ ] **9.2.5** ⚠️ A puan verdikten sonra B'nin şeridi **kaybolmamalı**
       *(çıkmaz regresyonu)*
 
-## 9.3 Tekrar değerlendirme
+## 9.3 Tekrar değerlendirme ⭐
 
-- [ ] **9.3.1** Aynı iş için tekrar değerlendirme yapın
-- [ ] **9.3.2** ⚠️ **Yeni kayıt oluşmamalı** — mevcut güncellenmeli
-- [ ] **9.3.3** Usta profilindeki toplam sayı **artmamalı**
-- [ ] **9.3.4** Ortalama puan yeni değere göre değişmeli
+> Kimlik `rev_{yazan}__{hedef}` — **kişi başına tek değerlendirme**.
+> İlan başına değil: aynı kişiyi ikinci kez puanlarsanız GÜNCELLENİR.
+
+- [ ] **9.3.1** Aynı kişiyi tekrar değerlendirmeye girin
+- [ ] **9.3.2** ⭐ Başlık **"Değerlendirmeyi Güncelle"** diyor
+- [ ] **9.3.3** ⭐ Form **eski puan ve yorumla DOLU** geliyor
+- [ ] **9.3.4** ⚠️ Kaydedince **yeni kayıt oluşmamalı** — mevcut güncellenmeli
+- [ ] **9.3.5** Profildeki toplam değerlendirme sayısı **artmamalı**
+- [ ] **9.3.6** Ortalama puan yeni değere göre değişmeli
+- [ ] **9.3.7** ⭐ **Farklı bir kişiyi** değerlendirin → bu kez sayı **artıyor**
 
 ## 9.4 Görünürlük
 
 - [ ] **9.4.1** Değerlendirmeler usta profilinde herkese açık
 - [ ] **9.4.2** Yorumlarda değerlendiren kişinin adı görünüyor
 - [ ] **9.4.3** ⚠️ Misafir de usta değerlendirmelerini görebiliyor
+- [ ] **9.4.4** ⭐ **Müşteri puanı da herkese açık** — müşteri profilinde
+      aldığı puan görünüyor *(2026-08-08'de bilerek açıldı, gizlilik
+      ihlali DEĞİL)*
 
 ---
 
@@ -56,8 +65,13 @@
 |---|---|
 | Bir tarafta "Değerlendir" yok | ⚠️ **Kritik — çıkmaz** |
 | Tekrar değerlendirince sayaç artıyor | ⚠️ Puan şişirme açığı |
-| Müşteri puanı herkese görünüyor | 🔴 **Gizlilik — bildir** |
+| Güncellemede form BOŞ geliyor | ⚠️ Mevcut kayıt okunmuyor |
 | Puan güncellenmiyor | CF gecikmesi mi? 1 dk bekleyip bakın |
+
+> [!warning] Bilinen açık — bulgu DEĞİL
+> Değerlendirme için **hiçbir koşul yok** (sohbet şartı bile). Hiç
+> konuşmadığınız birini puanlayabiliyorsanız bu **bilinçli bir karar**;
+> sahte hesap riski kabul edildi, v2'de sohbet şartı eklenebilir.
 
 ---
 

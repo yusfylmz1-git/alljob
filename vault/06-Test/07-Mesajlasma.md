@@ -51,7 +51,8 @@
 - [ ] **7.5.3** Okunmamış rozeti doğru sayıyor
 - [ ] **7.5.4** Okuyunca rozet düşüyor
 - [ ] **7.5.5** Arşivleme çalışıyor (kişisel)
-- [ ] **7.5.6** ⚠️ Aynı çiftle **iki farklı ilan** → **iki ayrı sohbet**
+- [ ] **7.5.6** ⭐ Aynı çiftle **iki farklı ilan** → **TEK sohbet**
+      *(kişi başına tek kutu; iki ayrı sohbet açılırsa `chatIdFor` bozuk)*
 
 ## 7.6 Sohbet silme akışı bozmuyor
 
@@ -80,8 +81,8 @@
 | Usta ilk mesajı atamıyor | ⚠️ Kural deploy edilmemiş olabilir |
 | Telefon `•••` çıkıyor | ⚠️ Maskeleme geri gelmiş |
 | Müsait değilken mevcut sohbet kilitli | 🔴 **Kritik — bildir** |
-| Aynı çift tek sohbette birleşiyor | ⚠️ İlan bazlı mimari bozuk |
+| Aynı çiftle İKİ ayrı sohbet açılıyor | ⚠️ `chatIdFor` bozuk — **ciddi** |
 
 ---
 
-**Bulgu yaz:** [[99-BULGULAR]] · **Sonraki:** [[08-Is-Akisi]]
+**Bulgu yaz:** [[99-BULGULAR]] · **Sonraki:** [[08-Ilan-Omru-ve-Yonetimi]]

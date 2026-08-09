@@ -1,61 +1,86 @@
 # 6 · İlan Alma (Usta Tarafı)
 
-**Kapsam:** İlan listesi erişimi, müsaitlik kapısı, ilgi bildirme.
+**Kapsam:** İlan listesi erişimi, dört kapı, ilan sahibine doğrudan mesaj.
 **Hesap:** B (usta modu açık) · **Süre:** ~15 dk
 
-> [!important] Erişim kuralı
-> İlan **listesini** görmek için **usta modu açık** olmalı. Ayrıca
-> **müsait** olmalısınız — müsait değilken liste açılmaz.
+> [!important] Akış değişti (2026-08-08/09)
+> Usta **teklif vermez, ilgi de bildirmez** — ilan sahibine **doğrudan mesaj
+> atar**. "İlgilenen Ustalar" listesi, "Ustayı Seç" ve "İlgilendiğim" sekmesi
+> **kaldırıldı**. Bu bölüm eskiden onları test ediyordu.
 
 ---
 
 ## 6.1 Erişim kapısı ⭐
 
-- [ ] **6.1.1** Usta modu **KAPALIYKEN** alt barda "İlanlar" sekmesi yok
-- [ ] **6.1.2** Usta modunu açın → sekme beliriyor
+- [ ] **6.1.1** Usta modu **KAPALIYKEN** "İşler" sekmesi ilan listesi değil,
+      **kendi ilanlarını** açıyor
+- [ ] **6.1.2** Usta modunu açın → "İşler" artık **yakındaki ilanları** açıyor
 - [ ] **6.1.3** Profil eksikse (meslek/bölge yok) → **uyarı ekranı** çıkıyor
 - [ ] **6.1.4** ⭐ Profilde **"Müsait değilim"** yapın → ilan listesi
-      **açılmıyor**, bilgilendirme çıkıyor
-- [ ] **6.1.5** Müsaitliği açın → liste geliyor
+      **boş geliyor** / bilgilendirme çıkıyor
+- [ ] **6.1.5** ⚠️ Ekranda **tek liste** var — "İlgilendiğim" diye ikinci
+      sekme **OLMAMALI** *(kaldırıldı)*
 
 ## 6.2 İlan listesi
 
-- [ ] **6.2.1** "Yakınımdaki" sekmesinde ilanlar listeleniyor
+- [ ] **6.2.1** Yakındaki ilanlar listeleniyor
 - [ ] **6.2.2** A hesabının açtığı ilan listede çıkıyor
       *(çıkmıyorsa: meslek + bölge eşleşiyor mu?)*
-- [ ] **6.2.3** İlan detayı açılıyor, müşteri bilgileri görünüyor
+- [ ] **6.2.3** İlan detayı açılıyor, ilan sahibinin bilgileri görünüyor
 - [ ] **6.2.4** Fotoğraflar açılıyor
-- [ ] **6.2.5** "İlgilendiğim" sekmesi çalışıyor
+- [ ] **6.2.5** ⚠️ Kartta **"N ilgilendi"** yazısı **OLMAMALI** *(sayaç kalktı)*
+- [ ] **6.2.6** Kartta ilçe + "ne kadar önce" bilgisi var
 
-## 6.3 İlgi bildirme ⭐
+## 6.3 Doğrudan mesaj ⭐
 
-> Usta **teklif vermez, ilgi bildirir**. Bildirim müşteriye gider.
+> Yeni akış: usta ilan sahibine mesaj atar, anlaşma sohbette olur.
 
-- [ ] **6.3.1** İlan detayında **"Bildirim Gönder"** düğmesi var
-- [ ] **6.3.2** Basınca ilgi kaydediliyor, onay mesajı çıkıyor
-- [ ] **6.3.3** ⚠️ **İkinci kez basılamıyor** (tekillik korunuyor)
-- [ ] **6.3.4** A hesabında **"İlgilenen Ustalar"** listesinde görünüyor
-- [ ] **6.3.5** A'ya bildirim gidiyor *(uygulama içi)*
+- [ ] **6.3.1** İlan detayında **"Mesaj Gönder"** düğmesi var
+- [ ] **6.3.2** ⚠️ **"Bildirim Gönder"** / **"İlgilendim"** düğmesi
+      **OLMAMALI**
+- [ ] **6.3.3** Basınca sohbet açılıyor
+- [ ] **6.3.4** ⭐ İkinci kez basınca **aynı sohbete** giriyor
+      *(kişi başına tek kutu — yeni sohbet açılmamalı)*
+- [ ] **6.3.5** A'ya mesaj bildirimi gidiyor *(uygulama içi)*
 - [ ] **6.3.6** A'nın telefonuna push geliyor *(2. cihaz)*
+- [ ] **6.3.7** ⭐ A ile B'nin **başka bir ilan** üzerinden de konuşması →
+      **yine aynı sohbet** açılıyor
 
-## 6.4 Müsaitlik kapısı ⭐
+## 6.4 Dört kapı ⭐
 
-**Hazırlık:** B'nin müsaitliğini **kapatın**.
+> `_messageOwner()` sırayla dört şey kontrol eder. Her birini ayrı deneyin.
 
-- [ ] **6.4.1** ⭐ B, A'nın ilanına **ilgi bildiremiyor** —
+**Kapı 1 — askıya alınmış hesap**
+- [ ] **6.4.1** *(admin panelinden B'yi askıya alın)* → mesaj atamıyor,
+      uyarı çıkıyor. **Sonra askıyı kaldırın.**
+
+**Kapı 2 — müsaitlik**
+- [ ] **6.4.2** ⭐ B'yi **müsait değil** yapın → ilana mesaj atamıyor,
       *"müsait değil görünüyorsunuz"* uyarısı
-- [ ] **6.4.2** ⭐ A, Keşfet'te arama yapsın → **B listede ÇIKMIYOR**
-- [ ] **6.4.3** A, B'nin profiline **doğrudan** girsin (takip listesinden) →
+- [ ] **6.4.3** ⭐ A, Keşfet'te arama yapsın → **B listede ÇIKMIYOR**
+- [ ] **6.4.4** A, B'nin profiline **doğrudan** girsin (takip listesinden) →
       profil **açılıyor**
-- [ ] **6.4.4** ⭐ Profilde "Sohbet Başlat" yerine
-      **"Şu an yeni iş almıyor"** yazıyor, düğme pasif
-- [ ] **6.4.5** Müsaitliği açın → hepsi normale dönüyor
+- [ ] **6.4.5** ⭐ Profilde **"Şu an yeni iş almıyor"** yazıyor, mesaj düğmesi
+      pasif
+- [ ] **6.4.6** Müsaitliği açın → hepsi normale dönüyor
 
-## 6.5 İlgi geri çekme
+**Kapı 3 — eşleşme**
+- [ ] **6.4.7** ⭐ B'nin **mesleğiyle alakasız** bir ilana girin *(varsa)* →
+      mesaj atamıyor / ilan listede zaten yok
+- [ ] **6.4.8** Farklı **ilçedeki** normal ilan listede çıkmıyor
 
-- [ ] **6.5.1** Verilen ilgi geri çekilebiliyor
-- [ ] **6.5.2** A'nın listesinden düşüyor
-- [ ] **6.5.3** Tekrar ilgi bildirilebiliyor
+**Kapı 4 — e-posta doğrulama**
+- [ ] **6.4.9** ⭐ E-postası **doğrulanmamış** hesapla mesaj atmayı deneyin →
+      doğrulama istemi çıkıyor
+
+## 6.5 Kolay İş farkı ⭐
+
+> Kolay İş ilanları **il geneline** gider ve meslek şartı gevşektir.
+
+- [ ] **6.5.1** A, **Kolay İş** ilanı versin *(süre otomatik 1 gün)*
+- [ ] **6.5.2** ⭐ B **farklı ilçede** olsun → ilan yine de listede **ÇIKIYOR**
+- [ ] **6.5.3** ⭐ B **başka ilde** olsun → ilan **ÇIKMIYOR** (il sınırı)
+- [ ] **6.5.4** Normal ilan aynı testte **ilçe şartını koruyor**
 
 ---
 
@@ -63,9 +88,12 @@
 
 | Belirti | Not düşün |
 |---|---|
-| Müsait değilken liste açılıyor | ⚠️ Kapı bozuk — bildir |
+| "İlgilendiğim" sekmesi duruyor | ⚠️ Eski kod geri gelmiş — bildir |
+| "Bildirim Gönder" düğmesi var | ⚠️ Eski akış — bildir |
+| Kartta "N ilgilendi" yazıyor | ⚠️ Ölü sayaç — bildir |
+| Müsait değilken mesaj atılıyor | ⚠️ Kapı bozuk |
 | Müsait olmayan usta aramada çıkıyor | ⚠️ Filtre bozuk |
-| İkinci kez ilgi → sayaç 2 | ⚠️ Tekillik bozuk |
+| Aynı kişiyle ikinci sohbet açılıyor | ⚠️ `chatIdFor` bozuk — ciddi |
 | İlan listede çıkmıyor | Meslek/bölge eşleşmesini kontrol et |
 
 ---

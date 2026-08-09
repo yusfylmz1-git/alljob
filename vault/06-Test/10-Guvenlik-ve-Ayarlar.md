@@ -73,4 +73,4 @@
 
 ---
 
-**Bulgu yaz:** [[99-BULGULAR]] · **Test bitti** → [[00-TEST-PLANI]]
+**Bulgu yaz:** [[99-BULGULAR]] · **Sonraki:** [[11-Admin-Paneli]]

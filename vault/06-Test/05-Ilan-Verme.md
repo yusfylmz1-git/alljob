@@ -44,7 +44,8 @@
 ## 5.4 İlan listeleme ve detay
 
 - [ ] **5.4.1** Yan menü → **İlanlarım** listesi açılıyor
-- [ ] **5.4.2** İlan durumu doğru yazıyor ("Teklif toplanıyor" vb.)
+- [ ] **5.4.2** ⚠️ İlan durumu **"Yayında"** yazıyor
+      *("Teklif toplanıyor" görürseniz eski kod — bulgu yazın)*
 - [ ] **5.4.3** İlan detayı açılıyor, bilgiler doğru
 - [ ] **5.4.4** Fotoğraflar açılıyor, büyütülebiliyor
 - [ ] **5.4.5** İlgilenen ustalar bölümü var (usta ilgi bildirince dolar)
