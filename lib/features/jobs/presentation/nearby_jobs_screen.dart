@@ -27,13 +27,18 @@ import 'widgets/job_widgets.dart';
 /// Teklif akışı kalktı — usta ilan sahibine doğrudan mesaj atar, "ilgilendiğim
 /// iş" kaydı diye bir şey yok; takip mesaj kutusundan yürür.
 class NearbyJobsScreen extends ConsumerWidget {
-  const NearbyJobsScreen({super.key});
+  NearbyJobsScreen({super.key});
+
+  /// Yan menü açıkken geri tuşunun menüyü kapatabilmesi için (madde 4).
+  final _scaffoldKey = GlobalKey<ScaffoldState>();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return MainTabScope(
       tab: MainTab.work,
+      scaffoldKey: _scaffoldKey,
       child: Scaffold(
+        key: _scaffoldKey,
         appBar: const SurfaceAppBar(
           title: 'İşler',
           subtitle: 'Yakınındaki açık ilanlar',
@@ -74,12 +79,19 @@ class _NearbyTab extends ConsumerWidget {
         if (completion != null && !completion.canMatchJobs) {
           return _ProfileIncompleteNotice(completion: completion);
         }
-        if (!draft.profile.isAvailable) {
-          return const _NotAvailableNotice();
-        }
-
+        // MÜSAİTLİK artık listeyi KAPATMAZ (2026-08-10, kullanıcı kararı):
+        // usta ilanları görür ve bildirim alır, yalnız mesaj atamaz. Eskiden
+        // burada tam ekran "müsait değilsiniz" duvarı vardı ve usta piyasada
+        // ne olduğunu göremiyordu. Uyarı artık listenin üstünde şerit olarak
+        // durur; mesaj kapısı ilan detayında zaten korunuyor.
         // İlan listesi ayrı widget — nested .when + çift watch ANR riskini azaltır.
-        return _NearbyJobsBody(completion: completion);
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (!draft.profile.isAvailable) const _NotAvailableBanner(),
+            Expanded(child: _NearbyJobsBody(completion: completion)),
+          ],
+        );
       },
     );
   }
@@ -251,64 +263,54 @@ class _ProfileIncompleteNotice extends StatelessWidget {
   }
 }
 
-/// Usta müsait değilken gösterilir: iş ilanları görünmez.
-class _NotAvailableNotice extends ConsumerWidget {
-  const _NotAvailableNotice();
+
+/// Usta müsait değilken listenin ÜSTÜNDE duran şerit.
+///
+/// İlanlar görünmeye devam eder (ve bildirim gelir); kapalı olan tek şey
+/// mesaj göndermektir. Eskiden burada tam ekran bir duvar vardı ve usta
+/// müsaitliğini açmadan piyasayı hiç göremiyordu.
+class _NotAvailableBanner extends ConsumerWidget {
+  const _NotAvailableBanner();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final palette = context.palette;
     final hasAccess = ref.watch(artisanProAccessProvider);
 
     Future<void> enable() async {
-      final ctrl = ref.read(myProfileControllerProvider.notifier);
       if (!hasAccess) {
         context.push(RoutePaths.panelPremium);
         return;
       }
-      final ok = await ctrl.setAvailable(true);
+      final ok =
+          await ref.read(myProfileControllerProvider.notifier).setAvailable(true);
       if (context.mounted && ok) {
         context.showInfo('Artık müsait görünüyorsunuz.');
       }
     }
 
-    return Center(
+    return Material(
+      color: palette.warningSurface,
       child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
+        padding: const EdgeInsets.fromLTRB(16, 10, 8, 10),
+        child: Row(
           children: [
-            Container(
-              width: 72,
-              height: 72,
-              decoration: BoxDecoration(
-                color: context.palette.surfaceMuted,
-                shape: BoxShape.circle,
+            Icon(Icons.do_not_disturb_on_outlined,
+                size: 20, color: palette.warning),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                'Müsait değilsiniz — ilanları görebilir ama mesaj '
+                'gönderemezsiniz.',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: palette.ink,
+                      height: 1.3,
+                    ),
               ),
-              child: Icon(Icons.do_not_disturb_on_outlined,
-                  size: 34, color: context.palette.inkMuted),
             ),
-            const SizedBox(height: 16),
-            Text(
-              'Şu an müsait değilsiniz',
-              style: Theme.of(context)
-                  .textTheme
-                  .titleMedium
-                  ?.copyWith(fontWeight: FontWeight.w800),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Yakındaki iş ilanlarını görmek için müsaitliğinizi açın.',
-              textAlign: TextAlign.center,
-              style: Theme.of(context)
-                  .textTheme
-                  .bodyMedium
-                  ?.copyWith(color: context.palette.inkMuted, height: 1.4),
-            ),
-            const SizedBox(height: 18),
-            FilledButton.icon(
+            TextButton(
               onPressed: enable,
-              icon: const Icon(Icons.check_circle_outline),
-              label: const Text('Müsait ol'),
+              child: const Text('Müsait ol'),
             ),
           ],
         ),

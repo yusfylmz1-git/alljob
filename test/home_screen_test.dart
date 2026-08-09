@@ -26,7 +26,7 @@ void main() {
       overrides: mockBackendOverrides(),
       child: MaterialApp(
         theme: AppTheme.light(),
-        home: const HomeScreen(),
+        home: HomeScreen(),
       ),
     ));
     await tester.pump();

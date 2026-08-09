@@ -83,6 +83,20 @@ class _ReviewScreenState extends ConsumerState<ReviewScreen> {
         if (!_tags.remove(tag)) _tags.add(tag);
       });
 
+  /// [set] + kayıtta duran ama sette olmayan seçili etiketler.
+  ///
+  /// Yön ayrımından ÖNCE yazılmış değerlendirmeler karşı setin etiketlerini
+  /// taşıyabilir. Çizilmezlerse kullanıcı onları kaldıramaz (görünmez ama
+  /// kayıtlı kalır). Sona eklenir, sıra bozulmaz.
+  List<String> _gosterilecek(List<String> set, {required bool negatif}) {
+    final yabanci = _tags
+        .where((t) => !set.contains(t))
+        .where((t) => ReviewTags.isNegative(t) == negatif)
+        .toList()
+      ..sort();
+    return yabanci.isEmpty ? set : [...set, ...yabanci];
+  }
+
   Future<void> _submit() async {
     if (_rating == 0) {
       context.showError('Lütfen 1–5 arası puan verin.');
@@ -161,6 +175,20 @@ class _ReviewScreenState extends ConsumerState<ReviewScreen> {
       );
     }
 
+    // ETİKET SETİ YÖNE GÖRE (2026-08-10): hedefin usta profili varsa
+    // müşteri→usta, yoksa usta→müşteri. Gönderimdeki `hedefUsta` ile AYNI
+    // kaynağa bakar (`artisanDetailProvider`) — ikisi ayrışırsa kullanıcı
+    // bir set görüp başka set kaydederdi.
+    //
+    // Provider henüz yüklenmediyse usta seti gösterilir: en sık akış
+    // müşteri→usta ve yanlış tahminde kullanıcı yalnızca bir kare farklı
+    // liste görür (seçim state'i etiket ADIYLA tutulduğundan kaybolmaz).
+    final hedefUsta =
+        ref.watch(artisanDetailProvider(widget.targetUid)).valueOrNull != null;
+    final yon = hedefUsta
+        ? ReviewDirection.customerToArtisan
+        : ReviewDirection.artisanToCustomer;
+
     return Scaffold(
       appBar: AppBar(
         title: Text(_isUpdate ? 'Değerlendirmeyi Güncelle' : 'Değerlendir'),
@@ -205,9 +233,17 @@ class _ReviewScreenState extends ConsumerState<ReviewScreen> {
               onChanged: (r) => setState(() => _rating = r),
             ),
             const SizedBox(height: 24),
+            // GÖSTERİLEN set + kayıtta duran YABANCI etiketler.
+            //
+            // Etiketler 2026-08-10'da yöne ayrıldı; o tarihten önce yazılmış
+            // usta→müşteri değerlendirmeleri usta setinin etiketlerini
+            // taşıyor. Yalnız yeni seti çizseydik bu etiketler görünmez ama
+            // `_tags` içinde KALIRDI: kullanıcı seçimi kaldıramadan tekrar
+            // kaydederdi. Eski etiket varsa listeye eklenir — seçili gelir,
+            // dokununca kalkar.
             _TagGroup(
               title: 'Olumlu',
-              tags: ReviewTags.positive,
+              tags: _gosterilecek(ReviewTags.positiveFor(yon), negatif: false),
               selected: _tags,
               color: context.palette.success,
               onToggle: _toggle,
@@ -215,7 +251,7 @@ class _ReviewScreenState extends ConsumerState<ReviewScreen> {
             const SizedBox(height: 20),
             _TagGroup(
               title: 'Olumsuz',
-              tags: ReviewTags.negative,
+              tags: _gosterilecek(ReviewTags.negativeFor(yon), negatif: true),
               selected: _tags,
               color: context.palette.danger,
               onToggle: _toggle,

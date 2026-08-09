@@ -20,12 +20,20 @@ void main() {
   String read(String p) => File(p).readAsStringSync();
 
   group('Aramada gizlenme', () {
+    // 2026-08-09: kapı `musait()` yardımcısına taşındı — premium bayrağını
+    // da hesaba katması gerekiyordu (madde 7). Eleme MANTIĞI aynı.
     test('müsait olmayan usta arama sonucunda ELENİR', () {
-      final repo =
-          read('lib/features/artisan/data/firebase_artisan_repository.dart');
-      expect(repo.contains('if (!r.profile.isAvailableAt(now)) return false;'),
-          isTrue,
-          reason: 'Müsait olmayan usta aramada görünmemeli.');
+      for (final yol in [
+        'lib/features/artisan/data/firebase_artisan_repository.dart',
+        'lib/features/artisan/data/mock_artisan_repository.dart',
+      ]) {
+        final repo = read(yol);
+        expect(repo.contains('if (!musait(r.profile)) return false;'), isTrue,
+            reason: 'Müsait olmayan usta aramada görünmemeli ($yol).');
+        expect(repo.contains('premiumFreeDuringBeta: premiumFreeDuringBeta'),
+            isTrue,
+            reason: 'Premium kapısı `musait()` içine bağlanmalı ($yol).');
+      }
     });
   });
 
@@ -34,9 +42,14 @@ void main() {
     setUpAll(() =>
         scr = read('lib/features/jobs/presentation/nearby_jobs_screen.dart'));
 
-    test('müsait değilse ilan listesi açılmaz', () {
-      expect(scr.contains('if (!draft.profile.isAvailable)'), isTrue);
-      expect(scr.contains('_NotAvailableNotice'), isTrue);
+    // 2026-08-10 (kullanıcı kararı): müsaitlik artık listeyi KAPATMAZ.
+    // Usta ilanları görür ve bildirim alır, yalnız MESAJ ATAMAZ. Eskiden
+    // tam ekran duvar vardı ve usta piyasayı hiç göremiyordu.
+    test('müsait değilken ilan listesi AÇILIR (duvar yok)', () {
+      expect(scr.contains('_NotAvailableNotice'), isFalse,
+          reason: 'Tam ekran müsaitlik duvarı geri gelmiş.');
+      expect(scr.contains('_NotAvailableBanner'), isTrue,
+          reason: 'Uyarı listenin üstünde şerit olarak durmalı.');
     });
 
     test('İlanlar sekmesi KEŞFET içinde, kapılı', () {
@@ -51,8 +64,9 @@ void main() {
       expect(exp.contains('class _JobsTab'), isTrue);
       expect(exp.contains('!user.isArtisan'), isTrue,
           reason: 'Usta modu kapısı olmalı.');
-      expect(exp.contains('!draft.profile.isAvailable'), isTrue,
-          reason: 'Müsaitlik kapısı olmalı.');
+      // Müsaitlik kapısı BURADAN KALKTI (2026-08-10) — mesaj kapısı yerinde.
+      expect(exp.contains('!draft.profile.isAvailable'), isFalse,
+          reason: 'Keşfet İlanlar sekmesindeki müsaitlik duvarı geri gelmiş.');
     });
   });
 

@@ -35,6 +35,9 @@ class _MyJobsScreenState extends ConsumerState<MyJobsScreen> {
   bool _selectionMode = false;
   final Set<String> _selected = {};
 
+  /// Yan menü açıkken geri tuşunun menüyü kapatabilmesi için (madde 4).
+  final _scaffoldKey = GlobalKey<ScaffoldState>();
+
   void _exitSelection() => setState(() {
         _selectionMode = false;
         _selected.clear();
@@ -98,11 +101,15 @@ class _MyJobsScreenState extends ConsumerState<MyJobsScreen> {
     return PopScope(
       // Alt bar sekmesi: geri tuşu uygulamayı KAPATMAMALI, Ana Sayfa'ya
       // dönmeli (sekmeler `go()` ile açılır, geçmiş yığını bırakmaz).
-      // Seçim modundaysa önce seçim kapanır.
+      // Sıra: açık yan menü → seçim modu → yığın → Ana Sayfa.
       canPop: false,
       onPopInvokedWithResult: (didPop, _) {
         if (didPop) return;
-        if (_selectionMode) {
+        // Yan menü açıksa önce onu kapat (madde 4).
+        final scaffold = _scaffoldKey.currentState;
+        if (scaffold != null && scaffold.isDrawerOpen) {
+          scaffold.closeDrawer();
+        } else if (_selectionMode) {
           _exitSelection();
         } else if (context.canPop()) {
           context.pop();
@@ -111,6 +118,7 @@ class _MyJobsScreenState extends ConsumerState<MyJobsScreen> {
         }
       },
       child: Scaffold(
+        key: _scaffoldKey,
         appBar: _selectionMode
             ? SurfaceAppBar(
                 title: '${_selected.length} seçildi',

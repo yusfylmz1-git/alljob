@@ -52,9 +52,24 @@ Yeniden ENFORCE: reCAPTCHA web key + admin `activate` sonrası
 
 ### Debug Android
 1. `flutter run` (debug) → logcat’te `DebugAppCheckProvider` token  
-2. Console → App Check → **Ustasından Android** (`com.ustasindan.app`) → Manage debug tokens → ekle  
+2. Console → App Check → Android uygulaması (**`com.sepettehizmet.app`** —
+   marka iki kez değişti, paket adı ilk adında DEĞİL; `build.gradle.kts`
+   `applicationId` tek doğruluk kaynağıdır) → Manage debug tokens → ekle  
 3. Yoksa debug cihazda Firestore/Storage permission-denied  
-4. **Paket adı değişince** eski `ustacepte` token’ı **geçmez** — yeni token şart  
+4. **Paket adı değişince** eski token **geçmez** — yeni token şart  
+
+> [!warning] `enforceAppCheck` callable'larda belirti farklıdır
+> Firestore/Storage monitor modunda olduğu için debug token eksikken veri
+> okuma ÇALIŞMAYA devam eder — sorun görünmez kalır. Ama `deleteAccount`
+> gibi `enforceAppCheck: true` callable'lar **reddedilir**. Log:
+> ```
+> Failed to validate AppCheck token ... Decoding App Check token failed
+> {"verifications":{"auth":"VALID","app":"INVALID"}}
+> ```
+> `auth: VALID` + `app: INVALID` = oturum sağlam, CİHAZ tanınmıyor.
+> İstemci bunu `internal` olarak görür ve "Güvenlik doğrulaması geçilemedi"
+> der (`firebase_auth_repository.dart` `_deleteErrorMessage`) — kod hatası
+> sanılmasın. 2026-08-09'da "hesap silinmiyor" bulgusunun sebebi buydu.
 5. **`Too many attempts`:** token reddi throttle. **30–60 dk bekle**, hot restart spam’ini kes, token’ı Console’a ekle, uygulamayı **tam kapat/aç**. Acil geliştirme:  
    `flutter run --dart-define=SKIP_APP_CHECK=true` (yalnız debug; CF `enforceAppCheck` callable’lar yine token ister)
 

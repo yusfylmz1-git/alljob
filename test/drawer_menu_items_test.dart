@@ -52,10 +52,25 @@ void main() {
   });
 
   group('Kalan menü satırları duruyor', () {
-    test('İş İlanı Ver · İlanlarım · Hesap Ayarları · Yardım · Çıkış', () {
-      expect(drawer.contains("Text('İş İlanı Ver')"), isTrue);
+    test('İlanlarım · Hesap Ayarları · Yardım · Çıkış', () {
       expect(drawer.contains("Text('İlanlarım')"), isTrue);
       expect(drawer.contains('RoutePaths.myJobs'), isTrue);
+    });
+
+    // 2026-08-09: "İş İlanı Ver" menüden KALKTI. Keşfet'in üst barındaki
+    // ikon tek giriş; menü + Keşfet gövdesi + hero üç ayrı kapı demekti.
+    test('"İş İlanı Ver" satırı menüde YOK, Keşfet üst barında VAR', () {
+      expect(drawer.contains("Text('İş İlanı Ver')"), isFalse,
+          reason: 'İlan verme menüye geri eklenmiş — mükerrer giriş.');
+
+      // Giriş 2026-08-09'da yazılı etikete çevrildi: tooltip dokunmatikte
+      // görünmediği için ikonun ne yaptığı belirsizdi.
+      final kesfet = read(
+          'lib/features/customer/presentation/customer_dashboard_screen.dart');
+      expect(kesfet.contains("Text('Yeni İlan')"), isTrue,
+          reason: 'Keşfet üst barındaki tek giriş kaybolmuş.');
+      expect(kesfet.contains('RoutePaths.newJob'), isTrue,
+          reason: 'Giriş ilan verme rotasına gitmiyor.');
     });
   });
 }

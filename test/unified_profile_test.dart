@@ -37,9 +37,13 @@ void main() {
   });
 
   group('Sadece DÜĞMELER değişiyor', () {
-    test('kendi profilimde: düzenle + bak', () {
+    // 2026-08-09 (madde 2): ikinci düğme "Profilime bak" → "İlanlarım".
+    // Kendi profilindeyken profili tekrar açan düğmenin karşılığı yoktu;
+    // kullanıcı asıl kendi ilanlarına ulaşamıyordu.
+    test('kendi profilimde: düzenle + İlanlarım', () {
       expect(kendi.contains("label: 'Profili düzenle'"), isTrue);
-      expect(kendi.contains("label: 'Profilime bak'"), isTrue);
+      expect(kendi.contains("label: 'İlanlarım'"), isTrue);
+      expect(kendi.contains("label: 'Profilime bak'"), isFalse);
     });
 
     test('usta profilinde: Mesaj + Takip', () {

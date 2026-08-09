@@ -3,7 +3,8 @@ import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart' as fb;
-import 'package:flutter/foundation.dart' show debugPrint, kIsWeb;
+import 'package:flutter/foundation.dart'
+    show debugPrint, kDebugMode, kIsWeb;
 import 'package:google_sign_in/google_sign_in.dart';
 
 import '../../../core/utils/validators.dart';
@@ -667,6 +668,17 @@ class FirebaseAuthRepository implements AuthRepository {
             'sorun sürerse uygulamayı güncelleyin.';
       case 'internal':
       case 'permission-denied':
+        // DEBUG'da bu kod neredeyse HER ZAMAN App Check demektir: debug
+        // token Console'a eklenmemişse istek handler'a hiç ulaşmaz. Genel
+        // mesaj geliştiriciyi sunucu hatası aramaya itiyordu (2026-08-09) —
+        // debug'da sebebi ve çözümü doğrudan söyle.
+        if (kDebugMode) {
+          return 'App Check reddi (debug): cihaz token\'ı Console\'da kayıtlı '
+              'değil. Logcat → "Enter this debug secret" satırındaki token\'ı '
+              'Firebase Console → App Check → com.sepettehizmet.app → Manage '
+              'debug tokens → ekle, sonra uygulamayı tam kapat/aç. '
+              'Ayrıntı: docs/OPS_BILLING_APPCHECK.md';
+        }
         return 'Güvenlik doğrulaması geçilemedi. Uygulamayı kapatıp yeniden '
             'açın; sorun sürerse destek ekibine bildirin.';
       case 'deadline-exceeded':

@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../../core/config/app_runtime_config.dart';
+import '../../../../core/constants/app_constants.dart';
 import '../../../../core/router/route_paths.dart';
 import '../../../../core/theme/app_palette.dart';
 import '../../../../core/widgets/app_image.dart';
@@ -21,10 +23,16 @@ import '../../../jobs/data/job_providers.dart';
 final oneChikanUstalarProvider =
     FutureProvider<List<ArtisanSummary>>((ref) async {
   try {
+    // Premium kapısı aramayla AYNI olmalı (madde 7): ücretsiz dönem
+    // kapandığında burada da premium olmayan usta öne çıkmamalı.
+    final freeBeta = ref.watch(appRuntimeConfigProvider).valueOrNull
+            ?.premiumFreeDuringBeta ??
+        AppConstants.premiumFreeDuringBeta;
     final page = await ref.read(artisanRepositoryProvider).searchArtisans(
           filter: const ArtisanFilter(),
           offset: 0,
           limit: 6,
+          premiumFreeDuringBeta: freeBeta,
         );
     return page.items;
   } catch (_) {

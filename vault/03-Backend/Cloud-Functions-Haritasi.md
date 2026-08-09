@@ -62,7 +62,7 @@ Saat dilimi: `Europe/Istanbul`.
 ### Kullanıcı
 | Fonksiyon | İş |
 |---|---|
-| `deleteAccount` | Hesap silme (KVKK) |
+| `deleteAccount` | Hesap silme (KVKK) — [politika](#hesap-silme-kapsamı) |
 | `createSupportTicket` | Destek talebi |
 | `verifyMembershipPurchase` | Üyelik satın alma doğrulaması |
 | `publishProduct` · `updateProductContent` | Ürün yayını |
@@ -76,13 +76,25 @@ Saat dilimi: `Europe/Istanbul`.
 | Kullanıcı | `adminLookupUser`, `adminUserSummary`, `adminSetUserSuspended`, `adminBulkSuspend`, `adminAddUserNote`, `adminListUserNotes` |
 | Moderasyon | `adminModerateMessage`, `adminModerateJob`, `adminModerateProduct`, `adminModerateStaffing`, `adminHideReview` |
 | Şikayet | `adminResolveReport`, `adminAssignReport` |
-| Usta | `adminSetArtisanFlags`, `adminGrantPremium`, `adminReviewCertificates` |
+| Usta | `adminSetArtisanFlags`, `adminGrantPremium`, `adminReviewCertificates`, `adminBulkPlanUpdate` |
 | Sistem | `adminUpdateConfig`, `adminRebuildStats`, `adminLogExport`, `adminGetChatTranscript` |
 | Duyuru | `adminBroadcastNotification`, `adminScheduleCampaign`, `adminCancelCampaign` |
 | Destek | `adminUpdateSupportTicket` |
 
 Hepsi başta yetki doğrular (`assertAdmin` / `assertSuperadmin`) ve denetim
 kaydı bırakır. → [[Admin-Paneli]]
+
+> [!warning] `adminBulkPlanUpdate` son çaredir
+> Ücretsiz dönem bitince müsaitliğin kapanmasını sağlayan asıl mekanizma bu
+> CF **değil**, istemcideki premium kapısıdır: `ArtisanProfile.isAvailableAt`
+> premium erişimi yoksa `false` döner. O kapı hiçbir veri yazmaz — ücretsiz
+> döneme dönülürse (`premiumFreeDuringBeta = true`) herkes eski hâline
+> kendiliğinden döner.
+>
+> Bu CF ise **kalıcı yazma** yapar (`isPremium` / `manualPause`) ve geri alma
+> düğmesi yoktur. Yalnız kampanya bitişi / toplu düzeltme gibi veriyi gerçekten
+> değiştirmek gerektiğinde kullanılır. `dryRun: true` ile önce sayım alınır;
+> `onlyWithoutActivePremium` (varsayılan true) ödemeli aktif aboneleri atlar.
 
 ## Ortak yardımcılar
 
@@ -108,6 +120,34 @@ düşürmez. Örnek: profil yoksa `completedJobs` artışı atlanır.
 **Döngü güvenliği.** `onJobWritten` kendi yazdığı alanla tekrar tetiklenir —
 kod bunu koşullarla eler (`if (!after.completedAt)` gibi). Yeni yazım
 eklerken bunu düşün.
+
+## Hesap silme kapsamı
+
+`deleteAccount` KVKK **ve** Play zorunluluğudur. Ölçüt iki yönlüdür: kişisel
+veriyi silmek zorundayız, ama kötüye kullanım kaydını tutma hakkımız var.
+Bu yüzden her koleksiyon üç kovadan birine düşer.
+
+| Kova | Koleksiyonlar | Gerekçe |
+|---|---|---|
+| **SİL** | `jobs`, `favorites` (iki yön), `staffNeeds`, `staffWorkers`, `products`, hakkındaki `reviews`, `users/**` (recursive), `artisanProfiles`, `membershipPurchases`, Storage 6 klasör, Auth | Kişisel veri; saklamanın meşru gerekçesi yok |
+| **ANONİMLEŞTİR** | `chats` (ad/foto), yazdığı `reviews`, `supportTickets` (uid/email), `reports` (yalnız `reporterUid`) | Kayıt iki taraflı ya da kanıt; kimlik düşer, gövde kalır |
+| **DOKUNMA** | `reports` gövdesi, `reportedUid`, `adminUserNotes`, `premiumOverrides`, `adminAuditLogs` | Denetim izi / kötüye kullanım kaydı |
+
+> [!warning] Şikayet kaydını silme
+> `reports` silinirse **"şikayet edilince hesabı sil, temize çık"** açığı
+> doğar. Şikayet EDENİN kimliği düşer; EDİLENİN kimliği kaydın kendisidir,
+> düşerse kayıt anlamsızlaşır.
+
+> [!note] Şikayet doküman kimliği uid içerir
+> ID formatı `{tip}_{hedef}__{reporterUid}`; kural "hedef başına şikayetçi
+> başına TEK kayıt" tekilliğini buna dayandırır. Anonimleştirmek için
+> dokümanı **taşıma** — tekillik garantisi bozulur. Alan boşaltılır, kimlik
+> yerinde kalır.
+
+Sıra önemlidir: **Auth kaydı en sonda** silinir; bir adım yarıda kalırsa
+kullanıcı tekrar deneyebilir. Yeni koleksiyon eklerken uid taşıyor mu diye
+bak — taşıyorsa üç kovadan birine yerleştir.
+Regresyon: `test/hesap_silme_kapsami_test.dart`.
 
 > [!warning] Deploy
 > `firebase deploy --only functions --project alljob1`.

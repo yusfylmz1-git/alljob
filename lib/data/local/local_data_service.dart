@@ -63,12 +63,22 @@ class LocalDataService {
       ..sort((a, b) => a.name.compareTo(b.name));
   }
 
+  /// Meslekler — KATEGORİYE göre sıralı döner.
+  ///
+  /// Gruplu gösterim (2026-08-10) aynı kategorinin ARDIŞIK gelmesini
+  /// gerektirir; sıralamayı burada yapmak her ekranda tekrarlamaktan iyidir.
+  /// Kategori içinde JSON'daki sıra korunur (sık kullanılan meslekler
+  /// elle öne konmuştur — alfabetik sıralamak onu bozardı).
   Future<List<Profession>> getProfessions() async {
     if (_professions != null) return _professions!;
     final list = await _loadJsonArray(AppConstants.professionsAsset);
-    _professions = list
+    final parsed = list
         .map((e) => Profession.fromMap(Map<String, dynamic>.from(e as Map)))
         .toList();
+    // Kararlı sıralama: eşit anahtarlarda giriş sırası korunur.
+    parsed.sort((a, b) => ProfessionCategory.order(a.category)
+        .compareTo(ProfessionCategory.order(b.category)));
+    _professions = parsed;
     return _professions!;
   }
 

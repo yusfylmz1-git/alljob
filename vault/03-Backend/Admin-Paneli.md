@@ -59,6 +59,7 @@ moderatör kümesi uygulanır.
 | Admin kadrosu | `admin_roster_screen.dart` |
 | Denetim kaydı | `admin_audit_screen.dart` |
 | Platform / ayarlar | `admin_platform_screen.dart`, `admin_settings_screen.dart` |
+| Toplu plan (ücretsiz dönem bitişi) | `admin_bulk_plan_screen.dart` — yalnız superadmin |
 
 Sayfalama: `paged_footer.dart` ortak bileşen.
 

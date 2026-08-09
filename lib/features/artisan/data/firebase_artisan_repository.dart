@@ -96,9 +96,15 @@ class FirebaseArtisanRepository implements ArtisanRepository {
     required ArtisanFilter filter,
     required int offset,
     required int limit,
+    bool? premiumFreeDuringBeta,
   }) async {
     final docs = await _cachedProfiles(filter.professionCode);
     final now = DateTime.now();
+
+    // Premium kapısı: ücretsiz dönem kapalıysa premium erişimi olmayan usta
+    // müsait sayılmaz → listede görünmez (madde 7).
+    bool musait(ArtisanProfile p) =>
+        p.isAvailableAt(now, premiumFreeDuringBeta: premiumFreeDuringBeta);
 
     final records = docs
         .map((d) => _record(d.id, d.data))
@@ -111,7 +117,7 @@ class FirebaseArtisanRepository implements ArtisanRepository {
       }
       // Temel kural: müsait olmayan usta müşteri aramasında GÖSTERİLMEZ
       // (müsaitlik Premium gerektirir).
-      if (!r.profile.isAvailableAt(now)) return false;
+      if (!musait(r.profile)) return false;
       if (!filter.matchesQuery(
         displayName: r.displayName,
         professionNameTR:
@@ -125,8 +131,8 @@ class FirebaseArtisanRepository implements ArtisanRepository {
 
     // Sıralama: önce müsait ustalar (puana göre), sonra müsait olmayanlar.
     records.sort((a, b) {
-      final aAvail = a.profile.isAvailableAt(now);
-      final bAvail = b.profile.isAvailableAt(now);
+      final aAvail = musait(a.profile);
+      final bAvail = musait(b.profile);
       if (aAvail != bAvail) return aAvail ? -1 : 1;
       return b.profile.averageRating.compareTo(a.profile.averageRating);
     });

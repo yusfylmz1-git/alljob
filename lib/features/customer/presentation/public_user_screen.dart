@@ -7,6 +7,7 @@ import '../../../core/theme/app_palette.dart';
 import '../../../core/widgets/responsive_center.dart';
 import '../../../core/widgets/status_views.dart';
 import '../../../data/models/app_user.dart';
+import '../../artisan/application/availability_gate.dart';
 import '../../auth/application/auth_controller.dart';
 import '../../chat/data/chat_providers.dart';
 import '../../favorites/data/favorite_providers.dart';
@@ -214,6 +215,10 @@ class _Body extends ConsumerWidget {
       context.push(RoutePaths.login);
       return;
     }
+    // İlan kartındaki avatar BURAYA getiriyor. Kapı olmasaydı, ilan
+    // detayından mesaj atamayan müsait olmayan usta profile geçip buradan
+    // yazabilirdi (2026-08-10 bulgusu).
+    if (!artisanAvailabilityAllowsNewChat(context, ref)) return;
     try {
       final chatId = await ref.read(chatRepositoryProvider).startChat(
             customerUid: me.uid,

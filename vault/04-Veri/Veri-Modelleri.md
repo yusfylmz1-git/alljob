@@ -103,5 +103,41 @@ bool get isRedacted => deleted || moderationHidden;  // TEK kapı
 | Kimlik şeması değişti | Eski biçim çalışmaya devam eder (`chatId`'de `jobId` opsiyonel) |
 | Yön alanı eklendi | Eksik = eski kayıt = `c2a` |
 
+## Meslekler — `assets/data/professions.json`
+
+144 meslek, dört alan: `code` · `nameTR` · `icon` · `category`.
+
+> [!warning] İKİ kaynak senkron tutulmalı
+> Aynı liste `lib/data/local/mock_database.dart` içindeki `kProfessionNames`
+> haritasında da durur (kart/rozet gösterimi oradan okur). JSON'da adı
+> değiştirip haritayı unutmak eski adın ekranda kalmasına yol açar.
+> Regresyon: `test/meslek_kategori_test.dart` ikisini karşılaştırır.
+
+**`code` DEĞİŞTİRİLEMEZ** — `artisanProfiles.professions` ve `jobs.category`
+bu kodu taşır; değiştirmek veri göçüdür. Ad serbestçe düzeltilebilir.
+
+### Kategoriler (2026-08-10)
+
+Liste düzdü ve inşaat mesleklerine göre sıralıydı; avukat/mimar/muhasebe
+sona düşüp görünmez kalıyordu — kullanıcı "avukat yok" sandı, oysa
+`lawyer_consult` vardı. Çözüm iki parçalı:
+
+1. **Gruplama.** `category` alanı + `ProfessionCategory` (kod, ad, sıra).
+   `getProfessions()` listeyi kategori sırasına göre döndürür; seçim
+   ekranları grup başlığı basar. Kategori içinde JSON sırası korunur —
+   sık kullanılan meslekler elle öne konmuştur, alfabetik sıralama bunu
+   bozardı.
+2. **Adlandırma.** Kullanıcının YAZACAĞI kelime adda geçmeli:
+   "Hukuki Danışmanlık" → **"Avukat / Hukuki Danışmanlık"**. Kod aynı kaldı.
+
+Gruplama `SearchableSelectField.groupLabel` ile opsiyoneldir (il/ilçe gibi
+kısa listeler etkilenmez). **Arama yazılırken gruplama kapanır** — sonuç
+zaten daralmıştır, başlık gürültü olur.
+
+> [!note] Yeni meslek eklerken
+> 1. JSON'a `category` ile ekle 2. `kProfessionNames`e ekle
+> 3. Aynı kategorideki kayıtların YANINA koy (gruplar ardışık olmalı)
+> 4. Testi çalıştır — eksik senkron/kategori hemen düşer.
+
 ---
 İlgili: [[Firestore-Semasi]] · [[Is-Akisi-Durum-Makinesi]] · [[Repository-Deseni]]

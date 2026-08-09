@@ -27,6 +27,7 @@ class AppUser {
     this.publicPhone,
     this.socialLinks = SocialLinks.empty,
     this.aboutText = '',
+    this.ortakAlanlarGocmus = false,
   });
 
   final String uid;
@@ -116,6 +117,14 @@ class AppUser {
   /// her moda açılmış hâli.
   final String aboutText;
 
+  /// `users` kaydı ortak profil alanlarını HİÇ taşımış mı? (2026-08-08 göçü)
+  ///
+  /// "Alan yok" ile "alan var ama boş" ayrımı için gerekli. Kullanıcı bir
+  /// bağlantıyı SİLDİĞİNDE `users` boş kalır; bu bayrak olmasaydı okuma
+  /// tarafı boşluğu "henüz göç etmemiş" sanıp `artisanProfiles`'taki eski
+  /// kopyaya düşer ve silinen bağlantı geri gelirdi.
+  final bool ortakAlanlarGocmus;
+
   /// Profilde gösterilecek herhangi bir ek bilgi var mı?
   bool get hasProfileDetails =>
       (publicPhone?.trim().isNotEmpty ?? false) ||
@@ -169,8 +178,38 @@ class AppUser {
           clearPublicPhone ? null : (publicPhone ?? this.publicPhone),
       socialLinks: socialLinks ?? this.socialLinks,
       aboutText: aboutText ?? this.aboutText,
+      // Sayaçlarla aynı tuzak: copyWith parametresi değil, ama taşınmazsa
+      // her çağrıda false'a düşer ve silinen bağlantı geri gelirdi.
+      ortakAlanlarGocmus: ortakAlanlarGocmus,
     );
   }
+
+  /// Kaydı "ortak alanlar göç etti" diye işaretler.
+  ///
+  /// Firebase'de bu bilgi alanın VARLIĞINDAN gelir ([fromMap]); mock'ta
+  /// döküman yok, o yüzden yazma anında elle işaretlenir. [copyWith]'e
+  /// parametre olarak açılmaz — bayrağı yalnız yazan taraf koyar.
+  AppUser markOrtakAlanlarGocmus() => AppUser(
+        uid: uid,
+        displayName: displayName,
+        email: email,
+        createdAt: createdAt,
+        hasArtisanProfile: hasArtisanProfile,
+        activeMode: activeMode,
+        phoneVerified: phoneVerified,
+        emailVerified: emailVerified,
+        isAdmin: isAdmin,
+        adminRole: adminRole,
+        suspended: suspended,
+        phoneNumber: phoneNumber,
+        profilePhotoUrl: profilePhotoUrl,
+        completedJobsAsCustomer: completedJobsAsCustomer,
+        reviewCountAsCustomer: reviewCountAsCustomer,
+        publicPhone: publicPhone,
+        socialLinks: socialLinks,
+        aboutText: aboutText,
+        ortakAlanlarGocmus: true,
+      );
 
   /// Herkese açık `users/{uid}` alanları. E-posta, FCM token, telefon YOK (H2).
   Map<String, dynamic> toMap() => {
@@ -217,6 +256,11 @@ class AppUser {
       socialLinks: SocialLinks.fromMap(
           (map['socialLinks'] as Map?)?.cast<String, dynamic>()),
       aboutText: (map['aboutText'] as String?) ?? '',
+      // Alanlardan biri BİLE varsa kayıt göç etmiştir; sonrasında boşluk
+      // "kullanıcı sildi" demektir, "veri yok" değil.
+      ortakAlanlarGocmus: map.containsKey('socialLinks') ||
+          map.containsKey('publicPhone') ||
+          map.containsKey('aboutText'),
       // CF yazar; alan yoksa 0 (henüz iş bitirmemiş/değerlendirilmemiş).
       completedJobsAsCustomer:
           (map['completedJobsAsCustomer'] as num?)?.toInt() ?? 0,

@@ -152,15 +152,21 @@ class MockChatRepository implements ChatRepository {
 
   int _seq = 0;
 
+  /// Rozet sayacı: okunmamışı olan **SOHBET** adedi (mesaj adedi DEĞİL).
+  ///
+  /// Firebase paritesi: orada `unreadCount` thread başına 0/1 döner ve CF
+  /// (`bumpChatUnreadMeta`) sohbet başına bir kez +1 yazar. Mock'ta
+  /// `unreadCount` gerçek mesaj adedini verdiği için burada **1'e sıkışır**;
+  /// aksi hâlde tek sohbetteki 3 mesaj mock'ta "3", canlıda "1" gösterirdi.
   ChatUnreadMeta _unreadMetaFor(String uid) {
     var customer = 0, artisan = 0;
     for (final t in _threadsFor(uid)) {
       final n = unreadCount(chatId: t.id, uid: uid);
       if (n <= 0) continue;
       if (t.artisanUid == uid) {
-        artisan += n;
+        artisan += 1;
       } else {
-        customer += n;
+        customer += 1;
       }
     }
     return ChatUnreadMeta(
@@ -170,9 +176,17 @@ class MockChatRepository implements ChatRepository {
     );
   }
 
-  /// Firebase paritesi: KİŞİ BAZLI tek kimlik (ilan kimliğe girmez).
-  static String chatIdFor(String customerUid, String artisanUid) =>
-      'chat_${customerUid}__$artisanUid';
+  /// Firebase paritesi: KİŞİ BAZLI tek kimlik (ilan kimliğe girmez) ve
+  /// SIRADAN BAĞIMSIZ — uid'ler alfabetik sıralanır.
+  ///
+  /// Rol giriş noktasına göre değişiyordu (ilan detayında "ilanı veren =
+  /// müşteri", profilde "ben = müşteri"); kimlik role bağlı kalsaydı aynı
+  /// çift iki ayrı kutu açardı. Bkz. `FirebaseChatRepository.chatIdFor`.
+  static String chatIdFor(String customerUid, String artisanUid) {
+    final a = customerUid.compareTo(artisanUid) <= 0 ? customerUid : artisanUid;
+    final b = customerUid.compareTo(artisanUid) <= 0 ? artisanUid : customerUid;
+    return 'chat_${a}__$b';
+  }
 
   StreamController<List<ChatMessage>> _ctrl(String chatId) =>
       _msgControllers.putIfAbsent(

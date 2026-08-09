@@ -15,6 +15,7 @@ import '../../../core/widgets/status_views.dart';
 import '../../../data/local/mock_database.dart' show kProfessionNames;
 import '../../../data/models/artisan_profile.dart';
 import '../../../data/models/review.dart';
+import '../../artisan/application/availability_gate.dart';
 import '../../artisan/data/artisan_providers.dart';
 import '../../artisan/data/artisan_repository.dart';
 import '../../auth/application/auth_controller.dart';
@@ -579,6 +580,7 @@ class _HeroHeader extends ConsumerWidget {
       context.push(RoutePaths.login);
       return;
     }
+    if (!artisanAvailabilityAllowsNewChat(context, ref)) return;
     try {
       final chatId = await ref.read(chatRepositoryProvider).startChat(
             customerUid: me.uid,
@@ -829,6 +831,17 @@ Future<void> startChatWithArtisan(
     return;
   }
   if (user.uid == detail.uid) return; // kendiyle sohbet olmaz
+
+  // KENDİ müsaitliği: müsait olmayan USTA yeni sohbet BAŞLATAMAZ.
+  //
+  // 2026-08-10'da ilan listesi müsaitlikten bağımsız hâle geldi (usta
+  // piyasayı görsün, mesaj atmasın). Ama ilan kartındaki avatar profile
+  // gittiği için kapı ATLANABİLİYORDU: ilan detayından mesaj atamayan usta,
+  // aynı kişinin profiline girip oradan yazabiliyordu. Kapı ilan ekranında
+  // değil, sohbeti BAŞLATAN her yolda olmalı.
+  //
+  // Yalnız usta modunu bağlar: müşterinin müsaitlik kavramı yoktur.
+  if (!artisanAvailabilityAllowsNewChat(context, ref)) return;
 
   // MÜSAİTLİK KAPISI: müsait olmayan ustaya YENİ sohbet açılamaz.
   //

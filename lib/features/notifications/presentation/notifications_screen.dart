@@ -1,27 +1,27 @@
 ﻿import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:url_launcher/url_launcher.dart';
 
-import '../../../core/config/app_runtime_config.dart';
 import '../../../core/router/route_paths.dart';
 import '../../../core/theme/app_palette.dart';
-import '../../../core/widgets/app_image.dart';
+import '../../../core/utils/snackbar_helper.dart';
 import '../../../core/widgets/surface_app_bar.dart';
 import '../../../core/widgets/pull_to_refresh.dart';
 import '../../../core/widgets/responsive_center.dart';
 import '../../../core/widgets/status_views.dart';
 import '../../../data/models/app_notification.dart';
-import '../../../data/models/favorite.dart';
 import '../../auth/application/auth_controller.dart';
-import '../../favorites/data/favorite_providers.dart';
 import '../data/notification_repository.dart';
 
 /// Bildirim merkezi (iki rol tek ekran): Cloud Functions'ın kalıcılaştırdığı
 /// bildirimler Instagram dilinde gruplanır (Bugün / Bu Hafta / Daha Önce);
 /// dokununca ilgili sohbete/ilana gider. Ekran açılınca görünenler okundu
-/// işaretlenir (zil rozeti söner). En üstte admin sistem duyurusu sabittir.
-/// En altta "Sizi Takip Edenler": ustayı takip eden müşteriler.
+/// işaretlenir (zil rozeti söner).
+///
+/// 2026-08-10'da ekran SADELEŞTİ (kullanıcı kararı): üstteki sabit sistem
+/// duyurusu ve alttaki "Sizi Takip Edenler" listesi kaldırıldı — ikisi de
+/// bildirim değil, ekranı şişiren ayrı yüzeylerdi. Takipçiler zaten usta
+/// profilinde görünür. Yerine "Temizle" eylemi geldi.
 class NotificationsScreen extends ConsumerStatefulWidget {
   const NotificationsScreen({super.key});
 
@@ -52,90 +52,101 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
     if (user == null) return const SizedBox.shrink(); // rota zaten korumalı
 
     final notifsAsync = ref.watch(myNotificationsProvider(user.uid));
-    final followers =
-        ref.watch(followersProvider(user.uid)).valueOrNull ?? const <Favorite>[];
-    final runtime = ref.watch(appRuntimeConfigProvider).valueOrNull;
-    final announcement =
-        (runtime?.hasAnnouncement == true) ? runtime : null;
+    final items = notifsAsync.valueOrNull ?? const <AppNotification>[];
 
     return Scaffold(
-      appBar: const SurfaceAppBar(
+      appBar: SurfaceAppBar(
         title: 'Bildirimler',
         icon: Icons.notifications_none_rounded,
-      ),
-      body: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // Sistem duyurusu kaydırılmaz — listenin üstünde sabit.
-          if (announcement != null)
-            _PinnedSystemAnnouncement(config: announcement),
-          Expanded(
-            child: notifsAsync.when(
-              loading: () => const LoadingView(),
-              error: (_, _) => RefreshableEmpty(
-                onRefresh: () => awaitRefresh(() async {
-                  ref.invalidate(myNotificationsProvider(user.uid));
-                  ref.invalidate(followersProvider(user.uid));
-                  await ref.read(myNotificationsProvider(user.uid).future);
-                }),
-                child: const ErrorView(
-                    message:
-                        'Bildirimler yüklenemedi. Bağlantınızı kontrol edip '
-                        'tekrar deneyin.'),
-              ),
-              data: (items) {
-                Future<void> refresh() => awaitRefresh(() async {
-                      ref.invalidate(myNotificationsProvider(user.uid));
-                      ref.invalidate(followersProvider(user.uid));
-                      await ref
-                          .read(myNotificationsProvider(user.uid).future);
-                    });
-                _markVisibleRead(user.uid, items);
-                if (items.isEmpty && followers.isEmpty) {
-                  return RefreshableEmpty(
-                    onRefresh: refresh,
-                    child: const _EmptyNotifications(),
-                  );
-                }
-                final groups = _groupByAge(items);
-                return ResponsiveCenter(
-                  maxWidth: 720,
-                  child: PullToRefresh(
-                    onRefresh: refresh,
-                    child: ListView(
-                      physics: kPullRefreshPhysics,
-                      padding: const EdgeInsets.all(16),
-                      children: [
-                        for (final g in groups) ...[
-                          _SectionHeader(title: g.$1),
-                          const SizedBox(height: 8),
-                          for (final n in g.$2) ...[
-                            _NotificationTile(notification: n),
-                            const SizedBox(height: 8),
-                          ],
-                          const SizedBox(height: 10),
-                        ],
-                        if (followers.isNotEmpty) ...[
-                          const SizedBox(height: 6),
-                          _SectionHeader(
-                              title:
-                                  'Sizi Takip Edenler (${followers.length})'),
-                          const SizedBox(height: 8),
-                          for (final f in followers) ...[
-                            _FollowerTile(follower: f),
-                            const SizedBox(height: 8),
-                          ],
-                        ],
-                      ],
-                    ),
-                  ),
-                );
-              },
+        actions: [
+          if (items.isNotEmpty)
+            TextButton(
+              onPressed: () => _confirmClear(user.uid),
+              child: const Text('Temizle'),
             ),
+        ],
+      ),
+      body: notifsAsync.when(
+        loading: () => const LoadingView(),
+        error: (_, _) => RefreshableEmpty(
+          onRefresh: () => awaitRefresh(() async {
+            ref.invalidate(myNotificationsProvider(user.uid));
+            await ref.read(myNotificationsProvider(user.uid).future);
+          }),
+          child: const ErrorView(
+              message: 'Bildirimler yüklenemedi. Bağlantınızı kontrol edip '
+                  'tekrar deneyin.'),
+        ),
+        data: (items) {
+          Future<void> refresh() => awaitRefresh(() async {
+                ref.invalidate(myNotificationsProvider(user.uid));
+                await ref.read(myNotificationsProvider(user.uid).future);
+              });
+          _markVisibleRead(user.uid, items);
+          if (items.isEmpty) {
+            return RefreshableEmpty(
+              onRefresh: refresh,
+              child: const _EmptyNotifications(),
+            );
+          }
+          final groups = _groupByAge(items);
+          return ResponsiveCenter(
+            maxWidth: 720,
+            child: PullToRefresh(
+              onRefresh: refresh,
+              child: ListView(
+                physics: kPullRefreshPhysics,
+                padding: const EdgeInsets.all(16),
+                children: [
+                  for (final g in groups) ...[
+                    _SectionHeader(title: g.$1),
+                    const SizedBox(height: 8),
+                    for (final n in g.$2) ...[
+                      _NotificationTile(notification: n),
+                      const SizedBox(height: 8),
+                    ],
+                    const SizedBox(height: 10),
+                  ],
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  /// Temizleme geri alınamaz → önce onay.
+  Future<void> _confirmClear(String uid) async {
+    final onay = await showDialog<bool>(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: const Text('Bildirimler temizlensin mi?'),
+        content: const Text(
+          'Tüm bildirimleriniz silinecek. Bu işlem geri alınamaz — '
+          'sohbetleriniz ve ilanlarınız etkilenmez.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(c, false),
+            child: const Text('Vazgeç'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(c, true),
+            child: const Text('Temizle'),
           ),
         ],
       ),
     );
+    if (onay != true || !mounted) return;
+    try {
+      await ref.read(notificationRepositoryProvider).clearAll(uid);
+      if (!mounted) return;
+      ref.invalidate(myNotificationsProvider(uid));
+    } catch (_) {
+      if (!mounted) return;
+      context.showError('Bildirimler temizlenemedi, tekrar deneyin.');
+    }
   }
 
   /// Bildirimleri IG dilinde yaş gruplarına ayırır (boş gruplar atlanır).
@@ -160,115 +171,6 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
       if (week.isNotEmpty) ('Bu Hafta', week),
       if (older.isNotEmpty) ('Daha Önce', older),
     ];
-  }
-}
-
-/// Admin `adminConfig/runtime` sistem duyurusu — bildirim listesinin üstünde sabit.
-class _PinnedSystemAnnouncement extends StatelessWidget {
-  const _PinnedSystemAnnouncement({required this.config});
-  final AppRuntimeConfig config;
-
-  Future<void> _openCta() async {
-    final raw = (config.announcementCtaUrl ?? '').trim();
-    if (raw.isEmpty) return;
-    final uri = Uri.tryParse(raw);
-    if (uri == null) return;
-    await launchUrl(uri, mode: LaunchMode.externalApplication);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final palette = context.palette;
-    final theme = Theme.of(context);
-    final title = (config.announcementTitle ?? '').trim();
-    final body = (config.announcementBody ?? '').trim();
-    final ctaLabel = (config.announcementCtaLabel ?? '').trim();
-    final hasCta =
-        ctaLabel.isNotEmpty && (config.announcementCtaUrl ?? '').trim().isNotEmpty;
-
-    return Material(
-      color: palette.warningSurface,
-      elevation: 0,
-      child: SafeArea(
-        top: false,
-        bottom: false,
-        child: Container(
-          width: double.infinity,
-          decoration: BoxDecoration(
-            border: Border(
-              bottom: BorderSide(color: palette.warning.withValues(alpha: 0.22)),
-            ),
-          ),
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: palette.warning.withValues(alpha: 0.14),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Icon(Icons.campaign_rounded,
-                    color: palette.warning, size: 20),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Sistem duyurusu',
-                      style: theme.textTheme.labelSmall?.copyWith(
-                        color: palette.warning,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 0.2,
-                      ),
-                    ),
-                    if (title.isNotEmpty) ...[
-                      const SizedBox(height: 2),
-                      Text(
-                        title,
-                        style: theme.textTheme.titleSmall?.copyWith(
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                    ],
-                    if (body.isNotEmpty) ...[
-                      const SizedBox(height: 2),
-                      Text(
-                        body,
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: palette.inkMuted,
-                          height: 1.35,
-                        ),
-                      ),
-                    ],
-                    if (hasCta) ...[
-                      const SizedBox(height: 8),
-                      TextButton(
-                        onPressed: _openCta,
-                        style: TextButton.styleFrom(
-                          foregroundColor: palette.warning,
-                          padding: EdgeInsets.zero,
-                          minimumSize: Size.zero,
-                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                          visualDensity: VisualDensity.compact,
-                        ),
-                        child: Text(
-                          ctaLabel,
-                          style: const TextStyle(fontWeight: FontWeight.w800),
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
   }
 }
 
@@ -388,69 +290,6 @@ class _NotificationTile extends StatelessWidget {
             ],
           ),
         ),
-      ),
-    );
-  }
-}
-
-/// Ustayı takip eden müşteri satırı (avatar + ad + ne zaman).
-class _FollowerTile extends StatelessWidget {
-  const _FollowerTile({required this.follower});
-  final Favorite follower;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final name =
-        follower.customerName.isEmpty ? 'Kullanıcı' : follower.customerName;
-
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: context.palette.card,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: theme.colorScheme.outlineVariant),
-      ),
-      child: Row(
-        children: [
-          CircleAvatar(
-            radius: 20,
-            backgroundColor: context.palette.primaryContainer,
-            child: ClipOval(
-              child: SizedBox(
-                width: 40,
-                height: 40,
-                child: follower.customerPhotoUrl != null
-                    ? AppImage(handle: follower.customerPhotoUrl)
-                    : Icon(Icons.person,
-                        size: 22,
-                        color: context.palette.onPrimaryContainer),
-              ),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.titleSmall
-                        ?.copyWith(fontWeight: FontWeight.w700)),
-                Text('sizi takip ediyor',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant)),
-              ],
-            ),
-          ),
-          const SizedBox(width: 8),
-          Text(
-            _timeAgo(follower.createdAt),
-            style: theme.textTheme.labelSmall
-                ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
-          ),
-        ],
       ),
     );
   }

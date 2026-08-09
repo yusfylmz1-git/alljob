@@ -128,10 +128,17 @@ abstract interface class ArtisanRepository {
   /// bağımsızdır; hiçbiri zorunlu değildir (boş filtre = Türkiye geneli).
   /// Sıralama (ilk 1 yıl modeli, PRD §3): önce müsait ustalar (puana göre),
   /// sonra müsait olmayanlar (puana göre).
+  ///
+  /// [premiumFreeDuringBeta]: ücretsiz dönem bayrağı (remote
+  /// `adminConfig/runtime`). false ise premium erişimi olmayan usta müsait
+  /// SAYILMAZ ve listede görünmez — ücretsiz döneme son verilince
+  /// müsaitliğin kendiliğinden kapanmasını sağlayan kapı budur.
+  /// Verilmezse `AppConstants` yerel varsayılanı kullanılır.
   Future<ArtisanSearchPage> searchArtisans({
     required ArtisanFilter filter,
     required int offset,
     required int limit,
+    bool? premiumFreeDuringBeta,
   });
 
   Future<ArtisanDetail?> getArtisanDetail(String uid);

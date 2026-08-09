@@ -35,7 +35,10 @@ import '../../membership/membership_package.dart';
 /// Profil yalnız İÇERİK gösterir. Hesap ayarları (doğrulama, üyelik, çıkış)
 /// `/profile/account`'ta, kişisel araçlar (Ajanda) yan menüde.
 class ProfileScreen extends ConsumerWidget {
-  const ProfileScreen({super.key});
+  ProfileScreen({super.key});
+
+  /// Yan menü açıkken geri tuşunun menüyü kapatabilmesi için (madde 4).
+  final _scaffoldKey = GlobalKey<ScaffoldState>();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -43,7 +46,9 @@ class ProfileScreen extends ConsumerWidget {
 
     return MainTabScope(
       tab: MainTab.profile,
+      scaffoldKey: _scaffoldKey,
       child: Scaffold(
+        key: _scaffoldKey,
         drawer: const AppMenuDrawer(),
         body: user == null
             ? const Center(child: Text('Oturum bulunamadı.'))
@@ -260,11 +265,15 @@ class _Hero extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(width: 8),
+                  // "Profilime bak" YERİNE "İlanlarım" (2026-08-09):
+                  // kullanıcı zaten kendi profilindeyken onu bir kez daha
+                  // açan düğmenin karşılığı yoktu; kendi ilanlarına ise
+                  // buradan erişemiyordu. Herkese açık görünüm merak
+                  // edilirse avatardan/paylaş bağlantısından ulaşılıyor.
                   Expanded(
                     child: ProfileActionButton(
-                      label: 'Profilime bak',
-                      onTap: () =>
-                          context.push(RoutePaths.userProfile(user.uid)),
+                      label: 'İlanlarım',
+                      onTap: () => context.push(RoutePaths.myJobs),
                     ),
                   ),
                 ],

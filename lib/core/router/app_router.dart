@@ -188,7 +188,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: RoutePaths.home,
-        builder: (_, _) => const HomeScreen(),
+        builder: (_, _) => HomeScreen(),
       ),
       GoRoute(
         path: RoutePaths.explore,
@@ -242,7 +242,7 @@ final routerProvider = Provider<GoRouter>((ref) {
         // Eski panel ana sayfası birleşik profile taşındı (global redirect
         // /panel'i /profile'a çevirir); builder yalnızca alt rotalar için
         // ebeveyn olarak durur.
-        builder: (_, _) => const ProfileScreen(),
+        builder: (_, _) => ProfileScreen(),
         routes: [
           GoRoute(
             path: 'edit',
@@ -252,7 +252,7 @@ final routerProvider = Provider<GoRouter>((ref) {
           ),
           GoRoute(
             path: 'jobs',
-            builder: (_, _) => const NearbyJobsScreen(),
+            builder: (_, _) => NearbyJobsScreen(),
           ),
           GoRoute(
             path: 'premium',
@@ -322,7 +322,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: RoutePaths.profile,
-        builder: (_, _) => const ProfileScreen(),
+        builder: (_, _) => ProfileScreen(),
         routes: [
           GoRoute(
             // TEK DÜZENLEME EKRANI (2026-08-08): ortak alanlar + (usta

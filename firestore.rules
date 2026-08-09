@@ -152,14 +152,21 @@ service cloud.firestore {
 
       // Uygulama içi bildirim merkezi — kayıtları YALNIZCA Cloud Functions
       // yazar (Admin SDK kuralları aşar). Sahibi okur ve sadece `read`
-      // alanını true yapabilir; sahte bildirim enjekte edilemez/silinemez.
+      // alanını true yapabilir; sahte bildirim enjekte EDİLEMEZ.
+      //
+      // SİLME sahibine açıktır (2026-08-10, "bildirimleri temizle"):
+      // `create` kapalı kaldığı sürece silme sahtecilik yolu açmaz — kendi
+      // gelen kutusunu temizlemek kullanıcının hakkıdır. Bildirim zaten
+      // türetilmiş veridir (kaynak sohbet/ilan kaydı yerinde durur), yani
+      // silinmesi denetim izi kaybettirmez.
       match /notifications/{notifId} {
         allow read: if isSelf(uid);
         allow update: if isSelf(uid)
           && request.resource.data.diff(resource.data)
               .affectedKeys().hasOnly(['read'])
           && request.resource.data.read == true;
-        allow create, delete: if false;
+        allow delete: if isSelf(uid);
+        allow create: if false;
       }
     }
 
@@ -374,13 +381,19 @@ service cloud.firestore {
       allow list: if isMember(resource.data);
       // Create: deterministik ID + çağıran taraf + 2 kişilik members.
       //
-      // ID İKİ BİÇİMDEN BİRİ (S-CHAT-1 spam koruması — rastgele ID ile üçüncü
-      // kişiye sohbet açılamaz):
-      //   chat_{müşteri}__{usta}              → GENEL sohbet (ürün/eleman)
-      //   chat_{müşteri}__{usta}__{jobId}     → İLAN BAZLI sohbet
-      // İlan bazlıda taban kimlik + '__' öneki aranır; jobId'nin kendisi
-      // serbest olduğundan tam eşitlik yerine önek kontrolü yapılır. Taban
-      // kısım yine iki tarafın uid'ine çakılıdır, yani spam koruması durur.
+      // ID BİÇİMİ (S-CHAT-1 spam koruması — rastgele ID ile üçüncü kişiye
+      // sohbet açılamaz):
+      //   chat_{uidA}__{uidB}            → uidA/uidB = iki taraf
+      //   chat_{uidA}__{uidB}__{jobId}   → eski ilan bazlı kayıtlar
+      //
+      // İKİ SIRA DA KABUL EDİLİR (2026-08-10). İstemci kimliği artık
+      // ALFABETİK sıralıyor (`chatIdFor`), çünkü rol giriş noktasına göre
+      // değişiyordu ve aynı çift iki ayrı kutu açıyordu. Kural yalnız
+      // müşteri__usta sırasını kabul etseydi, ustanın uid'i önce gelen her
+      // çiftte sohbet OLUŞTURULAMAZDI.
+      //
+      // Spam koruması korunur: kimlik yine tam olarak İKİ TARAFIN uid'ine
+      // çakılıdır, yalnızca sıra serbesttir. Üçüncü kişi kimliğe giremez.
       allow create: if isSignedIn()
         && !isSuspended()
         && isEmailVerified()
@@ -391,8 +404,12 @@ service cloud.firestore {
             || request.auth.uid == request.resource.data.artisanUid)
         && (chatId == 'chat_' + request.resource.data.customerUid
               + '__' + request.resource.data.artisanUid
+            || chatId == 'chat_' + request.resource.data.artisanUid
+              + '__' + request.resource.data.customerUid
             || chatId.matches('^chat_' + request.resource.data.customerUid
-              + '__' + request.resource.data.artisanUid + '__.+$'))
+              + '__' + request.resource.data.artisanUid + '__.+$')
+            || chatId.matches('^chat_' + request.resource.data.artisanUid
+              + '__' + request.resource.data.customerUid + '__.+$'))
         // Yeni sohbet KİLİTLİ ya da "müşteri başlattı" olarak doğamaz.
         && request.resource.data.get('customerStarted', false) == false
         && !request.resource.data.keys().hasAny(['lockedAt', 'lockReason'])

@@ -259,10 +259,12 @@ void main() {
       expect(profil.contains('_ArtisanHome('), isFalse);
     });
 
-    test('müsaitlik SADE anahtar ve "Profilime bak" ÜSTÜNDE', () {
+    // İkinci düğme 2026-08-09'da "Profilime bak" → "İlanlarım" oldu
+    // (madde 2); sıralama beklentisi aynı: anahtar düğmelerin ÜSTÜNDE.
+    test('müsaitlik SADE anahtar ve eylem düğmelerinin ÜSTÜNDE', () {
       expect(profil.contains('_AvailabilitySwitch'), isTrue);
       expect(profil.indexOf('_AvailabilitySwitch(draft: draft)'),
-          lessThan(profil.indexOf("label: 'Profilime bak'")));
+          lessThan(profil.indexOf("label: 'İlanlarım'")));
     });
 
     test('anahtarın yanında yalnız "Müsait" yazıyor', () {

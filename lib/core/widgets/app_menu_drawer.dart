@@ -222,11 +222,9 @@ class AppMenuDrawer extends ConsumerWidget {
         // mod değişimi artık profildeki anahtardan yapılıyor, iki ayrı yer
         // olması karışıklık yaratıyordu (B-16).
         else ...[
-          ListTile(
-            leading: const Icon(Icons.campaign_outlined),
-            title: const Text('İş İlanı Ver'),
-            onTap: () => _open(context, RoutePaths.newJob),
-          ),
+          // "İş İlanı Ver" satırı KALDIRILDI (2026-08-09): Keşfet'in üst
+          // barındaki ikon tek giriş oldu. Aynı yere giden üçüncü kapıydı.
+          //
           // "Takip Ettiklerim" ve "Bildirimler" satırları KALDIRILDI
           // (2026-08-08): ikisinin de daha yakın girişi var — takip
           // profildeki sayaçtan, bildirimler her ekranın sağ üstündeki
@@ -236,14 +234,16 @@ class AppMenuDrawer extends ConsumerWidget {
           // rotası router'da hiç tanımlı değil, dokunan kullanıcı hata
           // sayfasına düşüyordu.
 
-          // Usta modülleri — yalnız anahtar açıkken.
-          if (user.isArtisan)
-            ListTile(
-              leading: const Icon(Icons.assignment_outlined),
-              title: const Text('İlanlarım'),
-              subtitle: const Text('Verdiğiniz hizmet ilanları'),
-              onTap: () => _open(context, RoutePaths.myJobs),
-            ),
+          // İLANLARIM — HER İKİ MODDA (2026-08-09). Eskiden `user.isArtisan`
+          // koşuluna bağlıydı; ilanı VEREN müşteridir, dolayısıyla asıl
+          // sahibi kendi ilanlarına hiçbir yerden ulaşamıyordu. Profildeki
+          // "Profilime bak" düğmesi de bunun yerine buraya bağlandı.
+          ListTile(
+            leading: const Icon(Icons.assignment_outlined),
+            title: const Text('İlanlarım'),
+            subtitle: const Text('Verdiğiniz iş ilanları'),
+            onTap: () => _open(context, RoutePaths.myJobs),
+          ),
 
           // Henüz usta profili yoksa dönüşüm çağrısı.
           if (!user.hasArtisanProfile) ...[

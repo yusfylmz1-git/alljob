@@ -44,6 +44,42 @@ abstract interface class AdminArtisanRepository {
 
   /// Belgeleri incelemeyi bekleyen ustalar (`certificateStatus == pending`).
   Future<List<ArtisanProfile>> pendingCertificates({int limit = 50});
+
+  /// TOPLU plan/müsaitlik güncellemesi (ücretsiz dönem bitişi — madde 7).
+  ///
+  /// Asıl mekanizma istemcideki premium KAPISIDIR
+  /// ([ArtisanProfile.isAvailableAt]); bu metot onun yerine geçmez, elle
+  /// müdahale gereken durumlar içindir (kampanya bitişi, toplu düzeltme).
+  ///
+  /// [mode]: `revokePremium` · `pauseAvailability` · `both`.
+  /// [onlyWithoutActivePremium] true (varsayılan) iken parasını ödemiş
+  /// aktif aboneler ATLANIR. [dryRun] true ise hiçbir şey yazılmaz, yalnız
+  /// kaç ustanın etkileneceği döner — yönetici önce görsün.
+  /// [reason] zorunludur (denetim kaydına yazılır).
+  Future<BulkPlanResult> bulkPlanUpdate({
+    required String mode,
+    required String reason,
+    bool onlyWithoutActivePremium = true,
+    bool dryRun = false,
+  });
+}
+
+/// [AdminArtisanRepository.bulkPlanUpdate] sonucu.
+class BulkPlanResult {
+  const BulkPlanResult({
+    required this.etkilenen,
+    required this.atlanan,
+    required this.toplam,
+    required this.dryRun,
+  });
+
+  /// Değişen (ya da dryRun'da değişecek olan) usta sayısı.
+  final int etkilenen;
+
+  /// Dokunulmayanlar: aktif aboneler + zaten o durumda olanlar.
+  final int atlanan;
+  final int toplam;
+  final bool dryRun;
 }
 
 class FirebaseAdminArtisanRepository implements AdminArtisanRepository {
@@ -141,6 +177,31 @@ class FirebaseAdminArtisanRepository implements AdminArtisanRepository {
     return snap.docs
         .map((d) => ArtisanProfile.fromMap(d.id, d.data()))
         .toList();
+  }
+
+  @override
+  Future<BulkPlanResult> bulkPlanUpdate({
+    required String mode,
+    required String reason,
+    bool onlyWithoutActivePremium = true,
+    bool dryRun = false,
+  }) async {
+    final res = await _functions
+        .httpsCallable('adminBulkPlanUpdate')
+        .call<Object?>({
+          'mode': mode,
+          'reason': reason,
+          'onlyWithoutActivePremium': onlyWithoutActivePremium,
+          'dryRun': dryRun,
+        });
+    final data = (res.data as Map?)?.cast<String, dynamic>() ?? const {};
+    int say(String k) => (data[k] as num?)?.toInt() ?? 0;
+    return BulkPlanResult(
+      etkilenen: say('etkilenen'),
+      atlanan: say('atlanan'),
+      toplam: say('toplam'),
+      dryRun: data['dryRun'] == true,
+    );
   }
 }
 
@@ -267,6 +328,71 @@ class MockAdminArtisanRepository implements AdminArtisanRepository {
         .where((a) => a.certificateStatus == 'pending')
         .take(limit)
         .toList();
+  }
+
+  /// Toplu plan işlemleri kaydı (sunucu audit log'unun test karşılığı).
+  final List<({String mode, String reason, bool dryRun})> bulkOps = [];
+
+  @override
+  Future<BulkPlanResult> bulkPlanUpdate({
+    required String mode,
+    required String reason,
+    bool onlyWithoutActivePremium = true,
+    bool dryRun = false,
+  }) async {
+    // Sunucu doğrulamalarının aynısı (mock ile CF davranışı ayrışmasın).
+    const gecerli = ['revokePremium', 'pauseAvailability', 'both'];
+    if (!gecerli.contains(mode)) {
+      throw ArgumentError('Geçersiz mode: $mode');
+    }
+    if (reason.trim().length < 5) {
+      throw ArgumentError('Gerekçe zorunlu (en az 5 karakter).');
+    }
+
+    bulkOps.add((mode: mode, reason: reason, dryRun: dryRun));
+
+    final now = DateTime.now();
+    var etkilenen = 0;
+    var atlanan = 0;
+
+    for (final entry in _items.entries.toList()) {
+      final p = entry.value;
+      final bitis = p.premiumExpiresAt;
+      final aktifPremium = p.isPremium && bitis != null && bitis.isAfter(now);
+
+      // Parasını ödemiş aktif aboneye dokunma (varsayılan).
+      if (onlyWithoutActivePremium && aktifPremium) {
+        atlanan++;
+        continue;
+      }
+
+      final premiumDusecek =
+          (mode == 'revokePremium' || mode == 'both') && p.isPremium;
+      final duraklatilacak =
+          (mode == 'pauseAvailability' || mode == 'both') && !p.manualPause;
+
+      // Zaten hedef durumdaysa yazma — CF de boşuna yazma yapmıyor.
+      if (!premiumDusecek && !duraklatilacak) {
+        atlanan++;
+        continue;
+      }
+
+      etkilenen++;
+      if (dryRun) continue;
+
+      _items[entry.key] = p.copyWith(
+        isPremium: premiumDusecek ? false : p.isPremium,
+        premiumExpiresAt: premiumDusecek ? now : p.premiumExpiresAt,
+        manualPause: duraklatilacak ? true : p.manualPause,
+      );
+    }
+
+    return BulkPlanResult(
+      etkilenen: etkilenen,
+      atlanan: atlanan,
+      toplam: _items.length,
+      dryRun: dryRun,
+    );
   }
 
   /// `certificateStatus` salt okunur (CF yazar) → copyWith desteklemez;

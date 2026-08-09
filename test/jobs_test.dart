@@ -115,10 +115,16 @@ void main() {
         ],
       ).first;
 
-      // Osmangazi/painter'lar: yeni eklenen + seed (job_seed_1). Nilüfer ve
-      // plumber elenmeli.
+      // MESLEK eler: plumber listede olmamalı.
       expect(feed.every((j) => j.category == 'painter'), isTrue);
-      expect(feed.every((j) => j.district == 'Osmangazi'), isTrue);
+      // İLÇE ELEMEZ (2026-08-10): aynı ildeki Nilüfer ilanı da düşer.
+      expect(
+        feed.any((j) => j.district == 'Nilüfer'),
+        isTrue,
+        reason: 'İlçe şartı kalktı; aynı ilin diğer ilçeleri de görünmeli.',
+      );
+      expect(feed.every((j) => j.province == 'Bursa'), isTrue,
+          reason: 'İl sınırı duruyor.');
       expect(feed.any((j) => j.jobId == 'job_seed_1'), isTrue);
     });
 
@@ -197,7 +203,11 @@ void main() {
       );
     });
 
-    test('klasik ilan İLÇE şartını korur (Hemen Lazım değişikliği sızmaz)', () {
+    // 2026-08-10: klasik ilanda İLÇE ŞARTI KALKTI (kullanıcı kararı).
+    // Önce yalnız Hemen Lazım il düzeyindeydi; klasik ilanlar ilçeye
+    // kısıtlıydı ve çoğu ilçede alıcısız kalıyordu. Artık iki tip de il
+    // düzeyinde eşleşir; ilçe yalnız SIRALAMA sinyalidir (isNearbyForAreas).
+    test('klasik ilan farklı İLÇEDEKİ ustaya da düşer (aynı il)', () {
       final job = _sampleJob(category: 'painter');
       expect(
         job.matchesArtisan(
@@ -206,12 +216,40 @@ void main() {
             ServiceArea(province: 'Bursa', district: 'Nilüfer'),
           ],
         ),
-        isFalse,
+        isTrue,
+        reason: 'Aynı il, farklı ilçe → artık eşleşmeli.',
       );
       expect(
         job.matchesArtisan(professionCode: 'painter', serviceAreas: areas),
         isTrue,
       );
+    });
+
+    test('klasik ilanda İL sınırı DURUYOR (fazlasını yapma)', () {
+      // İlçe kalktı diye il de kalkmadı: başka ildeki usta ilanı görmemeli.
+      final job = _sampleJob(category: 'painter');
+      expect(
+        job.matchesArtisan(
+          professionCode: 'painter',
+          serviceAreas: const [
+            ServiceArea(province: 'İstanbul', district: 'Kadıköy'),
+          ],
+        ),
+        isFalse,
+        reason: 'Farklı il → eşleşmemeli.',
+      );
+    });
+
+    test('ilçe farkı "Yakınında" rozetini etkiler ama ELEMEZ', () {
+      final job = _sampleJob(category: 'painter');
+      const uzak = [ServiceArea(province: 'Bursa', district: 'Nilüfer')];
+      // Eşleşiyor ama yakın değil → listede var, üstte değil.
+      expect(
+        job.matchesArtisan(professionCode: 'painter', serviceAreas: uzak),
+        isTrue,
+      );
+      expect(job.isNearbyForAreas(uzak), isFalse);
+      expect(job.isNearbyForAreas(areas), isTrue);
     });
 
     test('isNearbyForAreas — aynı ilçe "Yakınında" sayılır', () {
@@ -506,7 +544,8 @@ void main() {
 
       // Kimlik ilandan TÜREMEZ: ikinci ilan yeni oda açmaz.
       expect(a, b);
-      expect(a, 'chat_cust_1__art_1');
+      // Kimlik SIRALI (2026-08-10): uid'ler alfabetik → 'art_1' < 'cust_1'.
+      expect(a, 'chat_art_1__cust_1');
       expect(chats.getThread(a)!.jobTitle, 'Banyo musluk');
     });
 
@@ -523,7 +562,42 @@ void main() {
       final withoutJob = MockChatRepository.chatIdFor('cust_1', 'art_1');
 
       expect(withJob, withoutJob);
-      expect(withJob, 'chat_cust_1__art_1');
+      expect(withJob, 'chat_art_1__cust_1');
+    });
+
+    // 2026-08-10 (madde 4/6): kimlik ROL SIRASINDAN bağımsız.
+    // Rol giriş noktasına göre değişiyordu — ilan detayında "ilanı veren =
+    // müşteri", profil ekranında "ben = müşteri" — ve aynı çift iki ayrı
+    // kutu açıyordu. Sıralı kimlik bunu imkânsız kılar.
+    test('taraflar ters verilse bile TEK kutu', () async {
+      final ileri = MockChatRepository.chatIdFor('cust_1', 'art_1');
+      final geri = MockChatRepository.chatIdFor('art_1', 'cust_1');
+      expect(ileri, geri,
+          reason: 'Aynı çift için kimlik her yönden aynı olmalı.');
+    });
+
+    test('ters yönden girilince roller DEĞİŞMEZ', () async {
+      final chats = MockChatRepository();
+      // İlan detayı yolu: ilanı veren müşteri.
+      final ilk = await chats.startChat(
+        customerUid: 'ilan_sahibi',
+        customerName: 'İlan Sahibi',
+        artisanUid: 'yazan',
+        artisanName: 'Yazan',
+      );
+      // Profil yolu: aynı iki kişi, roller TERS verildi.
+      final ikinci = await chats.startChat(
+        customerUid: 'yazan',
+        customerName: 'Yazan',
+        artisanUid: 'ilan_sahibi',
+        artisanName: 'İlan Sahibi',
+      );
+
+      expect(ikinci, ilk, reason: 'İkinci giriş yeni kutu açmamalı.');
+      final t = chats.getThread(ilk)!;
+      expect(t.customerUid, 'ilan_sahibi',
+          reason: 'Roller İLK açılışta donar; sonradan yer değiştiremez.');
+      expect(t.artisanUid, 'yazan');
     });
 
     test('canSend: SERBEST — iki taraf da yazar; kilitli sohbette kimse '

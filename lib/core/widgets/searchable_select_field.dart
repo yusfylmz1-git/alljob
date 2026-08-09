@@ -13,6 +13,16 @@ class _SelectOutcome<T> {
   final bool cleared;
 }
 
+/// Gruplanmış listede başlık satırını işaretler.
+///
+/// Satır listesi `Object?` taşır: `null` → "Tümü", [_GroupHeader] → başlık,
+/// diğer her şey → öğe. Ayrı bir tip olması `is` ile güvenli ayırt etmeyi
+/// sağlar; öğe tipi T rastgele olabileceğinden String kullanılamaz.
+class _GroupHeader {
+  const _GroupHeader(this.label);
+  final String label;
+}
+
 /// Dokununca alt sayfada arama + liste açan tek seçimli alan.
 ///
 /// Uzun listeler (meslek, il, ilçe) için klasik Dropdown yerine kullanılır.
@@ -35,7 +45,12 @@ class SearchableSelectField<T> extends StatelessWidget {
     this.clearLabel = 'Tümü',
     this.onClear,
     this.highlight = false,
+    this.groupLabel,
   });
+
+  /// Verilirse liste bu etikete göre gruplanır (uzun listelerde tarama
+  /// kolaylığı). Öğelerin ZATEN gruba göre sıralı gelmesi beklenir.
+  final String Function(T)? groupLabel;
 
   final String label;
   final T? value;
@@ -82,6 +97,7 @@ class SearchableSelectField<T> extends StatelessWidget {
         equals: equals,
         allowClear: allowClear,
         clearLabel: clearLabel,
+        groupLabel: groupLabel,
       ),
     );
     if (outcome == null) return;
@@ -160,6 +176,7 @@ class _SearchableSelectSheet<T> extends StatefulWidget {
     this.equals,
     this.allowClear = false,
     this.clearLabel = 'Tümü',
+    this.groupLabel,
   });
 
   final String title;
@@ -171,6 +188,12 @@ class _SearchableSelectSheet<T> extends StatefulWidget {
   final bool Function(T a, T b)? equals;
   final bool allowClear;
   final String clearLabel;
+
+  /// Verilirse liste bu etikete göre GRUPLANIR ve araya başlık satırı girer.
+  /// Uzun listelerde (144 meslek) tarama yapılabilir olmasını sağlar.
+  /// Arama yazılırken gruplama KAPANIR — sonuç zaten daralmıştır, başlık
+  /// gürültü olur.
+  final String Function(T)? groupLabel;
 
   @override
   State<_SearchableSelectSheet<T>> createState() =>
@@ -196,7 +219,28 @@ class _SearchableSelectSheetState<T> extends State<_SearchableSelectSheet<T>> {
         .toList(growable: false);
     final h = MediaQuery.sizeOf(context).height * 0.72;
     final showClear = widget.allowClear && q.trim().isEmpty;
-    final totalRows = filtered.length + (showClear ? 1 : 0);
+
+    // Satır listesi: başlık (String) ve öğe (T) karışık. Index aritmetiği
+    // yerine açık liste — gruplama eklenince "i - 1" hesabı kırılgan olurdu.
+    final rows = <Object?>[
+      if (showClear) null, // "Tümü" satırı
+    ];
+    final grup = widget.groupLabel;
+    // Arama sırasında gruplama kapalı: sonuç zaten daraldı, başlık gürültü.
+    if (grup == null || q.trim().isNotEmpty) {
+      rows.addAll(filtered);
+    } else {
+      String? sonGrup;
+      for (final e in filtered) {
+        final g = grup(e);
+        if (g != sonGrup) {
+          rows.add(_GroupHeader(g));
+          sonGrup = g;
+        }
+        rows.add(e);
+      }
+    }
+    final totalRows = rows.length;
 
     return SizedBox(
       height: h,
@@ -215,7 +259,11 @@ class _SearchableSelectSheetState<T> extends State<_SearchableSelectSheet<T>> {
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: TextField(
               controller: _query,
-              autofocus: true,
+              // autofocus KAPALI: sheet açılır açılmaz klavye fırlıyordu ve
+              // liste yarı yarıya kapanıyordu. İl/ilçe gibi kısa listelerde
+              // kullanıcı çoğunlukla yazmadan seçiyor — klavye ancak arama
+              // kutusuna dokununca açılmalı.
+              autofocus: false,
               textInputAction: TextInputAction.search,
               onChanged: (_) => setState(() {}),
               decoration: InputDecoration(
@@ -258,13 +306,35 @@ class _SearchableSelectSheetState<T> extends State<_SearchableSelectSheet<T>> {
                   )
                 : ListView.separated(
                     itemCount: totalRows,
-                    separatorBuilder: (_, _) => Divider(
-                      height: 1,
-                      indent: 16,
-                      endIndent: 16,
-                      color: palette.border.withValues(alpha: 0.7),
-                    ),
+                    separatorBuilder: (_, i) {
+                      // Başlığın ÜSTÜNE çizgi çizme: grup zaten ayırıyor.
+                      final sonraki = i + 1 < rows.length ? rows[i + 1] : null;
+                      if (sonraki is _GroupHeader) {
+                        return const SizedBox.shrink();
+                      }
+                      return Divider(
+                        height: 1,
+                        indent: 16,
+                        endIndent: 16,
+                        color: palette.border.withValues(alpha: 0.7),
+                      );
+                    },
                     itemBuilder: (context, i) {
+                      final row = rows[i];
+                      if (row is _GroupHeader) {
+                        return Padding(
+                          padding:
+                              const EdgeInsets.fromLTRB(16, 18, 16, 6),
+                          child: Text(
+                            row.label.toUpperCase(),
+                            style: theme.textTheme.labelSmall?.copyWith(
+                              color: palette.inkMuted,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 0.6,
+                            ),
+                          ),
+                        );
+                      }
                       if (showClear && i == 0) {
                         final isOn = widget.selected == null;
                         return ListTile(
@@ -291,7 +361,7 @@ class _SearchableSelectSheetState<T> extends State<_SearchableSelectSheet<T>> {
                           ),
                         );
                       }
-                      final item = filtered[showClear ? i - 1 : i];
+                      final item = row as T;
                       final label = widget.itemLabel(item);
                       final sel = widget.selected;
                       final isOn = sel != null &&

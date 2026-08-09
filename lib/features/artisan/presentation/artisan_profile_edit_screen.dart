@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../../core/constants/app_constants.dart';
+import '../../../core/router/route_paths.dart';
 import '../../../core/theme/app_palette.dart';
 import '../../../core/utils/search_fold.dart';
 import '../../../core/utils/snackbar_helper.dart';
@@ -16,8 +18,11 @@ import '../../../core/widgets/responsive_center.dart';
 import '../../../core/widgets/searchable_select_field.dart';
 import '../../../core/widgets/status_views.dart';
 import '../../../data/local/local_data_service.dart';
+import '../../../data/models/user_role.dart' show UserRole;
 import '../../../data/models/availability.dart';
 import '../../../data/models/geo_models.dart';
+import '../../../data/models/profession.dart'
+    show Profession, ProfessionCategory;
 import '../../../data/models/artisan_profile.dart';
 import '../../../data/models/job.dart'
     show
@@ -51,7 +56,10 @@ class ArtisanProfileEditScreen extends ConsumerWidget {
         title: 'Profili Düzenle',
         icon: Icons.badge_outlined,
         // GradientAppBar KOYU: zil beyaz kalmalı.
-        actions: [NotificationBell(color: Colors.white), SizedBox(width: 4)],
+        actions: [
+          NotificationBell(color: Colors.white),
+          SizedBox(width: 4),
+        ],
       ),
       body: draftAsync.when(
         loading: () => const LoadingView(),
@@ -265,6 +273,33 @@ class _EditFormState extends ConsumerState<_EditForm> {
     setState(() => _addDistrict = null); // sonraki ilçe için hazır
   }
 
+  /// Usta kurulumu hiç yapılmamış mı? (meslek YOK ve bölge YOK)
+  ///
+  /// `becomeArtisan()` usta modunu AÇTIKTAN sonra buraya yönlendiriyor.
+  /// Kullanıcı hiçbir şey seçmeden geri basarsa usta modu açık kalıyordu —
+  /// aramada meslek/bölgesiz boş bir usta olarak görünürdü. Bu iki alan da
+  /// boşsa "kurulum yapılmadı" kabul edip modu geri alıyoruz (madde 11).
+  bool get _kurulumBos {
+    final d = ref.read(myProfileControllerProvider).valueOrNull;
+    if (d == null) return false;
+    return d.profile.professionCodes.isEmpty && d.profile.serviceAreas.isEmpty;
+  }
+
+  /// Kaydetmeden çıkışta usta modunu geri alır. Yalnız kurulum hiç
+  /// yapılmamışsa çalışır: mevcut bir ustanın profilini düzenlerken geri
+  /// basması modunu KAPATMAMALI.
+  Future<void> _cikistaModuGeriAl() async {
+    final user = ref.read(currentUserProvider);
+    if (user == null || !user.isArtisan || !_kurulumBos) return;
+    await ref
+        .read(authControllerProvider.notifier)
+        .setActiveMode(UserRole.customer);
+    if (!mounted) return;
+    context.showInfo(
+      'Usta modu açılmadı — meslek ve hizmet bölgesi seçilmedi.',
+    );
+  }
+
   Future<void> _save() async {
     final draft = ref.read(myProfileControllerProvider).valueOrNull;
     if (draft == null) return;
@@ -309,6 +344,15 @@ class _EditFormState extends ConsumerState<_EditForm> {
     if (!mounted) return;
     if (ok) {
       context.showSuccess('Profiliniz kaydedildi.');
+      // Kaydettikten sonra formda kalmak "kaydoldu mu?" sorusunu doğuruyordu
+      // (madde 6). Başarılıysa profile dön — kullanıcı değişikliğini
+      // yayınlanmış hâliyle görür. `_kurulumBos` artık false olduğundan
+      // aşağıdaki PopScope modu geri ALMAZ.
+      if (context.canPop()) {
+        context.pop();
+      } else {
+        context.go(RoutePaths.profile);
+      }
     } else {
       // B-04: sabit metin yerine GERÇEK sebep — permission-denied mi, ağ mı?
       context.showError(_controller.saveErrorTR);
@@ -333,414 +377,433 @@ class _EditFormState extends ConsumerState<_EditForm> {
     // de sade formu görmeli.
     final isArtisanMode = ref.watch(currentUserProvider)?.isArtisan ?? false;
 
-    return ResponsiveCenter(
-      maxWidth: 760,
-      child: ListView(
-        padding: const EdgeInsets.all(20),
-        children: [
-          // "Vitrini tamamla" bandı KALDIRILDI (2026-08-08): kullanıcı zaten
-          // formun içinde — hangi alanın boş olduğunu doğrudan görüyor.
-          // Formun tepesinde ayrıca uyarı göstermek yer kaplıyordu.
-          // (Bant `nearby_jobs_screen`'de duruyor: orada usta ilanları
-          // göremediğinde SEBEBİ açıklıyor, oradaki işlevi gerçek.)
+    return PopScope(
+      // Kurulum yapılmadan çıkılırsa usta modu geri alınır (madde 11).
+      // `canPop: false` + elle pop: mod değişimi asenkron, çıkıştan ÖNCE
+      // tamamlanmalı — yoksa ekran kapanır ve `mounted` false olurdu.
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) async {
+        if (didPop) return;
+        final router = GoRouter.of(context);
+        await _cikistaModuGeriAl();
+        if (router.canPop()) {
+          router.pop();
+        } else {
+          router.go(RoutePaths.profile);
+        }
+      },
+      child: ResponsiveCenter(
+        maxWidth: 760,
+        child: ListView(
+          padding: const EdgeInsets.all(20),
+          children: [
+            // "Vitrini tamamla" bandı KALDIRILDI (2026-08-08): kullanıcı zaten
+            // formun içinde — hangi alanın boş olduğunu doğrudan görüyor.
+            // Formun tepesinde ayrıca uyarı göstermek yer kaplıyordu.
+            // (Bant `nearby_jobs_screen`'de duruyor: orada usta ilanları
+            // göremediğinde SEBEBİ açıklıyor, oradaki işlevi gerçek.)
 
-          // --- Profil fotoğrafı ---
-          _focusWrap(
-            id: 'photo',
-            child: Center(
-              child: Stack(
-                children: [
-                  CircleAvatar(
-                    radius: 52,
-                    backgroundColor: Theme.of(
-                      context,
-                    ).colorScheme.primaryContainer,
-                    child: ClipOval(
-                      child: SizedBox(
-                        width: 104,
-                        height: 104,
-                        child: draft.profilePhotoUrl != null
-                            ? AppImage(handle: draft.profilePhotoUrl)
-                            : Icon(
-                                Icons.person,
-                                size: 52,
-                                color: Theme.of(
-                                  context,
-                                ).colorScheme.onPrimaryContainer,
-                              ),
+            // --- Profil fotoğrafı ---
+            _focusWrap(
+              id: 'photo',
+              child: Center(
+                child: Stack(
+                  children: [
+                    CircleAvatar(
+                      radius: 52,
+                      backgroundColor: Theme.of(
+                        context,
+                      ).colorScheme.primaryContainer,
+                      child: ClipOval(
+                        child: SizedBox(
+                          width: 104,
+                          height: 104,
+                          child: draft.profilePhotoUrl != null
+                              ? AppImage(handle: draft.profilePhotoUrl)
+                              : Icon(
+                                  Icons.person,
+                                  size: 52,
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.onPrimaryContainer,
+                                ),
+                        ),
                       ),
                     ),
-                  ),
-                  // Yükleme sürerken avatar üstünde karartma + spinner
-                  // (WhatsApp foto balonuyla aynı dil).
-                  if (_uploading == 'profile')
-                    const Positioned.fill(
-                      child: ClipOval(
-                        child: ColoredBox(
-                          color: Colors.black38,
-                          child: Center(
-                            child: SizedBox(
-                              width: 28,
-                              height: 28,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 3,
-                                color: Colors.white,
+                    // Yükleme sürerken avatar üstünde karartma + spinner
+                    // (WhatsApp foto balonuyla aynı dil).
+                    if (_uploading == 'profile')
+                      const Positioned.fill(
+                        child: ClipOval(
+                          child: ColoredBox(
+                            color: Colors.black38,
+                            child: Center(
+                              child: SizedBox(
+                                width: 28,
+                                height: 28,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 3,
+                                  color: Colors.white,
+                                ),
                               ),
                             ),
                           ),
                         ),
                       ),
-                    ),
-                  Positioned(
-                    right: 0,
-                    bottom: 0,
-                    child: Material(
-                      color: Theme.of(context).colorScheme.primary,
-                      shape: const CircleBorder(),
-                      child: InkWell(
-                        customBorder: const CircleBorder(),
-                        onTap: () => _pickImage(
-                          pathHint: 'profile',
-                          onHandle: _controller.setProfilePhoto,
-                        ),
-                        child: const Padding(
-                          padding: EdgeInsets.all(8),
-                          child: Icon(
-                            Icons.camera_alt,
-                            size: 18,
-                            color: Colors.white,
+                    Positioned(
+                      right: 0,
+                      bottom: 0,
+                      child: Material(
+                        color: Theme.of(context).colorScheme.primary,
+                        shape: const CircleBorder(),
+                        child: InkWell(
+                          customBorder: const CircleBorder(),
+                          onTap: () => _pickImage(
+                            pathHint: 'profile',
+                            onHandle: _controller.setProfilePhoto,
+                          ),
+                          child: const Padding(
+                            padding: EdgeInsets.all(8),
+                            child: Icon(
+                              Icons.camera_alt,
+                              size: 18,
+                              color: Colors.white,
+                            ),
                           ),
                         ),
                       ),
                     ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 24),
+
+            // --- Ad Soyad ---
+            _Label('Ad Soyad'),
+            TextFormField(
+              initialValue: draft.displayName,
+              textCapitalization: TextCapitalization.words,
+              maxLength: AppConstants.maxDisplayNameLength,
+              validator: Validators.displayName,
+              decoration: const InputDecoration(
+                prefixIcon: Icon(Icons.person_outline),
+                helperText: "Harf, rakam, boşluk ve . ' -",
+              ),
+              onChanged: _controller.setDisplayName,
+            ),
+            const SizedBox(height: 16),
+
+            // --- Telefon (isteğe bağlı, herkese görünür) ---
+            _Label('Telefon Numarası'),
+            const SizedBox(height: 4),
+            _PhoneVisibilityTile(profile: profile),
+            const SizedBox(height: 20),
+
+            // --- Sosyal Medya + Web Sitesi (isteğe bağlı) ---
+            _Label('Sosyal Medya ve Web Sitesi'),
+            const SizedBox(height: 4),
+            Text(
+              'İsteğe bağlı. Eklerseniz profilinizde dokunulabilir bağlantı '
+              'olarak görünür; boş bıraktığınız alan gösterilmez.',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: 10),
+            _SocialLinksSection(
+              value: profile.socialLinks,
+              onChanged:
+                  ({
+                    String? instagram,
+                    String? youtube,
+                    String? tiktok,
+                    String? whatsapp,
+                    String? website,
+                  }) => _controller.setSocialLinks(
+                    instagram: instagram,
+                    youtube: youtube,
+                    tiktok: tiktok,
+                    whatsapp: whatsapp,
+                    website: website,
+                  ),
+            ),
+            const SizedBox(height: 20),
+
+            // --- Hakkımda (isteğe bağlı) ---
+            _focusWrap(
+              id: 'about',
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _Label('Hakkımda'),
+                  TextFormField(
+                    initialValue: profile.aboutText,
+                    maxLines: 4,
+                    maxLength: AppConstants.maxAboutLength,
+                    decoration: const InputDecoration(
+                      hintText: 'Kendinizi kısaca tanıtın',
+                      alignLabelWithHint: true,
+                    ),
+                    validator: (v) => Validators.freeText(
+                      v,
+                      max: AppConstants.maxAboutLength,
+                      field: 'Hakkımda',
+                    ),
+                    onChanged: _controller.setAbout,
                   ),
                 ],
               ),
             ),
-          ),
-          const SizedBox(height: 24),
 
-          // --- Ad Soyad ---
-          _Label('Ad Soyad'),
-          TextFormField(
-            initialValue: draft.displayName,
-            textCapitalization: TextCapitalization.words,
-            maxLength: AppConstants.maxDisplayNameLength,
-            validator: Validators.displayName,
-            decoration: const InputDecoration(
-              prefixIcon: Icon(Icons.person_outline),
-              helperText: "Harf, rakam, boşluk ve . ' -",
-            ),
-            onChanged: _controller.setDisplayName,
-          ),
-          const SizedBox(height: 16),
-
-          // --- Telefon (isteğe bağlı, herkese görünür) ---
-          _Label('Telefon Numarası'),
-          const SizedBox(height: 4),
-          _PhoneVisibilityTile(profile: profile),
-          const SizedBox(height: 20),
-
-          // --- Sosyal Medya + Web Sitesi (isteğe bağlı) ---
-          _Label('Sosyal Medya ve Web Sitesi'),
-          const SizedBox(height: 4),
-          Text(
-            'İsteğe bağlı. Eklerseniz profilinizde dokunulabilir bağlantı '
-            'olarak görünür; boş bıraktığınız alan gösterilmez.',
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
-            ),
-          ),
-          const SizedBox(height: 10),
-          _SocialLinksSection(
-            value: profile.socialLinks,
-            onChanged:
-                ({
-                  String? instagram,
-                  String? youtube,
-                  String? tiktok,
-                  String? whatsapp,
-                  String? website,
-                }) => _controller.setSocialLinks(
-                  instagram: instagram,
-                  youtube: youtube,
-                  tiktok: tiktok,
-                  whatsapp: whatsapp,
-                  website: website,
+            // ══════════════ USTA VİTRİNİ ══════════════
+            //
+            // Yalnız usta modunda görünür. Müşteri modundaki kullanıcı meslek,
+            // hizmet bölgesi, iş fotoğrafı gibi alanlarla uğraşmaz — yukarıdaki
+            // ortak alanlar ona yeter.
+            //
+            // Ayrı bir "Vitrini Düzenle" sayfası YOK (2026-08-08): kullanıcı
+            // "Profili Düzenle" dedi mi her şeyi tek sayfada, tek Kaydet
+            // düğmesiyle bulmalı.
+            if (!isArtisanMode) const SizedBox(height: 8),
+            if (isArtisanMode) ...[
+              const SizedBox(height: 28),
+              Divider(color: context.palette.hairline),
+              const SizedBox(height: 14),
+              Text(
+                'USTA VİTRİNİ',
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: context.palette.inkMuted,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0.6,
                 ),
-          ),
-          const SizedBox(height: 20),
-
-          // --- Hakkımda (isteğe bağlı) ---
-          _focusWrap(
-            id: 'about',
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                _Label('Hakkımda'),
-                TextFormField(
-                  initialValue: profile.aboutText,
-                  maxLines: 4,
-                  maxLength: AppConstants.maxAboutLength,
-                  decoration: const InputDecoration(
-                    hintText: 'Kendinizi kısaca tanıtın',
-                    alignLabelWithHint: true,
-                  ),
-                  validator: (v) => Validators.freeText(
-                    v,
-                    max: AppConstants.maxAboutLength,
-                    field: 'Hakkımda',
-                  ),
-                  onChanged: _controller.setAbout,
-                ),
-              ],
-            ),
-          ),
-
-          // ══════════════ USTA VİTRİNİ ══════════════
-          //
-          // Yalnız usta modunda görünür. Müşteri modundaki kullanıcı meslek,
-          // hizmet bölgesi, iş fotoğrafı gibi alanlarla uğraşmaz — yukarıdaki
-          // ortak alanlar ona yeter.
-          //
-          // Ayrı bir "Vitrini Düzenle" sayfası YOK (2026-08-08): kullanıcı
-          // "Profili Düzenle" dedi mi her şeyi tek sayfada, tek Kaydet
-          // düğmesiyle bulmalı.
-          if (!isArtisanMode) const SizedBox(height: 8),
-          if (isArtisanMode) ...[
-            const SizedBox(height: 28),
-            Divider(color: context.palette.hairline),
-            const SizedBox(height: 14),
-            Text(
-              'USTA VİTRİNİ',
-              style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                color: context.palette.inkMuted,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 0.6,
               ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              'Müşterilerin sizi bulmasını sağlayan bilgiler.',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: context.palette.inkMuted,
+              const SizedBox(height: 4),
+              Text(
+                'Müşterilerin sizi bulmasını sağlayan bilgiler.',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: context.palette.inkMuted,
+                ),
               ),
-            ),
-            const SizedBox(height: 16),
+              const SizedBox(height: 16),
 
-          // --- Kolay İş anahtarı (meslekten AYRI hizmet tercihi) ---
-          _QuickSupportSwitch(
-            enabled: isQuickSupportProviderCodes(profile.professionCodes),
-            hasProfession: profile.professionCodes
-                .where((c) => c != kOtherProfession && c != kQuickSupportCategory)
-                .isNotEmpty,
-            onChanged: (on) {
-              _controller.setQuickSupportEnabled(on);
-              // İlk kez açılınca bir kerelik tanıtım.
-              if (on) showQuickSupportArtisanIntro(context);
-            },
-          ),
-          const SizedBox(height: 16),
+              // --- Kolay İş anahtarı (meslekten AYRI hizmet tercihi) ---
+              _QuickSupportSwitch(
+                enabled: isQuickSupportProviderCodes(profile.professionCodes),
+                hasProfession: profile.professionCodes
+                    .where(
+                      (c) =>
+                          c != kOtherProfession && c != kQuickSupportCategory,
+                    )
+                    .isNotEmpty,
+                onChanged: (on) {
+                  _controller.setQuickSupportEnabled(on);
+                  // İlk kez açılınca bir kerelik tanıtım.
+                  if (on) showQuickSupportArtisanIntro(context);
+                },
+              ),
+              const SizedBox(height: 16),
 
-          // --- Meslek(ler) ---
-          _focusWrap(
-            id: 'profession',
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                _Label(
-                  'Meslekler (en fazla ${MyProfileController.maxProfessions})',
-                ),
-                Text(
-                  'Arayarak seçin. En az bir meslek zorunlu.',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: context.palette.inkMuted,
-                  ),
-                ),
-                const SizedBox(height: 10),
-                _ProfessionMultiSelect(
-                  selected: profile.professionCodes,
-                  onToggle: (code) {
-                    final cur = profile.professionCodes;
-                    final adding = !cur.contains(code);
-                    // B-03: Hemen Lazım limite dahil değil — sayaç da onu
-                    // elemişti (`_ProfessionMultiSelect`), kontrol elemiyordu.
-                    if (adding &&
-                        MyProfileController.realProfessionCount(cur) >=
-                            MyProfileController.maxProfessions) {
-                      context.showError(
-                        'En fazla ${MyProfileController.maxProfessions} meslek seçebilirsiniz.',
-                      );
-                      return;
-                    }
-                    _controller.toggleProfession(code);
-                  },
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 16),
-
-          // --- Deneyim ---
-          _Label('Deneyim (yıl)'),
-          TextFormField(
-            initialValue: () {
-              final y = Validators.clampExperienceYears(
-                profile.experienceYears,
-              );
-              return y == 0 ? '' : '$y';
-            }(),
-            keyboardType: TextInputType.number,
-            maxLength: 2,
-            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-            decoration: InputDecoration(
-              prefixIcon: const Icon(Icons.workspace_premium_outlined),
-              hintText: 'Örn. 15',
-              helperText: 'En fazla ${AppConstants.maxExperienceYears} yıl',
-              counterText: '',
-            ),
-            validator: Validators.experienceYears,
-            onChanged: (v) =>
-                _controller.setExperience(int.tryParse(v.trim()) ?? 0),
-          ),
-          const SizedBox(height: 16),
-
-          // --- Hizmet Bölgeleri ---
-          _focusWrap(
-            id: 'area',
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                _Label('Hizmet Bölgeleri'),
-                const SizedBox(height: 4),
-                _ServiceAreaAdder(
-                  province: _addProvince,
-                  district: _addDistrict,
-                  onProvince: (p) => setState(() {
-                    _addProvince = p;
-                    _addDistrict = null;
-                  }),
-                  onDistrict: (d) => setState(() => _addDistrict = d),
-                  onAdd: _addArea,
-                ),
-                const SizedBox(height: 12),
-                if (profile.serviceAreas.isEmpty)
-                  Text(
-                    'Henüz bölge eklemediniz.',
-                    style: Theme.of(context).textTheme.bodySmall,
-                  )
-                else
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: profile.serviceAreas
-                        .map(
-                          (a) => Chip(
-                            label: Text(a.labelTR),
-                            onDeleted: () => _controller.removeServiceArea(a),
-                          ),
-                        )
-                        .toList(),
-                  ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 20),
-
-          // --- İş Fotoğrafları ---
-          _focusWrap(
-            id: 'photos',
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                _Label('İş Fotoğrafları'),
-                const SizedBox(height: 8),
-                _WorkPhotos(
-                  handles: profile.workPhotos,
-                  uploading: _uploading == 'work',
-                  onAdd: () => _pickImage(
-                    pathHint: 'work',
-                    onHandle: _controller.addWorkPhoto,
-                  ),
-                  onRemove: _controller.removeWorkPhoto,
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 24),
-
-          // --- Sertifikalar ve Belgeler ---
-          _Label('Sertifikalar ve Belgeler'),
-          const SizedBox(height: 4),
-          Text(
-            'Ustalık belgesi, sertifika vb. görsellerini ekleyin. '
-            'Belgeler yönetici onayından geçer.',
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
-            ),
-          ),
-          const SizedBox(height: 8),
-          _WorkPhotos(
-            handles: profile.certificates,
-            uploading: _uploading == 'certificate',
-            onAdd: () => _pickImage(
-              pathHint: 'certificate',
-              onHandle: _controller.addCertificate,
-            ),
-            onRemove: _controller.removeCertificate,
-          ),
-          if (profile.certificates.isNotEmpty) ...[
-            const SizedBox(height: 8),
-            _CertificateStatusNote(profile: profile),
-          ],
-          const SizedBox(height: 24),
-
-          // --- Çalışma Takvimi / Müsaitlik ---
-          _focusWrap(
-            id: 'hours',
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                _Label('Çalışma Takvimi'),
-                const SizedBox(height: 4),
-                Text(
-                  'Müşteriler öncelikle "şu an müsait" ustaları görür.',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  ),
-                ),
-                const SizedBox(height: 10),
-                _AvailabilitySection(
-                  mode: profile.availabilityMode,
-                  schedule: profile.weeklySchedule,
-                  onMode: _controller.setAvailabilityMode,
-                  onToggleDay: _controller.toggleScheduleDay,
-                  onDayHours: (wd, {startMinute, endMinute}) =>
-                      _controller.setScheduleDayHours(
-                        wd,
-                        startMinute: startMinute,
-                        endMinute: endMinute,
+              // --- Meslek(ler) ---
+              _focusWrap(
+                id: 'profession',
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _Label(
+                      'Meslekler (en fazla ${MyProfileController.maxProfessions})',
+                    ),
+                    Text(
+                      'Arayarak seçin. En az bir meslek zorunlu.',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: context.palette.inkMuted,
                       ),
+                    ),
+                    const SizedBox(height: 10),
+                    _ProfessionMultiSelect(
+                      selected: profile.professionCodes,
+                      onToggle: (code) {
+                        final cur = profile.professionCodes;
+                        final adding = !cur.contains(code);
+                        // B-03: Hemen Lazım limite dahil değil — sayaç da onu
+                        // elemişti (`_ProfessionMultiSelect`), kontrol elemiyordu.
+                        if (adding &&
+                            MyProfileController.realProfessionCount(cur) >=
+                                MyProfileController.maxProfessions) {
+                          context.showError(
+                            'En fazla ${MyProfileController.maxProfessions} meslek seçebilirsiniz.',
+                          );
+                          return;
+                        }
+                        _controller.toggleProfession(code);
+                      },
+                    ),
+                  ],
                 ),
+              ),
+              const SizedBox(height: 16),
+
+              // --- Deneyim ---
+              _Label('Deneyim (yıl)'),
+              TextFormField(
+                initialValue: () {
+                  final y = Validators.clampExperienceYears(
+                    profile.experienceYears,
+                  );
+                  return y == 0 ? '' : '$y';
+                }(),
+                keyboardType: TextInputType.number,
+                maxLength: 2,
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                decoration: InputDecoration(
+                  prefixIcon: const Icon(Icons.workspace_premium_outlined),
+                  hintText: 'Örn. 15',
+                  helperText: 'En fazla ${AppConstants.maxExperienceYears} yıl',
+                  counterText: '',
+                ),
+                validator: Validators.experienceYears,
+                onChanged: (v) =>
+                    _controller.setExperience(int.tryParse(v.trim()) ?? 0),
+              ),
+              const SizedBox(height: 16),
+
+              // --- Hizmet Bölgeleri ---
+              _focusWrap(
+                id: 'area',
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _Label('Hizmet Bölgeleri'),
+                    const SizedBox(height: 4),
+                    _ServiceAreaAdder(
+                      province: _addProvince,
+                      district: _addDistrict,
+                      onProvince: (p) => setState(() {
+                        _addProvince = p;
+                        _addDistrict = null;
+                      }),
+                      onDistrict: (d) => setState(() => _addDistrict = d),
+                      onAdd: _addArea,
+                    ),
+                    const SizedBox(height: 12),
+                    if (profile.serviceAreas.isEmpty)
+                      Text(
+                        'Henüz bölge eklemediniz.',
+                        style: Theme.of(context).textTheme.bodySmall,
+                      )
+                    else
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: profile.serviceAreas
+                            .map(
+                              (a) => Chip(
+                                label: Text(a.labelTR),
+                                onDeleted: () =>
+                                    _controller.removeServiceArea(a),
+                              ),
+                            )
+                            .toList(),
+                      ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 20),
+
+              // --- İş Fotoğrafları ---
+              _focusWrap(
+                id: 'photos',
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _Label('İş Fotoğrafları'),
+                    const SizedBox(height: 8),
+                    _WorkPhotos(
+                      handles: profile.workPhotos,
+                      uploading: _uploading == 'work',
+                      onAdd: () => _pickImage(
+                        pathHint: 'work',
+                        onHandle: _controller.addWorkPhoto,
+                      ),
+                      onRemove: _controller.removeWorkPhoto,
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 24),
+
+              // --- Sertifikalar ve Belgeler ---
+              _Label('Sertifikalar ve Belgeler'),
+              const SizedBox(height: 4),
+              Text(
+                'Ustalık belgesi, sertifika vb. görsellerini ekleyin. '
+                'Belgeler yönetici onayından geçer.',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(height: 8),
+              _WorkPhotos(
+                handles: profile.certificates,
+                uploading: _uploading == 'certificate',
+                onAdd: () => _pickImage(
+                  pathHint: 'certificate',
+                  onHandle: _controller.addCertificate,
+                ),
+                onRemove: _controller.removeCertificate,
+              ),
+              if (profile.certificates.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                _CertificateStatusNote(profile: profile),
               ],
+              const SizedBox(height: 24),
+
+              // --- Çalışma Takvimi / Müsaitlik ---
+              _focusWrap(
+                id: 'hours',
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _Label('Çalışma Takvimi'),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Müşteriler öncelikle "şu an müsait" ustaları görür.',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    _AvailabilitySection(
+                      mode: profile.availabilityMode,
+                      schedule: profile.weeklySchedule,
+                      onMode: _controller.setAvailabilityMode,
+                      onToggleDay: _controller.toggleScheduleDay,
+                      onDayHours: (wd, {startMinute, endMinute}) =>
+                          _controller.setScheduleDayHours(
+                            wd,
+                            startMinute: startMinute,
+                            endMinute: endMinute,
+                          ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 20),
+            ], // ══════════ USTA VİTRİNİ sonu ══════════
+            // --- Doğrulama (mavi tik) — form alanlarının altında, kaydetmeden
+            // bağımsız tek seferlik işlem olduğu için en sona alındı. ---
+            VerificationTile(artisanContext: isArtisanMode),
+            const SizedBox(height: 28),
+
+            AppButton(
+              label: 'Kaydet',
+              icon: Icons.save_outlined,
+              isLoading: _isSaving,
+              onPressed: _save,
             ),
-          ),
-          const SizedBox(height: 20),
-          ], // ══════════ USTA VİTRİNİ sonu ══════════
-
-          // --- Doğrulama (mavi tik) — form alanlarının altında, kaydetmeden
-          // bağımsız tek seferlik işlem olduğu için en sona alındı. ---
-          VerificationTile(artisanContext: isArtisanMode),
-          const SizedBox(height: 28),
-
-          AppButton(
-            label: 'Kaydet',
-            icon: Icons.save_outlined,
-            isLoading: _isSaving,
-            onPressed: _save,
-          ),
-          const SizedBox(height: 12),
-        ],
+            const SizedBox(height: 12),
+          ],
+        ),
       ),
     );
   }
@@ -994,8 +1057,7 @@ class _SocialLinksSectionState extends State<_SocialLinksSection> {
           helper: 'Bağlantıyı yapıştırabilirsiniz, kullanıcı adına çevrilir.',
           icon: Icons.camera_alt_outlined,
           normalize: SocialLinks.normalizeHandle,
-          validate: (v) =>
-              SocialLinks.handleError(v, platform: 'Instagram'),
+          validate: (v) => SocialLinks.handleError(v, platform: 'Instagram'),
         ),
         _field(
           controller: _youtube,
@@ -1086,7 +1148,9 @@ class _QuickSupportSwitch extends StatelessWidget {
         color: enabled ? palette.warningSurface : palette.card,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: enabled ? palette.warning.withValues(alpha: 0.5) : palette.border,
+          color: enabled
+              ? palette.warning.withValues(alpha: 0.5)
+              : palette.border,
         ),
       ),
       padding: const EdgeInsets.fromLTRB(14, 6, 8, 12),
@@ -1105,22 +1169,19 @@ class _QuickSupportSwitch extends StatelessWidget {
                   ),
                 ),
               ),
-              Switch(
-                value: enabled,
-                onChanged: onChanged,
-              ),
+              Switch(value: enabled, onChanged: onChanged),
             ],
           ),
           Text(
             enabled
                 ? (hasProfession
-                    ? 'Açık: mesleğinize ek olarak ilinizdeki market, taşıma, '
-                        'kısa gidiş gibi kısa işler de size gelir.'
-                    : 'Açık: ilinizdeki market, taşıma, kısa gidiş gibi kısa '
-                        'işler size gelir. Meslek seçmediğiniz için klasik '
-                        'meslek ilanları (boya, elektrik vb.) GELMEZ.')
+                      ? 'Açık: mesleğinize ek olarak ilinizdeki market, taşıma, '
+                            'kısa gidiş gibi kısa işler de size gelir.'
+                      : 'Açık: ilinizdeki market, taşıma, kısa gidiş gibi kısa '
+                            'işler size gelir. Meslek seçmediğiniz için klasik '
+                            'meslek ilanları (boya, elektrik vb.) GELMEZ.')
                 : 'Kapalı: market, taşıma, kısa gidiş gibi uzmanlık '
-                    'gerektirmeyen kısa işler size gelmez.',
+                      'gerektirmeyen kısa işler size gelmez.',
             style: theme.textTheme.bodySmall?.copyWith(
               color: palette.inkMuted,
               height: 1.35,
@@ -1170,8 +1231,10 @@ class _ProfessionMultiSelectState
         // Hemen Lazım bir MESLEK DEĞİL, ayrı hizmet anahtarı → listede yok
         // (bkz. _QuickSupportSwitch). Sayaç/chip'ler de onu saymaz.
         final professions = allProfessions
-            .where((p) =>
-                p.code != kOtherProfession && p.code != kQuickSupportCategory)
+            .where(
+              (p) =>
+                  p.code != kOtherProfession && p.code != kQuickSupportCategory,
+            )
             .toList(growable: false);
         final byCode = {for (final p in professions) p.code: p};
         final selected = widget.selected
@@ -1185,6 +1248,23 @@ class _ProfessionMultiSelectState
               (p) => matchesTrSearch(p.nameTR, q) || matchesTrSearch(p.code, q),
             )
             .toList(growable: false);
+
+        // Satır listesi: kategori başlığı (String) + meslek (Profession).
+        // 144 meslek düz listede taranamıyordu (2026-08-10). Arama yazılınca
+        // gruplama kapanır — sonuç zaten daraldı, başlık gürültü olur.
+        final rows = <Object>[];
+        if (q.trim().isNotEmpty) {
+          rows.addAll(filtered);
+        } else {
+          String? sonGrup;
+          for (final p in filtered) {
+            if (p.category != sonGrup) {
+              rows.add(ProfessionCategory.label(p.category));
+              sonGrup = p.category;
+            }
+            rows.add(p);
+          }
+        }
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1299,15 +1379,38 @@ class _ProfessionMultiSelectState
                         )
                       : ListView.separated(
                           padding: const EdgeInsets.symmetric(vertical: 4),
-                          itemCount: filtered.length,
-                          separatorBuilder: (_, _) => Divider(
-                            height: 1,
-                            indent: 16,
-                            endIndent: 16,
-                            color: palette.border.withValues(alpha: 0.7),
-                          ),
+                          itemCount: rows.length,
+                          separatorBuilder: (_, i) {
+                            // Başlığın üstüne çizgi çizme: grup zaten ayırır.
+                            final sonraki =
+                                i + 1 < rows.length ? rows[i + 1] : null;
+                            if (sonraki is String) {
+                              return const SizedBox.shrink();
+                            }
+                            return Divider(
+                              height: 1,
+                              indent: 16,
+                              endIndent: 16,
+                              color: palette.border.withValues(alpha: 0.7),
+                            );
+                          },
                           itemBuilder: (context, i) {
-                            final p = filtered[i];
+                            final row = rows[i];
+                            if (row is String) {
+                              return Padding(
+                                padding: const EdgeInsets.fromLTRB(
+                                    14, 14, 14, 4),
+                                child: Text(
+                                  row.toUpperCase(),
+                                  style: theme.textTheme.labelSmall?.copyWith(
+                                    color: palette.inkMuted,
+                                    fontWeight: FontWeight.w800,
+                                    letterSpacing: 0.6,
+                                  ),
+                                ),
+                              );
+                            }
+                            final p = row as Profession;
                             final isOn = selected.contains(p.code);
                             return ListTile(
                               dense: true,
@@ -1677,4 +1780,3 @@ class _TimeChip extends StatelessWidget {
     );
   }
 }
-

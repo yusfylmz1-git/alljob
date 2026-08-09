@@ -64,17 +64,37 @@ class MyProfileController extends AsyncNotifier<MyProfileDraft> {
     // ORTAK ALANLAR `users`'tan gelir (2026-08-08) — tek doğruluk kaynağı.
     //
     // Taslak hâlâ `ArtisanProfile` taşıyor (form onun üstünde çalışıyor), o
-    // yüzden değerler oraya KOPYALANIR. `users` boşsa usta kaydındaki ESKİ
-    // değer korunur: göç öncesi profiller ilk açılışta boş görünmesin.
+    // yüzden değerler oraya KOPYALANIR.
+    //
+    // Geri düşme YALNIZ göç etmemiş kayıtlarda olur. Kayıt göç ettiyse
+    // `users` ne diyorsa odur — boşsa boştur.
+    //
+    // > Neden: eskiden boşluk her durumda "veri yok" sayılıp
+    // > `artisanProfiles`'taki eski kopyaya düşülüyordu. `artisanProfiles`
+    // > bu alanlar için ARTIK GÜNCELLENMİYOR (yalnız `users` yazılır), yani
+    // > oradaki değer donmuş durumda: kullanıcı bağlantısını silip
+    // > kaydettiğinde ekran yeniden açılınca silinen değer geri geliyordu
+    // > ("sosyal medya kaydetmiyor" bulgusu). Aynısı telefon ve hakkımda
+    // > alanları için de geçerliydi.
     if (user != null) {
-      profile = profile.copyWith(
-        publicPhone: user.publicPhone ?? profile.publicPhone,
-        socialLinks:
-            user.socialLinks.hasAny ? user.socialLinks : profile.socialLinks,
-        aboutText: user.aboutText.trim().isNotEmpty
-            ? user.aboutText
-            : profile.aboutText,
-      );
+      profile = user.ortakAlanlarGocmus
+          ? profile.copyWith(
+              // `publicPhone: null` "değiştirme" demek — temizlemek için
+              // ayrı bayrak şart, yoksa silinen numara geri gelirdi.
+              publicPhone: user.publicPhone,
+              clearPublicPhone: user.publicPhone == null,
+              socialLinks: user.socialLinks,
+              aboutText: user.aboutText,
+            )
+          : profile.copyWith(
+              publicPhone: user.publicPhone ?? profile.publicPhone,
+              socialLinks: user.socialLinks.hasAny
+                  ? user.socialLinks
+                  : profile.socialLinks,
+              aboutText: user.aboutText.trim().isNotEmpty
+                  ? user.aboutText
+                  : profile.aboutText,
+            );
     }
 
     return MyProfileDraft(

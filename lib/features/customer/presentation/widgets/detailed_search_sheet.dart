@@ -94,10 +94,12 @@ class _DetailedSearchSheet extends ConsumerWidget {
         value: _professionByCode(professions, filter.profession),
         items: professions,
         itemLabel: (p) => p.nameTR,
-        searchHint: 'Meslek ara (örn. elektrik…)',
+        searchHint: 'Meslek ara (örn. avukat, elektrik…)',
         prefixIcon: Icons.handyman_outlined,
         allowClear: true,
         clearLabel: 'Tümü',
+        // 144 meslek düz listede taranamıyordu; kategori başlıkları eklendi.
+        groupLabel: (p) => ProfessionCategory.label(p.category),
         equals: (a, b) => a.code == b.code,
         onSelected: (p) => notifier.setProfession(p.code),
         onClear: () => notifier.setProfession(null),
@@ -122,8 +124,13 @@ class _DetailedSearchSheet extends ConsumerWidget {
                       ?.copyWith(fontWeight: FontWeight.w800)),
               const Spacer(),
               TextButton.icon(
+                // Temizlemek de bir filtre değişikliğidir: eskiden yalnız
+                // seçimler sıfırlanıyor, arama "Usta Bul"a basılana kadar
+                // ESKİ sonuçları göstermeye devam ediyordu. Kullanıcı
+                // filtrenin kalktığını görüyor ama liste değişmiyordu.
                 onPressed: () {
                   ref.read(customerFilterProvider.notifier).clearSelections();
+                  ref.read(artisanSearchControllerProvider.notifier).search();
                 },
                 icon: const Icon(Icons.filter_alt_off_outlined, size: 18),
                 label: const Text('Temizle'),

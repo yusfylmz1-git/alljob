@@ -28,14 +28,21 @@ import 'widgets/home_quick_support.dart';
 /// Misafir dâhil herkese açıktır. Amaç yalnız "usta arama" değil; usta +
 /// müşteri + iş + ürün ekosistemini keşfedilir kılmak.
 class HomeScreen extends ConsumerWidget {
-  const HomeScreen({super.key});
+  HomeScreen({super.key});
+
+  /// Yan menü açıkken geri tuşunun menüyü kapatabilmesi için (madde 4).
+  final _scaffoldKey = GlobalKey<ScaffoldState>();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final user = ref.watch(currentUserProvider);
     final isGuest = user == null;
 
-    return Scaffold(
+    return MainTabScope(
+      tab: MainTab.home,
+      scaffoldKey: _scaffoldKey,
+      child: Scaffold(
+      key: _scaffoldKey,
       drawer: const AppMenuDrawer(),
       body: Column(
         children: [
@@ -60,6 +67,7 @@ class HomeScreen extends ConsumerWidget {
         ],
       ),
       bottomNavigationBar: const MainBottomBar(current: MainTab.home),
+      ),
     );
   }
 

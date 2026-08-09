@@ -163,22 +163,44 @@ class ArtisanProfile {
   /// Ustanın platforma katıldığı an — "Yeni Usta" görünürlük desteği için.
   final DateTime createdAt;
 
-  bool get hasActivePremium =>
+  bool get hasActivePremium => hasActivePremiumAt(DateTime.now());
+
+  /// Verilen ana göre aktif premium. [isAvailableAt] gibi bir "an" alan
+  /// hesaplar bunu kullanmalı: aksi hâlde tek çağrı içinde iki farklı zaman
+  /// kaynağı olur (verilen `now` + gerçek saat) ve sonuç tutarsızlaşır.
+  bool hasActivePremiumAt(DateTime now) =>
       isPremium &&
       premiumExpiresAt != null &&
-      premiumExpiresAt!.isAfter(DateTime.now());
+      premiumExpiresAt!.isAfter(now);
 
   /// Premium ÖZELLİKLERİNE erişim (müsait olma, iş ilanlarını görme).
   /// [premiumFreeDuringBeta] verilmezse [AppConstants] (yerel fallback).
   /// Tercihen remote `adminConfig/runtime` ile çağırın (M7).
   /// Rozet gösterimi buna DEĞİL [hasActivePremium]'a bakar.
-  bool hasPremiumAccess({bool? premiumFreeDuringBeta}) =>
+  bool hasPremiumAccess({bool? premiumFreeDuringBeta, DateTime? now}) =>
       (premiumFreeDuringBeta ?? AppConstants.premiumFreeDuringBeta) ||
-      hasActivePremium;
+      hasActivePremiumAt(now ?? DateTime.now());
 
-  /// Canlı müsaitlik: manuel duraklatma her şeyi geçersiz kılar; sonra
-  /// "her zaman müsait"; değilse haftalık plana bakılır (PRD §3, Arama Sonuçları).
-  bool isAvailableAt(DateTime now) {
+  /// Canlı müsaitlik: PREMIUM ERİŞİMİ olmayan usta hiç müsait sayılmaz; sonra
+  /// manuel duraklatma her şeyi geçersiz kılar; sonra "her zaman müsait";
+  /// değilse haftalık plana bakılır (PRD §3, Arama Sonuçları).
+  ///
+  /// PREMIUM KAPISI (2026-08-09): ücretsiz döneme son verildiğinde
+  /// (`premiumFreeDuringBeta = false`) müsaitlik KENDİLİĞİNDEN kapanmıyordu —
+  /// anahtarı açık bırakmış usta açık kalmaya devam ediyordu. Kapıyı burada
+  /// tutmak toplu yazmadan iyidir: kimsenin verisi değişmez, ücretsiz döneme
+  /// dönülürse herkes eski hâline kendiliğinden döner ve ustanın kendi
+  /// duraklatma tercihi kaybolmaz.
+  ///
+  /// [premiumFreeDuringBeta] verilmezse [AppConstants] (yerel fallback);
+  /// çağıran taraf remote `adminConfig/runtime` değerini geçmelidir.
+  bool isAvailableAt(DateTime now, {bool? premiumFreeDuringBeta}) {
+    if (!hasPremiumAccess(
+      premiumFreeDuringBeta: premiumFreeDuringBeta,
+      now: now,
+    )) {
+      return false;
+    }
     if (manualPause) return false;
     if (alwaysAvailable) return true;
     return weeklySchedule.isOpenAt(now);

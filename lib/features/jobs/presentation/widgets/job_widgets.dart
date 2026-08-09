@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 
 import '../../../../core/router/route_paths.dart';
 import '../../../../core/theme/app_palette.dart';
+import '../../../../core/widgets/app_image.dart';
 import '../../../../core/widgets/premium_surface_card.dart';
 import '../../../../data/models/job.dart';
 
@@ -106,10 +107,51 @@ class NearbyJobCard extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          PremiumIconWell(
-            size: 44,
-            child: Text(jobCategoryEmoji(job.category),
-                style: const TextStyle(fontSize: 20)),
+          // İlanı VEREN kişi kartın başında durur ve profiline gider.
+          // Kategori emojisi avatarın köşesine rozet olarak iner — bilgi
+          // kaybolmaz, ama kartın kimliği "kim veriyor" olur.
+          //
+          // Kartın kendi `onTap`'i ilan detayına gider; avatar onu
+          // GÖLGELEMELİ, yoksa profile gitme imkânı olmaz.
+          Semantics(
+            button: true,
+            label: '${job.customerName} profiline git',
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () =>
+                  context.push(RoutePaths.userProfile(job.customerId)),
+              child: SizedBox(
+                width: 44,
+                height: 44,
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    ClipOval(
+                      child: AppAvatar(
+                        name: job.customerName,
+                        photo: job.customerPhotoUrl,
+                        size: 44,
+                      ),
+                    ),
+                    Positioned(
+                      right: -2,
+                      bottom: -2,
+                      child: Container(
+                        padding: const EdgeInsets.all(2),
+                        decoration: BoxDecoration(
+                          color: palette.card,
+                          shape: BoxShape.circle,
+                        ),
+                        child: Text(
+                          jobCategoryEmoji(job.category),
+                          style: const TextStyle(fontSize: 12),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
           ),
           const SizedBox(width: 12),
           Expanded(

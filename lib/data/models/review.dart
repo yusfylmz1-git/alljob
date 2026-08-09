@@ -1,8 +1,14 @@
 /// İş sonu değerlendirmesinde seçilebilen hazır etiketler (PRD §3).
-/// Serbest metin yorum yoktur; müşteri yalnızca yıldız + bu etiketleri seçer.
+/// Serbest metin yorum yoktur; yıldız + bu etiketler seçilir.
+///
+/// Etiketler YÖNE göre ayrılır (2026-08-10): usta bir müşteriyi
+/// "Temiz işçilik" ya da "Uygun fiyat" diye puanlayamaz — o etiketler
+/// hizmeti VERENİ tarif eder. Müşteri tarafında ölçülen şey iş ilişkisidir:
+/// iletişim, ödeme, randevuya sadakat, erişim.
 class ReviewTags {
   ReviewTags._();
 
+  /// Müşteri → USTA (hizmeti verenin işi).
   static const List<String> positive = [
     'Temiz işçilik',
     'Zamanında geldi',
@@ -25,7 +31,45 @@ class ReviewTags {
     'Tavsiye etmiyorum',
   ];
 
-  static bool isNegative(String tag) => negative.contains(tag);
+  /// Usta → MÜŞTERİ (birlikte çalışma deneyimi).
+  static const List<String> customerPositive = [
+    'Net anlattı',
+    'Ödemeyi zamanında yaptı',
+    'Saygılı',
+    'Randevuya sadık',
+    'Ulaşılabilir',
+    'Gerekli erişimi sağladı',
+    'Beklentisi gerçekçi',
+    'Tekrar çalışırım',
+  ];
+
+  static const List<String> customerNegative = [
+    'Randevuya gelmedi',
+    'Ödeme sorunlu',
+    'Beklenti belirsizdi',
+    'Ulaşılamıyordu',
+    'İş sürekli değişti',
+    'Saygısız davrandı',
+    'Pazarlık aşırıydı',
+    'Tavsiye etmiyorum',
+  ];
+
+  /// Yöne göre olumlu etiketler.
+  static List<String> positiveFor(ReviewDirection d) =>
+      d == ReviewDirection.artisanToCustomer ? customerPositive : positive;
+
+  /// Yöne göre olumsuz etiketler.
+  static List<String> negativeFor(ReviewDirection d) =>
+      d == ReviewDirection.artisanToCustomer ? customerNegative : negative;
+
+  /// Etiket olumsuz mu?
+  ///
+  /// HER İKİ yönün olumsuz listesine bakar: eski değerlendirmeler karşı
+  /// yönün etiketlerini taşıyor olabilir ve rozet/renk hesabı onlarda da
+  /// doğru çalışmalıdır. ("Randevuya gelmedi" ve "Tavsiye etmiyorum" iki
+  /// listede de var — kesişim zararsız.)
+  static bool isNegative(String tag) =>
+      negative.contains(tag) || customerNegative.contains(tag);
 }
 
 /// Değerlendirmenin yönü.

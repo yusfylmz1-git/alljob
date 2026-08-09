@@ -36,8 +36,8 @@ void main() {
       final repo =
           read('lib/features/chat/data/firebase_chat_repository.dart');
       expect(
-        repo.contains('static String chatIdFor(String customerUid, '
-            'String artisanUid) =>'),
+        repo.contains(
+            'static String chatIdFor(String customerUid, String artisanUid)'),
         isTrue,
       );
       // Eski 3 parçalı birleştirme kalmamalı.
@@ -47,8 +47,8 @@ void main() {
     test('Mock paritesi: aynı imza (CLAUDE.md kural 1)', () {
       final mock = read('lib/features/chat/data/chat_repository.dart');
       expect(
-        mock.contains('static String chatIdFor(String customerUid, '
-            'String artisanUid) =>'),
+        mock.contains(
+            'static String chatIdFor(String customerUid, String artisanUid)'),
         isTrue,
       );
       expect(mock.contains(r"'${base}__$jobId'"), isFalse);

@@ -1,36 +1,54 @@
 # Sohbet Mimarisi
 
-## İlan bazlı kimlik
+## Kişi bazlı kimlik — çift başına TEK kutu
 
 ```
-chat_{müşteriUid}__{ustaUid}__{jobId}   → İLAN BAZLI (iş sohbeti)
-chat_{müşteriUid}__{ustaUid}            → GENEL (ürün/eleman, ya da eski kayıt)
+chat_{uidA}__{uidB}     → uidA < uidB (ALFABETİK SIRALI)
 ```
 
-Üretici: `FirebaseChatRepository.chatIdFor(customerUid, artisanUid, jobId:)`
+Üretici: `FirebaseChatRepository.chatIdFor(customerUid, artisanUid)`
 
-**Aynı çift her iş için ayrı odada konuşur.** Kimlik deterministiktir — rastgele
-kimlikle üçüncü kişiye sohbet açılamaz (spam koruması S-CHAT-1, kural düzeyinde
-zorlanır).
+**Kişi başına tek kutu.** İlan kimliğe GİRMEZ; `jobId`/`jobTitle` yalnızca
+sohbetin bağlamı olarak alan şeklinde yazılır. Kimlik deterministiktir —
+rastgele kimlikle üçüncü kişiye sohbet açılamaz (S-CHAT-1).
 
-`jobId` null olan sohbetler **genel**dir ve çalışmaya devam eder — ilan bazlı
-şemadan önce oluşmuş kayıtlar da bu biçimdedir.
+> [!warning] Kimlik SIRALIDIR — ilk parça "müşteri" DEĞİLDİR
+> 2026-08-10'a kadar kimlik `chat_{müşteri}__{usta}` idi, yani **role**
+> bağlıydı. Rol ise giriş noktasına göre değişiyor: ilan detayında "ilanı
+> veren = müşteri", profil ekranlarında "ben = müşteri". Aynı iki kişi farklı
+> kapılardan yazınca `chat_A__B` **ve** `chat_B__A` doğuyor, tek kutu
+> garantisi çöküyordu (kullanıcı bulgusu: "1 kişi için 2 farklı sohbet").
+>
+> Uid'ler artık sıralanır → çift başına kimlik **matematiksel olarak tektir**.
+> Rol bilgisi kaybolmaz, `customerUid`/`artisanUid` ALANLARI olarak durur.
+> Kimlikten rol türetme (`_uidsFromChatId(...).$2 == usta`) artık YANLIŞTIR.
 
-## Yazma izni — üç kapı
+> [!note] Roller ilk açılışta donar
+> Aynı kutuya ters yönden girilebildiği için `startChat` mevcut sohbetin
+> kimlik alanlarını **yeniden yazmaz** (hem önbellekte hem sunucuda). Yoksa
+> taraflar yer değiştirir, "sohbeti müşteri mi başlattı" ve okundu/rozet
+> hesapları bozulurdu. Kurallar da kimlik alanlarının değişmesini reddeder.
+
+Eski kimlikli sohbetler (rol sıralı, ya da 3 parçalı ilan bazlı) Firestore'da
+durmaya devam eder ve listede görünür — `watchThreads` üyelikle sorgular,
+kimliği ayrıştırmaz.
+
+## Yazma izni — tek kapı: kilit
 
 `ChatThread.canSend(uid)` (`lib/data/models/chat.dart`):
 
 ```dart
-bool canSend(String uid) {
-  if (isLocked) return false;          // 1. kilit — kimse yazamaz
-  if (uid == customerUid) return true; // 2. müşteri her zaman
-  return customerStarted;              // 3. usta ancak açıldıysa
-}
+bool canSend(String uid) => !isLocked;   // kilitliyse kimse yazamaz
 ```
 
-Bu **UI'ı erken kapatmak içindir**; sunucu kuralı (`senderMayWrite`) aynı
-mantığı bağımsız uygular. İkisi birlikte değişmelidir.
+Sunucu kuralı (`senderMayWrite`) aynı mantığı bağımsız uygular:
+`chat.get('lockedAt', null) == null`. İkisi birlikte değişmelidir.
 → [[Guvenlik-Kurallari]]
+
+> [!note] Eskiden üç kapı vardı
+> "Müşteri her zaman / usta ancak `customerStarted` ise" kuralı kalktı:
+> sohbet iki yönlü serbesttir. `customerStarted` alanı hâlâ yazılır ve
+> aşağıdaki nedenlerle durur, ama artık YAZMA İZNİ vermez.
 
 ### `customerStarted` — iletişimi müşteri başlatır
 

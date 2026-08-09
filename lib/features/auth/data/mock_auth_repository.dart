@@ -209,7 +209,7 @@ class MockAuthRepository implements AuthRepository {
     }
     // Firebase paritesi: boş dize = ALANI TEMİZLE (kural 1).
     final t = publicPhone?.trim();
-    final updated = user.copyWith(
+    var updated = user.copyWith(
       displayName: name,
       profilePhotoUrl: profilePhotoUrl,
       publicPhone: (t == null || t.isEmpty) ? null : t,
@@ -217,6 +217,12 @@ class MockAuthRepository implements AuthRepository {
       socialLinks: socialLinks,
       aboutText: aboutText?.trim(),
     );
+    // Firebase paritesi: ortak alanlardan biri yazıldığı an kayıt "göçmüş"
+    // sayılır (orada `fromMap` alanın VARLIĞINA bakar). Bayrak taşınmazsa
+    // mock'ta silinen bağlantı geri gelir, gerçek uygulamada gelmez.
+    if (publicPhone != null || socialLinks != null || aboutText != null) {
+      updated = updated.markOrtakAlanlarGocmus();
+    }
     _store(updated);
     _emit(updated);
   }

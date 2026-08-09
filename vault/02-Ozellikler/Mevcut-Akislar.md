@@ -75,16 +75,49 @@ hem müşteri hem usta olabilir.
 `job_detail_screen.dart` → `_messageOwner()`:
 1. Hesap askıda değil (`user.suspended`)
 2. Usta **müsait** (`profile.isAvailable`)
-3. İlan ustayla **eşleşiyor** (`job.matchesArtisan` — meslek + bölge)
+3. İlan ustayla **eşleşiyor** (`job.matchesArtisan` — meslek + İL)
 4. E-posta **doğrulanmış** (`ensureEmailVerified`)
+
+> [!warning] Müsaitlik yalnız MESAJI kapatır, listeyi DEĞİL (2026-08-10)
+> Müsait olmayan usta ilanları **görür** ve bildirim **alır** — yalnız mesaj
+> atamaz. Eskiden feed provider'ı ve iki ekran listeyi tamamen kapatıyordu;
+> usta müsaitliğini açmadan piyasada ne olduğunu göremiyordu. Aramada
+> görünmeme kuralı ise DEĞİŞMEDİ (`isAvailableAt` filtresi yerinde).
+
+### Sohbet başlatan DÖRT yol — hepsi kapılı
+
+Kapı gezinmede değil, **eylemde** durur. Sohbeti başlatan her giriş
+`artisanAvailabilityAllowsNewChat` çağırmalıdır
+(`artisan/application/availability_gate.dart`):
+
+| Giriş | Dosya |
+|---|---|
+| İlan detayı → "Mesaj gönder" | `job_detail_screen.dart` (kendi kontrolü) |
+| Usta profili → sohbet barı | `artisan_profile_screen.dart` |
+| Usta profili → foto hızlı menü | `artisan_profile_screen.dart` |
+| Genel kullanıcı profili | `public_user_screen.dart` |
+
+> [!warning] Profili gizlemek çözüm DEĞİLDİR
+> Liste açılınca ilan kartındaki avatar profile götürüyor ve kapı orada
+> yoktu: ilandan mesaj atamayan usta profile geçip yazabiliyordu. Akla ilk
+> gelen çözüm "avatarı tıklanamaz yap" olur — ama deliği kapatmaz (arama,
+> favoriler, mevcut sohbet aynı kişiye götürür) ve meşru bir bilgiyi —
+> ilanı kimin verdiğini — gereksizce saklar. Yeni bir `startChat` girişi
+> eklersen kapıyı da ekle; regresyon testi çağrı sayısını sayar.
 
 ## Kolay İş (`quick_support`)
 
-Normal ilandan üç farkı var:
+Normal ilandan iki farkı var:
 - Süre **her zaman 1 gün** (`JobDuration.day1`)
-- **İL geneline** gider (normal ilan ilçe şartı arar)
 - Meslek eşleşmesi gevşek: `kOtherProfession` veya `quick_support` taşıyan
   usta alır
+
+> [!note] Bölge farkı KALKTI (2026-08-10)
+> Eskiden yalnız Kolay İş il geneline giderdi, normal ilan ilçe şartı arardı.
+> Artık **her ilan İL düzeyinde** eşleşir — ilçeye kısılan ilanlar çoğu
+> ilçede alıcısız kalıyordu. İlçe elemez, yalnız "Yakınında" rozeti ve
+> sıralama sinyalidir (`isNearbyForAreas`). Sunucu tarafı (`onJobCreated`
+> bildirim fan-out'u) zaten yalnız ile bakıyordu; istemci ona hizalandı.
 
 > Depolama kodu `quick_support` **değişmedi** (marka değişse de veri sabit).
 > Ana sayfada kendi tam genişlikli kartı var.

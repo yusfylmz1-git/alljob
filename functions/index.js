@@ -1142,6 +1142,17 @@ const STORAGE_FOLDERS = [
  *  - Yazdığı değerlendirmeler: KALIR, adı anonimleşir (ustanın puanı kazanılmış
  *    veridir, sayaçlar bozulmaz); HAKKINDAKİ değerlendirmeler: SİL (profil yok).
  *  - Sohbetler: karşı tarafta KALIR (WhatsApp modeli); ad/foto anonimleşir.
+ *  - membershipPurchases/{uid}: SİL (Play token'ı kişisel veridir, hesap
+ *    yokken işlevi de yok).
+ *  - supportTickets: gövde KALIR, kimlik (uid/email) anonimleşir — destek
+ *    yazışması iki taraflı kayıttır, ama e-posta kişisel veridir.
+ *  - reports: KALIR. Kötüye kullanım kaydıdır; silinirse "şikayet edilince
+ *    hesabı sil, temize çık" açığı doğar (meşru menfaat). Şikayet EDENİN
+ *    kimliği anonimleşir; şikayet EDİLEN kimliği kalır — kayıt onsuz
+ *    anlamsız olur. Doküman KİMLİĞİ ({tip}_{hedef}__{reporterUid}) uid
+ *    içerir ve değiştirilmez: taşımak kuralın dayandığı "hedef başına tek
+ *    şikayet" tekilliğini bozar.
+ *  - adminUserNotes / premiumOverrides: KALIR (yönetici denetim izi).
  *  - Storage {klasör}/{uid}/*: SİL. En son Auth kaydı silinir — böylece bir
  *    adım yarıda kalırsa kullanıcı tekrar deneyebilir.
  */
@@ -1169,6 +1180,23 @@ exports.deleteAccount = onCall(
       //    herkese açık kart/ilan, hesap silindikten sonra YAYINDA KALAMAZ
       //    (KVKK; ayrıca işveren ölü hesaba yazmaya çalışmasın).
       const writer = db.bulkWriter();
+      // Anonimleştirme `update` kullanır ve `update` OLMAYAN dokümanda
+      // NOT_FOUND fırlatır. Varsayılan işleyici bunu yutmaz: hata
+      // `writer.close()` üzerinden dışarı çıkar ve Auth kaydı silinmeden
+      // fonksiyon düşer → kullanıcı "hesabım silinmedi" der (13. bulgu).
+      //
+      // Bu yazımlar TEMİZLİKTİR, silmenin ön koşulu değildir: kaybolan tek
+      // şey bir anonimleştirme olur, hesap yine de silinmelidir. Bu yüzden
+      // NOT_FOUND yutulur; gerçek altyapı hataları (UNAVAILABLE/ABORTED)
+      // varsayılan gibi yeniden denenir.
+      writer.onWriteError((err) => {
+        if (err.code === 5 /* NOT_FOUND */) {
+          logger.info(
+              `deleteAccount: kayıt yok, atlandı (${err.documentRef.path})`);
+          return false;
+        }
+        return err.failedAttempts < 5;
+      });
       const [favsOut, favsIn, myStaffNeeds, myProducts] =
         await Promise.all([
           db.collection("favorites").where("customerUid", "==", uid).get(),
@@ -1192,6 +1220,30 @@ exports.deleteAccount = onCall(
         writer.update(d.ref, {customerDisplayName: DELETED_USER_NAME}));
       reviewsAbout.forEach((d) => writer.delete(d.ref));
 
+      // 4b) Üyelik satın alma kaydı → SİL. Play token'ı kişisel veridir ve
+      //     hesap silinince yenileme/RTDN yolu zaten işlemez.
+      //     `delete` olmayan dokümanda sorun çıkarmaz (update'in aksine).
+      writer.delete(db.collection("membershipPurchases").doc(uid));
+
+      // 4c) Destek talepleri → gövde kalır, kimlik anonimleşir. Yazışma iki
+      //     taraflı kayıttır (itiraz/denetim), ama e-posta kişisel veridir.
+      // 4d) Şikayetler → KALIR (kötüye kullanım kaydı, meşru menfaat).
+      //     Yalnız şikayet EDENİN kimliği düşer; edilenin kimliği kaydın
+      //     kendisidir. Doküman kimliğindeki uid'e dokunulmaz — bkz. başlık.
+      const [myTickets, myReports] = await Promise.all([
+        db.collection("supportTickets").where("uid", "==", uid).get(),
+        db.collection("reports").where("reporterUid", "==", uid).get(),
+      ]);
+      myTickets.forEach((d) => writer.update(d.ref, {
+        uid: null,
+        email: null,
+        deletedAccount: true,
+      }));
+      myReports.forEach((d) => writer.update(d.ref, {
+        reporterUid: null,
+        reporterDeleted: true,
+      }));
+
       // 5) Sohbetlerde ad/foto anonimleştir (mesajlar karşı tarafta kalır).
       const chats = await db.collection("chats")
           .where(`members.${uid}`, "==", true).get();
@@ -1208,7 +1260,14 @@ exports.deleteAccount = onCall(
             artisanPhotoURL: FieldValue.delete(),
           });
       });
-      await writer.close();
+      // Anonimleştirme temizliktir, silmenin ön koşulu DEĞİL: burada bir
+      // hata kalırsa hesabın silinmemesi kullanıcı için çok daha kötüdür
+      // (KVKK talebi karşılıksız kalır). Logla, silmeye devam et.
+      try {
+        await writer.close();
+      } catch (e) {
+        logger.warn(`deleteAccount anonimleştirme kısmen atlandı (${uid}): ${e}`);
+      }
 
       // 6) Profil dökümanları (users alt koleksiyonlarıyla birlikte).
       await db.recursiveDelete(db.collection("users").doc(uid));
@@ -1225,7 +1284,17 @@ exports.deleteAccount = onCall(
       }
 
       // 8) En son Auth kaydı — buraya kadar geldiyse veri temizlendi.
-      await getAuth().deleteUser(uid);
+      //    Auth kaydı zaten yoksa (yarıda kalmış önceki deneme) bu adım
+      //    NOT_FOUND verir; kullanıcı açısından sonuç AYNIDIR → başarı say.
+      try {
+        await getAuth().deleteUser(uid);
+      } catch (e) {
+        if (e && e.code === "auth/user-not-found") {
+          logger.info(`deleteAccount: Auth kaydı zaten yok (${uid})`);
+        } else {
+          throw e;
+        }
+      }
       try {
         await applyStatsDelta({usersTotal: -1});
       } catch (e) {
@@ -2629,6 +2698,142 @@ exports.adminGrantPremium = onCall(
         },
       });
       return {ok: true, isPremium: revoke !== true, expiresAt: expiresAtIso};
+    },
+);
+
+/**
+ * TOPLU PLAN YONETIMI (madde 7) — ucretsiz donem bitiminde kullanilir.
+ *
+ * Ucretsiz donem kapandiginda ustalarin musaitligi KENDILIGINDEN kapanmiyordu.
+ * Asil cozum istemci tarafindaki premium KAPISIDIR
+ * (`ArtisanProfile.isAvailableAt` premium erisimi yoksa false doner) — o kapi
+ * hicbir veri yazmaz ve ucretsiz doneme donulurse herkes eski haline
+ * kendiliginden doner.
+ *
+ * Bu fonksiyon o kapinin YERINE gecmez, yaninda durur: yoneticinin belirli
+ * ustalari gercekten ucretsize almasi ya da musaitliklerini elle kapatmasi
+ * gereken durumlar icin (kampanya bitisi, kotuye kullanim, toplu duzeltme).
+ *
+ * `mode`:
+ *  - "revokePremium": isPremium=false + premiumExpiresAt=simdi
+ *  - "pauseAvailability": manualPause=true (usta kendi acabilir)
+ *  - "both": ikisi birden
+ *
+ * `onlyWithoutActivePremium` (varsayilan true): aktif odemeli aboneligi olan
+ * ustalara DOKUNMAZ — parasini odeyen kullaniciyi kapatmak gelir kaybi ve
+ * sikayet sebebidir. Yonetici bilerek false gecebilir.
+ *
+ * Gerekce ZORUNLUDUR ve audit log'a yazilir. Islem 400'luk yiginlar halinde
+ * yurur (Firestore batch siniri 500).
+ */
+exports.adminBulkPlanUpdate = onCall(
+    {region: REGION, timeoutSeconds: 540},
+    async (request) => {
+      const auth = request.auth;
+      await assertCap(auth, "finance.manage");
+      const {mode, reason, onlyWithoutActivePremium, dryRun} =
+        request.data || {};
+
+      const gecerliModlar = ["revokePremium", "pauseAvailability", "both"];
+      if (!gecerliModlar.includes(mode)) {
+        throw new HttpsError(
+            "invalid-argument",
+            `mode su degerlerden biri olmali: ${gecerliModlar.join(", ")}`,
+        );
+      }
+      const note = String(reason || "").trim();
+      if (note.length < 5) {
+        throw new HttpsError(
+            "invalid-argument",
+            "Gerekce zorunlu (en az 5 karakter).",
+        );
+      }
+      if (note.length > 500) {
+        throw new HttpsError("invalid-argument", "Gerekce cok uzun.");
+      }
+
+      // Odemeli aboneligi olanlari koru (varsayilan davranis).
+      const korunanlariAtla = onlyWithoutActivePremium !== false;
+      const simdi = Date.now();
+
+      const snap = await db.collection("artisanProfiles").get();
+      let etkilenen = 0;
+      let atlanan = 0;
+      let batch = db.batch();
+      let batchAdet = 0;
+
+      for (const doc of snap.docs) {
+        const d = doc.data() || {};
+        const bitis = d.premiumExpiresAt ?
+          d.premiumExpiresAt.toDate().getTime() : 0;
+        const aktifPremium = d.isPremium === true && bitis > simdi;
+
+        if (korunanlariAtla && aktifPremium) {
+          atlanan++;
+          continue;
+        }
+
+        const patch = {};
+        if (mode === "revokePremium" || mode === "both") {
+          // Zaten premium degilse yazma — bosuna yazma maliyeti.
+          if (d.isPremium === true) {
+            patch.isPremium = false;
+            patch.premiumExpiresAt = Timestamp.fromDate(new Date());
+          }
+        }
+        if (mode === "pauseAvailability" || mode === "both") {
+          if (d.manualPause !== true) {
+            patch.manualPause = true;
+          }
+        }
+        if (Object.keys(patch).length === 0) {
+          atlanan++;
+          continue;
+        }
+
+        etkilenen++;
+        if (dryRun === true) continue; // yalniz say, yazma
+
+        patch.premiumUpdatedAt = FieldValue.serverTimestamp();
+        batch.set(doc.ref, patch, {merge: true});
+        batchAdet++;
+        if (batchAdet >= 400) {
+          await batch.commit();
+          batch = db.batch();
+          batchAdet = 0;
+        }
+      }
+
+      if (dryRun !== true && batchAdet > 0) await batch.commit();
+
+      await writeAuditLog({
+        actorUid: auth.uid,
+        action: dryRun === true ? "bulk_plan_preview" : "bulk_plan_update",
+        targetType: "artisanProfiles",
+        targetId: null,
+        reason: note,
+        before: null,
+        after: {
+          mode,
+          etkilenen,
+          atlanan,
+          toplam: snap.size,
+          onlyWithoutActivePremium: korunanlariAtla,
+          dryRun: dryRun === true,
+        },
+      });
+
+      logger.info(
+          `adminBulkPlanUpdate mode=${mode} etkilenen=${etkilenen} ` +
+          `atlanan=${atlanan} dryRun=${dryRun === true}`,
+      );
+      return {
+        ok: true,
+        etkilenen,
+        atlanan,
+        toplam: snap.size,
+        dryRun: dryRun === true,
+      };
     },
 );
 

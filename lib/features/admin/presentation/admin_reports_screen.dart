@@ -780,7 +780,13 @@ class _ReportDetailSheetState extends ConsumerState<_ReportDetailSheet> {
                       '(metin yoktu)',
                   ].join('\n'),
                 ),
-              _InfoBlock(label: 'Şikayet eden (uid)', value: r.reporterUid),
+              // Şikayetçi hesabını silmişse uid düşer (KVKK); kayıt kalır.
+              _InfoBlock(
+                label: 'Şikayet eden (uid)',
+                value: r.reporterUid.isEmpty
+                    ? 'Hesap silindi'
+                    : r.reporterUid,
+              ),
               _InfoBlock(label: 'Şikayet edilen (uid)', value: r.reportedUid),
               _InfoBlock(label: 'Hedef kimliği', value: r.targetId),
               if (r.chatId != null) ...[

@@ -1,6 +1,7 @@
 import 'dart:math';
 
 import '../../../data/local/mock_database.dart';
+import '../../../data/models/artisan_profile.dart';
 import 'artisan_repository.dart';
 
 /// Bellek içi usta araması. Ortak [MockDatabase]'i okur; böylece ustaların
@@ -15,10 +16,15 @@ class MockArtisanRepository implements ArtisanRepository {
     required ArtisanFilter filter,
     required int offset,
     required int limit,
+    bool? premiumFreeDuringBeta,
   }) async {
     await Future.delayed(const Duration(milliseconds: 400));
 
     final now = DateTime.now();
+
+    // Premium kapısı — mock, güvenlik kuralı/istemci davranışını taklit eder.
+    bool musait(ArtisanProfile p) =>
+        p.isAvailableAt(now, premiumFreeDuringBeta: premiumFreeDuringBeta);
 
     // Opsiyonel filtre (PRD §3): verilen alanlar AND; boş alan tümünü kabul eder.
     // Meslek seçilmemiş kayıtlar (yeni ustalar) listelenmez.
@@ -30,7 +36,7 @@ class MockArtisanRepository implements ArtisanRepository {
       }
       // Temel kural: müsait olmayan usta müşteri aramasında GÖSTERİLMEZ.
       // (Müsaitlik Premium gerektirir → görünenler fiilen Premium ustalardır.)
-      if (!r.profile.isAvailableAt(now)) return false;
+      if (!musait(r.profile)) return false;
       if (!filter.matchesQuery(
         displayName: r.displayName,
         professionNameTR:
@@ -45,8 +51,8 @@ class MockArtisanRepository implements ArtisanRepository {
     // Sıralama (PRD §3): ilk yıl modelinde önce müsait ustalar (puana göre),
     // sonra müsait olmayanlar; 1. yıldan sonra tümü zaten müsait → puana göre.
     matches.sort((a, b) {
-      final aAvail = a.profile.isAvailableAt(now);
-      final bAvail = b.profile.isAvailableAt(now);
+      final aAvail = musait(a.profile);
+      final bAvail = musait(b.profile);
       if (aAvail != bAvail) return aAvail ? -1 : 1;
       return b.profile.averageRating.compareTo(a.profile.averageRating);
     });

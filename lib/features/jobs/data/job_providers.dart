@@ -53,9 +53,11 @@ final nearbyJobsProvider = StreamProvider<List<Job>>((ref) {
     return Stream.value(const <Job>[]);
   }
   final profile = draft.profile;
-  if (profile.professionCodes.isEmpty ||
-      profile.serviceAreas.isEmpty ||
-      !profile.isAvailable) {
+  // MÜSAİTLİK burada ELEMEZ (2026-08-10, kullanıcı kararı): müsait olmayan
+  // usta ilanları GÖRÜR ve bildirim ALIR, yalnız MESAJ ATAMAZ. Eskiden feed
+  // tamamen boşalıyordu; usta müsaitliğini açmadan piyasada ne olduğunu
+  // göremiyordu. Mesaj kapısı yerinde duruyor (_ArtisanOfferSection).
+  if (profile.professionCodes.isEmpty || profile.serviceAreas.isEmpty) {
     return Stream.value(const <Job>[]);
   }
   final uid = profile.uid;

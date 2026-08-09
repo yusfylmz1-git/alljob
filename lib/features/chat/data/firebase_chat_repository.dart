@@ -47,8 +47,25 @@ class FirebaseChatRepository implements ChatRepository {
   /// ESKİ üç parçalı sohbetler Firestore'da durmaya devam eder ve listede
   /// görünür — [_uidsFromChatId] iki biçimi de çözer. Yalnızca YENİ sohbetler
   /// tek odada toplanır.
-  static String chatIdFor(String customerUid, String artisanUid) =>
-      'chat_${customerUid}__$artisanUid';
+  /// Kimlik SIRADAN BAĞIMSIZDIR: uid'ler alfabetik sıralanır.
+  ///
+  /// Eskiden `chat_{müşteri}__{usta}` yazılıyordu, yani kimlik ROLE bağlıydı.
+  /// Rol ise giriş noktasına göre değişiyordu: ilan detayında "ilanı veren =
+  /// müşteri", profil ekranlarında "ben = müşteri". Aynı iki kişi farklı
+  /// kapılardan yazınca `chat_A__B` ve `chat_B__A` doğuyor, kişi başına TEK
+  /// kutu garantisi çöküyordu (2026-08-10 bulgusu, madde 4/6).
+  ///
+  /// Sıralama bunu matematiksel olarak imkânsız kılar. Rol bilgisi kaybolmaz;
+  /// `customerUid`/`artisanUid` doküman ALANLARI olarak durmaya devam eder —
+  /// kimlik artık onlara bakmıyor, yalnızca çifte bakıyor.
+  ///
+  /// ESKİ kimlikli sohbetler Firestore'da durur ve listede görünür
+  /// (`watchThreads` üyelikle sorgular, kimliği ayrıştırmaz).
+  static String chatIdFor(String customerUid, String artisanUid) {
+    final a = customerUid.compareTo(artisanUid) <= 0 ? customerUid : artisanUid;
+    final b = customerUid.compareTo(artisanUid) <= 0 ? artisanUid : customerUid;
+    return 'chat_${a}__$b';
+  }
 
   CollectionReference<Map<String, dynamic>> get _chats =>
       _db.collection('chats');
@@ -344,10 +361,19 @@ class FirebaseChatRepository implements ChatRepository {
 
   @override
   void markRead({required String chatId, required String uid}) {
+    // Önbellek YALNIZ `watchThreads` tarafından doldurulur (bkz. _lastMsgMeta).
+    // Sohbet listesi bu oturumda hiç açılmadıysa — bildirimden doğrudan
+    // sohbete girmek en sık hâli — önbellek BOŞTUR ve `unreadCount` 0 döner.
+    // Eskiden `was == 0` düşüşü tamamen atlıyordu: CF'in +1'i yerinde kalıyor,
+    // rozet sohbet listesi açılıp `_healUnreadMeta` çalışana kadar takılı
+    // kalıyordu ("rozet anlık güncellenmiyor" bulgusu).
+    final biliniyorMu = _lastMsgMeta.containsKey(chatId);
     final was = unreadCount(chatId: chatId, uid: uid);
     final thread = _threads[chatId];
     final now = DateTime.now();
     (_lastRead[chatId] ??= {})[uid] = now;
+    // Önbellek ısınsın: aynı sohbete tekrar girilirse ikinci kez düşürülmesin.
+    _lastMsgMeta[chatId] = (at: now, sender: uid);
     // ignore: discarded_futures
     Future<void>(() async {
       try {
@@ -357,12 +383,32 @@ class FirebaseChatRepository implements ChatRepository {
       } catch (e) {
         debugPrint('[chat] markRead atlandı ($chatId): $e');
       }
-      // Alt bar rozeti: thread listesini açmadan düşür.
-      if (was > 0) {
-        final artisanUid =
-            thread?.artisanUid ?? _uidsFromChatId(chatId)?.$2;
+
+      // Kaç düşürüleceği: önbellek sıcaksa oradan, değilse sohbet
+      // dökümanından. Sayaç "okunmamışı olan SOHBET adedi" tuttuğu için
+      // düşülecek değer her zaman 0 veya 1'dir.
+      // Rol kimlikten TÜRETİLEMEZ (kimlik sıralı, bkz. chatIdFor) — yalnız
+      // thread önbelleği ya da dokümanın kendi alanı söyler.
+      var dusulecek = was;
+      var artisanUid = thread?.artisanUid;
+      if (!biliniyorMu) {
+        try {
+          final snap = await _chats.doc(chatId).get();
+          final data = snap.data();
+          if (data == null) return;
+          artisanUid ??= data['artisanUid'] as String?;
+          final sender = data['lastMessageSenderUid'] as String?;
+          // Son mesaj karşı taraftansa bu sohbet okunmamış sayılıyordu.
+          dusulecek = (sender != null && sender != uid) ? 1 : 0;
+        } catch (e) {
+          debugPrint('[chat] markRead sayaç okuması atlandı ($chatId): $e');
+          return;
+        }
+      }
+
+      if (dusulecek > 0) {
         final asArtisan = artisanUid != null && artisanUid == uid;
-        await _decrementUnreadMeta(uid, asArtisan: asArtisan, by: was);
+        await _decrementUnreadMeta(uid, asArtisan: asArtisan, by: dusulecek);
       }
     });
   }
@@ -382,14 +428,21 @@ class FirebaseChatRepository implements ChatRepository {
     final id = chatIdFor(customerUid, artisanUid);
     final now = DateTime.now();
     final prev = _threads[id];
+    // Roller İLK açılışta belirlenir ve bir daha değişmez. Kimlik sıradan
+    // bağımsız olduğu için aynı kutuya artık ters yönden de girilebiliyor
+    // (ilan detayında "ilanı veren = müşteri", profilde "ben = müşteri");
+    // çağıranın bakış açısı önbelleğe yazılsaydı taraflar yer değiştirir,
+    // "Sohbete başlayan müşteri mi?" ve okundu/rozet hesapları bozulurdu.
+    // Sunucu tarafında da aynı koruma var: doküman varsa kimlik alanları
+    // yeniden YAZILMAZ (bkz. _ensureChatDocBody).
     _threads[id] = ChatThread(
       id: id,
-      customerUid: customerUid,
-      artisanUid: artisanUid,
-      customerName: customerName,
-      artisanName: artisanName,
-      customerPhotoUrl: customerPhotoUrl,
-      artisanPhotoUrl: artisanPhotoUrl,
+      customerUid: prev?.customerUid ?? customerUid,
+      artisanUid: prev?.artisanUid ?? artisanUid,
+      customerName: prev?.customerName ?? customerName,
+      artisanName: prev?.artisanName ?? artisanName,
+      customerPhotoUrl: prev?.customerPhotoUrl ?? customerPhotoUrl,
+      artisanPhotoUrl: prev?.artisanPhotoUrl ?? artisanPhotoUrl,
       createdAt: prev?.createdAt ?? now,
       updatedAt: prev?.updatedAt ?? now,
       lastMessage: prev?.lastMessage,
@@ -674,11 +727,17 @@ class FirebaseChatRepository implements ChatRepository {
     return {uids.$1: true, uids.$2: true};
   }
 
-  /// `chat_<müşteri>__<usta>[__<jobId>]` → (customer, artisan).
+  /// `chat_<uidA>__<uidB>[__<jobId>]` → kimlikteki İKİ UID.
   ///
-  /// İki biçim de çözülür: ilan bazlı (3 parça) ve eski genel sohbet (2 parça).
+  /// İki biçim de çözülür: ilan bazlı (3 parça) ve genel sohbet (2 parça).
   /// jobId parçası burada YOK SAYILIR — uid'ler her iki biçimde de ilk iki
   /// parçadır.
+  ///
+  /// > [!warning] Dönen çift ROL DEĞİLDİR.
+  /// > Kimlik 2026-08-10'da sıralı hâle geldi (bkz. [chatIdFor]); ilk parça
+  /// > "müşteri" demek DEĞİL, yalnızca alfabetik olarak önce gelen uid.
+  /// > Rol gerekiyorsa doküman alanları (`customerUid`/`artisanUid`)
+  /// > okunmalıdır.
   static (String, String)? _uidsFromChatId(String chatId) {
     if (!chatId.startsWith('chat_')) return null;
     final parts = chatId.substring(5).split('__');

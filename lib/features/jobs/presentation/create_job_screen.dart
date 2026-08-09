@@ -18,6 +18,7 @@ import '../../../core/widgets/searchable_select_field.dart';
 import '../../../data/local/local_data_service.dart';
 import '../../../data/models/geo_models.dart';
 import '../../../data/models/job.dart';
+import '../../../data/models/profession.dart' show ProfessionCategory;
 import '../../auth/application/auth_controller.dart';
 import '../../auth/presentation/email_verification_gate.dart';
 import '../../storage/storage_repository.dart';
@@ -633,14 +634,23 @@ class _CategoryDropdown extends ConsumerWidget {
               .where((p) => p.code != kOtherProfession)
               .map((p) => p.code),
         ];
+        // Kod → kategori (gruplama için). Hemen Lazım listenin BAŞINDA ayrı
+        // durur; kendi başlığını alır ki meslek gruplarına karışmasın.
+        final kategoriler = {
+          for (final p in professions) p.code: p.category,
+        };
         return SearchableSelectField<String>(
           label: 'Kategori',
           value: value,
           items: codes,
           itemLabel: (c) => labels[c] ?? c,
           hint: 'Kategori seçin',
-          searchHint: 'Meslek ara (örn. elektrik…)',
+          searchHint: 'Meslek ara (örn. avukat, elektrik…)',
           prefixIcon: Icons.handyman_outlined,
+          groupLabel: (c) => c == kQuickSupportCategory
+              ? kQuickSupportName
+              : ProfessionCategory.label(
+                  kategoriler[c] ?? ProfessionCategory.diger),
           onSelected: onChanged,
         );
       },

@@ -32,20 +32,33 @@ void main() {
   });
 
   group('Mükerrer giriş yok', () {
-    test('"İlanlarım" profilde YOK, yan menüde VAR (usta modunda)', () {
+    // 2026-08-09 (madde 2): "İlanlarım" artık HER İKİ MODDA menüde.
+    // Eskiden `if (user.isArtisan)` koşuluna bağlıydı; oysa ilanı VEREN
+    // müşteridir — asıl sahibi kendi ilanlarına hiçbir yerden ulaşamıyordu.
+    test('"İlanlarım" yan menüde, moddan BAĞIMSIZ', () {
       final profile =
           read('lib/features/profile/presentation/profile_screen.dart');
       final drawer = read('lib/core/widgets/app_menu_drawer.dart');
 
-      // Profilde satır olarak bulunmamalı: alt bardaki "İlanlar" sekmesi ve
-      // menü girişiyle üç kez tekrar ediyordu.
+      // Profilde ListTile satırı olarak bulunmamalı (menüde duruyor).
       expect(profile.contains("title: 'İlanlarım'"), isFalse,
-          reason: 'İlanlarım profile geri eklenmiş — mükerrer.');
+          reason: 'İlanlarım profile satır olarak geri eklenmiş — mükerrer.');
 
-      // Menüde, yalnız usta modunda.
       expect(drawer.contains("title: const Text('İlanlarım')"), isTrue);
-      expect(drawer.contains('if (user.isArtisan)'), isTrue,
-          reason: 'İlanlarım usta modu koşuluna bağlı olmalı.');
+      expect(drawer.contains('if (user.isArtisan)'), isFalse,
+          reason: 'İlanlarım usta moduna geri bağlanmış — müşteri kendi '
+              'ilanlarına ulaşamaz.');
+    });
+
+    // Profildeki ikinci düğme "Profilime bak" değil "İlanlarım" (madde 2):
+    // kullanıcı zaten kendi profilindeyken onu tekrar açan düğmenin
+    // karşılığı yoktu.
+    test('profil düğmesi: "Profilime bak" değil "İlanlarım"', () {
+      final profile =
+          read('lib/features/profile/presentation/profile_screen.dart');
+      expect(profile.contains("label: 'Profilime bak'"), isFalse);
+      expect(profile.contains("label: 'İlanlarım'"), isTrue);
+      expect(profile.contains('RoutePaths.myJobs'), isTrue);
     });
 
     test('yan menüde mod geçiş satırı YOK', () {

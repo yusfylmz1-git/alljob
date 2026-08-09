@@ -17,6 +17,13 @@ abstract interface class NotificationRepository {
 
   /// Verilen bildirimleri okundu işaretler (rozet sayacı sıfırlansın).
   Future<void> markRead(String uid, List<String> notificationIds);
+
+  /// Gelen kutusunu temizler — kullanıcının KENDİ bildirimlerini siler.
+  ///
+  /// Bildirim türetilmiş veridir: kaynak sohbet/ilan kaydı yerinde durur,
+  /// yalnız kutudaki satır gider. Kural `create`i kapalı tuttuğu için silme
+  /// sahtecilik yolu açmaz (bkz. firestore.rules).
+  Future<void> clearAll(String uid);
 }
 
 /// Zil rozetinde sayılan en fazla okunmamış (fazlası 20+ gibi gösterilir).
@@ -63,6 +70,23 @@ class FirebaseNotificationRepository implements NotificationRepository {
       batch.update(_col(uid).doc(id), {'read': true});
     }
     await batch.commit();
+  }
+
+  @override
+  Future<void> clearAll(String uid) async {
+    // Batch 500 yazımda dolar (bkz. Cloud-Functions-Haritasi "Batch sınırı").
+    // Kutu 50 ile sınırlı görünse de eski kayıtlar birikmiş olabilir, o
+    // yüzden sayfalayarak sil.
+    while (true) {
+      final snap = await _col(uid).limit(400).get();
+      if (snap.docs.isEmpty) return;
+      final batch = _db.batch();
+      for (final d in snap.docs) {
+        batch.delete(d.reference);
+      }
+      await batch.commit();
+      if (snap.docs.length < 400) return;
+    }
   }
 }
 
@@ -130,6 +154,14 @@ class MockNotificationRepository implements NotificationRepository {
         list[i] = list[i].copyWith(read: true);
       }
     }
+    _ctrl.add(null);
+  }
+
+  @override
+  Future<void> clearAll(String uid) async {
+    // `_seed()` yeniden çalışmasın diye listeyi SİLMEK yerine boşaltıyoruz;
+    // `putIfAbsent` aksi hâlde örnek bildirimleri geri doldururdu.
+    _list(uid).clear();
     _ctrl.add(null);
   }
 }

@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/config/app_runtime_config.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../data/models/geo_models.dart';
 import '../../artisan/data/artisan_providers.dart';
@@ -131,6 +132,13 @@ class ArtisanSearchController extends AsyncNotifier<ArtisanSearchState> {
 
   ArtisanRepository get _repo => ref.read(artisanRepositoryProvider);
 
+  /// Ücretsiz dönem açık mı? (remote `adminConfig/runtime`, yoksa yerel
+  /// varsayılan). Kapalıysa premium erişimi olmayan ustalar müsait
+  /// sayılmaz ve aramada görünmez — madde 7'nin kapısı.
+  bool get _freeBeta =>
+      ref.read(appRuntimeConfigProvider).valueOrNull?.premiumFreeDuringBeta ??
+      AppConstants.premiumFreeDuringBeta;
+
   /// Seçili (opsiyonel) filtreyle ilk sayfayı getirir. Filtre boş olabilir.
   Future<void> search() async {
     _filter = ref.read(customerFilterProvider).toArtisanFilter();
@@ -141,6 +149,7 @@ class ArtisanSearchController extends AsyncNotifier<ArtisanSearchState> {
         filter: _filter,
         offset: 0,
         limit: AppConstants.artisanPageSize,
+        premiumFreeDuringBeta: _freeBeta,
       );
       return ArtisanSearchState(
         items: page.items,
@@ -166,6 +175,7 @@ class ArtisanSearchController extends AsyncNotifier<ArtisanSearchState> {
         filter: _filter,
         offset: current.items.length,
         limit: AppConstants.artisanPageSize,
+        premiumFreeDuringBeta: _freeBeta,
       );
       state = AsyncData(current.copyWith(
         items: [...current.items, ...page.items],

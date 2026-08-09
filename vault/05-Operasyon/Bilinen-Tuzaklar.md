@@ -245,4 +245,119 @@ içinde usta mesajı `customerStarted` açmaz — çünkü Firestore kuralı da 
 → [[Repository-Deseni]]
 
 ---
+
+## 🟡 `isAvailable` bir Firestore alanı DEĞİL
+
+`ArtisanProfile.isAvailable` **hesaplanan** bir getter'dır; Firestore'da öyle
+bir alan yoktur. Sırayla bakar:
+
+1. **Premium erişimi** (`hasPremiumAccess`) — yoksa müsait değil
+2. `manualPause` — açıksa müsait değil
+3. `alwaysAvailable` → açıksa müsait
+4. `weeklySchedule.isOpenAt(now)`
+
+Bunun iki sonucu var:
+
+- **"Tüm ustaların müsaitliğini kapat" bir toplu yazma değildir.** Ücretsiz
+  dönem bayrağını (`premiumFreeDuringBeta`) kapatmak yeter — premium olmayan
+  herkes aynı anda müsait olmaktan çıkar, hiçbir doküman yazılmaz ve bayrak
+  geri açılırsa herkes eski hâline döner. Toplu yazma
+  (`adminBulkPlanUpdate`) son çaredir; geri alınamaz.
+- **Müsaitlik sunucuda zorlanmaz.** `isAvailableAt` yalnız istemcide çalışır;
+  Cloud Functions bu hesabı yapmaz. Filtre listeleme/sıralama içindir, güvenlik
+  sınırı değildir. Gerçek yetki kapıları `firestore.rules` ve CF'lerdedir.
+
+> [!warning] Bir "an" alan hesaplar `now`'u AŞAĞI taşımalı
+> `isAvailableAt(now)` içindeki premium kontrolü de aynı `now`'u kullanır
+> (`hasActivePremiumAt`). Eskiden `DateTime.now()` çağırıyordu: tek çağrı
+> içinde iki zaman kaynağı olduğu için sabit tarihli testler ve geçmiş/gelecek
+> hesapları tutarsızlaşıyordu.
+
+→ [[Degerlendirme-Sistemi]] · [[Admin-Paneli]]
+
+## Donmuş kopyaya geri düşme — "kaydetmiyor" bulgusunun kaynağı
+
+Ortak profil alanları (telefon / sosyal medya / hakkımda) 2026-08-08'de
+`users/{uid}` altına taşındı. `artisanProfiles`'taki kopya **okunmaya devam
+ediyor ama artık YAZILMIYOR** — yani donmuş durumda.
+
+Okuma tarafı şöyleydi:
+
+```dart
+// YANLIŞ — boşluğu her durumda "veri yok" sayar
+socialLinks: user.socialLinks.hasAny ? user.socialLinks : profile.socialLinks,
+```
+
+Kullanıcı bağlantısını **silince** `users` boşalır, koşul donmuş kopyaya
+düşer ve silinen değer geri gelir. Kullanıcıya bu "kaydetmiyor" gibi görünür;
+oysa yazma doğrudur, hata geri okumadadır.
+
+> [!warning] "Alan YOK" ile "alan var ama BOŞ" aynı şey değildir
+> Göç dönemindeki her geri düşmede bu ayrım gerekir. Firestore'da bilgi
+> alanın **varlığındadır** (`map.containsKey`); modele ulaştığında
+> `?? ''`/`?? null` ile düzleştirilirse ayrım **kaybolur**.
+> `AppUser.ortakAlanlarGocmus` bunu taşır: alanlardan biri bile varsa kayıt
+> göç etmiştir, sonrasında boşluk "kullanıcı sildi" demektir.
+
+İki ek tuzak aynı yerde:
+- **Bayrağı `copyWith` taşımalı.** Taşınmazsa her çağrıda `false`'a düşer —
+  sayaçlardaki (B-19) tuzağın aynısı.
+- **`copyWith(publicPhone: null)` "değiştirme" demektir.** Temizlemek için
+  `clearPublicPhone` bayrağı şart, yoksa silinen numara geri gelir.
+
+Regresyon: `test/sosyal_medya_silme_test.dart` (silinen geri gelmemeli **ve**
+göç etmemiş kayıt hâlâ geri düşmeli).
+
+## Rozet sayacı: yazan CF, düşüren istemci
+
+Okunmamış rozeti `users/{uid}/private/chatMeta` içindeki **tek dökümanlık**
+sayaçtır (tüm sohbet listesini dinlememek için). Üç ayrı yazar vardır ve
+üçü de aynı birimi kullanmak zorundadır:
+
+| Kim | Ne zaman | Ne yapar |
+|---|---|---|
+| `bumpChatUnreadMeta` (CF) | her yeni mesaj | sohbet başına **bir kez** +1 |
+| `markRead` (istemci) | sohbet açılınca | −1 |
+| `_healUnreadMeta` (istemci) | sohbet listesi açıkken | listeden yeniden hesap |
+
+> [!warning] Birim: SOHBET adedi, mesaj adedi DEĞİL
+> Tek sohbetteki 3 okunmamış mesaj rozete **1** yazar. `unreadCount` thread
+> başına 0/1 döner. Mock'ta `unreadCount` gerçek mesaj adedini verir, bu
+> yüzden `_unreadMetaFor` orada **1'e sıkıştırır** — yoksa mock "3", canlı
+> "1" derdi.
+
+> [!warning] `markRead` önbelleğe güvenemez
+> `_lastMsgMeta` / `_threads` yalnız `watchThreads` tarafından doldurulur.
+> **Bildirimden doğrudan sohbete girmek** en sık akıştır ve orada sohbet
+> listesi hiç açılmaz → önbellek boş → `unreadCount` 0 → düşürme atlanır ve
+> CF'in +1'i takılı kalır. Önbellek soğuksa sohbet dökümanı okunmalıdır
+> (`lastMessageSenderUid`).
+
+Regresyon: `test/test_bulgulari_2026_08_10_test.dart`.
+
+## `BulkWriter.update` olmayan dokümanda PATLAR
+
+`update()` var olmayan bir dokümanda **NOT_FOUND** fırlatır (`set(...,
+{merge:true})` fırlatmaz). BulkWriter'ın varsayılan işleyicisi yalnız
+UNAVAILABLE/ABORTED'ı yeniden dener; NOT_FOUND yutulmaz ve hata
+`await writer.close()` üzerinden **çağıran fonksiyona** çıkar.
+
+`deleteAccount` bunu 2026-08-10'da yaşadı: anonimleştirme adımları
+(`supportTickets`, `reports`) çoğu kullanıcıda hiç doküman bulamıyor,
+NOT_FOUND `close()`tan çıkıyor ve **Auth kaydı silinmeden** fonksiyon
+düşüyordu. Kullanıcı "hesabım silinmiyor" diyordu; istemci ise `internal`
+kodunu "Güvenlik doğrulaması geçilemedi" diye çevirdiği için herkes App
+Check'i suçluyordu.
+
+> [!warning] Temizlik ile ön koşulu ayır
+> Bir adım **temizlikse** (anonimleştirme, sayaç, log) hatası ana işlemi
+> DÜŞÜRMEMELİ — `try/catch` + `logger.warn`. Ön koşulsa düşürmeli. Silme
+> akışında anonimleştirme temizliktir: kaybolan tek şey bir isim maskesidir,
+> ama hesabın silinmemesi KVKK talebini karşılıksız bırakır.
+
+Üç koruma birlikte durur: `onWriteError` NOT_FOUND'u yutar · `close()`
+try/catch içindedir · Auth kaydı zaten yoksa (yarıda kalmış önceki deneme)
+başarı sayılır. Regresyon: `test/hesap_silme_kapsami_test.dart`.
+
+---
 İlgili: [[Mimari-Kararlar]] · [[Guvenlik-Kurallari]] · [[Sohbet-Mimarisi]] · [[Deploy-ve-Ortam]]

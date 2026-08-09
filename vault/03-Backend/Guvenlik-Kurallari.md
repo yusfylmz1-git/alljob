@@ -54,7 +54,7 @@ Evetse `private/` altına.
 | `users/{uid}` | Herkes | Yalnız sahibi (kısıtlı alanlar) |
 | `users/{uid}/private/*` | Yalnız sahibi | Sahibi + CF |
 | `users/{uid}/blocked/*` | Sahibi | Sahibi |
-| `users/{uid}/notifications/*` | Sahibi | CF |
+| `users/{uid}/notifications/*` | Sahibi | Oluşturma CF · `read` + **silme** sahibi |
 | `artisanProfiles/{uid}` | Herkes | Sahibi (puan alanları CF'ye kapalı) |
 | `chats/{chatId}` | Üyeler | Üyeler (allowlist) |
 | `chats/{id}/messages/*` | Üyeler | Gönderen (koşullu) |
@@ -63,6 +63,13 @@ Evetse `private/` altına.
 | `reports/*` | Admin | Oluşturan + admin |
 | `admin*` (7 koleksiyon) | Admin | CF / superadmin |
 | `products` · `staffWorkers` · `staffNeeds` · `favorites` | Karma | Sahibi |
+
+> [!note] Bildirimde silme AÇIK, oluşturma KAPALI (2026-08-10)
+> Kuralın amacı **sahte bildirim enjeksiyonunu** engellemek; bunu sağlayan
+> `create: if false`'tur. Sahibinin kendi gelen kutusunu temizlemesi
+> ("Bildirimleri temizle") sahtecilik yolu açmaz, o yüzden
+> `delete: if isSelf(uid)` verildi. Bildirim türetilmiş veridir — kaynak
+> sohbet/ilan kaydı yerinde durur, denetim izi kaybolmaz.
 
 ## Sohbet kuralları — en karmaşık bölüm
 

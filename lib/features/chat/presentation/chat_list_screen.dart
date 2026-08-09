@@ -45,6 +45,9 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
   String _query = '';
   bool _selectionMode = false;
   final Set<String> _selected = {};
+
+  /// Yan menü açıkken geri tuşunun menüyü kapatabilmesi için (madde 4).
+  final _scaffoldKey = GlobalKey<ScaffoldState>();
   _ChatFilter _filter = _ChatFilter.tumu;
 
   void _exitSelection() => setState(() {
@@ -202,11 +205,15 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
     return PopScope(
       // Alt bar sekmesi: geri tuşu uygulamayı KAPATMAMALI, Ana Sayfa'ya
       // dönmeli (sekmeler `go()` ile açılır, geçmiş yığını bırakmaz).
-      // Seçim modundaysa önce seçim kapanır.
+      // Sıra: açık yan menü → seçim modu → yığın → Ana Sayfa.
       canPop: false,
       onPopInvokedWithResult: (didPop, _) {
         if (didPop) return;
-        if (_selectionMode) {
+        // Yan menü açıksa önce onu kapat (madde 4).
+        final scaffold = _scaffoldKey.currentState;
+        if (scaffold != null && scaffold.isDrawerOpen) {
+          scaffold.closeDrawer();
+        } else if (_selectionMode) {
           _exitSelection();
         } else if (context.canPop()) {
           context.pop();
@@ -215,6 +222,7 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
         }
       },
       child: Scaffold(
+      key: _scaffoldKey,
       appBar: _selectionMode
           ? SurfaceAppBar(
               title: '${_selected.length} seçildi',
@@ -547,7 +555,22 @@ class _ThreadTile extends StatelessWidget {
                 ),
                 const SizedBox(width: 4),
               ],
-              AppAvatar(name: name, photo: photo, size: 54),
+              // Avatara dokunmak karşı tarafın profiline gider (satırın
+              // kendisi sohbeti açar). SEÇİM MODUNDA devre dışı: orada
+              // dokunma seçmek/seçimi kaldırmak demektir, profile kaçmamalı.
+              Semantics(
+                button: !selectionMode,
+                label: selectionMode ? null : '$name profiline git',
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: selectionMode
+                      ? onToggle
+                      : () => context.push(
+                            RoutePaths.userProfile(thread.otherUid(myUid)),
+                          ),
+                  child: AppAvatar(name: name, photo: photo, size: 54),
+                ),
+              ),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(

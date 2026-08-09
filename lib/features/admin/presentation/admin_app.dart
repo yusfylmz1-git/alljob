@@ -13,6 +13,7 @@ import '../data/admin_providers.dart';
 import 'admin_artisans_screen.dart';
 import 'admin_audit_screen.dart';
 import 'admin_broadcast_screen.dart';
+import 'admin_bulk_plan_screen.dart';
 import 'admin_chrome.dart';
 import 'admin_dashboard_screen.dart';
 import 'admin_jobs_screen.dart';
@@ -94,6 +95,9 @@ class _AdminHomeScreenState extends ConsumerState<_AdminHomeScreen> {
       const AdminSupportScreen(),
       const AdminBroadcastScreen(),
       const AdminPlatformScreen(),
+      // Toplu plan yönetimi: ücretsiz dönem bitişi (madde 7). Yalnız
+      // superadmin — geri alınamaz toplu yazma yapar.
+      if (isSuper) const AdminBulkPlanScreen(),
       if (isSuper) const AdminRosterScreen(),
       if (isSuper) const AdminAuditScreen(),
       if (isSuper) const AdminSettingsScreen(),
@@ -145,6 +149,13 @@ class _AdminHomeScreenState extends ConsumerState<_AdminHomeScreen> {
         selectedIcon: Icons.storefront,
         label: 'Platform',
       ),
+      // SIRA `pages` ile birebir eşleşmeli — IndexedStack indeksle çalışır.
+      if (isSuper)
+        const _NavItem(
+          icon: Icons.groups_outlined,
+          selectedIcon: Icons.groups,
+          label: 'Toplu Plan',
+        ),
       if (isSuper)
         const _NavItem(
           icon: Icons.shield_outlined,

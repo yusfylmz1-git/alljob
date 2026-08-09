@@ -18,7 +18,6 @@ import '../../../core/widgets/responsive_center.dart';
 import '../../../core/widgets/role_bottom_bar.dart';
 import '../../../core/widgets/skeleton.dart';
 import '../../auth/application/auth_controller.dart';
-import '../../artisan/application/my_profile_controller.dart';
 import '../../jobs/presentation/widgets/jobs_explore_panel.dart';
 import '../application/artisan_search_controller.dart';
 import 'widgets/artisan_card.dart';
@@ -93,11 +92,16 @@ class _CustomerDashboardScreenState
     }
   }
 
+  /// Yan menü açıkken geri tuşunun menüyü kapatabilmesi için (madde 4).
+  final _scaffoldKey = GlobalKey<ScaffoldState>();
+
   @override
   Widget build(BuildContext context) {
     return MainTabScope(
       tab: MainTab.explore,
+      scaffoldKey: _scaffoldKey,
       child: Scaffold(
+      key: _scaffoldKey,
       drawer: const AppMenuDrawer(),
       body: Column(
         children: [
@@ -175,6 +179,26 @@ class _HeroHeader extends ConsumerWidget {
                   ),
                 ),
               ),
+              // İLAN VER — TEK GİRİŞ (2026-08-09). Eskiden arama satırının
+              // altında ikinci bir "İş İlanı Ver" düğmesi ve yan menüde bir
+              // satır daha vardı; aynı yere giden üç kapı gereksizdi. Hero'da
+              // duran bu ikon her iki modda da görünür (ilan vermek için usta
+              // olmak gerekmiyor) ve sekme değişse bile yerinde kalır.
+              // Yalnız ikon yetmiyordu: tooltip dokunmatikte görünmez, ikonun
+              // ne yaptığı belirsiz kalıyordu. Etiket yazıya çıkarıldı.
+              if (user != null)
+                TextButton.icon(
+                  style: TextButton.styleFrom(
+                    foregroundColor: Colors.white,
+                    backgroundColor: Colors.white.withValues(alpha: 0.12),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    visualDensity: VisualDensity.compact,
+                  ),
+                  icon: const Icon(Icons.add_box_rounded, size: 18),
+                  label: const Text('Yeni İlan'),
+                  onPressed: () => context.push(RoutePaths.newJob),
+                ),
               const NotificationBell(color: Colors.white),
               if (user == null)
                 TextButton.icon(
@@ -207,32 +231,16 @@ class _ArtisansExplorePanel extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final user = ref.watch(currentUserProvider);
-    final isCustomer = user != null && !user.isArtisan;
-
+    // "İş İlanı Ver" düğmesi BURADAN KALKTI (2026-08-09): arama satırının
+    // hemen altında, "Filtreleri temizle"nin dibinde duruyordu ve aramayla
+    // ilgisi olmayan bir eylemi arama alanının içine sokuyordu. Tek giriş
+    // artık hero'daki ikon (bkz. _HeroHeader).
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const _SearchRow(),
-              if (isCustomer) ...[
-                const SizedBox(height: 8),
-                OutlinedButton.icon(
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 10),
-                    visualDensity: VisualDensity.compact,
-                  ),
-                  icon: const Icon(Icons.campaign_outlined, size: 18),
-                  label: const Text('İş İlanı Ver'),
-                  onPressed: () => context.push(RoutePaths.newJob),
-                ),
-              ],
-            ],
-          ),
+        const Padding(
+          padding: EdgeInsets.fromLTRB(16, 8, 16, 0),
+          child: _SearchRow(),
         ),
         Expanded(
           child: _ResultsArea(scrollController: scrollController),
@@ -673,22 +681,11 @@ class _JobsTab extends ConsumerWidget {
       );
     }
 
-    final draft = ref.watch(myProfileControllerProvider).valueOrNull;
-    if (draft != null && !draft.profile.isAvailable) {
-      return notice(
-        Icons.do_not_disturb_on_outlined,
-        'Şu an müsait görünmüyorsun',
-        'Müsait olmadığın sürece ilan listesi kapalıdır; aramada da '
-        'görünmezsin. Profilinden müsaitliği açabilirsin.',
-        action: Center(
-          child: FilledButton(
-            onPressed: () => context.push(RoutePaths.profile),
-            child: const Text('Müsaitliği aç'),
-          ),
-        ),
-      );
-    }
-
+    // MÜSAİTLİK KAPISI KALKTI (2026-08-10, kullanıcı kararı): müsait olmayan
+    // usta ilanları GÖRÜR ve bildirim ALIR, yalnız MESAJ ATAMAZ. Eskiden
+    // burada tam ekran bir duvar vardı; usta müsaitliğini açmadan piyasada
+    // ne olduğunu göremiyordu. Mesaj kapısı ilan detayında duruyor
+    // (`_ArtisanOfferSection`), aramada görünmeme kuralı da değişmedi.
     return const JobsExplorePanel();
   }
 }

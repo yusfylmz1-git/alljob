@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -23,25 +24,54 @@ enum MainTab { home, explore, work, chats, profile }
 ///  - Ana Sayfa'da → geri tuşu sisteme gider (uygulamadan çık)
 ///  - Diğer sekmelerde → önce Ana Sayfa'ya dön
 ///
-/// Kullanım: sekme ekranının `Scaffold`'unu bununla sar.
+/// AÇIK ÇEKMECE (yan menü) geri tuşunu YUTAR: eskiden Ana Sayfa'da
+/// `canPop: true` olduğu için menü açıkken geri basmak menüyü kapatmak
+/// yerine uygulamayı küçültüyordu. Çekmecenin kendi `PopScope`'u yoktur
+/// çünkü çekmece bir rota değil, `Scaffold`'un bir parçasıdır — durumu
+/// [scaffoldKey] ile okunur.
+///
+/// Kullanım: sekme ekranının `Scaffold`'unu bununla sar ve aynı
+/// [scaffoldKey]'i `Scaffold`'a ver.
 class MainTabScope extends StatelessWidget {
-  const MainTabScope({super.key, required this.tab, required this.child});
+  const MainTabScope({
+    super.key,
+    required this.tab,
+    required this.child,
+    this.scaffoldKey,
+  });
 
   final MainTab tab;
   final Widget child;
+
+  /// Sarılan `Scaffold`'un anahtarı — çekmece açık mı diye bakmak için.
+  /// Verilmezse çekmece kontrolü atlanır (çekmecesiz ekranlar).
+  final GlobalKey<ScaffoldState>? scaffoldKey;
 
   @override
   Widget build(BuildContext context) {
     final isHome = tab == MainTab.home;
     return PopScope(
       // Ana Sayfa'da normal davranış (çıkış); diğerlerinde biz ele alırız.
-      canPop: isHome,
+      // Çekmeceli ekranlarda HER ZAMAN biz ele alırız: açık çekmeceyi
+      // kapatma şansımız olmalı.
+      canPop: isHome && scaffoldKey == null,
       onPopInvokedWithResult: (didPop, _) {
         if (didPop) return;
-        // Ekranın kendi yığını varsa (detaydan gelinmişse) onu tüket;
-        // yoksa Ana Sayfa'ya dön.
+        // 1) Yan menü açıksa önce onu kapat (madde 4).
+        final scaffold = scaffoldKey?.currentState;
+        if (scaffold != null && scaffold.isDrawerOpen) {
+          scaffold.closeDrawer();
+          return;
+        }
+        // 2) Ekranın kendi yığını varsa (detaydan gelinmişse) onu tüket.
         if (context.canPop()) {
           context.pop();
+          return;
+        }
+        // 3) Ana Sayfa'da yığın da yoksa uygulamadan çıkılır; diğer
+        //    sekmelerde Ana Sayfa'ya dönülür.
+        if (isHome) {
+          SystemNavigator.pop();
         } else {
           context.go(RoutePaths.home);
         }

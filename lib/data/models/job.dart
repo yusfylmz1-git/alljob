@@ -330,19 +330,18 @@ class Job {
 
   /// Bir ustanın (meslek + hizmet bölgeleri) bu ilana teklif verebilir mi? (#1)
   /// Meslek eşleşmeli; ilan konumu ustanın hizmet bölgelerinden biriyle
-  /// örtüşmeli (il+ilçe; mahalle verilmişse ve usta o mahalleyi de seçmişse
-  /// daha spesifik eşleşir, ama ilçe düzeyi eşleşmesi yeterlidir).
+  /// **İL** düzeyinde örtüşmeli.
   ///
-  /// Hemen Lazım ([kQuickSupportCategory]):
+  /// Bölge eşleşmesi HER İLAN TİPİNDE il düzeyindedir (2026-08-10). Önce
+  /// yalnız Hemen Lazım böyleydi; klasik ilanlar il + ilçe istiyordu ve bu
+  /// ilanları çoğu ilçede alıcısız bırakıyordu — arz ilçe ölçeğinde yeterince
+  /// yoğun değil. Aynı ilçedeki ustalar elenmez, UI'da "Yakınında" rozetiyle
+  /// ÖNE ALINIR (bkz. [isNearbyForAreas]) — eleme değil, sıralama tercihi.
+  ///
+  /// Hemen Lazım ([kQuickSupportCategory]) farkı yalnız MESLEK tarafında:
   ///  - Yalnız Hemen Lazım hizmeti açık olan ustalara düşer.
-  ///  - Bölge eşleşmesi İL düzeyindedir (ilçe şartı YOK): kısa işlerde arz
-  ///    dar olduğundan ilçeye kısmak ilanı çoğu ilçede alıcısız bırakıyordu.
-  ///    Aynı ilçedeki ustalar UI'da "Yakınında" rozetiyle öne alınır
-  ///    (bkz. [isNearbyForAreas]) — eleme değil, sıralama tercihi.
   ///  - Yalnız Hemen Lazım açık olup mesleği olmayan usta klasik meslek
   ///    ilanlarını almaz.
-  ///
-  /// Klasik ilanlarda bölge eşleşmesi il + ilçe düzeyindedir (değişmedi).
   ///
   /// [professionCodes] çoklu meslek; [professionCode] tekil (geriye uyum).
   bool matchesArtisan({
@@ -357,14 +356,11 @@ class Job {
         .map((c) => c.trim())
         .where((c) => c.isNotEmpty)
         .toList();
+    // İL düzeyi: ustanın hizmet bölgelerinden herhangi biri ilanın ilinde.
+    final areaMatch = serviceAreas.any((a) => a.province == province);
     if (category == kQuickSupportCategory) {
-      // İL düzeyi: ustanın hizmet bölgelerinden herhangi biri ilanın ilinde.
-      final provinceMatch = serviceAreas.any((a) => a.province == province);
-      return provinceMatch && isQuickSupportProviderCodes(codes);
+      return areaMatch && isQuickSupportProviderCodes(codes);
     }
-    final areaMatch = serviceAreas.any(
-      (a) => a.province == province && a.district == district,
-    );
     final matchable = codes
         .where((c) => c != kOtherProfession && c != kQuickSupportCategory)
         .toList(growable: false);
