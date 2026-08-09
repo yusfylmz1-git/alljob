@@ -12,8 +12,9 @@ Kaynak: eski ürün modülü `5513f23` · kaldırma `4476326` + `b6940ec`.
 | Modül adı | **Mağaza** ("Ürünler" değil) |
 | İki bölüm | 1) **Ürünler** (vitrin) · 2) **İlan Ver** (talep) |
 | Kim satabilir | **Herkes** — usta olma şartı yok |
-| Talep bildirimi | Aynı il + aynı kategori: **o kategoride yayında ürünü olanlar** + **tercih edenler** |
+| Talep bildirimi | **GÜNLÜK ÖZET** (Yol 4) — anlık push YOK. Bkz. Aşama 3 |
 | Talep ömrü | **Tek sabit süre: 7 gün** (seçim yok) |
+| Yerleşim | Keşfet'te **üçüncü sekme**: Ustalar \| İlanlar \| Mağaza |
 
 ---
 
@@ -86,10 +87,14 @@ Vitrin doluluğu usta kavramıydı; satıcı rolü olmayan bir modelde anlamsız
 göre düzeltilir. (Sohbet balonlarında aynı desen zaten var: addan sohbet
 dokümanına bakılıyor.)
 
-### 1.4 Keşfet sekme çubuğu kaldırılmış
-`_ExploreView` enum ve `ExploreTabBar` `4476326`'da silindi — Keşfet tek liste
-oldu. Mağaza artık Keşfet'in içinde bir sekme DEĞİL, **kendi giriş noktası**.
-→ Yan menü + alt bar yerleşimi kararı gerekiyor (Aşama 4).
+### 1.4 Keşfet sekme çubuğu — DÜZELTME
+İlk planda "sekme çubuğu kaldırılmış" yazmıştım, **yanlış**. `4476326`'da
+eski çubuk (`_ExploreView`/`ExploreTabBar`) silindi ama **2026-08-08'de yeni
+bir `TabController` geldi**: `customer_dashboard_screen.dart:55` — bugün
+Keşfet'te **Ustalar | İlanlar** iki sekmesi var (satır 109-124).
+
+→ Mağaza **üçüncü sekme** olarak eklenir. Yeni yapı kurulmuyor, mevcut
+`TabController(length: 2)` → `3` oluyor. Aşama 4'e bak.
 
 ### 1.5 Profil ekranı birleşti
 "Dükkân" bölümü (`_ShopSection`/`_ShopThumb`) eski profil ekranına aitti.
@@ -121,35 +126,71 @@ Bu karar eski sistemin varsayımını değiştiriyor (eski: yalnız usta satar).
 
 Eski sistemde bu YOK. Tamamen yeni yazılacak tek parça.
 
-### Fan-out alıcı listesi
-`onJobCreated` (`functions/index.js:843`) deseni birebir kopyalanır.
-Bugün ne yapıyor: `artisanProfiles`'ta `professions array-contains <kategori>`
-→ `serviceAreas` içinde `province` eşleşenler → 500 limit → ilan sahibi hariç.
+### 🔑 Bildirim modeli: GÜNLÜK ÖZET (Yol 4) — anlık push YOK
 
-Mağaza karşılığı — **iki kaynağın birleşimi (union)**:
-1. O kategoride **`status == active` ürünü olanlar** (davranıştan türer)
-2. `users/{uid}` altında **talep bildirimi tercihi** o kategoriyi içerenler
+**Kullanıcı kararı.** Talep oluştuğunda push GİTMEZ. Günde bir kez
+zamanlanmış CF çalışır ve kişi başına **tek** bildirim gönderir:
 
-> ⚠️ 500 limiti ve "kendi talebine bildirim gitmesin" kuralı korunur.
-> Union alınırken uid tekilleştirilir (`Map` deseni `onJobCreated`'da hazır).
+> *"Bursa'da bugün 4 yeni ürün talebi var"*
+
+**Neden bu seçildi:** talep sayısı ne olursa olsun kişi başına bildirim
+tavanı **günde 1**. Spam matematiksel olarak imkânsız — dolayısıyla ürün
+talebi, iş ilanı bildirimlerinin değerini yiyemez. Risk tablosundaki
+"bildirim yorgunluğu" maddesi bu kararla büyük ölçüde kapanır.
+
+**Bedeli:** acil talepte geç kalır. Ürün talebi iş ilanı kadar acil
+olmadığı için kabul edilebilir.
+
+**Altyapı hazır:** `onSchedule` deseni canlıda çalışıyor —
+`processScheduledCampaigns` (`functions/index.js:3471`, `every 5 minutes`).
+Yeni CF aynı deseni kullanır, günlük periyotla.
+
+#### Alıcı listesi
+Anlık fan-out olmadığı için `onJobCreated` **kopyalanmaz**; onun yerine
+özet CF'i gün içinde biriken talepleri toplar. Alıcı seçimi yine
+**il + kategori**:
+
+- O kategoride **`status == active` ürünü olanlar** (davranıştan türer,
+  ekstra ayar gerekmez)
+- Kendi talebini sayma; uid tekilleştir (`Map` deseni `onJobCreated`'da hazır)
+- 500 alıcı tavanı korunur
+
+> **Ertelendi:** "tercih edenler" ikinci kaynağı (eski Yol 3) şimdilik YOK.
+> Varsayıma dayanıyor ("ürünü olmayan satıcı da bildirim ister") ve şu an
+> test edilemez. Modül canlıya çıkıp "talep var ama satıcı az" denirse
+> alıcı listesine ikinci kaynak eklenir — union yapısı buna hazır.
+
+#### Kapatma
+Kullanıcı özet bildirimini kapatabilmeli: **Bildirim tercihleri ekranı**
+(`notification_prefs_screen.dart`) — tek anahtar satırı yeter.
 
 ### Ömür
 Sabit 7 gün. Mevcut süre dolumu mantığı kullanılır; kullanıcıya seçim
 sunulmaz (Kolay İş'in 1 gün yaklaşımının aynısı).
 
-### Tercih ekranı
-Kullanıcı "şu kategorilerde talep bildirimi almak istiyorum" diyebilmeli.
-Yeri: **Bildirim tercihleri ekranı** (`notification_prefs_screen.dart` —
-`_PushDiagnosticsCard` zaten orada, ekran mevcut).
-
 ---
 
-## Aşama 4 — Gezinme / yerleşim
+## Aşama 4 — Gezinme / yerleşim (KARAR VERİLDİ)
 
-Karar bekliyor: Mağaza'ya nereden girilecek?
-- Alt bar 5 sekme dolu — altıncı eklenmez
-- Seçenekler: yan menü satırı · Keşfet üst barında ikon (Yeni İlan ikonu gibi)
-- İki bölüm (Ürünler | İlan Ver) Mağaza içinde sekme
+Mağaza, Keşfet'te **üçüncü sekme**:
+
+```
+KEŞFET:  [ Ustalar ]  [ İlanlar ]  [ Mağaza ]
+                                      └─ Ürünler | İlan Ver
+```
+
+`customer_dashboard_screen.dart:55` — `TabController(length: 2)` → `3`.
+Sekme çubuğu satır 109-124'te duruyor, üçüncü `Tab` eklenir.
+
+**Dikkat — kelime çakışması:** alt barda zaten "İlanlar" sekmesi, Keşfet'te
+de "İlanlar" sekmesi var. Mağaza içindeki bölüme de "İlan Ver" denirse
+kullanıcı aynı kelimeyi üç yerde üç anlamda görür. Alt bölüm adı
+netleştirilmeli — öneri: **"Ürünler | Talepler"** (eylem adı "İlan Ver"
+düğmede kalır).
+
+**Erişim kapısı:** İlanlar sekmesi bugün giriş + usta modu istiyor
+(satır 658, 672). Mağaza'da böyle bir kapı **olmamalı** — herkes satabilir,
+herkes bakabilir. Misafir de ürünleri görebilmeli (Ustalar sekmesi gibi).
 
 ---
 
@@ -170,7 +211,8 @@ Karar bekliyor: Mağaza'ya nereden girilecek?
 
 | Risk | Önlem |
 |---|---|
-| **Bildirim yorgunluğu** — ürün talebi spam olursa kullanıcı push'u tamamen kapatır, **iş ilanı bildirimlerini de kaçırır** | Kategori+il kısıtı; günlük talep limiti; tercih ekranından çıkabilme |
+| ~~**Bildirim yorgunluğu**~~ — büyük ölçüde KAPANDI | Günlük özet (Yol 4): kişi başına tavan **günde 1 bildirim**, talep sayısından bağımsız. Ek olarak il+kategori kısıtı, günlük talep limiti, tercihlerden kapatma |
+| **Özet CF sessizce durursa** kimse fark etmez (anlık push olsa hemen belli olurdu) | `processScheduledCampaigns` gibi `logger` ile izlenir; talep var + özet gitmedi durumu loglanır |
 | **"Herkes satabilir"** sahte/dolandırıcı ilan | 6 moderasyon CF'i tam gelir; rate limit; şikayet hattı hazır |
 | `ProductStatus` 7 değerli — `JobStatus` 8→3 sadeleştirmesinin tersi | Tur B dersi: kullanılmayan durum eklenmesin. `pendingReview` gerçekten kullanılacak mı, karar ver |
 | Eski PRD (1366 st) bugünkü mimariyi bilmiyor | Kanonik değil **referans** sayılır; çelişkide bugünkü kod kazanır |
