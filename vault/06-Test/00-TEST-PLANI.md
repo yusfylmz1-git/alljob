@@ -65,22 +65,12 @@ profil doldurulunca açılır.
 
 ## ⚠️ Test öncesi hazırlık
 
-### 1. Deploy edilmiş mi?
+### 1. Deploy edilmiş mi? ✅ EVET
 
-> Oturum 83'ün kural + CF değişiklikleri **deploy edilmeden** test etmeyin;
-> `permission-denied` hataları gerçek bulgu sanılır.
-
+Kural, 40 Cloud Function ve iki site **2026-08-09'da canlıya alındı**.
+Emin olmak istersen:
 ```bash
-NODE_OPTIONS=--dns-result-order=ipv4first firebase deploy --only firestore:rules,functions
-```
-"delete function?" sorusuna **evet**: `onOfferWritten`, `autoCompleteJobs`,
-`remindJobAutoComplete`, `adminResolveDispute`, `archiveCompletedChats`.
-
-Siteler:
-```bash
-firebase deploy --only hosting:alljob1          # tanıtım
-flutter build web --target lib/main_admin.dart --release
-firebase deploy --only hosting:alljob1-admin    # yönetim
+firebase functions:list    # 40 fonksiyon dönmeli
 ```
 
 ### 2. Temiz kurulum
