@@ -2,6 +2,8 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sepette_hizmet/data/local/mock_database.dart';
+import 'package:sepette_hizmet/data/models/geo_models.dart';
+import 'package:sepette_hizmet/data/models/job.dart';
 import 'package:sepette_hizmet/data/models/product.dart';
 import 'package:sepette_hizmet/features/chat/data/chat_repository.dart';
 
@@ -259,6 +261,118 @@ void main() {
           reason: 'Silinen hesabın ürünleri kalmamalı (KVKK).');
       expect(cf.contains('"product"'), isTrue,
           reason: 'STORAGE_FOLDERS product klasörünü içermeli.');
+    });
+  });
+
+  group('Aşama 3 — ürün talebi + günlük özet bildirim', () {
+    late String cf;
+    setUpAll(() => cf = read('functions/index.js'));
+
+    test('ürün talebi USTA feed’ine düşmez', () {
+      // Alıcı kitlesi satıcılar. Bu eşleşme sessizce de tutmazdı
+      // ('product_request' bir meslek kodu değil) ama açık kapı şart:
+      // biri kategoriyi meslek listesine eklerse talep usta feed'ine sızar.
+      final job = Job(
+        jobId: 'j1',
+        customerId: 'c1',
+        customerName: 'Müşteri',
+        title: 'Çimento lazım',
+        description: 'On torba çimento arıyorum.',
+        category: kProductRequestCategory,
+        province: 'Bursa',
+        district: 'Nilüfer',
+        photos: const [],
+        priceType: JobPriceType.fixed,
+        status: JobStatus.open,
+        createdAt: DateTime.now(),
+        expiresAt: DateTime.now().add(const Duration(days: 7)),
+      );
+      expect(
+        job.matchesArtisan(
+          professionCodes: const ['product_request', 'plumber'],
+          serviceAreas: const [
+            ServiceArea(province: 'Bursa', district: 'Nilüfer'),
+          ],
+        ),
+        isFalse,
+        reason: 'Meslek kodu uydurulsa bile ustaya düşmemeli.',
+      );
+      expect(job.isProductRequest, isTrue);
+    });
+
+    test('normal ilan hâlâ eşleşiyor (talep kapısı fazla kesmedi)', () {
+      final job = Job(
+        jobId: 'j2',
+        customerId: 'c1',
+        customerName: 'Müşteri',
+        title: 'Musluk tamiri',
+        description: 'Mutfak musluğu damlatıyor.',
+        category: 'plumber',
+        province: 'Bursa',
+        district: 'Nilüfer',
+        photos: const [],
+        priceType: JobPriceType.fixed,
+        status: JobStatus.open,
+        createdAt: DateTime.now(),
+        expiresAt: DateTime.now().add(const Duration(days: 3)),
+      );
+      expect(
+        job.matchesArtisan(
+          professionCodes: const ['plumber'],
+          serviceAreas: const [
+            ServiceArea(province: 'Bursa', district: 'Osmangazi'),
+          ],
+        ),
+        isTrue,
+        reason: 'İl eşleşmesi yeter — ilçe elemez (2026-08-10 kararı).',
+      );
+    });
+
+    test('anlık fan-out talebi ATLAR', () {
+      expect(cf.contains('PRODUCT_REQUEST_CATEGORY'), isTrue);
+      final fanout = cf.substring(
+        cf.indexOf('exports.onJobCreated'),
+        cf.indexOf('exports.onJobWritten'),
+      );
+      expect(fanout.contains('=== PRODUCT_REQUEST_CATEGORY'), isTrue,
+          reason: 'onJobCreated ürün talebinde erken dönmeli — yoksa '
+              'talepler ustalara ANLIK push olarak giderdi.');
+    });
+
+    test('özet CF günde bir kez çalışır', () {
+      expect(cf.contains('exports.sendProductRequestDigest'), isTrue);
+      final ozet = cf.substring(cf.indexOf('exports.sendProductRequestDigest'));
+      expect(ozet.contains('"0 19 * * *"'), isTrue,
+          reason: 'Günlük tek çalışma — spam tavanı buna dayanıyor.');
+      expect(ozet.contains('istanbulDayKey()'), isTrue,
+          reason: 'Bildirim kimliği güne çakılı olmalı; aynı gün ikinci '
+              'çalışma üzerine yazsın, bildirim çoğalmasın.');
+    });
+
+    test('özet kendi talebini açana geri gitmez', () {
+      final ozet = cf.substring(cf.indexOf('exports.sendProductRequestDigest'));
+      expect(ozet.contains('alicilar.delete(j.customerId)'), isTrue);
+    });
+
+    test('özet AYRI tercihe bağlı — üç katman da tanımalı', () {
+      // Biri eksik kalırsa anahtar sessizce çalışmaz: parser'da yoksa
+      // undefined döner ve bildirim hiç gitmez.
+      expect(cf.contains('productDigest: p.productDigest !== false'), isTrue,
+          reason: 'prefsFromPushSnap alanı okumalı.');
+      expect(
+          cf.contains('category === "productDigest"'), isTrue,
+          reason: 'isPushCategoryAllowed kategoriyi tanımalı.');
+      expect(cf.contains('data.kind === "productDigest"'), isTrue,
+          reason: 'pushCategoryFromData eşlemeli.');
+
+      final prefs =
+          read('lib/features/notifications/data/notification_prefs.dart');
+      expect(prefs.contains('productDigest'), isTrue,
+          reason: 'İstemci modeli paritesi (kural 1).');
+      final ekran = read(
+          'lib/features/notifications/presentation/notification_prefs_screen.dart');
+      expect(ekran.contains('productDigest'), isTrue,
+          reason: 'Kullanıcı kapatabilmeli.');
     });
   });
 

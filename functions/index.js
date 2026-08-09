@@ -65,6 +65,13 @@ const AUTO_COMPLETE_DAYS = 3;
 // İstemci paritesi: job.dart (Job.matchesArtisan).
 const QUICK_SUPPORT_CATEGORY = "quick_support";
 
+// Ürün talebi kategorisi (Mağaza > İlan Ver). İstemci paritesi:
+// lib/data/models/job.dart kProductRequestCategory.
+//
+// Bu kategori USTA fan-out'una girmez; alıcısı satıcılardır ve bildirim
+// anlık değil GÜNLÜK ÖZET olarak gider (sendProductRequestDigest).
+const PRODUCT_REQUEST_CATEGORY = "product_request";
+
 // İş sonu değerlendirmesindeki OLUMLU etiketler. Yalnız bunlar usta
 // profilinde tagCounts/topTags olarak birikir (kart rozetleri). Olumsuz
 // etiketler sayaca girmez. İstemci paritesi: lib/data/models/review.dart
@@ -314,6 +321,9 @@ function prefsFromPushSnap(pushSnap) {
     chat: p.chat !== false,
     jobUpdates: p.jobUpdates !== false,
     nearbyJobs: p.nearbyJobs !== false,
+    // Eksik alan = AÇIK (eski hesaplar bozulmasın). İstemci paritesi:
+    // NotificationPrefs.fromMap aynı "!= false" kuralını uygular.
+    productDigest: p.productDigest !== false,
   };
 }
 
@@ -322,6 +332,7 @@ async function isPushCategoryAllowed(uid, category, pushSnapOpt) {
   const prefs = prefsFromPushSnap(snap);
   if (category === "chat") return prefs.chat;
   if (category === "nearbyJobs") return prefs.nearbyJobs;
+  if (category === "productDigest") return prefs.productDigest;
   // jobUpdates (varsayılan) + bilinmeyen
   return prefs.jobUpdates;
 }
@@ -331,6 +342,10 @@ function pushCategoryFromData(data) {
   const t = data && data.type;
   if (t === "chat") return "chat";
   if (t === "job" && data.kind === "nearby") return "nearbyJobs";
+  // Ürün talebi günlük özeti — AYRI tercih. `jobUpdates`'e bağlansaydı,
+  // özeti susturmak isteyen kullanıcı iş bildirimlerini de kapatmak
+  // zorunda kalırdı. İstemci paritesi: NotificationPrefs.productDigest.
+  if (t === "job" && data.kind === "productDigest") return "productDigest";
   // Takip bildirimi sosyal bir olay; "iş güncellemeleri" tercihine bağlamak
   // yanlış olurdu (kullanıcı iş bildirimlerini kapatınca takipçi haberi de
   // susardı). İstemcide ayrı bir tercih YOK → şimdilik chat kategorisiyle
@@ -900,6 +915,11 @@ exports.onJobCreated = onDocumentCreated(
       const category = job.category || "";
       const province = job.province || "";
       if (!category || !province) return;
+
+      // ÜRÜN TALEBİ buradan ÇIKAR. Alıcısı usta değil satıcı, ve bildirim
+      // anlık değil günlük özet — `sendProductRequestDigest` gönderir.
+      // Günlük ilan limiti YUKARIDA zaten işledi (talep de ona tabidir).
+      if (category === PRODUCT_REQUEST_CATEGORY) return;
 
       const isQuickSupport = category === QUICK_SUPPORT_CATEGORY;
 
@@ -4640,6 +4660,132 @@ exports.purgeRemovedProducts = onSchedule(
         await doc.ref.delete();
         logger.info(`purged product ${doc.id}`);
       }
+    },
+);
+
+// ---------------------------------------------------------------------------
+// Ürün talebi GÜNLÜK ÖZETİ (Mağaza > İlan Ver)
+// ---------------------------------------------------------------------------
+
+/**
+ * Gün içinde açılan ürün taleplerini toplayıp ilgili satıcılara TEK bildirim
+ * gönderir.
+ *
+ * NEDEN ANLIK DEĞİL (kullanıcı kararı — PLAN-Magaza.md §Aşama 3):
+ * Her talepte push atmak, talep sayısı arttıkça bildirim yorgunluğu yaratır;
+ * kullanıcı push'u tamamen kapatınca İŞ İLANI bildirimlerini de kaçırır.
+ * Yani ikincil bir özellik asıl işi bozardı. Özet, kişi başına tavanı
+ * **günde 1 bildirime** sabitler — talep sayısından bağımsız.
+ *
+ * ALICI SEÇİMİ: aynı il + aynı kategoride YAYINDA ürünü olanlar. Ayrı bir
+ * "satıcı" rolü yok (herkes satabilir), bu yüzden ölçüt davranıştan türer.
+ * Ürünü olmayan ama ilgilenen kişiler için "tercih" kaynağı ERTELENDİ —
+ * varsayıma dayanıyor ve şu an test edilemez.
+ *
+ * @return {Promise<void>}
+ */
+exports.sendProductRequestDigest = onSchedule(
+    {
+      // Akşam 19:00 — insanların telefonuna baktığı, mesai dışı bir saat.
+      schedule: "0 19 * * *",
+      region: REGION,
+      timeZone: "Europe/Istanbul",
+      timeoutSeconds: 300,
+    },
+    async () => {
+      const since = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
+      let talepler;
+      try {
+        talepler = await db.collection("jobs")
+            .where("category", "==", PRODUCT_REQUEST_CATEGORY)
+            .where("createdAt", ">=", since)
+            .limit(500)
+            .get();
+      } catch (e) {
+        logger.error("productRequestDigest sorgusu düştü", e);
+        return;
+      }
+      if (talepler.empty) {
+        logger.info("productRequestDigest: 24 saatte talep yok");
+        return;
+      }
+
+      // İl → açık talep sayısı. Kapalı/süresi dolmuş talepler sayılmaz.
+      const ilSayaci = new Map();
+      talepler.docs.forEach((d) => {
+        const j = d.data() || {};
+        if ((j.status || "open") !== "open") return;
+        const il = j.province || "";
+        if (!il) return;
+        ilSayaci.set(il, (ilSayaci.get(il) || 0) + 1);
+      });
+      if (ilSayaci.size === 0) return;
+
+      // Alıcılar: o ilde YAYINDA ürünü olanlar. Ürün dokümanı hem ili hem
+      // sahibini taşıdığı için tek sorgu yeter (ayrı satıcı listesi yok).
+      let urunler;
+      try {
+        urunler = await db.collection("products")
+            .where("status", "==", "active")
+            .limit(2000)
+            .get();
+      } catch (e) {
+        logger.error("productRequestDigest ürün sorgusu düştü", e);
+        return;
+      }
+
+      // uid → o kişinin ilindeki talep sayısı (tekilleştirilmiş).
+      const alicilar = new Map();
+      urunler.docs.forEach((d) => {
+        const p = d.data() || {};
+        if (p.moderationHidden === true) return;
+        const uid = p.ownerUid;
+        const il = p.province || "";
+        if (!uid || !il) return;
+        const adet = ilSayaci.get(il);
+        if (!adet) return;
+        alicilar.set(uid, adet);
+      });
+
+      // Kendi talebini açan kişiye kendi talebini haber verme.
+      talepler.docs.forEach((d) => {
+        const j = d.data() || {};
+        if (j.customerId) alicilar.delete(j.customerId);
+      });
+
+      if (alicilar.size === 0) {
+        logger.info("productRequestDigest: eşleşen satıcı yok");
+        return;
+      }
+
+      let gonderilen = 0;
+      for (const [uid, adet] of alicilar) {
+        const baslik = "Yeni ürün talepleri";
+        const govde = adet === 1 ?
+          "Bulunduğun ilde 1 yeni ürün talebi var." :
+          `Bulunduğun ilde ${adet} yeni ürün talebi var.`;
+        // Günde tek doküman: aynı gün ikinci kez çalışsa üzerine yazar,
+        // bildirim merkezi çoğalmaz.
+        const gunAnahtari = istanbulDayKey();
+        try {
+          await saveNotification(uid, `productDigest_${gunAnahtari}`, {
+            type: "job",
+            kind: "productDigest",
+            title: baslik,
+            body: govde,
+          });
+          await sendPushToUid(uid, baslik, govde, {
+            type: "job",
+            kind: "productDigest",
+          });
+          gonderilen++;
+        } catch (e) {
+          logger.warn(`productRequestDigest ${uid}: ${e}`);
+        }
+      }
+      logger.info(
+          `productRequestDigest: ${gonderilen} kişiye özet gönderildi ` +
+          `(${ilSayaci.size} il)`);
     },
 );
 

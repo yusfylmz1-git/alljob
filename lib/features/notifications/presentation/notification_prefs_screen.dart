@@ -88,6 +88,21 @@ class NotificationPrefsScreen extends ConsumerWidget {
                       prefs.copyWith(nearbyJobs: v),
                     ),
                   ),
+                  const Divider(height: 1),
+                  SwitchListTile(
+                    secondary: Icon(Icons.storefront_outlined,
+                        color: palette.primary),
+                    title: const Text('Ürün talepleri'),
+                    subtitle: const Text(
+                        'İlindeki ürün taleplerinin günlük özeti — '
+                        'günde en fazla bir bildirim'),
+                    value: prefs.productDigest,
+                    onChanged: (v) => _set(
+                      context,
+                      ref,
+                      prefs.copyWith(productDigest: v),
+                    ),
+                  ),
                 ],
               ),
             ),

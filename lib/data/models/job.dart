@@ -17,6 +17,24 @@ const kQuickSupportCategory = 'quick_support';
 /// `kOtherProfession` DEĞİŞMEDİ.
 const kQuickSupportName = 'Kolay İş';
 
+/// "Ürün Talebi" kategorisi — Mağaza'nın ikinci bölümü (2026-08-10).
+///
+/// Kullanıcı "şu ürüne ihtiyacım var" der; talep aynı ildeki ilgili
+/// satıcılara **günlük özet** bildirimiyle ulaşır (anlık push YOK — bkz.
+/// `vault/06-Test/PLAN-Magaza.md` §Aşama 3).
+///
+/// Neden `jobs` içinde bir kategori (ayrı koleksiyon değil): limit, süre
+/// dolumu, moderasyon, şikayet ve admin paneli `jobs` için yazılmış ve
+/// canlıda test edilmiş durumda. Kolay İş de tam olarak böyle kurulmuştur.
+///
+/// ⚠️ Bu kategorideki ilan USTALARA DÜŞMEZ — alıcı kitlesi satıcılardır
+/// (o kategoride yayında ürünü olanlar). `onJobCreated` fan-out'u bu
+/// kategoriyi atlar; bildirimi `sendProductRequestDigest` gönderir.
+const kProductRequestCategory = 'product_request';
+
+/// Kullanıcıya görünen ad.
+const kProductRequestName = 'Ürün Talebi';
+
 /// Usta profilinde Hemen Lazım hizmetini işaretleyen meslek kodu
 /// (JSON code: `other`, geriye uyum). Meslek listesinden AYRILMIŞTIR:
 /// profilde ayrı bir anahtar (switch) ile açılıp kapatılır.
@@ -356,6 +374,11 @@ class Job {
         .map((c) => c.trim())
         .where((c) => c.isNotEmpty)
         .toList();
+    // ÜRÜN TALEBİ ustaya DÜŞMEZ — alıcı kitlesi satıcılar (Mağaza modülü).
+    // Aşağıdaki meslek eşleşmesi zaten tutmazdı ('product_request' bir
+    // meslek kodu değil), ama bu sessiz bir kazaydı: biri kategoriyi
+    // meslek listesine eklerse talepler usta feed'ine sızardı. Açık kapı.
+    if (category == kProductRequestCategory) return false;
     // İL düzeyi: ustanın hizmet bölgelerinden herhangi biri ilanın ilinde.
     final areaMatch = serviceAreas.any((a) => a.province == province);
     if (category == kQuickSupportCategory) {
@@ -370,6 +393,9 @@ class Job {
 
   /// Bu ilan Hemen Lazım ilanı mı?
   bool get isQuickSupport => category == kQuickSupportCategory;
+
+  /// Bu ilan bir ürün talebi mi? (Mağaza > İlan Ver)
+  bool get isProductRequest => category == kProductRequestCategory;
 
   /// Usta ilanın İLÇESİNDE de hizmet veriyor mu? Hemen Lazım ilanları il
   /// geneline gittiğinden, aynı ilçedekiler listede öne alınır ve "Yakınında"

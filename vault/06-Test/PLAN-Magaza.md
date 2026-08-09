@@ -157,9 +157,37 @@ Bu karar eski sistemin varsayımını değiştiriyor (eski: yalnız usta satar).
 
 ---
 
-## Aşama 3 — Talep ("İlan Ver") — YENİ KOD
+## Aşama 3 — TAMAMLANDI (2026-08-10)
 
-Eski sistemde bu YOK. Tamamen yeni yazılacak tek parça.
+**Açık karar kapandı:** talep `jobs` içinde özel kategori
+(`kProductRequestCategory = 'product_request'`) — ayrı koleksiyon DEĞİL.
+Kolay İş'in (`quick_support`) birebir aynı deseni.
+
+| Ne | Yer |
+|---|---|
+| Kategori sabiti + `isProductRequest` | `job.dart` |
+| Ustaya düşmeme kapısı | `Job.matchesArtisan` — erken `false` |
+| Anlık fan-out'tan çıkarma | `onJobCreated` — erken `return` |
+| **Günlük özet CF'i** | `sendProductRequestDigest` (export 47 → **48**) |
+| Ayrı push tercihi | `productDigest` — CF + model + ekran (3 katman) |
+
+Özet **her gün 19:00** (Europe/Istanbul) çalışır. Bildirim kimliği
+`productDigest_{günAnahtarı}` → aynı gün ikinci çalışma üzerine yazar,
+bildirim çoğalmaz. Kendi talebini açan kişi alıcı listesinden düşer.
+
+> [!warning] Üç katman birden gerekiyordu
+> Tercih yalnız modele eklenseydi anahtar **sessizce çalışmazdı**:
+> `prefsFromPushSnap` alanı okumazsa `undefined` döner ve bildirim hiç
+> gitmez. `isPushCategoryAllowed` tanımazsa `jobUpdates`'e düşer — bu kez
+> kullanıcı iş bildirimlerini kapatmadan özeti susturamaz. Test üçünü de
+> ayrı ayrı arıyor.
+
+**Ertelendi:** "tercih edenler" ikinci alıcı kaynağı. Alıcı şu an yalnız
+*o ilde yayında ürünü olanlar* — davranıştan türer, ayar gerektirmez.
+
+---
+
+## Aşama 3 notları (uygulama ayrıntısı)
 
 ### 🔑 Bildirim modeli: GÜNLÜK ÖZET (Yol 4) — anlık push YOK
 

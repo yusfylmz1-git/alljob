@@ -15,6 +15,7 @@ class NotificationPrefs {
     this.chat = true,
     this.jobUpdates = true,
     this.nearbyJobs = true,
+    this.productDigest = true,
   });
 
   /// Sohbet mesajı push'u.
@@ -26,17 +27,26 @@ class NotificationPrefs {
   /// Yeni ilan eşleşmesi (usta — bölge/meslek).
   final bool nearbyJobs;
 
+  /// Ürün talebi günlük özeti (Mağaza). Günde EN FAZLA bir bildirim.
+  ///
+  /// Ayrı tercih olmasının sebebi: `jobUpdates`'e bağlansaydı özeti
+  /// susturmak isteyen kullanıcı iş bildirimlerini de kapatmak zorunda
+  /// kalırdı. CF paritesi: `pushCategoryFromData` → `productDigest`.
+  final bool productDigest;
+
   static const defaults = NotificationPrefs();
 
   NotificationPrefs copyWith({
     bool? chat,
     bool? jobUpdates,
     bool? nearbyJobs,
+    bool? productDigest,
   }) {
     return NotificationPrefs(
       chat: chat ?? this.chat,
       jobUpdates: jobUpdates ?? this.jobUpdates,
       nearbyJobs: nearbyJobs ?? this.nearbyJobs,
+      productDigest: productDigest ?? this.productDigest,
     );
   }
 
@@ -44,6 +54,7 @@ class NotificationPrefs {
         'chat': chat,
         'jobUpdates': jobUpdates,
         'nearbyJobs': nearbyJobs,
+        'productDigest': productDigest,
       };
 
   factory NotificationPrefs.fromMap(Map<String, dynamic>? map) {
@@ -53,6 +64,7 @@ class NotificationPrefs {
       chat: map['chat'] != false,
       jobUpdates: map['jobUpdates'] != false,
       nearbyJobs: map['nearbyJobs'] != false,
+      productDigest: map['productDigest'] != false,
     );
   }
 
@@ -62,10 +74,12 @@ class NotificationPrefs {
       other is NotificationPrefs &&
           chat == other.chat &&
           jobUpdates == other.jobUpdates &&
-          nearbyJobs == other.nearbyJobs;
+          nearbyJobs == other.nearbyJobs &&
+          productDigest == other.productDigest;
 
   @override
-  int get hashCode => Object.hash(chat, jobUpdates, nearbyJobs);
+  int get hashCode =>
+      Object.hash(chat, jobUpdates, nearbyJobs, productDigest);
 }
 
 /// Tercih okuma/yazma.
