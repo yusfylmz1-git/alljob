@@ -48,7 +48,7 @@ enum XStatus {
 ### Enum'lar — iş kuralı taşıyanlar
 | Enum | Değerler |
 |---|---|
-| `JobStatus` | open, workerSelected, inProgress, completed, rated, disputed, cancelled, expired |
+| `JobStatus` | open, cancelled, expired *(2026-08-09'da 8'den indi)* |
 | `JobPriceType` | fixed, inspection ("Keşif Gerekli") |
 | `JobDuration` | day1, day3, day7 — `expiresAt` hesabı |
 | `JobDisputeParty` · `JobDisputeReason` · `JobCancelReason` | Anlaşmazlık/iptal |

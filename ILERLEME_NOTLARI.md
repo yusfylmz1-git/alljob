@@ -26,44 +26,70 @@
 
 **Tarih:** 2026-08-09
 
-**Oturum 83: Tur B adım 1 — ölü iş akışı kodu silindi + kasa gerçeğe
-hizalandı. 489/489 test · analyze 0. Canlı veriye DOKUNULMADI.**
+**Oturum 83: TUR B TAMAMLANDI — iş akışı kalıntılarının tamamı silindi.
+4 commit · 471/471 test · analyze 0. ⚠️ DEPLOY EDİLMEDİ, CİHAZ TESTİ BEKLİYOR.**
 
-### 🔴 HÂLÂ İLK İŞ: CİHAZ TESTİ (oturum 82'den devrediyor)
-Aşağıdaki 5 madde **hâlâ yapılmadı**. Oturum 82'de ürünün yarısı değişti,
-oturum 83 buna dokunmadı (yalnız ölü kod sildi) — yani liste aynen geçerli.
+### 🔴 İLK İŞ: DEPLOY + CİHAZ TESTİ
+Bu oturumda **kural ve CF değişti ama deploy edilmedi**. Sıra:
+
+```bash
+# 1) Kural + CF birlikte (ikisi tutarlı olmalı, ayrı ayrı deploy etme)
+NODE_OPTIONS=--dns-result-order=ipv4first firebase deploy --only firestore:rules,functions
+```
+> Deploy ağ hatası alırsan: önce NODE_OPTIONS'suz dene. "service identity"
+> hatası → NODE_OPTIONS'u KALDIR. (bkz. `vault/05-Operasyon/Deploy-ve-Ortam.md`)
+
+**Silinen CF'ler Firebase'de DURUYOR olabilir** — deploy sırasında "delete
+function?" diye sorarsa EVET de: `onOfferWritten`, `autoCompleteJobs`,
+`remindJobAutoComplete`, `adminResolveDispute`, `archiveCompletedChats`.
+
+Sonra cihaz testi: oturum 82'nin 5 maddesi (aşağıda) **+ yeni 3 madde**:
+6. İlan ver → ilan listede "Yayında" görünmeli (eski "Teklif toplanıyor" değil)
+7. İlanı sil → her ilan silinebilmeli, sohbet geçmişi DURMALI
+8. Usta modunda "İşler" sekmesi → tek liste (İlgilendiğim sekmesi kalktı)
 
 ### Oturum 83'te ne yapıldı
 
-**Silinen ölü kod** (`671d1b8`) — üründen hiçbir yol ulaşmıyordu, yalnız
-kendi testleri ayakta tutuyordu:
-- `select_artisan.dart` (105 st) · `job_completion.dart` (381 st)
-- `job_confirm_dialog_test.dart` (yalnız silinen diyalogu test ediyordu)
-- `canSelectArtisanFor` testi **korundu**, `effectiveStatus` üzerinden
-  yeniden yazıldı (süre kapısı hâlâ geçerli bir kural).
-- `direct_contact_test`'e "bu dosyalar geri gelmesin" bekçisi eklendi.
+**Adım 1 — ölü kod** (`671d1b8`): `select_artisan.dart` (105 st) ve
+`job_completion.dart` (381 st). Üründen hiçbir yol ulaşmıyordu.
 
-**Kasa gerçeğe hizalandı:** `Is-Akisi-Durum-Makinesi.md` kaldırılmış akışı
-canlıymış gibi anlatıyordu → başına uyarı + "Kalıntılar" envanteri eklendi,
-eski bölümler TARİHSEL işaretlendi. `Bilinen-Tuzaklar.md`'ye "iş akışı
-CF'leri sessizce ölü" tuzağı eklendi.
+**Kasa gerçeğe hizalandı** (`4815192` + son commit): iş akışı notu
+kaldırılmış akışı canlıymış gibi anlatıyordu → 173 satırdan 81'e indi ve
+artık gerçeği yazıyor. CF haritası, güvenlik kuralları, Firestore şeması,
+veri modelleri ve bilinen tuzaklar notları da güncellendi.
 
-### ⚠️ Tur B YARIM — sayım yapılamadı
-Kalan iş (`JobStatus` enum sadeleştirme, `offers` koleksiyonu, ~56 CF
-referansı, admin ihtilaf modülü) **canlı sayım olmadan yapılamaz**:
-enum değeri silmek veri göçüdür (kural 6), o durumda ilan varsa okunamaz olur.
+**Adım 2a — Dart** (`edea6da`, −2763 satır):
+- `JobStatus` **8 → 3 değer**: open · cancelled · expired
+- `offers` katmanının tamamı, 9 repo metodu, Job modelinden 13 alan,
+  `JobDisputeParty`/`JobDisputeReason`, admin hakemlik modülü,
+  `MyOffersScreen`, `/panel/offers`, "İlgilendiğim" sekmesi
 
-**Sayım denendi, erişim yok:** makinede `gcloud` kurulu değil, ADC yok,
-servis hesabı anahtarı yok. Firebase CLI oturumu var ama onun token'ıyla
-Firestore'a sorgu atmak uygun bir yol değil.
-→ **Gereken:** Firebase konsolundan `jobs` koleksiyonunda status dağılımı
-(`workerSelected`/`inProgress`/`completed`/`rated`/`disputed` kaç adet?) ve
-`offers` doküman sayısı. Hepsi 0 ise silme güvenli; değilse önce göç.
+**Adım 2b — kural + CF** (`cf40041`, −960 satır):
+- `firestore.rules` **1278 → 823 satır**. `match /offers` kalktı; jobs
+  bloğundaki 6 doğrulama fonksiyonu gitti. Sahip artık ya ilanı kapatır ya
+  da AÇIK ilanın içeriğini düzenler. `expired` istemciye kapalı kaldı.
+- 5 CF + 2 yardımcı silindi; `onJobWritten` 5 daldan **1 dala** indi
+  (açık ilan sayacı).
+- `deleteAccount` sadeleşti: ilanlar anonimleştirilmiyor, siliniyor.
 
-Envanterin tamamı: `vault/02-Ozellikler/Is-Akisi-Durum-Makinesi.md`
-→ "Kalıntılar" tablosu.
+### ⚠️ Bilinçli davranış değişiklikleri
+1. **`canDelete` artık hep true.** Sahibi ilanını her zaman siler. Sohbetler
+   ilandan bağımsız yaşar — silme mesaj geçmişini götürmez.
+2. **`completedJobsAsCustomer` artık artmıyor.** Zaten artmıyordu (tetikleyen
+   geçiş yok) ve hiçbir ekranda gösterilmiyor. Alan modelde duruyor.
+3. **Admin panelinden "Anlaşmazlıklar" sekmesi kalktı** → sekme indeksleri
+   kaydı, dashboard hızlı erişimi de birlikte güncellendi. Kullanıcı
+   şikayeti `reports` koleksiyonundan akmaya devam ediyor.
 
-### Oturum 82 cihaz testi listesi (yapılacak)
+### Geriye uyum (canlıda eski kayıt varsa)
+- `JobStatus.fromString` tanımadığı değeri **`open`** sayar → `workerSelected`
+  yazan doküman varsa ilan görünür kalır, çökmez.
+- `jobStatsBucket` eski durumları **`jobsOther`** kovasına atar (sayımdan
+  kaybolmasınlar).
+- `Job.fromMap` ölü alanları okumaz; Firestore'da durabilirler.
+- İkisinin de regresyon testi var.
+
+### Oturum 82 cihaz testi listesi (hâlâ yapılacak)
 Bu oturumda ürünün yarısı değişti ama **hiçbiri cihazda denenmedi**. Sıra:
 1. `flutter clean && flutter run` (launcher ikonu yenilendi, önbellek şart)
 2. Profili Düzenle → telefon + Instagram + web gir → **kaydet** (kural yeni
@@ -137,12 +163,18 @@ functions         ✅ DEPLOY EDİLDİ  (ratingAsCustomer + "Kolay İş" push met
 > (bkz. `vault/05-Operasyon/Deploy-ve-Ortam.md` IPv4/IPv6 notu)
 
 ### Bilinen açıklar / sonraki adımlar
-1. **Cihaz testi** (yukarıdaki 5 madde) — en öncelikli.
-2. **Tur B (yarım)**: adım 1 (ölü kod) oturum 83'te bitti. Kalan adım 2
-   (enum + `offers` + CF + admin) **canlı sayıma bağlı** — yukarı bak.
-3. Değerlendirmeye koşul (sohbet şartı) — v2.
-4. Küfür/argo filtresi + görsel NSFW taraması — büyümeye bırakıldı.
-5. `vault/06-Test/` defteri v2 (285 adım) hâlâ hiç koşulmadı.
+1. **Deploy + cihaz testi** (yukarıdaki 8 madde) — en öncelikli.
+2. ~~Tur B~~ — oturum 83'te **BİTTİ**.
+3. **Firestore'da ölü alan/koleksiyon temizliği** (opsiyonel): `offers`
+   koleksiyonu ve ilanlardaki ölü alanlar canlıda duruyor olabilir. Kod
+   onları okumuyor, zarar vermiyorlar — sırf temizlik için silinebilir.
+   Bu makinede erişim yok (gcloud/ADC/servis anahtarı yok); konsoldan
+   veya anahtar sağlanırsa yapılır.
+4. **`vault/06-Test/` defteri iş akışına göre yazılmış** — `08-Is-Akisi.md`
+   ve `06-Ilan-Alma-Usta.md` artık var olmayan adımları test ediyor.
+   Defter v2 (285 adım) zaten hiç koşulmadı; koşmadan önce güncellenmeli.
+5. Değerlendirmeye koşul (sohbet şartı) — v2.
+6. Küfür/argo filtresi + görsel NSFW taraması — büyümeye bırakıldı.
 
 ---
 

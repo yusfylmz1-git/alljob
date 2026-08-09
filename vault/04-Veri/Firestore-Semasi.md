@@ -13,8 +13,7 @@ users/{uid}                        herkese açık profil (ad, foto) ⚠ hassas v
 
 artisanProfiles/{uid}              usta vitrini, puan, meslek, sertifika
 jobs/{jobId}                       iş ilanları
-offers/{offerId}                   ilgi kayıtları — id: {jobId}__{artisanId}
-chats/{chatId}                     id: chat_{müşteri}__{usta}[__{jobId}]
+chats/{chatId}                     id: chat_{müşteri}__{usta}
 └── messages/{msgId}
 reviews/{reviewId}                 id: {chatId} (c2a) | {chatId}__a2c
 favorites/{favId}                  id: {müşteri}__{usta}
@@ -41,8 +40,7 @@ ispatı bedava gelir.
 
 | Koleksiyon | Kimlik | Kazanç |
 |---|---|---|
-| `chats` | `chat_{müşteri}__{usta}[__{jobId}]` | Spam koruması; kural kimliği doğrular |
-| `offers` | `{jobId}__{artisanId}` | Aynı usta ikinci kez yazamaz, günceller |
+| `chats` | `chat_{müşteri}__{usta}` | Kişi başına TEK kutu; kural kimliği doğrular |
 | `reviews` | `{chatId}` / `{chatId}__a2c` | İş başına tek puan, yön ayrı |
 | `favorites` | `{müşteri}__{usta}` | Çift favori olamaz |
 
@@ -56,9 +54,6 @@ gerçekler kopyalanır. Kopyayı kim yazıyorsa **tek yazan o olmalıdır**.
 | `customerStarted` | `chats` | Müşteri (kural sınırlı) | Kural "müşteri mesajı var mı" sorgulayamaz |
 | `jobTitle` | `chats` | CF/istemci | Liste her sohbet için ilan okumasın |
 | `jobId` | `chats` | Oluşturucu | CF ilanın sohbetlerini tek eşitlikle bulur |
-| `offerCount` | `jobs` | **Yalnız CF** | İstemci sayaç şişiremesin |
-| `chatId` | `jobs` | `selectOffer` | Sohbetten ilana geri bağ |
-| `completedJobs` | `artisanProfiles` | **Yalnız CF** | Güvenilir istatistik |
 | ortalama puan | `artisanProfiles` | **Yalnız CF** (`onReviewWritten`) | Kendi puanını yazamasın |
 | `unreadTotal/Customer/Artisan` | `users/{uid}/private/chatMeta` | CF | Rozet tüm listeyi dinlemesin |
 | `openJobCount` | `users` | CF `refreshOpenJobCount` | 5 ilan limiti |
@@ -78,18 +73,22 @@ gerçekler kopyalanır. Kopyayı kim yazıyorsa **tek yazan o olmalıdır**.
 ## `jobs` — alan listesi
 
 **Zorunlu:** `customerId`, `customerName`, `title`, `description`, `category`,
-`province`, `district`, `photos`, `priceType`, `status`, `offerCount`,
-`customerConfirmedDone`, `artisanConfirmedDone`, `createdAt`, `expiresAt`
+`province`, `district`, `photos`, `priceType`, `status`, `createdAt`,
+`expiresAt`, `expiresAtMs`
 
-**Opsiyonel:** `customerPhotoUrl`, `neighborhood`, `budget`, `selectedOfferId`,
-`selectedArtisanId`, `chatId`, `cancelReason`, `moderationHidden`
+**Opsiyonel:** `customerPhotoURL`, `neighborhood`, `budget`, `cancelReason`,
+`moderationHidden`
 
-**CF'ye ait (istemci yazamaz):** `completedAt`, `autoCompleteAt`,
-`autoCompleteRemindedAt`, `autoCompletedBySystem`, `selectionCancelCount`,
-`chatsArchivedAt`
+**CF'ye ait (istemci yazamaz):** `moderatedBy`, `moderatedAt`,
+`adminModerationNote`
 
-**Anlaşmazlık:** `disputedBy`, `disputeReason`, `disputeNote`, `disputedAt`,
-`statusBeforeDispute`
+> [!warning] Eski dokümanlarda ölü alanlar olabilir
+> `offerCount`, `selectedOfferId`, `selectedArtisanId`, `chatId`,
+> `customerConfirmedDone`, `artisanConfirmedDone`, `autoCompleteAt`,
+> `completedAt`, `dispute*` — iş akışı kalkınca (2026-08-08/09) hepsi
+> düştü. `Job.fromMap` bunları **okumaz**; Firestore'da durabilirler,
+> modele girmezler. Create allowlist'i de yazılmalarını engeller.
+> → [[Is-Akisi-Durum-Makinesi]]
 
 ## Zaman damgaları: ISO string
 

@@ -28,8 +28,7 @@
 | Fonksiyon | Doküman | Görevi |
 |---|---|---|
 | `onJobCreated` | `jobs/{jobId}` | Uygun ustalara yeni ilan push'u |
-| `onJobWritten` | `jobs/{jobId}` | **En kritik CF.** Durum geçişlerinin tümü ↓ |
-| `onOfferWritten` | `offers/{offerId}` | `offerCount` yeniden hesap + müşteriye ilgi bildirimi |
+| `onJobWritten` | `jobs/{jobId}` | Açık ilan sayacını tazeler (tek işi) ↓ |
 | `onMessageCreated` | `chats/{chatId}/messages/{msgId}` | Alıcıya push + okunmamış sayacı |
 | `onReviewWritten` | `reviews/{reviewId}` | Ustanın ortalama puanı + yorum sayısı |
 | `onUserWritten` | `users/{uid}` | Kullanıcı türevleri |
@@ -39,31 +38,21 @@
 | `onProductReportWritten` | `reports/{reportId}` | Ürün şikayeti |
 | `onStaffNeedCreated` | `staffNeeds/{needId}` | Eleman ilanı bildirimi |
 
-### `onJobWritten` — içindeki dallar
+### `onJobWritten` — tek dal kaldı
 
-Sırayla:
+Durum değişiminde (ve silmede) `refreshOpenJobCount` → ilan limiti sayacı.
 
-1. `completed`/`rated`'a ilk geçiş → ustanın `completedJobs` +1
-   (`disputed`'dan dönüşte tekrar artmaz), sohbete "🎉 İş tamamlandı" sistem
-   mesajı, `completedAt` damgası
-2. **Tek taraflı onay** → karşı tarafa sistem mesajı + `autoCompleteAt`
-   (3 gün) + push
-3. `open` → `workerSelected` → seçilen ustaya push, **`lockOtherJobChats`**,
-   seçilen sohbete sistem mesajı
-4. `workerSelected` → `open` (seçim iptali) → **`unlockJobChats`**,
-   `selectionCancelCount` +1 (3. iptalde ilan kapanır)
-5. Durum değişiminde `refreshOpenJobCount` (ilan limiti sayacı)
-
-→ [[Is-Akisi-Durum-Makinesi]]
+> [!warning] Eskiden 5 dal vardı
+> Tamamlanma sayacı, tek taraflı onay + `autoCompleteAt`, usta seçildi
+> push'u + sohbet kilitleme, seçim iptali. İş akışı kalkınca bu geçişler
+> **üretilmemeye başladı** — dallar sessizce hiç ateşlenmiyordu, 2026-08-09'da
+> silindi. → [[Is-Akisi-Durum-Makinesi]]
 
 ## Zamanlanmış görevler
 
 | Fonksiyon | Sıklık | Görevi |
 |---|---|---|
-| `autoCompleteJobs` | 6 saat | `autoCompleteAt` dolan tek taraflı onayları `completed` yapar, `autoCompletedBySystem` izi bırakır |
-| `remindJobAutoComplete` | 6 saat | Son 24 saate girenlere bir kez hatırlatma |
 | `processScheduledCampaigns` | 5 dakika | Zamanlanmış duyuruları gönderir |
-| `archiveCompletedChats` | 24 saat | 7 gün geçmiş işlerin sohbetlerini arşivler → [[Sohbet-Mimarisi]] |
 | `purgeRemovedProducts` | 24 saat | Kaldırılan ürünleri temizler |
 
 Saat dilimi: `Europe/Istanbul`.
@@ -86,7 +75,7 @@ Saat dilimi: `Europe/Istanbul`.
 | Rol/yetki | `adminSetRole`, `adminSetCapabilities`, `adminCreateInvite`, `adminRevokeInvite` |
 | Kullanıcı | `adminLookupUser`, `adminUserSummary`, `adminSetUserSuspended`, `adminBulkSuspend`, `adminAddUserNote`, `adminListUserNotes` |
 | Moderasyon | `adminModerateMessage`, `adminModerateJob`, `adminModerateProduct`, `adminModerateStaffing`, `adminHideReview` |
-| Şikayet/anlaşmazlık | `adminResolveReport`, `adminAssignReport`, `adminResolveDispute` |
+| Şikayet | `adminResolveReport`, `adminAssignReport` |
 | Usta | `adminSetArtisanFlags`, `adminGrantPremium`, `adminReviewCertificates` |
 | Sistem | `adminUpdateConfig`, `adminRebuildStats`, `adminLogExport`, `adminGetChatTranscript` |
 | Duyuru | `adminBroadcastNotification`, `adminScheduleCampaign`, `adminCancelCampaign` |
@@ -103,7 +92,6 @@ kaydı bırakır. → [[Admin-Paneli]]
 | `saveNotification(uid, key, payload)` | Bildirim dokümanı |
 | `sendPushToUid(uid, title, body, data)` | FCM push |
 | `jobChatDocs(jobId)` | İlanın tüm sohbetleri (`jobId` alanı üstünden) |
-| `lockOtherJobChats` / `unlockJobChats` | Kilit yönetimi |
 | `refreshOpenJobCount(customerId)` | Açık ilan sayacı |
 
 ## Yazma kalıpları

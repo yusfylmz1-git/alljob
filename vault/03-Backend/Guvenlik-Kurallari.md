@@ -58,8 +58,7 @@ Evetse `private/` altına.
 | `artisanProfiles/{uid}` | Herkes | Sahibi (puan alanları CF'ye kapalı) |
 | `chats/{chatId}` | Üyeler | Üyeler (allowlist) |
 | `chats/{id}/messages/*` | Üyeler | Gönderen (koşullu) |
-| `jobs/{jobId}` | Herkes | Sahibi (durum geçişleri kısıtlı) |
-| `offers/{offerId}` | İlgili taraflar | Usta (kendi teklifi) |
+| `jobs/{jobId}` | Herkes | Sahibi (kapatma **veya** açık ilanın içeriği) |
 | `reviews/{reviewId}` | Herkes (c2a) | Yazan taraf |
 | `reports/*` | Admin | Oluşturan + admin |
 | `admin*` (7 koleksiyon) | Admin | CF / superadmin |
@@ -128,9 +127,6 @@ yapamaz.
 
 Bazı kurallar sorgunun **filtre taşımasını** zorunlu kılar:
 
-```javascript
-// offers kuralı: customerId == auth.uid
-```
 ```dart
 // Filtresiz sorgu KOMPLE reddedilir:
 .where('jobId', isEqualTo: jobId)

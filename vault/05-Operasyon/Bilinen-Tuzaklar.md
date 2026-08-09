@@ -200,18 +200,18 @@ Döngüler 450'de bir commit'ler. Teklif sayısı yüksek ilanlarda şart.
 Zamanlanmış görevler işlediklerini damgalar (`chatsArchivedAt`,
 `autoCompleteRemindedAt`). Yeni zamanlanmış görev yazarken aynısını yap.
 
-### 🔴 İş akışı CF'leri SESSİZCE ÖLÜ (2026-08-08'den beri)
+### 🟡 "CF çalışmıyor, log boş" — önce tetikleyiciye bak
+Bir CF hata vermeden hiç ateşlenmiyorsa, çoğu zaman **onu tetikleyen durum
+geçişi artık üretilmiyordur**. Log'un boş olması CF'in bozuk olduğu
+anlamına gelmez.
+
+Bu tam olarak 2026-08-08'de yaşandı: iş akışı UI'dan kaldırılınca
 `autoCompleteJobs`, `remindJobAutoComplete`, `onOfferWritten`,
-`lockOtherJobChats` ve `onJobWritten`'ın seçim/tamamlama dalları **hiç
-ateşlenmiyor** — hata vermiyorlar, onları tetikleyecek durum geçişi artık
-üretilmiyor (iş akışı UI'dan kaldırıldı, → [[Is-Akisi-Durum-Makinesi]]).
+`archiveCompletedChats` ve `onJobWritten`'ın 3 dalı sessizce ölü kaldı —
+bir gün sonra silindiler. → [[Is-Akisi-Durum-Makinesi]]
 
-> Belirti: "CF deploy ettim ama çalışmıyor / log boş." Önce **o CF'i
-> tetikleyen geçiş hâlâ oluyor mu** diye bak. Log'un boş olması CF'in
-> bozuk olduğu anlamına gelmez.
-
-Bugün canlıda gerçekten üretilen tek geçişler: ilan doğar (`open`),
-süresi dolar (`expired`), müşteri iptal eder (`cancelled`).
+Bugün `jobs` üstünde üretilen tek geçişler: ilan doğar (`open`), süresi
+dolar (`expired`), sahibi kaldırır (`cancelled`).
 
 ---
 
