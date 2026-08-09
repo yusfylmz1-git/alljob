@@ -12,6 +12,7 @@ import '../../auth/application/auth_controller.dart';
 import '../../chat/data/chat_providers.dart';
 import '../../favorites/data/favorite_providers.dart';
 import '../../favorites/presentation/favorite_button.dart';
+import '../../products/presentation/widgets/dukkan_bolumu.dart';
 import '../../review/presentation/widgets/review_cta.dart';
 import '../../../core/utils/snackbar_helper.dart';
 import '../../../core/widgets/profile_header.dart';
@@ -187,9 +188,31 @@ class _Body extends ConsumerWidget {
         const SizedBox(height: 8),
         Divider(color: palette.hairline, height: 24),
 
+        // ── Dükkân ──
+        // Usta olmayan da ürün satabilir (Mağaza modülü, 2026-08-10), bu
+        // yüzden vitrin bu ekranda da görünür. Ürünü yoksa kendini gizler.
+        ResponsiveCenter(
+          maxWidth: 720,
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
+          child: DukkanBolumu(
+            saticiUid: user.uid,
+            saticiAdi: name,
+            bolumKurucu: ({
+              required icon,
+              required title,
+              required child,
+              trailing,
+            }) =>
+                _DukkanKabugu(
+              icon: icon,
+              title: title,
+              trailing: trailing,
+              child: child,
+            ),
+          ),
+        ),
+
         // ── Değerlendirmeler ──
-        // Usta olmayan profilde gösterilecek vitrin yok; puan + yorumlar
-        // sayfanın gövdesini oluşturur.
         ResponsiveCenter(
           maxWidth: 720,
           padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
@@ -237,6 +260,53 @@ class _Body extends ConsumerWidget {
         );
       }
     }
+  }
+}
+
+/// Dükkân bölümünün bu ekrandaki kabuğu.
+///
+/// Usta profilindeki `_Section` kartlı/gölgeli; bu ekran sade akış olduğu
+/// için burada yalnız başlık + içerik kullanılır. Aynı widget iki farklı
+/// kabukla sarılabilsin diye [DukkanBolumu] kabuğu dışarıdan alır.
+class _DukkanKabugu extends StatelessWidget {
+  const _DukkanKabugu({
+    required this.icon,
+    required this.title,
+    required this.child,
+    this.trailing,
+  });
+
+  final IconData icon;
+  final String title;
+  final Widget child;
+  final Widget? trailing;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final palette = context.palette;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(icon, size: 18, color: palette.primary),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                title,
+                style: theme.textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ),
+            ?trailing,
+          ],
+        ),
+        const SizedBox(height: 8),
+        child,
+      ],
+    );
   }
 }
 

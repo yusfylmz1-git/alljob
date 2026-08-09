@@ -150,6 +150,45 @@ void main() {
     });
   });
 
+  group('1.5 — Dükkân bölümü İKİ profil ekranında da var', () {
+    // "Herkes satabilir" olduğu için vitrin yalnız usta profiline ait
+    // değil. Eski kod `_ShopSection`'ı sadece usta profiline koyuyordu;
+    // usta olmayan bir satıcının ürünleri hiçbir profilde görünmezdi.
+
+    test('usta profili dükkânı gösterir', () {
+      final s = read(
+          'lib/features/customer/presentation/artisan_profile_screen.dart');
+      expect(s.contains('DukkanBolumu'), isTrue);
+    });
+
+    test('genel kullanıcı profili de dükkânı gösterir', () {
+      final s =
+          read('lib/features/customer/presentation/public_user_screen.dart');
+      expect(s.contains('DukkanBolumu'), isTrue,
+          reason: 'Usta olmayan satıcının vitrini de görünmeli.');
+      expect(s.contains('Usta olmayan profilde gösterilecek vitrin yok'),
+          isFalse,
+          reason: 'Eski varsayım metni kalmamalı.');
+    });
+
+    test('dükkân YALNIZ yayındaki ürünleri gösterir (gizlilik)', () {
+      // `myProductsProvider` taslak/satılmış/duraklatılmış dâhil HER şeyi
+      // verir; başkasının profilinde onu kullanmak sızıntı olurdu.
+      final w = read(
+          'lib/features/products/presentation/widgets/dukkan_bolumu.dart');
+      expect(w.contains('publicProductsProvider'), isTrue,
+          reason: 'Vitrin publicProductsProvider kullanmalı.');
+      expect(w.contains('myProductsProvider'), isFalse,
+          reason: 'myProductsProvider taslakları sızdırır.');
+    });
+
+    test('vitrin ölçütü Keşfet feed’iyle aynı kuralı kullanır', () {
+      // İkisi ayrışırsa profilde görünüp Keşfet'te görünmeyen ürün doğar.
+      final p = read('lib/features/products/data/product_providers.dart');
+      expect(p.contains('isLiveInDiscover'), isTrue);
+    });
+  });
+
   group('Aşama 0 — geri getirme bağları yerinde', () {
     test('mock veritabanında ürün koleksiyonu var (mock paritesi)', () {
       expect(MockDatabase().products, isEmpty,

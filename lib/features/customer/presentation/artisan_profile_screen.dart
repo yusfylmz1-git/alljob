@@ -23,6 +23,7 @@ import '../../auth/presentation/email_verification_gate.dart';
 import '../../chat/data/chat_providers.dart';
 import '../../favorites/data/favorite_providers.dart';
 import '../../favorites/presentation/favorite_button.dart';
+import '../../products/presentation/widgets/dukkan_bolumu.dart';
 import '../../review/presentation/widgets/review_cta.dart';
 import '../../../core/widgets/profile_header.dart';
 import '../../../data/models/app_user.dart';
@@ -205,6 +206,25 @@ class _ProfileBody extends ConsumerWidget {
                       child: _ScheduleBlock(profile: profile),
                     ),
                     const SizedBox(height: 14),
+
+                    // Dükkân — bu kişinin satılık ürünleri (Mağaza modülü).
+                    // Yalnız YAYINDAKİ ürünler; ürünü yoksa bölüm gizlenir.
+                    DukkanBolumu(
+                      saticiUid: detail.uid,
+                      saticiAdi: detail.displayName,
+                      bolumKurucu: ({
+                        required icon,
+                        required title,
+                        required child,
+                        trailing,
+                      }) =>
+                          _Section(
+                        icon: icon,
+                        title: title,
+                        trailing: trailing,
+                        child: child,
+                      ),
+                    ),
 
                     if (profile.certificates.isNotEmpty) ...[
                       _Section(

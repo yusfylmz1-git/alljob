@@ -22,9 +22,27 @@ final discoverProductsProvider = StreamProvider<List<Product>>((ref) {
       );
 });
 
+/// Sahibin KENDİ ürünleri — taslak, duraklatılmış, satılmış dâhil.
+/// Yalnızca "Ürünlerim" ekranında kullanılır.
 final myProductsProvider =
     StreamProvider.family<List<Product>, String>((ref, ownerUid) {
   return ref.watch(productRepositoryProvider).watchMyProducts(ownerUid);
+});
+
+/// Bir kullanıcının BAŞKASINA görünen vitrini — yalnız yayındakiler.
+///
+/// `myProductsProvider` durum filtresi uygulamaz; başkasının profilinde
+/// onu kullanmak taslak ve satılmış ürünleri sızdırırdı. Moderasyonla
+/// gizlenmişler de elenir.
+/// Ölçüt `Product.isLiveInDiscover` — Keşfet feed'iyle AYNI kural
+/// (`active` && `!moderationHidden`). İkisi ayrışırsa profilde görünüp
+/// Keşfet'te görünmeyen (veya tersi) ürünler doğar.
+final publicProductsProvider =
+    StreamProvider.family<List<Product>, String>((ref, ownerUid) {
+  return ref
+      .watch(productRepositoryProvider)
+      .watchMyProducts(ownerUid)
+      .map((list) => list.where((p) => p.isLiveInDiscover).toList());
 });
 
 final productProvider =
