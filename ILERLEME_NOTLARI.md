@@ -26,8 +26,8 @@
 
 **Tarih:** 2026-08-09
 
-**Oturum 83: TUR B TAMAMLANDI — iş akışı kalıntılarının tamamı silindi.
-4 commit · 471/471 test · analyze 0. ⚠️ DEPLOY EDİLMEDİ, CİHAZ TESTİ BEKLİYOR.**
+**Oturum 83: TUR B + web/admin/test defteri. 8 commit · 471/471 test ·
+analyze 0. ⚠️ HİÇBİRİ DEPLOY EDİLMEDİ, CİHAZ TESTİ BEKLİYOR.**
 
 ### 🔴 İLK İŞ: DEPLOY + CİHAZ TESTİ
 Bu oturumda **kural ve CF değişti ama deploy edilmedi**. Sıra:
@@ -35,6 +35,13 @@ Bu oturumda **kural ve CF değişti ama deploy edilmedi**. Sıra:
 ```bash
 # 1) Kural + CF birlikte (ikisi tutarlı olmalı, ayrı ayrı deploy etme)
 NODE_OPTIONS=--dns-result-order=ipv4first firebase deploy --only firestore:rules,functions
+
+# 2) Tanıtım sitesi (yeni logo + marka + düzeltilmiş yasal metinler)
+firebase deploy --only hosting:alljob1
+
+# 3) Admin paneli
+flutter build web --target lib/main_admin.dart --release
+firebase deploy --only hosting:alljob1-admin
 ```
 > Deploy ağ hatası alırsan: önce NODE_OPTIONS'suz dene. "service identity"
 > hatası → NODE_OPTIONS'u KALDIR. (bkz. `vault/05-Operasyon/Deploy-ve-Ortam.md`)
@@ -43,10 +50,13 @@ NODE_OPTIONS=--dns-result-order=ipv4first firebase deploy --only firestore:rules
 function?" diye sorarsa EVET de: `onOfferWritten`, `autoCompleteJobs`,
 `remindJobAutoComplete`, `adminResolveDispute`, `archiveCompletedChats`.
 
-Sonra cihaz testi: oturum 82'nin 5 maddesi (aşağıda) **+ yeni 3 madde**:
-6. İlan ver → ilan listede "Yayında" görünmeli (eski "Teklif toplanıyor" değil)
-7. İlanı sil → her ilan silinebilmeli, sohbet geçmişi DURMALI
-8. Usta modunda "İşler" sekmesi → tek liste (İlgilendiğim sekmesi kalktı)
+Sonra cihaz testi: **`vault/06-Test/00-TEST-PLANI.md` (v3, 395 adım)**
+sıfırdan yazıldı — oturum 82'nin 5 maddesi de içinde. En kritik adımlar:
+- **8.3.5** — mesajlaşılan ilanı sil → **sohbet DURMALI** (veri kaybı testi)
+- **6.3.7** — aynı çift iki ilan konuşsun → **tek sohbet**
+- **9.3.2** — aynı kişiyi ikinci kez puanla → **"Güncelle"**, form dolu
+- **11.2.5** — admin özet çipleri **doğru sekmeyi** açıyor mu (indeks kayması)
+- **12.4.2** — hesap silme metni kodla **birebir** mi (yasal risk)
 
 ### Oturum 83'te ne yapıldı
 
@@ -71,6 +81,46 @@ veri modelleri ve bilinen tuzaklar notları da güncellendi.
 - 5 CF + 2 yardımcı silindi; `onJobWritten` 5 daldan **1 dala** indi
   (açık ilan sayacı).
 - `deleteAccount` sadeleşti: ilanlar anonimleştirilmiyor, siliniyor.
+
+### Oturum 83 · ikinci yarı (web · admin · analiz · test defteri)
+
+**Tanıtım sitesi** (`d2fdc87`) — iki tur geride kalmıştı:
+- Logolar **16 Temmuz**'dandı ve üzerinde **"USTASINDAN"** yazıyordu (üç
+  marka önceki ad). `assets/brand/logo.png`'den (İH monogramı) tüm boyutlar
+  türetildi. Kaynakta %16 saydam pay vardı → alpha bbox'a kırpıldı, yoksa
+  40px başlıkta logo daha da küçük dururdu.
+- `apple-touch-icon` **beyaz zeminli** (iOS saydamı siyaha boyar).
+- `og-image` 512×512 kareydi → **1200×630** sosyal kart olarak yeniden çizildi.
+- **Yasal metinler düzeltildi** — bu kozmetik değil: `hesap-silme.html` ve
+  `gizlilik-politikasi.html` `deleteAccount`'un ESKİ davranışını anlatıyordu
+  ("aktif işler iptal edilir, tamamlanmış işler anonimleştirilir"). Tur B'de
+  o akış değişti; metinler koddaki gerçeğe göre yeniden yazıldı.
+
+**web/ kabuğu + admin** (`a9e3603`):
+- Kabuk admin panelini sunuyor ama başlığı "İlanda Hizmet / Hizmet pazaryeri"
+  idi → "İlanda Hizmet · Yönetim" + `noindex`.
+- **maskable PWA ikonları normal ikonun aynısıydı** → Android kırparken logo
+  kesilirdi. %62 iç alan + beyaz zeminle yeniden üretildi.
+- `AdminStatsSnapshot`'tan 4 ölü sayaç kalktı; `jobsTotal` donuk eski
+  değerleri topluyordu. `jobsOther` kartı eklendi (yalnız >0 ise görünür).
+- `disputes.manage` yetkisi kaldırıldı (Dart + CF paritesi).
+- Denetimde **ayrım**: "Anlaşmazlık" kategorisi kalktı ama `resolve_dispute`
+  etiketi korundu — eski kayıt ham string görünmesin.
+- `flutter build web --target lib/main_admin.dart --release`: **başarılı**.
+
+**Analiz** (`70a2527`) — yeni kasa notu `vault/02-Ozellikler/Mevcut-Akislar.md`:
+"Ürün bugün ne yapıyor?" — roller, 5 sekme, açılış kapıları sırası, ilan
+limitleri, ustanın **dört kapısı**, Kolay İş farkları, sohbet/değerlendirme
+kuralları. Koddan doğrudan çıkarıldı; test defterinin dayanağı.
+
+**Test defteri v2 → v3** (`70a2527`) — 285 → **395 adım**:
+- `08-Is-Akisi.md` **silindi** (test ettiği akış yok) → `08-Ilan-Omru-ve-Yonetimi.md`
+- **Yeni:** `11-Admin-Paneli.md` (57) ve `12-Tanitim-Sitesi.md` (35) — ikisi
+  de hiç test edilmiyordu
+- `06-Ilan-Alma-Usta` yeniden yazıldı (ilgi bildirme → doğrudan mesaj)
+- **Çelişki düzeltmeleri:** defter eski doğruyu *bulgu* sayıyordu — "aynı çift
+  tek sohbette birleşiyor → mimari bozuk" (artık doğru davranış bu),
+  "müşteri puanı herkese görünüyor → gizlilik ihlali" (bilerek açılmıştı)
 
 ### ⚠️ Bilinçli davranış değişiklikleri
 1. **`canDelete` artık hep true.** Sahibi ilanını her zaman siler. Sohbetler
