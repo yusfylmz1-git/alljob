@@ -100,7 +100,10 @@ class _ProductsExplorePanelState extends ConsumerState<ProductsExplorePanel> {
 
     final async = ref.watch(discoverProductsProvider);
     final user = ref.watch(currentUserProvider);
-    final isArtisan = user?.isArtisan == true;
+    // 2026-08-10: "Ürünlerim" girişi USTA MODUNA bağlıydı. Herkes satabildiği
+    // için kapı kalktı — ölçüt artık yalnızca oturum açmış olmak.
+    // Misafir ürünleri görür ama kendi vitrinine giremez.
+    final canSell = user != null;
 
     return async.when(
       loading: () => const Padding(
@@ -133,7 +136,7 @@ class _ProductsExplorePanelState extends ConsumerState<ProductsExplorePanel> {
             slivers: [
               SliverToBoxAdapter(
                 child: _Header(
-                  isArtisan: isArtisan,
+                  canSell: canSell,
                   searchCtrl: _searchCtrl,
                   onQueryChanged: _onQueryChanged,
                   categoryCode: _categoryCode,
@@ -150,10 +153,10 @@ class _ProductsExplorePanelState extends ConsumerState<ProductsExplorePanel> {
                   child: products.isEmpty
                       ? ErrorView(
                           title: 'Henüz ürün yok',
-                          message: isArtisan
+                          message: canSell
                               ? 'Keşfet’te görünecek ilk ürününüzü '
                                   'Ürünlerim’den ekleyebilirsiniz.'
-                              : 'Ustalar ürün paylaştıkça burada görünecek.',
+                              : 'Ürünler paylaşıldıkça burada görünecek.',
                           icon: Icons.storefront_outlined,
                         )
                       : ErrorView(
@@ -200,7 +203,7 @@ class _ProductsExplorePanelState extends ConsumerState<ProductsExplorePanel> {
 
 class _Header extends ConsumerWidget {
   const _Header({
-    required this.isArtisan,
+    required this.canSell,
     required this.searchCtrl,
     required this.onQueryChanged,
     required this.categoryCode,
@@ -211,7 +214,8 @@ class _Header extends ConsumerWidget {
     required this.onClearFilters,
   });
 
-  final bool isArtisan;
+  /// Oturum açmış mı — "Ürünlerim" girişi buna bağlı. Usta olma şartı YOK.
+  final bool canSell;
   final TextEditingController searchCtrl;
   final ValueChanged<String> onQueryChanged;
   final String? categoryCode;
@@ -278,7 +282,7 @@ class _Header extends ConsumerWidget {
                       ),
                     ),
                     Text(
-                      'Ustaların vitrin ürünleri — iletişim sohbet ile',
+                      'Satılık ürünler — iletişim sohbet ile',
                       style: theme.textTheme.bodySmall?.copyWith(
                         color: palette.inkMuted,
                       ),
@@ -286,7 +290,7 @@ class _Header extends ConsumerWidget {
                   ],
                 ),
               ),
-              if (isArtisan)
+              if (canSell)
                 TextButton.icon(
                   onPressed: () => context.push(RoutePaths.myProducts),
                   icon: const Icon(Icons.add_box_outlined, size: 18),

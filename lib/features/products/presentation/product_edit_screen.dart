@@ -21,7 +21,6 @@ import '../../../data/local/mock_database.dart' show kProfessionNames;
 import '../../../data/models/geo_models.dart';
 import '../../../data/models/product.dart';
 import '../../artisan/application/my_profile_controller.dart';
-import '../../artisan/data/shop_completion.dart';
 import '../../auth/application/auth_controller.dart';
 import '../../auth/presentation/email_verification_gate.dart';
 import '../../storage/storage_repository.dart';
@@ -411,23 +410,12 @@ class _ProductEditScreenState extends ConsumerState<ProductEditScreen> {
         }
 
         if (publish) {
-          // Vitrin (meslek/bölge/foto) taslağı henüz yüklenmemiş olabilir;
-          // valueOrNull ile okumak profil dolu OLSA BİLE canMatchJobs=false
-          // döndürüp yayını yanlışlıkla engelliyordu. Yayından önce taslağı
-          // .future ile bekle (yükleme hatası olursa null'a düş = eski davranış).
-          MyProfileDraft? profileDraft;
-          try {
-            profileDraft =
-                await ref.read(myProfileControllerProvider.future);
-          } catch (_) {
-            profileDraft =
-                ref.read(myProfileControllerProvider).valueOrNull;
-          }
-          if (!mounted) return;
-          final shop = ShopCompletion.from(
-            user: user,
-            draft: profileDraft,
-          );
+          // 2026-08-10: VİTRİN KAPISI KALKTI ("herkes satabilir").
+          // Eskiden burada profil taslağı `.future` ile beklenip
+          // `ShopCompletion` (meslek + bölge + profil fotoğrafı) kontrol
+          // ediliyordu. O şart usta vitrinine aitti; usta olmayan biri
+          // meslek seçmediği için ürün yayınlayamıyordu. Taslak okuma da
+          // bu kontrolün tek müşterisiydi, o yüzden birlikte kaldırıldı.
           final fieldsComplete = productFieldsComplete(
             title: title,
             description: desc,
@@ -439,17 +427,12 @@ class _ProductEditScreenState extends ConsumerState<ProductEditScreen> {
             condition: _condition,
           );
           final ok = canPublishProduct(
-            canMatchJobs: shop.canMatchJobs,
-            photoOk: shop.photoOk,
-            artisanExists: true,
-            artisanModerationHidden: false,
             userSuspended: user.suspended,
             fieldsComplete: fieldsComplete,
           );
           if (!ok) {
             if (mounted) {
               context.showError(_publishBlockedMessage(
-                shop: shop,
                 fieldsComplete: fieldsComplete,
                 userSuspended: user.suspended,
               ));
@@ -478,22 +461,16 @@ class _ProductEditScreenState extends ConsumerState<ProductEditScreen> {
   }
 
   /// Yayın engellendiğinde tam olarak neyin eksik olduğunu söyle.
+  ///
+  /// Vitrin (`ShopCompletion`) dalı 2026-08-10'da kaldırıldı: ürün koymak
+  /// artık usta olmayı gerektirmiyor, dolayısıyla "önce vitrini tamamlayın"
+  /// diyecek bir durum kalmadı.
   String _publishBlockedMessage({
-    required ShopCompletion shop,
     required bool fieldsComplete,
     required bool userSuspended,
   }) {
     if (userSuspended) {
       return 'Hesabınız askıda olduğu için ürün yayınlayamazsınız.';
-    }
-    final missing = <String>[];
-    if (!shop.photoOk) missing.add('profil fotoğrafı');
-    for (final s in shop.steps) {
-      if (s.requiredForJobs && !s.ok) missing.add(s.label.toLowerCase());
-    }
-    if (missing.isNotEmpty) {
-      return 'Taslak kaydedildi. Yayın için önce Profil’de vitrini '
-          'tamamlayın: ${missing.join(', ')}.';
     }
     if (!fieldsComplete) {
       return 'Taslak kaydedildi. Yayın için ürün alanları eksiksiz olmalı '

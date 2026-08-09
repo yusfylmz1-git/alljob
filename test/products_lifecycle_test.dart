@@ -166,28 +166,28 @@ void main() {
       );
     });
 
-    test('canPublishProduct requires photo and jobs match', () {
+    // 2026-08-10 — "HERKES SATABİLİR" (Mağaza modülü kararı).
+    // Kapı eskiden `canMatchJobs` (meslek + hizmet bölgesi) ve `photoOk`
+    // istiyordu; ikisi de usta vitrini kavramıydı ve usta olmayanı
+    // engelliyordu. Şimdi yalnız içerik + hesap durumu bakılır.
+    test('canPublishProduct usta vitrini ŞARTI aramaz', () {
       expect(
-        canPublishProduct(
-          canMatchJobs: true,
-          photoOk: false,
-          artisanExists: true,
-          artisanModerationHidden: false,
-          userSuspended: false,
-          fieldsComplete: true,
-        ),
+        canPublishProduct(userSuspended: false, fieldsComplete: true),
+        isTrue,
+        reason: 'Meslek/bölge/profil fotoğrafı olmayan biri de satabilmeli.',
+      );
+    });
+
+    test('canPublishProduct eksik ürünü ve askıdaki hesabı engeller', () {
+      expect(
+        canPublishProduct(userSuspended: false, fieldsComplete: false),
         isFalse,
+        reason: 'Eksik ürün yayınlanamaz.',
       );
       expect(
-        canPublishProduct(
-          canMatchJobs: true,
-          photoOk: true,
-          artisanExists: true,
-          artisanModerationHidden: false,
-          userSuspended: false,
-          fieldsComplete: true,
-        ),
-        isTrue,
+        canPublishProduct(userSuspended: true, fieldsComplete: true),
+        isFalse,
+        reason: 'Askıya alınmış hesap yayın yapamaz.',
       );
     });
   });

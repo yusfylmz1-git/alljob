@@ -147,20 +147,21 @@ bool contentWritableForStatus(ProductStatus status) =>
     status == ProductStatus.draft;
 
 /// Yayın eligibility (ShopCompletion ile karıştırma).
+/// Ürün yayınlanabilir mi?
+///
+/// ⚠️ 2026-08-10 — "HERKES SATABİLİR" (kullanıcı kararı, Mağaza modülü).
+/// Eskiden kapı `canMatchJobs` (meslek + hizmet bölgesi seçili mi) ve
+/// `photoOk` istiyordu; ikisi de USTA vitrini kavramıydı. Usta olmayan biri
+/// meslek seçmediği için ürün yayınlayamıyordu — bu, karara aykırı.
+///
+/// Kalan şartlar içeriğin kendisine ve hesabın durumuna bakar:
+/// askıya alınmış kullanıcı yayın yapamaz, eksik ürün yayınlanamaz.
+/// Bkz. `vault/06-Test/PLAN-Magaza.md` §Aşama 2.
 bool canPublishProduct({
-  required bool canMatchJobs,
-  required bool photoOk,
-  required bool artisanExists,
-  required bool artisanModerationHidden,
   required bool userSuspended,
   required bool fieldsComplete,
 }) =>
-    canMatchJobs &&
-    photoOk &&
-    artisanExists &&
-    !artisanModerationHidden &&
-    !userSuspended &&
-    fieldsComplete;
+    !userSuspended && fieldsComplete;
 
 bool productFieldsComplete({
   required String title,
