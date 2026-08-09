@@ -10,8 +10,6 @@ import 'package:sepette_hizmet/data/models/review.dart'
 import 'package:sepette_hizmet/features/favorites/data/mock_favorite_repository.dart';
 import 'package:sepette_hizmet/features/chat/data/chat_repository.dart'
     show MockChatRepository;
-import 'package:sepette_hizmet/features/jobs/application/select_artisan.dart'
-    show canSelectArtisanFor;
 import 'package:sepette_hizmet/features/jobs/data/mock_job_repository.dart';
 import 'package:sepette_hizmet/features/jobs/data/mock_offer_repository.dart';
 import 'package:sepette_hizmet/features/jobs/presentation/job_explore_filter.dart';
@@ -893,18 +891,21 @@ void main() {
       expect(locked.canSend('art_1'), isFalse);
     });
 
-    test('canSelectArtisanFor: yalnız açık ve süresi dolmamış ilan', () async {
+    test('effectiveStatus: süresi dolmuş ilan `open` alanına rağmen expired',
+        () async {
       final db = MockDatabase();
       final jobs = MockJobRepository(db);
 
       final openId = await jobs.createJob(_sampleJob());
-      expect(canSelectArtisanFor((await jobs.getJob(openId))!), isTrue);
+      expect((await jobs.getJob(openId))!.effectiveStatus, JobStatus.open);
 
-      // Süresi dolmuş ilan: status alanı hâlâ `open` ama kural geçişi reddeder.
+      // Süresi dolmuş ilan: status alanı hâlâ `open` ama süre kapısı eler.
+      // Usta seçim akışı kalktıktan sonra da bu kapı duruyor — ilan feed'de
+      // görünmemeli ve mesaj kabul etmemeli.
       final staleId = await jobs.createJob(_sampleJob(
         createdAt: DateTime.now().subtract(const Duration(days: 30)),
       ));
-      expect(canSelectArtisanFor((await jobs.getJob(staleId))!), isFalse);
+      expect((await jobs.getJob(staleId))!.effectiveStatus, JobStatus.expired);
     });
 
     test('customerStarted bayrağı korunur (yazma iznini artık ETKİLEMEZ)',

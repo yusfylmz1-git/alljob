@@ -25,6 +25,20 @@ void main() {
     });
   });
 
+  group('Eski akışın kodu tamamen kalktı', () {
+    // Bu dosyalar UI'dan kopmuştu ama ölü kod olarak duruyordu (oturum 83).
+    // Geri gelirlerse sadeleştirme sessizce geri alınmış demektir.
+    test('usta seçimi yardımcısı YOK', () {
+      expect(File('lib/features/jobs/application/select_artisan.dart')
+          .existsSync(), isFalse);
+    });
+
+    test('tamamlama onayı widget\'ları YOK', () {
+      expect(File('lib/features/jobs/presentation/job_completion.dart')
+          .existsSync(), isFalse);
+    });
+  });
+
   group('İlan detayı sadeleşti', () {
     late String jd;
     setUpAll(() => jd =
