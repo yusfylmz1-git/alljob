@@ -26,7 +26,6 @@ import '../../features/home/presentation/home_screen.dart';
 import '../../features/jobs/presentation/create_job_screen.dart';
 import '../../features/jobs/presentation/job_detail_screen.dart';
 import '../../features/jobs/presentation/my_jobs_screen.dart';
-import '../../features/jobs/presentation/my_offers_screen.dart';
 import '../../features/jobs/presentation/nearby_jobs_screen.dart';
 import '../../features/jobs/presentation/quick_support_jobs_screen.dart';
 import '../../features/favorites/presentation/favorites_screen.dart';
@@ -254,10 +253,6 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: 'jobs',
             builder: (_, _) => const NearbyJobsScreen(),
-          ),
-          GoRoute(
-            path: 'offers',
-            builder: (_, _) => const MyOffersScreen(),
           ),
           GoRoute(
             path: 'premium',

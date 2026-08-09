@@ -10,14 +10,12 @@ import 'package:sepette_hizmet/features/favorites/data/favorite_providers.dart';
 import 'package:sepette_hizmet/features/favorites/data/mock_favorite_repository.dart';
 import 'package:sepette_hizmet/features/jobs/data/job_providers.dart';
 import 'package:sepette_hizmet/features/jobs/data/mock_job_repository.dart';
-import 'package:sepette_hizmet/features/jobs/data/mock_offer_repository.dart';
 import 'package:sepette_hizmet/features/safety/data/block_repository.dart';
 import 'package:sepette_hizmet/features/safety/data/report_repository.dart';
 import 'package:sepette_hizmet/features/safety/data/safety_providers.dart';
 import 'package:sepette_hizmet/features/storage/storage_repository.dart';
 import 'package:sepette_hizmet/features/admin/data/admin_artisan_repository.dart';
 import 'package:sepette_hizmet/features/admin/data/admin_audit_repository.dart';
-import 'package:sepette_hizmet/features/admin/data/admin_dispute_repository.dart';
 import 'package:sepette_hizmet/features/admin/data/admin_invite_repository.dart';
 import 'package:sepette_hizmet/features/admin/data/admin_job_repository.dart';
 import 'package:sepette_hizmet/features/admin/data/admin_providers.dart';
@@ -51,9 +49,6 @@ List<Override> mockBackendOverrides() => [
       jobRepositoryProvider.overrideWith(
         (ref) => MockJobRepository(ref.watch(mockDatabaseProvider)),
       ),
-      offerRepositoryProvider.overrideWith(
-        (ref) => MockOfferRepository(ref.watch(mockDatabaseProvider)),
-      ),
       myProfileRepositoryProvider.overrideWith(
         (ref) => MockMyProfileRepository(ref),
       ),
@@ -70,11 +65,6 @@ List<Override> mockBackendOverrides() => [
       ),
       adminReportRepositoryProvider.overrideWith((ref) {
         final repo = MockAdminReportRepository();
-        ref.onDispose(repo.dispose);
-        return repo;
-      }),
-      adminDisputeRepositoryProvider.overrideWith((ref) {
-        final repo = MockAdminDisputeRepository();
         ref.onDispose(repo.dispose);
         return repo;
       }),

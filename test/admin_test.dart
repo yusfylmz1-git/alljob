@@ -4,7 +4,6 @@ import 'package:sepette_hizmet/data/models/job.dart';
 import 'package:sepette_hizmet/data/models/report.dart';
 import 'package:sepette_hizmet/features/admin/data/admin_audit_repository.dart';
 import 'package:sepette_hizmet/features/admin/data/admin_config.dart';
-import 'package:sepette_hizmet/features/admin/data/admin_dispute_repository.dart';
 import 'package:sepette_hizmet/features/admin/data/admin_report.dart';
 import 'package:sepette_hizmet/features/admin/data/admin_report_repository.dart';
 import 'package:sepette_hizmet/features/admin/data/admin_artisan_repository.dart';
@@ -32,35 +31,6 @@ Report _r(String id, ReportStatus status, DateTime created) => Report(
     );
 
 /// `disputed` durumunda bir iş (hakemlik kuyruğu testleri için).
-Job _dispute(
-  String id, {
-  required JobStatus before,
-  required DateTime disputedAt,
-}) =>
-    Job(
-      jobId: id,
-      customerId: 'cust_$id',
-      customerName: 'Müşteri $id',
-      title: 'İş $id',
-      description: 'açıklama',
-      category: 'plumber',
-      province: 'İstanbul',
-      district: 'Kadıköy',
-      photos: const [],
-      priceType: JobPriceType.inspection,
-      status: JobStatus.disputed,
-      offerCount: 1,
-      customerConfirmedDone: false,
-      artisanConfirmedDone: false,
-      createdAt: disputedAt.subtract(const Duration(days: 1)),
-      expiresAt: disputedAt.add(const Duration(days: 3)),
-      selectedArtisanId: 'art_$id',
-      disputedBy: JobDisputeParty.customer,
-      disputeReason: JobDisputeReason.qualityIssue,
-      disputeNote: 'not $id',
-      disputedAt: disputedAt,
-      statusBeforeDispute: before,
-    );
 
 void main() {
   group('Report modeli', () {
@@ -269,75 +239,6 @@ void main() {
     });
   });
 
-  group('MockAdminDisputeRepository (hakemlik)', () {
-    test('watchDisputes yalnız disputed işleri en yeni bildirilen üstte verir',
-        () async {
-      final repo = MockAdminDisputeRepository([
-        _dispute('a',
-            before: JobStatus.inProgress, disputedAt: DateTime(2026, 1, 1)),
-        _dispute('b',
-            before: JobStatus.completed, disputedAt: DateTime(2026, 1, 3)),
-        _dispute('c',
-            before: JobStatus.workerSelected,
-            disputedAt: DateTime(2026, 1, 2)),
-      ]);
-      addTearDown(repo.dispose);
-
-      final list = await repo.watchDisputes().first;
-      expect(list.map((e) => e.jobId), ['b', 'c', 'a']); // disputedAt desc
-      expect(list.every((e) => e.status == JobStatus.disputed), isTrue);
-    });
-
-    test('cancel kararı işi iptal eder + anlaşmazlığı temizler; kuyruktan düşer',
-        () async {
-      final repo = MockAdminDisputeRepository([
-        _dispute('a',
-            before: JobStatus.inProgress, disputedAt: DateTime(2026, 1, 1)),
-      ]);
-      addTearDown(repo.dispose);
-
-      await repo.resolveDispute('a',
-          decision: DisputeDecision.cancelJob, note: 'haklı');
-
-      final list = await repo.watchDisputes().first;
-      expect(list, isEmpty); // artık disputed değil → kuyruktan düşer
-    });
-
-    test('fetchPage disputed işleri createdAt cursor ile sayfalar', () async {
-      // createdAt = disputedAt - 1 gün (helper böyle kuruyor) → createdAt sırası.
-      final repo = MockAdminDisputeRepository([
-        _dispute('a',
-            before: JobStatus.inProgress, disputedAt: DateTime(2026, 1, 2)),
-        _dispute('b',
-            before: JobStatus.completed, disputedAt: DateTime(2026, 1, 5)),
-        _dispute('c',
-            before: JobStatus.workerSelected,
-            disputedAt: DateTime(2026, 1, 4)),
-      ]);
-      addTearDown(repo.dispose);
-
-      final p1 = await repo.fetchPage(limit: 2);
-      expect(p1.map((e) => e.jobId), ['b', 'c']); // createdAt desc
-      final p2 = await repo.fetchPage(
-          beforeCursor: p1.last.createdAt.toIso8601String(), limit: 2);
-      expect(p2.map((e) => e.jobId), ['a']);
-    });
-
-    test('restore kararı işi sorun öncesi durumuna döndürür + temizler',
-        () async {
-      final repo = MockAdminDisputeRepository([
-        _dispute('a',
-            before: JobStatus.completed, disputedAt: DateTime(2026, 1, 1)),
-      ]);
-      addTearDown(repo.dispose);
-
-      await repo.resolveDispute('a', decision: DisputeDecision.restoreJob);
-
-      // Kuyruktan düştü; iç durum completed'a döndü, dispute alanları temizlendi.
-      final list = await repo.watchDisputes().first;
-      expect(list, isEmpty);
-    });
-  });
 
   group('MockAdminUserRepository (kullanıcı yönetimi)', () {
     AppUser u(String uid, String email, {bool suspended = false}) => AppUser(
@@ -585,9 +486,6 @@ void main() {
             photos: const [],
             priceType: JobPriceType.inspection,
             status: s,
-            offerCount: 0,
-            customerConfirmedDone: false,
-            artisanConfirmedDone: false,
             createdAt: t,
             expiresAt: t.add(const Duration(days: 3)),
           );
@@ -595,7 +493,7 @@ void main() {
       final repo = MockAdminJobRepository([
         job('1', JobStatus.open, base),
         job('2', JobStatus.open, base.add(const Duration(hours: 1))),
-        job('3', JobStatus.completed, base.add(const Duration(hours: 2))),
+        job('3', JobStatus.cancelled, base.add(const Duration(hours: 2))),
       ]);
       final open = await repo.fetchPage(status: JobStatus.open, limit: 1);
       expect(open.map((j) => j.jobId), ['2']);

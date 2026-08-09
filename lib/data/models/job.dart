@@ -89,131 +89,45 @@ enum JobDuration {
       );
 }
 
-/// İlan yaşam döngüsü (#4): Open → (Teklif geldi) → Worker Selected →
-/// In Progress → Completed → Rated. Ayrıca iptal, süre dolumu ve anlaşmazlık.
+/// İlan yaşam döngüsü. **Üç durum** — ilan bir duyurudur, iş takip aracı
+/// değil.
+///
+/// `open` doğar → süresi dolunca `expired`, sahibi kaldırırsa `cancelled`.
+///
+/// Eskiden 8 durum vardı (`workerSelected`, `inProgress`, `completed`,
+/// `rated`, `disputed`): usta seçimi → tamamlama onayı → puanlama zinciri.
+/// O akış 2026-08-08'de kaldırıldı — usta ilan sahibine doğrudan mesaj atar,
+/// anlaşma taraflar arasındadır. Silinen değerler hiç üretilmiyordu.
+/// → `vault/02-Ozellikler/Is-Akisi-Durum-Makinesi.md`
 enum JobStatus {
-  open, // teklif topluyor
-  workerSelected, // usta seçildi, sohbet açıldı, iş henüz başlamadı
-  inProgress, // iş sürüyor
-  completed, // iki taraf da onayladı
-  rated, // müşteri puanladı
-  disputed, // taraflardan biri sorun bildirdi (yaşam döngüsü donar)
-  cancelled, // müşteri iptal etti
+  open, // yayında, mesaj alabilir
+  cancelled, // sahibi kaldırdı
   expired; // süresi doldu
 
   String get apiValue => name;
 
+  /// Tanınmayan değer `open` sayılır. Eski kayıtlardaki `workerSelected` gibi
+  /// değerler de buraya düşer: ilan görünür kalır, veri kaybı olmaz.
   static JobStatus fromString(String? v) => JobStatus.values.firstWhere(
         (e) => e.name == v,
         orElse: () => JobStatus.open,
       );
 
-  /// Ustaların feed'inde görünmeye ve teklif almaya açık mı?
+  /// Ustaların feed'inde görünüyor ve mesaj alabiliyor mu?
   bool get isActiveForOffers => this == JobStatus.open;
 
-  /// İş bir ustaya bağlanmış (seçim yapılmış) durumlardan biri mi?
-  bool get isAssigned =>
-      this == JobStatus.workerSelected ||
-      this == JobStatus.inProgress ||
-      this == JobStatus.completed ||
-      this == JobStatus.rated ||
-      this == JobStatus.disputed;
-
-  /// Bu durumda taraflardan biri sorun bildirebilir mi? (rated/cancelled
-  /// sonrası bildirilemez; open'da henüz karşı taraf yok.)
-  bool get canDispute =>
-      this == JobStatus.workerSelected ||
-      this == JobStatus.inProgress ||
-      this == JobStatus.completed;
-
-  /// Teknik / admin / debug için ayrıntılı etiket (backend adımları).
+  /// Teknik / admin / debug için ayrıntılı etiket.
   String get labelTR => switch (this) {
         JobStatus.open => 'Açık',
-        JobStatus.workerSelected => 'Usta Seçildi',
-        JobStatus.inProgress => 'İş Sürüyor',
-        JobStatus.completed => 'Tamamlandı',
-        JobStatus.rated => 'Değerlendirildi',
-        JobStatus.disputed => 'Sorun Bildirildi',
         JobStatus.cancelled => 'İptal Edildi',
         JobStatus.expired => 'Süresi Doldu',
       };
 
-  /// Kullanıcıya sade dil: 3 ana evre + istisnalar.
-  /// Backend enum değişmez; yalnız UI metni birleşir.
-  ///
-  /// 1. Teklif toplanıyor (`open`)
-  /// 2. İş yürüyor (`workerSelected` + `inProgress`)
-  /// 3. Kapandı (`completed` / `rated`)
-  /// + Sorun / İptal / Süre doldu
+  /// Kullanıcıya görünen sade dil.
   String get simpleLabelTR => switch (this) {
-        JobStatus.open => 'Teklif toplanıyor',
-        JobStatus.workerSelected || JobStatus.inProgress => 'İş yürüyor',
-        JobStatus.completed => 'Tamamlandı',
-        JobStatus.rated => 'Tamamlandı · değerlendirildi',
-        JobStatus.disputed => 'Sorun — beklemede',
-        JobStatus.cancelled => 'İptal edildi',
+        JobStatus.open => 'Yayında',
+        JobStatus.cancelled => 'Kaldırıldı',
         JobStatus.expired => 'Süresi doldu',
-      };
-
-  /// Sade stepper indeksi: 0 teklif · 1 yürüyor · 2 kapandı.
-  /// `null` = stepper yok (sorun / iptal / süre).
-  int? get simpleStepIndex => switch (this) {
-        JobStatus.open => 0,
-        JobStatus.workerSelected || JobStatus.inProgress => 1,
-        JobStatus.completed || JobStatus.rated => 2,
-        JobStatus.disputed ||
-        JobStatus.cancelled ||
-        JobStatus.expired =>
-          null,
-      };
-
-  /// İş fiilen yürüyor mu? (usta seçili veya başladı)
-  bool get isInWork =>
-      this == JobStatus.workerSelected || this == JobStatus.inProgress;
-
-  /// İş kapanmış sayılır mı? (başarılı tamamlanma)
-  bool get isClosedHappy =>
-      this == JobStatus.completed || this == JobStatus.rated;
-}
-
-/// Sorunu bildiren taraf.
-enum JobDisputeParty {
-  customer,
-  artisan;
-
-  String get apiValue => name;
-
-  static JobDisputeParty? fromString(String? v) {
-    for (final e in JobDisputeParty.values) {
-      if (e.name == v) return e;
-    }
-    return null;
-  }
-}
-
-/// Sorun bildirme nedeni (iki taraf için de anlamlı genel başlıklar).
-enum JobDisputeReason {
-  notCompleted,
-  qualityIssue,
-  paymentIssue,
-  communicationIssue,
-  other;
-
-  String get apiValue => name;
-
-  static JobDisputeReason? fromString(String? v) {
-    for (final e in JobDisputeReason.values) {
-      if (e.name == v) return e;
-    }
-    return null;
-  }
-
-  String get labelTR => switch (this) {
-        JobDisputeReason.notCompleted => 'İş yapılmadı / yarım bırakıldı',
-        JobDisputeReason.qualityIssue => 'İş kötü veya özensiz yapıldı',
-        JobDisputeReason.paymentIssue => 'Ücret / ödeme anlaşmazlığı',
-        JobDisputeReason.communicationIssue => 'Ulaşılamıyor / iletişim sorunu',
-        JobDisputeReason.other => 'Diğer',
       };
 }
 
@@ -259,24 +173,12 @@ class Job {
     required this.photos,
     required this.priceType,
     required this.status,
-    required this.offerCount,
-    required this.customerConfirmedDone,
-    required this.artisanConfirmedDone,
     required this.createdAt,
     required this.expiresAt,
     this.customerPhotoUrl,
     this.neighborhood,
     this.budget,
-    this.selectedOfferId,
-    this.selectedArtisanId,
-    this.chatId,
     this.cancelReason,
-    this.autoCompleteAt,
-    this.disputedBy,
-    this.disputeReason,
-    this.disputeNote,
-    this.disputedAt,
-    this.statusBeforeDispute,
     this.moderationHidden = false,
   });
 
@@ -299,32 +201,8 @@ class Job {
   final double? budget; // müşteri fiyat beklentisi (opsiyonel, #8)
 
   final JobStatus status;
-  final int offerCount; // denormalize sayaç (#3)
-
-  final String? selectedOfferId;
-  final String? selectedArtisanId;
-  final String? chatId; // seçim yapılınca üretilir (#6)
-
-  // İki taraflı tamamlama (#10).
-  final bool customerConfirmedDone;
-  final bool artisanConfirmedDone;
 
   final JobCancelReason? cancelReason; // (#11)
-
-  /// Tek taraf "işi tamamladım" dediğinde CF (`onJobWritten`) tarafından
-  /// yazılan son tarih: karşı taraf bu tarihe kadar yanıt vermezse zamanlanmış
-  /// CF (`autoCompleteJobs`) işi otomatik `completed` yapar. İstemci YAZMAZ
-  /// (toMap'e girmez), yalnızca gösterir.
-  final DateTime? autoCompleteAt;
-
-  // Anlaşmazlık (şikayet) alanları: yalnızca `reportDispute`/`withdrawDispute`
-  // repo metodları yazar (toMap'e girmez — ilan oluştururken set edilemez).
-  // `statusBeforeDispute` şikayet geri çekilince dönülecek durumu saklar.
-  final JobDisputeParty? disputedBy;
-  final JobDisputeReason? disputeReason;
-  final String? disputeNote;
-  final DateTime? disputedAt;
-  final JobStatus? statusBeforeDispute;
 
   final DateTime createdAt;
   final DateTime expiresAt;
@@ -346,15 +224,10 @@ class Job {
 
   bool get canEditNow => canEditAt(DateTime.now());
 
-  /// İlan silinebilir mi? Bir ustaya bağlanmamış (open/expired/cancelled)
-  /// ilanlar silinebilir; aktif/tamamlanmış işler kayıt olarak kalır.
-  ///
-  /// `selectedArtisanId` kontrolü ŞART: iptal edilen ilanda durum `cancelled`
-  /// olduğu için `isAssigned` false döner, ama usta ataması hâlâ duruyorsa iş
-  /// gerçekten yaşanmıştır — silinirse ustanın kaydı (ve anlaşmazlık kanıtı)
-  /// kaybolur.
-  bool get canDelete =>
-      !status.isAssigned && (selectedArtisanId ?? '').isEmpty;
+  /// İlan silinebilir mi? İlan artık bir duyuru olduğundan (usta ataması,
+  /// tamamlama zinciri yok) sahibi her zaman kaldırabilir. Sohbetler ilandan
+  /// bağımsız yaşar — silme mesaj geçmişini götürmez.
+  bool get canDelete => true;
 
   /// Açık ilan süresi dolmuş mu? (okuma anında `expired` gibi gösterilir).
   bool isExpiredAt(DateTime now) =>
@@ -379,21 +252,8 @@ class Job {
     JobPriceType? priceType,
     double? budget,
     JobStatus? status,
-    int? offerCount,
-    String? selectedOfferId,
-    String? selectedArtisanId,
-    String? chatId,
-    bool? customerConfirmedDone,
-    bool? artisanConfirmedDone,
     JobCancelReason? cancelReason,
     DateTime? expiresAt,
-    DateTime? autoCompleteAt,
-    JobDisputeParty? disputedBy,
-    JobDisputeReason? disputeReason,
-    String? disputeNote,
-    DateTime? disputedAt,
-    JobStatus? statusBeforeDispute,
-    bool clearDispute = false, // withdraw: null=koru kalıbı silmeye yetmez
   }) {
     return Job(
       jobId: jobId,
@@ -410,23 +270,7 @@ class Job {
       priceType: priceType ?? this.priceType,
       budget: budget ?? this.budget,
       status: status ?? this.status,
-      offerCount: offerCount ?? this.offerCount,
-      selectedOfferId: selectedOfferId ?? this.selectedOfferId,
-      selectedArtisanId: selectedArtisanId ?? this.selectedArtisanId,
-      chatId: chatId ?? this.chatId,
-      customerConfirmedDone:
-          customerConfirmedDone ?? this.customerConfirmedDone,
-      artisanConfirmedDone: artisanConfirmedDone ?? this.artisanConfirmedDone,
       cancelReason: cancelReason ?? this.cancelReason,
-      autoCompleteAt: autoCompleteAt ?? this.autoCompleteAt,
-      disputedBy: clearDispute ? null : (disputedBy ?? this.disputedBy),
-      disputeReason:
-          clearDispute ? null : (disputeReason ?? this.disputeReason),
-      disputeNote: clearDispute ? null : (disputeNote ?? this.disputeNote),
-      disputedAt: clearDispute ? null : (disputedAt ?? this.disputedAt),
-      statusBeforeDispute: clearDispute
-          ? null
-          : (statusBeforeDispute ?? this.statusBeforeDispute),
       createdAt: createdAt,
       expiresAt: expiresAt ?? this.expiresAt,
       moderationHidden: moderationHidden,
@@ -447,12 +291,6 @@ class Job {
         'priceType': priceType.apiValue,
         'budget': budget,
         'status': status.apiValue,
-        'offerCount': offerCount,
-        'selectedOfferId': selectedOfferId,
-        'selectedArtisanId': selectedArtisanId,
-        'chatId': chatId,
-        'customerConfirmedDone': customerConfirmedDone,
-        'artisanConfirmedDone': artisanConfirmedDone,
         'cancelReason': cancelReason?.apiValue,
         'createdAt': createdAt.toIso8601String(),
         'expiresAt': expiresAt.toIso8601String(),
@@ -477,27 +315,11 @@ class Job {
       photos: ((map['photos'] as List?) ?? []).map((e) => e.toString()).toList(),
       priceType: JobPriceType.fromString(map['priceType'] as String?),
       budget: (map['budget'] as num?)?.toDouble(),
+      // Eski kayıtlardaki iş akışı alanları (offerCount, selectedArtisanId,
+      // dispute*, *ConfirmedDone…) bilerek OKUNMUYOR — akış kalktı, alanlar
+      // anlamsız. Firestore'da durabilirler, modele girmezler.
       status: JobStatus.fromString(map['status'] as String?),
-      offerCount: (map['offerCount'] as num?)?.toInt() ?? 0,
-      selectedOfferId: map['selectedOfferId'] as String?,
-      selectedArtisanId: map['selectedArtisanId'] as String?,
-      chatId: map['chatId'] as String?,
-      customerConfirmedDone: (map['customerConfirmedDone'] as bool?) ?? false,
-      artisanConfirmedDone: (map['artisanConfirmedDone'] as bool?) ?? false,
       cancelReason: JobCancelReason.fromString(map['cancelReason'] as String?),
-      autoCompleteAt: map['autoCompleteAt'] != null
-          ? DateTime.tryParse(map['autoCompleteAt'].toString())
-          : null,
-      disputedBy: JobDisputeParty.fromString(map['disputedBy'] as String?),
-      disputeReason:
-          JobDisputeReason.fromString(map['disputeReason'] as String?),
-      disputeNote: map['disputeNote'] as String?,
-      disputedAt: map['disputedAt'] != null
-          ? DateTime.tryParse(map['disputedAt'].toString())
-          : null,
-      statusBeforeDispute: map['statusBeforeDispute'] != null
-          ? JobStatus.fromString(map['statusBeforeDispute'] as String?)
-          : null,
       createdAt: DateTime.tryParse(map['createdAt']?.toString() ?? '') ??
           DateTime.now(),
       expiresAt: DateTime.tryParse(map['expiresAt']?.toString() ?? '') ??

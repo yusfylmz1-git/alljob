@@ -6,7 +6,6 @@ import '../models/availability.dart';
 import '../models/favorite.dart';
 import '../models/geo_models.dart';
 import '../models/job.dart';
-import '../models/offer.dart';
 import '../models/review.dart';
 
 /// Meslek/kategori kodu → Türkçe ad. professions.json ile senkron tut.
@@ -178,10 +177,9 @@ class MockDatabase {
 
   // Çift taraflı pazaryeri koleksiyonları (bellek içi).
   final Map<String, Job> jobs = {};
-  final Map<String, Offer> offers = {};
   final Map<String, Favorite> favorites = {};
 
-  /// jobs/offers/favorites değiştiğinde tetiklenir → mock repo'lar akışlarını
+  /// jobs/favorites değiştiğinde tetiklenir → mock repo'lar akışlarını
   /// yeniden yayar (Firestore snapshot dinleyicisinin bellek içi taklidi).
   final StreamController<void> _tick = StreamController<void>.broadcast();
   Stream<void> get changes => _tick.stream;
@@ -260,18 +258,6 @@ class MockDatabase {
   }
 
   /// İş `completed` olduğunda usta sayacını artırır (CF `onJobWritten` paritesi).
-  void incrementCompletedJobs(String artisanUid) {
-    final rec = artisans[artisanUid];
-    if (rec == null) return;
-    final p = rec.profile;
-    rec.profile = p.copyWithRating(
-      averageRating: p.averageRating,
-      totalReviews: p.totalReviews,
-      totalRatingSum: p.totalRatingSum,
-      completedJobs: p.completedJobs + 1,
-    );
-  }
-
   /// Ustanın kendi profilini kaydeder/günceller (upsert). Puanlama alanları
   /// profilde korunur; displayName/foto users tarafından gelir.
   void upsertArtisan({
@@ -465,7 +451,6 @@ class MockDatabase {
         duration: JobDuration.day3,
         priceType: JobPriceType.fixed,
         budget: 5000,
-        offerCount: 0,
       ),
       _seedJob(
         id: 'job_seed_2',
@@ -480,7 +465,6 @@ class MockDatabase {
         duration: JobDuration.day1,
         priceType: JobPriceType.inspection,
         budget: null,
-        offerCount: 0,
       ),
       _seedJob(
         id: 'job_seed_3',
@@ -494,7 +478,6 @@ class MockDatabase {
         duration: JobDuration.day7,
         priceType: JobPriceType.fixed,
         budget: 1200,
-        offerCount: 0,
       ),
     ];
     for (final j in samples) {
@@ -517,7 +500,6 @@ class MockDatabase {
     required JobDuration duration,
     required JobPriceType priceType,
     required double? budget,
-    required int offerCount,
   }) {
     final createdAt = DateTime.now().subtract(createdAgo);
     return Job(
@@ -534,9 +516,6 @@ class MockDatabase {
       priceType: priceType,
       budget: budget,
       status: JobStatus.open,
-      offerCount: offerCount,
-      customerConfirmedDone: false,
-      artisanConfirmedDone: false,
       createdAt: createdAt,
       expiresAt: createdAt.add(duration.duration),
     );

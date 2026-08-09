@@ -4,14 +4,12 @@ import 'package:sepette_hizmet/data/models/chat.dart' show ChatLockReason;
 import 'package:sepette_hizmet/data/models/favorite.dart';
 import 'package:sepette_hizmet/data/models/geo_models.dart';
 import 'package:sepette_hizmet/data/models/job.dart';
-import 'package:sepette_hizmet/data/models/offer.dart';
 import 'package:sepette_hizmet/data/models/review.dart'
     show Review, ReviewDirection;
 import 'package:sepette_hizmet/features/favorites/data/mock_favorite_repository.dart';
 import 'package:sepette_hizmet/features/chat/data/chat_repository.dart'
     show MockChatRepository;
 import 'package:sepette_hizmet/features/jobs/data/mock_job_repository.dart';
-import 'package:sepette_hizmet/features/jobs/data/mock_offer_repository.dart';
 import 'package:sepette_hizmet/features/jobs/presentation/job_explore_filter.dart';
 
 Job _sampleJob({
@@ -37,56 +35,36 @@ Job _sampleJob({
     priceType: JobPriceType.fixed,
     budget: 5000,
     status: JobStatus.open,
-    offerCount: 0,
-    customerConfirmedDone: false,
-    artisanConfirmedDone: false,
     createdAt: now,
     expiresAt: now.add(duration.duration),
   );
 }
 
-Offer _sampleOffer({
-  required String jobId,
-  required String artisanId,
-  String customerId = 'cust_1',
-  double? price = 4500,
-  JobPriceType priceType = JobPriceType.fixed,
-}) {
-  final now = DateTime.now();
-  return Offer(
-    offerId: Offer.idFor(jobId, artisanId),
-    jobId: jobId,
-    artisanId: artisanId,
-    customerId: customerId,
-    artisanName: 'Usta $artisanId',
-    professionNameTR: 'Boyacı Ustası',
-    experienceYears: 5,
-    rating: 4.7,
-    totalReviews: 12,
-    isVerified: true,
-    isPremium: false,
-    priceType: priceType,
-    price: price,
-    note: 'Malzeme dahildir.',
-    status: OfferStatus.pending,
-    createdAt: now,
-    updatedAt: now,
-  );
-}
-
 void main() {
   group('Model serileştirme (roundtrip)', () {
-    test('simpleLabelTR 3 evre dilini birleştirir', () {
-      expect(JobStatus.open.simpleLabelTR, 'Teklif toplanıyor');
-      expect(JobStatus.workerSelected.simpleLabelTR, 'İş yürüyor');
-      expect(JobStatus.inProgress.simpleLabelTR, 'İş yürüyor');
-      expect(JobStatus.completed.simpleLabelTR, 'Tamamlandı');
-      expect(JobStatus.rated.simpleLabelTR, 'Tamamlandı · değerlendirildi');
-      expect(JobStatus.disputed.simpleLabelTR, 'Sorun — beklemede');
-      expect(JobStatus.open.simpleStepIndex, 0);
-      expect(JobStatus.inProgress.simpleStepIndex, 1);
-      expect(JobStatus.rated.simpleStepIndex, 2);
-      expect(JobStatus.disputed.simpleStepIndex, isNull);
+    test('durum ÜÇ değerdir; ilan bir duyurudur, iş takip aracı değil', () {
+      // İş akışı (usta seçimi → tamamlama → puanlama) 2026-08-08'de kalktı.
+      // Enum yeniden büyürse sadeleştirme sessizce geri alınmış demektir.
+      expect(JobStatus.values, [
+        JobStatus.open,
+        JobStatus.cancelled,
+        JobStatus.expired,
+      ]);
+      expect(JobStatus.open.simpleLabelTR, 'Yayında');
+      expect(JobStatus.cancelled.simpleLabelTR, 'Kaldırıldı');
+      expect(JobStatus.expired.simpleLabelTR, 'Süresi doldu');
+    });
+
+    test('eski kayıttaki kaldırılmış durum `open`a düşer (veri kaybı yok)', () {
+      // Canlıda `workerSelected`/`completed` yazan doküman kalmış olabilir;
+      // ilan görünmeye devam etmeli, çökmemeli.
+      expect(JobStatus.fromString('workerSelected'), JobStatus.open);
+      expect(JobStatus.fromString('completed'), JobStatus.open);
+      expect(JobStatus.fromString('disputed'), JobStatus.open);
+      expect(JobStatus.fromString(null), JobStatus.open);
+      // Yaşayan değerler kendine çözülür.
+      expect(JobStatus.fromString('cancelled'), JobStatus.cancelled);
+      expect(JobStatus.fromString('expired'), JobStatus.expired);
     });
 
     test('Job toMap/fromMap tüm alanları korur', () {
@@ -100,20 +78,6 @@ void main() {
       expect(restored.priceType, JobPriceType.fixed);
       expect(restored.budget, 5000);
       expect(restored.status, JobStatus.open);
-    });
-
-    test('Offer toMap/fromMap ve Keşif Gerekli fiyat tipi', () {
-      final offer = _sampleOffer(
-        jobId: 'job_x',
-        artisanId: 'art_1',
-        priceType: JobPriceType.inspection,
-        price: null,
-      );
-      final restored = Offer.fromMap(offer.offerId, offer.toMap());
-      expect(restored.priceType, JobPriceType.inspection);
-      expect(restored.price, isNull);
-      expect(restored.artisanId, 'art_1');
-      expect(restored.rating, 4.7);
     });
 
     test('Favorite toMap/fromMap', () {
@@ -131,116 +95,6 @@ void main() {
       expect(restored.artisanUid, 'a1');
       expect(restored.rating, 4.9);
       expect(fav.id, 'c1__a1');
-    });
-  });
-
-  group('Teklif tekilliği ve offerCount (#1, #3)', () {
-    test('aynı usta aynı ilana 2. kez teklif verince tek teklif + sayaç 1', () async {
-      final db = MockDatabase();
-      final jobs = MockJobRepository(db);
-      final offers = MockOfferRepository(db);
-
-      final jobId = await jobs.createJob(_sampleJob());
-      await offers.submitOffer(_sampleOffer(jobId: jobId, artisanId: 'art_1'));
-      await offers.submitOffer(_sampleOffer(
-          jobId: jobId, artisanId: 'art_1', price: 4200)); // güncelleme
-
-      final forJob = await offers
-          .watchOffersForJob(jobId: jobId, customerId: 'cust_1')
-          .first;
-      expect(forJob.length, 1);
-      expect(forJob.first.price, 4200);
-
-      final job = await jobs.getJob(jobId);
-      expect(job!.offerCount, 1);
-    });
-
-    test('farklı ustalar → sayaç artar; geri çekilince azalır (#7)', () async {
-      final db = MockDatabase();
-      final jobs = MockJobRepository(db);
-      final offers = MockOfferRepository(db);
-
-      final jobId = await jobs.createJob(_sampleJob());
-      await offers.submitOffer(_sampleOffer(jobId: jobId, artisanId: 'art_1'));
-      await offers.submitOffer(_sampleOffer(jobId: jobId, artisanId: 'art_2'));
-      expect((await jobs.getJob(jobId))!.offerCount, 2);
-
-      await offers.withdrawOffer(jobId: jobId, artisanUid: 'art_1');
-      expect((await jobs.getJob(jobId))!.offerCount, 1);
-      final visible = await offers
-          .watchOffersForJob(jobId: jobId, customerId: 'cust_1')
-          .first;
-      expect(visible.length, 1);
-      expect(visible.first.artisanId, 'art_2');
-    });
-
-    test('SMOKE: geri çek → tekrar iletişime geç (re-activate)', () async {
-      // Canlı Firebase'te full set permission-denied üretiyordu; mock da
-      // withdrawn→pending ile yeniden aktifleşmeli.
-      final db = MockDatabase();
-      final jobs = MockJobRepository(db);
-      final offers = MockOfferRepository(db);
-      final jobId = await jobs.createJob(_sampleJob());
-
-      await offers.submitOffer(_sampleOffer(jobId: jobId, artisanId: 'art_1'));
-      expect(await offers.myOfferFor(jobId: jobId, artisanUid: 'art_1'),
-          isNotNull);
-
-      await offers.withdrawOffer(jobId: jobId, artisanUid: 'art_1');
-      expect(await offers.myOfferFor(jobId: jobId, artisanUid: 'art_1'),
-          isNull);
-
-      await offers.submitOffer(_sampleOffer(jobId: jobId, artisanId: 'art_1'));
-      final again =
-          await offers.myOfferFor(jobId: jobId, artisanUid: 'art_1');
-      expect(again, isNotNull);
-      expect(again!.status, OfferStatus.pending);
-      expect((await jobs.getJob(jobId))!.offerCount, 1);
-    });
-  });
-
-  group('SMOKE altın akış (müşteri + usta)', () {
-    test('ilan → 2 ilgi → usta seç → başlat → iki taraf tamamla', () async {
-      final db = MockDatabase();
-      final jobs = MockJobRepository(db);
-      final offers = MockOfferRepository(db);
-
-      final jobId = await jobs.createJob(_sampleJob());
-      await offers.submitOffer(_sampleOffer(jobId: jobId, artisanId: 'art_1'));
-      await offers.submitOffer(_sampleOffer(jobId: jobId, artisanId: 'art_2'));
-
-      await jobs.selectOffer(
-        jobId: jobId,
-        offerId: Offer.idFor(jobId, 'art_1'),
-        artisanId: 'art_1',
-        customerId: 'cust_1',
-        chatId: 'chat_cust_1__art_1',
-      );
-      var job = await jobs.getJob(jobId);
-      expect(job!.status, JobStatus.workerSelected);
-      expect(job.selectedArtisanId, 'art_1');
-      expect(job.chatId, 'chat_cust_1__art_1');
-
-      final afterSelect = await offers
-          .watchOffersForJob(jobId: jobId, customerId: 'cust_1')
-          .first;
-      expect(
-        afterSelect.where((o) => o.status == OfferStatus.accepted).length,
-        1,
-      );
-
-      await jobs.markStarted(jobId);
-      job = await jobs.getJob(jobId);
-      expect(job!.status, JobStatus.inProgress);
-
-      await jobs.confirmDone(jobId: jobId, byCustomer: true);
-      job = await jobs.getJob(jobId);
-      expect(job!.status, JobStatus.inProgress); // tek taraf yetmez
-      await jobs.confirmDone(jobId: jobId, byCustomer: false);
-      job = await jobs.getJob(jobId);
-      expect(job!.status, JobStatus.completed);
-      expect(job.customerConfirmedDone, isTrue);
-      expect(job.artisanConfirmedDone, isTrue);
     });
   });
 
@@ -290,174 +144,6 @@ void main() {
   });
 
   group('Yaşam döngüsü (#4, #6, #10, #11)', () {
-    test('seçim → workerSelected + accepted/rejected + chatId', () async {
-      final db = MockDatabase();
-      final jobs = MockJobRepository(db);
-      final offers = MockOfferRepository(db);
-
-      final jobId = await jobs.createJob(_sampleJob());
-      await offers.submitOffer(_sampleOffer(jobId: jobId, artisanId: 'art_1'));
-      await offers.submitOffer(_sampleOffer(jobId: jobId, artisanId: 'art_2'));
-
-      await jobs.selectOffer(
-        jobId: jobId,
-        offerId: Offer.idFor(jobId, 'art_1'),
-        artisanId: 'art_1',
-        customerId: 'cust_1',
-        chatId: 'chat_abc',
-      );
-
-      final job = await jobs.getJob(jobId);
-      expect(job!.status, JobStatus.workerSelected);
-      expect(job.selectedArtisanId, 'art_1');
-      expect(job.chatId, 'chat_abc');
-
-      final all = db.offers.values.where((o) => o.jobId == jobId).toList();
-      final accepted = all.firstWhere((o) => o.artisanId == 'art_1');
-      final rejected = all.firstWhere((o) => o.artisanId == 'art_2');
-      expect(accepted.status, OfferStatus.accepted);
-      expect(rejected.status, OfferStatus.rejected);
-    });
-
-    test('iki taraflı tamamlama → completed', () async {
-      final db = MockDatabase();
-      final jobs = MockJobRepository(db);
-      final jobId = await jobs.createJob(_sampleJob());
-      await jobs.markStarted(jobId);
-      expect((await jobs.getJob(jobId))!.status, JobStatus.inProgress);
-
-      await jobs.confirmDone(jobId: jobId, byCustomer: false);
-      final oneSided = (await jobs.getJob(jobId))!;
-      expect(oneSided.status, JobStatus.inProgress); // tek taraf
-      // Tek taraflı onay otomatik tamamlama süresini başlatır (CF paritesi).
-      expect(oneSided.autoCompleteAt, isNotNull);
-
-      await jobs.confirmDone(jobId: jobId, byCustomer: true);
-      expect((await jobs.getJob(jobId))!.status, JobStatus.completed);
-
-      await jobs.markRated(jobId);
-      expect((await jobs.getJob(jobId))!.status, JobStatus.rated);
-    });
-
-    test('iş tamamlanınca seçili ustanın completedJobs sayacı artar', () async {
-      final db = MockDatabase();
-      final jobs = MockJobRepository(db);
-      final jobId = await jobs.createJob(_sampleJob());
-      await jobs.selectOffer(
-        jobId: jobId,
-        offerId: Offer.idFor(jobId, 'artisan_0'),
-        artisanId: 'artisan_0', // seed'de var olan usta
-        customerId: 'cust_1',
-        chatId: 'chat_x',
-      );
-      final before = db.artisans['artisan_0']!.profile.completedJobs;
-
-      await jobs.confirmDone(jobId: jobId, byCustomer: true);
-      // Tek taraf: sayaç henüz artmaz.
-      expect(db.artisans['artisan_0']!.profile.completedJobs, before);
-
-      await jobs.confirmDone(jobId: jobId, byCustomer: false);
-      expect((await jobs.getJob(jobId))!.status, JobStatus.completed);
-      expect(db.artisans['artisan_0']!.profile.completedJobs, before + 1);
-
-      // rated'a geçiş sayacı İKİNCİ kez artırmaz.
-      await jobs.markRated(jobId);
-      expect(db.artisans['artisan_0']!.profile.completedJobs, before + 1);
-    });
-
-    test('sorun bildir → disputed; geri çek → önceki duruma dönüş', () async {
-      final db = MockDatabase();
-      final jobs = MockJobRepository(db);
-      final jobId = await jobs.createJob(_sampleJob());
-      await jobs.markStarted(jobId);
-
-      await jobs.reportDispute(
-        jobId: jobId,
-        byCustomer: true,
-        reason: JobDisputeReason.qualityIssue,
-        note: '  Boya akmış.  ',
-      );
-      final disputed = (await jobs.getJob(jobId))!;
-      expect(disputed.status, JobStatus.disputed);
-      expect(disputed.disputedBy, JobDisputeParty.customer);
-      expect(disputed.disputeReason, JobDisputeReason.qualityIssue);
-      expect(disputed.disputeNote, 'Boya akmış.'); // trim'lenir
-      expect(disputed.disputedAt, isNotNull);
-      expect(disputed.statusBeforeDispute, JobStatus.inProgress);
-
-      await jobs.withdrawDispute(jobId);
-      final restored = (await jobs.getJob(jobId))!;
-      expect(restored.status, JobStatus.inProgress);
-      expect(restored.disputedBy, isNull);
-      expect(restored.disputeReason, isNull);
-      expect(restored.disputeNote, isNull);
-      expect(restored.statusBeforeDispute, isNull);
-    });
-
-    test('açık ilanda veya ikinci kez sorun bildirilemez', () async {
-      final db = MockDatabase();
-      final jobs = MockJobRepository(db);
-      final jobId = await jobs.createJob(_sampleJob());
-
-      // open: karşı taraf yok → bildirilemez.
-      expect(
-        () => jobs.reportDispute(
-            jobId: jobId,
-            byCustomer: true,
-            reason: JobDisputeReason.other),
-        throwsStateError,
-      );
-
-      await jobs.markStarted(jobId);
-      await jobs.reportDispute(
-          jobId: jobId,
-          byCustomer: false,
-          reason: JobDisputeReason.paymentIssue);
-      // disputed'dayken tekrar bildirilemez.
-      expect(
-        () => jobs.reportDispute(
-            jobId: jobId,
-            byCustomer: true,
-            reason: JobDisputeReason.other),
-        throwsStateError,
-      );
-      // Şikayet yokken geri çekilemez.
-      await jobs.withdrawDispute(jobId);
-      expect(() => jobs.withdrawDispute(jobId), throwsStateError);
-    });
-
-    test('dispute alanları toMap ile yazılmaz (yalnız repo metodları yazar)',
-        () async {
-      final db = MockDatabase();
-      final jobs = MockJobRepository(db);
-      final jobId = await jobs.createJob(_sampleJob());
-      await jobs.markStarted(jobId);
-      await jobs.reportDispute(
-          jobId: jobId,
-          byCustomer: true,
-          reason: JobDisputeReason.notCompleted);
-
-      final disputed = (await jobs.getJob(jobId))!;
-      final map = disputed.toMap();
-      expect(map.containsKey('disputedBy'), isFalse);
-      expect(map.containsKey('disputeReason'), isFalse);
-      expect(map.containsKey('statusBeforeDispute'), isFalse);
-
-      // fromMap ham Firestore verisinden alanları okuyabilir.
-      final parsed = Job.fromMap('j', {
-        ...map,
-        'status': 'disputed',
-        'disputedBy': 'artisan',
-        'disputeReason': 'paymentIssue',
-        'disputedAt': DateTime.now().toIso8601String(),
-        'statusBeforeDispute': 'completed',
-      });
-      expect(parsed.status, JobStatus.disputed);
-      expect(parsed.disputedBy, JobDisputeParty.artisan);
-      expect(parsed.disputeReason, JobDisputeReason.paymentIssue);
-      expect(parsed.statusBeforeDispute, JobStatus.completed);
-    });
-
     test('müşteri iptali → cancelled + neden', () async {
       final db = MockDatabase();
       final jobs = MockJobRepository(db);
@@ -719,9 +405,9 @@ void main() {
       final fresh = _sampleJob(createdAt: now);
       expect(fresh.canEditAt(now.add(const Duration(minutes: 59))), isTrue);
       expect(fresh.canEditAt(now.add(const Duration(minutes: 61))), isFalse);
-      // Ustaya bağlanmış ilan pencere içinde bile düzenlenemez.
-      final assigned = fresh.copyWith(status: JobStatus.workerSelected);
-      expect(assigned.canEditAt(now.add(const Duration(minutes: 5))), isFalse);
+      // Kapanmış ilan pencere içinde bile düzenlenemez.
+      final closed = fresh.copyWith(status: JobStatus.cancelled);
+      expect(closed.canEditAt(now.add(const Duration(minutes: 5))), isFalse);
     });
 
     test('updateJobContent açık ilanın içeriğini günceller', () async {
@@ -741,7 +427,7 @@ void main() {
       expect(job.status, JobStatus.open); // yaşam döngüsü değişmez
 
       // Açık olmayan ilan düzenlenemez (kural paritesi).
-      db.jobs[id] = job.copyWith(status: JobStatus.workerSelected);
+      db.jobs[id] = job.copyWith(status: JobStatus.cancelled);
       expect(
         () => repo.updateJobContent(
             jobId: id, title: 'x', description: 'y'),
@@ -749,33 +435,6 @@ void main() {
       );
     });
 
-    test('deleteJob: bağlanmamış ilanı ve tekliflerini siler', () async {
-      final db = MockDatabase();
-      final jobs = MockJobRepository(db);
-      final offers = MockOfferRepository(db);
-      final id = await jobs.createJob(_sampleJob());
-      await offers.submitOffer(_sampleOffer(jobId: id, artisanId: 'a1'));
-
-      await jobs.deleteJob(id);
-      expect(db.jobs.containsKey(id), isFalse);
-      // CF paritesi: bağlı teklifler de temizlenir.
-      expect(db.offers.values.where((o) => o.jobId == id), isEmpty);
-    });
-
-    test('deleteJob: ustaya bağlanmış ilan silinemez', () async {
-      final db = MockDatabase();
-      final repo = MockJobRepository(db);
-      final id = await repo.createJob(_sampleJob());
-      db.jobs[id] = db.jobs[id]!.copyWith(status: JobStatus.inProgress);
-
-      expect(() => repo.deleteJob(id), throwsStateError);
-      expect(db.jobs.containsKey(id), isTrue);
-
-      // İptal edilen ilan silinebilir.
-      db.jobs[id] = db.jobs[id]!.copyWith(status: JobStatus.cancelled);
-      await repo.deleteJob(id);
-      expect(db.jobs.containsKey(id), isFalse);
-    });
   });
 
   group('JobExploreFilter (Keşfet İlanlar)', () {
@@ -968,84 +627,6 @@ void main() {
           );
       expect(locked.canSend('art_1'), isFalse);
       expect(locked.canSend('cust_1'), isFalse);
-    });
-  });
-
-  group('Usta seçimi iptali', () {
-    test('iptal → ilan open, seçim alanları temizlenir, teklifler pending',
-        () async {
-      final db = MockDatabase();
-      final jobs = MockJobRepository(db);
-      final offers = MockOfferRepository(db);
-
-      final jobId = await jobs.createJob(_sampleJob());
-      await offers.submitOffer(_sampleOffer(jobId: jobId, artisanId: 'art_1'));
-      await offers.submitOffer(_sampleOffer(jobId: jobId, artisanId: 'art_2'));
-      await jobs.selectOffer(
-        jobId: jobId,
-        offerId: Offer.idFor(jobId, 'art_1'),
-        artisanId: 'art_1',
-        customerId: 'cust_1',
-        chatId: 'chat_cust_1__art_1__$jobId',
-      );
-      expect((await jobs.getJob(jobId))!.status, JobStatus.workerSelected);
-
-      await jobs.cancelSelection(jobId: jobId, customerId: 'cust_1');
-
-      final job = (await jobs.getJob(jobId))!;
-      expect(job.status, JobStatus.open);
-      expect(job.selectedArtisanId, isNull);
-      expect(job.selectedOfferId, isNull);
-      expect(job.chatId, isNull);
-
-      // Reddedilen usta da yeniden aday olur.
-      final visible = await offers
-          .watchOffersForJob(jobId: jobId, customerId: 'cust_1')
-          .first;
-      expect(visible.every((o) => o.status == OfferStatus.pending), isTrue);
-    });
-
-    test('iş başladıysa iptal reddedilir', () async {
-      final db = MockDatabase();
-      final jobs = MockJobRepository(db);
-      final offers = MockOfferRepository(db);
-
-      final jobId = await jobs.createJob(_sampleJob());
-      await offers.submitOffer(_sampleOffer(jobId: jobId, artisanId: 'art_1'));
-      await jobs.selectOffer(
-        jobId: jobId,
-        offerId: Offer.idFor(jobId, 'art_1'),
-        artisanId: 'art_1',
-        customerId: 'cust_1',
-        chatId: 'chat_cust_1__art_1__$jobId',
-      );
-      await jobs.markStarted(jobId);
-
-      expect(
-        () => jobs.cancelSelection(jobId: jobId, customerId: 'cust_1'),
-        throwsStateError,
-      );
-    });
-
-    test('başkasının ilanında iptal reddedilir', () async {
-      final db = MockDatabase();
-      final jobs = MockJobRepository(db);
-      final offers = MockOfferRepository(db);
-
-      final jobId = await jobs.createJob(_sampleJob());
-      await offers.submitOffer(_sampleOffer(jobId: jobId, artisanId: 'art_1'));
-      await jobs.selectOffer(
-        jobId: jobId,
-        offerId: Offer.idFor(jobId, 'art_1'),
-        artisanId: 'art_1',
-        customerId: 'cust_1',
-        chatId: 'chat_cust_1__art_1__$jobId',
-      );
-
-      expect(
-        () => jobs.cancelSelection(jobId: jobId, customerId: 'baskasi'),
-        throwsStateError,
-      );
     });
   });
 

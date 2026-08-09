@@ -19,13 +19,13 @@ import '../../artisan/presentation/widgets/shop_completion_banner.dart';
 import '../../auth/application/auth_controller.dart';
 import '../../membership/membership_access.dart';
 import '../data/job_providers.dart';
-import 'my_offers_screen.dart' show MyOffersBody;
 import 'widgets/job_widgets.dart';
 
-/// Usta "İşler" sekmesi — İKİ SEKME:
-///   1. Yakınımdaki İlanlar: meslek + hizmet bölgesi eşleşen açık ilanlar
-///   2. İlgilendiğim İşler: bildirim gönderdiğim ilanlar (eski konumu profil
-///      menüsüydü; iş akışının parçası olduğu için buraya taşındı)
+/// Usta "İşler" sekmesi: meslek + hizmet bölgesi eşleşen açık ilanlar.
+///
+/// Eskiden ikinci bir "İlgilendiğim" sekmesi vardı (teklif verdiğim ilanlar).
+/// Teklif akışı kalktı — usta ilan sahibine doğrudan mesaj atar, "ilgilendiğim
+/// iş" kaydı diye bir şey yok; takip mesaj kutusundan yürür.
 class NearbyJobsScreen extends ConsumerWidget {
   const NearbyJobsScreen({super.key});
 
@@ -33,29 +33,15 @@ class NearbyJobsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     return MainTabScope(
       tab: MainTab.work,
-      child: DefaultTabController(
-      length: 2,
       child: Scaffold(
         appBar: const SurfaceAppBar(
           title: 'İşler',
           subtitle: 'Yakınındaki açık ilanlar',
           icon: Icons.handyman_outlined,
-          bottom: TabBar(
-            tabs: [
-              Tab(text: 'Yakınımdaki'),
-              Tab(text: 'İlgilendiğim'),
-            ],
-          ),
         ),
         drawer: const AppMenuDrawer(),
         bottomNavigationBar: const MainBottomBar(current: MainTab.work),
-        body: const TabBarView(
-          children: [
-            _NearbyTab(),
-            MyOffersBody(),
-          ],
-        ),
-      ),
+        body: const _NearbyTab(),
       ),
     );
   }

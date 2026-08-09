@@ -15,7 +15,6 @@ import 'admin_audit_screen.dart';
 import 'admin_broadcast_screen.dart';
 import 'admin_chrome.dart';
 import 'admin_dashboard_screen.dart';
-import 'admin_disputes_screen.dart';
 import 'admin_jobs_screen.dart';
 import 'admin_platform_screen.dart';
 import 'admin_reports_screen.dart';
@@ -80,7 +79,6 @@ class _AdminHomeScreenState extends ConsumerState<_AdminHomeScreen> {
   @override
   Widget build(BuildContext context) {
     final openReports = ref.watch(openReportCountProvider);
-    final openDisputes = ref.watch(openDisputeCountProvider);
     final isSuper = ref.watch(isSuperAdminProvider);
     final email = ref.watch(currentUserProvider)?.email ?? '';
     final wide = MediaQuery.sizeOf(context).width >= 900;
@@ -89,7 +87,6 @@ class _AdminHomeScreenState extends ConsumerState<_AdminHomeScreen> {
     final pages = <Widget>[
       AdminDashboardScreen(onOpenSection: (i) => setState(() => _index = i)),
       const AdminReportsScreen(),
-      const AdminDisputesScreen(),
       const AdminUsersScreen(),
       const AdminArtisansScreen(),
       const AdminJobsScreen(),
@@ -112,12 +109,6 @@ class _AdminHomeScreenState extends ConsumerState<_AdminHomeScreen> {
         selectedIcon: Icons.flag,
         label: 'Şikayetler',
         badge: openReports,
-      ),
-      _NavItem(
-        icon: Icons.gavel_outlined,
-        selectedIcon: Icons.gavel,
-        label: 'Anlaşmazlıklar',
-        badge: openDisputes,
       ),
       const _NavItem(
         icon: Icons.manage_accounts_outlined,

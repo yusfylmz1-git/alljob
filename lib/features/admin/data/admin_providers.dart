@@ -8,7 +8,6 @@ import '../../auth/application/auth_controller.dart';
 import 'admin_artisan_repository.dart';
 import 'admin_audit_repository.dart';
 import 'admin_capabilities.dart';
-import 'admin_dispute_repository.dart';
 import 'admin_invite_repository.dart';
 import 'admin_job_repository.dart';
 import 'admin_report.dart';
@@ -66,39 +65,9 @@ final reportQueueControllerProvider =
       );
     });
 
-final adminDisputeRepositoryProvider = Provider<AdminDisputeRepository>((ref) {
-  if (useFirebaseBackend) return FirebaseAdminDisputeRepository();
-  final repo = MockAdminDisputeRepository();
-  ref.onDispose(repo.dispose);
-  return repo;
-});
-
-/// Hakemlik kuyruğu: `disputed` durumundaki işler (en yeni bildirilen üstte).
-/// Yalnız yönetici için akar; değilse boş (kural okumayı zaten kısıtlamaz ama
-/// istemci de guard eder — panel dışı istemci bu provider'ı watch etmez).
-final adminDisputesProvider = StreamProvider<List<Job>>((ref) {
-  if (!ref.watch(isAdminProvider)) return Stream.value(const <Job>[]);
-  return ref.watch(adminDisputeRepositoryProvider).watchDisputes();
-});
-
-/// Açık anlaşmazlık sayısı — sekme/menü rozeti için (canlı stream).
-final openDisputeCountProvider = Provider<int>((ref) {
-  return ref.watch(adminDisputesProvider).valueOrNull?.length ?? 0;
-});
-
-/// Anlaşmazlık kuyruğu liste controller'ı (cursor sayfalama, createdAt).
-final disputeQueueControllerProvider =
-    StateNotifierProvider.autoDispose<
-      PagedController<Job>,
-      AsyncValue<PagedData<Job>>
-    >((ref) {
-      final repo = ref.watch(adminDisputeRepositoryProvider);
-      return PagedController<Job>(
-        fetch: ({beforeCursor, limit = 30}) =>
-            repo.fetchPage(beforeCursor: beforeCursor, limit: limit),
-        cursorOf: (j) => j.createdAt.toIso8601String(),
-      );
-    });
+// Hakemlik (anlaşmazlık) kuyruğu KALDIRILDI — `JobStatus.disputed` diye bir
+// durum artık yok. Kullanıcı şikayeti `reports` koleksiyonundan akıyor
+// (AdminReportsScreen), ilan üstünden değil.
 
 final adminUserRepositoryProvider = Provider<AdminUserRepository>((ref) {
   if (useFirebaseBackend) return FirebaseAdminUserRepository();

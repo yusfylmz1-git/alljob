@@ -32,9 +32,6 @@ void main() {
         photos: const [],
         priceType: JobPriceType.fixed,
         status: JobStatus.open,
-        offerCount: 0,
-        customerConfirmedDone: false,
-        artisanConfirmedDone: false,
         createdAt: DateTime.now(),
         expiresAt: DateTime.now().add(const Duration(days: 3)),
       );

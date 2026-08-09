@@ -45,9 +45,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
     final isSuper = ref.watch(isSuperAdminProvider);
     final statsAsync = ref.watch(adminStatsProvider);
     final openReportsApprox = ref.watch(openReportCountProvider);
-    final openDisputesApprox = ref.watch(openDisputeCountProvider);
     final reportWindow = ref.watch(adminReportsProvider).valueOrNull?.length;
-    final disputeWindow = ref.watch(adminDisputesProvider).valueOrNull?.length;
 
     final stats = statsAsync.valueOrNull ?? const AdminStatsSnapshot();
 
@@ -156,28 +154,12 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                     : () => widget.onOpenSection!(1),
               ),
               _KpiCard(
-                title: 'Açık anlaşmazlık (sayaç)',
-                value: '${stats.openDisputes}',
-                icon: Icons.gavel_outlined,
-                color: palette.danger,
-                onTap: widget.onOpenSection == null
-                    ? null
-                    : () => widget.onOpenSection!(2),
-              ),
-              _KpiCard(
                 title: 'İlanlar (toplam)',
                 value: '${stats.jobsTotal}',
                 icon: Icons.work_outline,
                 color: palette.primary,
-                subtitle:
-                    'Açık ${stats.jobsOpen} · Süren ${stats.jobsInProgress} · '
-                    'Biten ${stats.jobsCompleted}',
-              ),
-              _KpiCard(
-                title: 'İlan — anlaşmazlık / iptal',
-                value: '${stats.jobsDisputed} / ${stats.jobsCancelled}',
-                icon: Icons.balance_outlined,
-                color: palette.inkMuted,
+                subtitle: 'Açık ${stats.jobsOpen} · '
+                    'İptal ${stats.jobsCancelled}',
               ),
             ]),
             const SizedBox(height: 24),
@@ -206,15 +188,6 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                     ? null
                     : () => widget.onOpenSection!(1),
               ),
-              _KpiCard(
-                title: 'Açık anlaşmazlık (max ${disputeWindow ?? 200})',
-                value: '$openDisputesApprox',
-                icon: Icons.gavel_outlined,
-                color: palette.danger,
-                onTap: widget.onOpenSection == null
-                    ? null
-                    : () => widget.onOpenSection!(2),
-              ),
             ]),
             const SizedBox(height: 24),
             Text(
@@ -228,15 +201,16 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
               spacing: 8,
               runSpacing: 8,
               children: [
+                // İndeksler admin_app.dart'taki `pages` listesiyle BİRE BİR
+                // eşleşir; oradan sekme eklenip çıkarılırsa burası da kayar.
                 for (final e in [
                   (1, Icons.flag_outlined, 'Şikayetler'),
-                  (2, Icons.gavel_outlined, 'Anlaşmazlıklar'),
-                  (3, Icons.manage_accounts_outlined, 'Kullanıcılar'),
-                  (4, Icons.handyman_outlined, 'Ustalar'),
-                  (5, Icons.work_outline, 'İlanlar'),
-                  (7, Icons.support_agent_outlined, 'Destek'),
-                  (8, Icons.campaign_outlined, 'Bildirim'),
-                  (9, Icons.storefront_outlined, 'Platform'),
+                  (2, Icons.manage_accounts_outlined, 'Kullanıcılar'),
+                  (3, Icons.handyman_outlined, 'Ustalar'),
+                  (4, Icons.work_outline, 'İlanlar'),
+                  (6, Icons.support_agent_outlined, 'Destek'),
+                  (7, Icons.campaign_outlined, 'Bildirim'),
+                  (8, Icons.storefront_outlined, 'Platform'),
                 ])
                   ActionChip(
                     avatar: Icon(e.$2, size: 18),

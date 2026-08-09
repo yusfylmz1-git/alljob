@@ -3,7 +3,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../data/models/geo_models.dart';
 import '../../../data/models/job.dart';
-import '../../../data/models/offer.dart';
 import 'job_repository.dart';
 
 /// Firestore `jobs` + `offers` ile çalışan [JobRepository].
@@ -20,8 +19,6 @@ class FirebaseJobRepository implements JobRepository {
 
   CollectionReference<Map<String, dynamic>> get _jobs =>
       _db.collection('jobs');
-  CollectionReference<Map<String, dynamic>> get _offers =>
-      _db.collection('offers');
 
   @override
   Future<String> createJob(Job job) async {
@@ -117,18 +114,6 @@ class FirebaseJobRepository implements JobRepository {
   }
 
   @override
-  Stream<List<Job>> watchAssignedJobs(String artisanUid) {
-    return _jobs
-        .where('selectedArtisanId', isEqualTo: artisanUid)
-        .snapshots()
-        .map((s) {
-      final list = s.docs.map((d) => Job.fromMap(d.id, d.data())).toList()
-        ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
-      return list;
-    });
-  }
-
-  @override
   Future<Job?> getJob(String jobId) async {
     final snap = await _jobs.doc(jobId).get();
     if (!snap.exists || snap.data() == null) return null;
@@ -142,142 +127,6 @@ class FirebaseJobRepository implements JobRepository {
   }
 
   @override
-  Stream<Job?> watchJobByChatId(String chatId) {
-    if (chatId.isEmpty) return Stream.value(null);
-    return _jobs
-        .where('chatId', isEqualTo: chatId)
-        .limit(1)
-        .snapshots()
-        .map((s) {
-      if (s.docs.isEmpty) return null;
-      final d = s.docs.first;
-      return Job.fromMap(d.id, d.data());
-    });
-  }
-
-  @override
-  Future<void> selectOffer({
-    required String jobId,
-    required String offerId,
-    required String artisanId,
-    required String customerId,
-    required String chatId,
-  }) async {
-    // Önkoşul: ilan hâlâ open ve süresi dolmamış (çift seçim / yarış).
-    final jobSnap = await _jobs.doc(jobId).get();
-    if (!jobSnap.exists || jobSnap.data() == null) {
-      throw StateError('İlan bulunamadı');
-    }
-    final job = Job.fromMap(jobSnap.id, jobSnap.data()!);
-    if (job.status != JobStatus.open || job.isExpired) {
-      throw StateError('İlan artık usta seçimine kapalı');
-    }
-    if (job.customerId != customerId) {
-      throw StateError('Bu ilan size ait değil');
-    }
-
-    // `customerId` filtresi kural ispatı için zorunlu.
-    final offersSnap = await _offers
-        .where('jobId', isEqualTo: jobId)
-        .where('customerId', isEqualTo: customerId)
-        .get();
-
-    final batch = _db.batch();
-    batch.update(_jobs.doc(jobId), {
-      'status': JobStatus.workerSelected.apiValue,
-      'selectedOfferId': offerId,
-      'selectedArtisanId': artisanId,
-      'chatId': chatId,
-    });
-
-    for (final d in offersSnap.docs) {
-      final status = OfferStatus.fromString(d.data()['status'] as String?);
-      if (status == OfferStatus.withdrawn) continue;
-      batch.update(d.reference, {
-        'status': (d.id == offerId ? OfferStatus.accepted : OfferStatus.rejected)
-            .apiValue,
-        'updatedAt': DateTime.now().toIso8601String(),
-      });
-    }
-
-    await batch.commit();
-  }
-
-  @override
-  Future<void> markStarted(String jobId) async {
-    await _jobs.doc(jobId).update({'status': JobStatus.inProgress.apiValue});
-  }
-
-  @override
-  Future<void> cancelSelection({
-    required String jobId,
-    required String customerId,
-  }) async {
-    final jobSnap = await _jobs.doc(jobId).get();
-    if (!jobSnap.exists || jobSnap.data() == null) {
-      throw StateError('İlan bulunamadı');
-    }
-    final job = Job.fromMap(jobSnap.id, jobSnap.data()!);
-    if (job.customerId != customerId) {
-      throw StateError('Bu ilan size ait değil');
-    }
-    // İş başladıysa/tamamlandıysa/şikayetliyse iptal yok (kural da reddeder).
-    if (job.status != JobStatus.workerSelected) {
-      throw StateError('Bu aşamada seçim iptal edilemez');
-    }
-
-    // `customerId` filtresi kural ispatı için zorunlu (selectOffer paritesi).
-    final offersSnap = await _offers
-        .where('jobId', isEqualTo: jobId)
-        .where('customerId', isEqualTo: customerId)
-        .get();
-
-    final batch = _db.batch();
-    batch.update(_jobs.doc(jobId), {
-      'status': JobStatus.open.apiValue,
-      'selectedOfferId': null,
-      'selectedArtisanId': null,
-      'chatId': null,
-    });
-
-    // accepted/rejected → pending: ilan yeniden açıldığına göre herkes tekrar
-    // aday. withdrawn olanlar dokunulmaz (usta kendi kararıyla çekilmişti).
-    final now = DateTime.now().toIso8601String();
-    for (final d in offersSnap.docs) {
-      final status = OfferStatus.fromString(d.data()['status'] as String?);
-      if (status == OfferStatus.withdrawn) continue;
-      if (status == OfferStatus.pending) continue;
-      batch.update(d.reference, {
-        'status': OfferStatus.pending.apiValue,
-        'updatedAt': now,
-      });
-    }
-
-    await batch.commit();
-  }
-
-  @override
-  Future<void> confirmDone({
-    required String jobId,
-    required bool byCustomer,
-  }) async {
-    await _db.runTransaction((tx) async {
-      final ref = _jobs.doc(jobId);
-      final snap = await tx.get(ref);
-      if (!snap.exists) return;
-      final job = Job.fromMap(snap.id, snap.data()!);
-      final customerDone = byCustomer || job.customerConfirmedDone;
-      final artisanDone = !byCustomer || job.artisanConfirmedDone;
-      final bothDone = customerDone && artisanDone;
-      tx.update(ref, {
-        'customerConfirmedDone': customerDone,
-        'artisanConfirmedDone': artisanDone,
-        if (bothDone) 'status': JobStatus.completed.apiValue,
-      });
-    });
-  }
-
-  @override
   Future<void> cancelJob({
     required String jobId,
     required JobCancelReason reason,
@@ -286,11 +135,6 @@ class FirebaseJobRepository implements JobRepository {
       'status': JobStatus.cancelled.apiValue,
       'cancelReason': reason.apiValue,
     });
-  }
-
-  @override
-  Future<void> markRated(String jobId) async {
-    await _jobs.doc(jobId).update({'status': JobStatus.rated.apiValue});
   }
 
   @override
@@ -310,64 +154,7 @@ class FirebaseJobRepository implements JobRepository {
 
   @override
   Future<void> deleteJob(String jobId) async {
-    final job = await getJob(jobId);
-    if (job == null) return; // zaten yok — silinmiş say
-    if (!job.canDelete) {
-      throw StateError('Ustaya bağlanmış ilan silinemez');
-    }
     await _jobs.doc(jobId).delete();
   }
 
-  @override
-  Future<void> reportDispute({
-    required String jobId,
-    required bool byCustomer,
-    required JobDisputeReason reason,
-    String? note,
-  }) async {
-    // Transaction: `statusBeforeDispute` o anki durumdan okunmalı (kural,
-    // eski durumla birebir eşleşmesini doğrular).
-    await _db.runTransaction((tx) async {
-      final ref = _jobs.doc(jobId);
-      final snap = await tx.get(ref);
-      if (!snap.exists) throw StateError('İlan bulunamadı');
-      final job = Job.fromMap(snap.id, snap.data()!);
-      if (!job.status.canDispute) {
-        throw StateError('Bu durumda sorun bildirilemez');
-      }
-      tx.update(ref, {
-        'status': JobStatus.disputed.apiValue,
-        'disputedBy': (byCustomer
-                ? JobDisputeParty.customer
-                : JobDisputeParty.artisan)
-            .apiValue,
-        'disputeReason': reason.apiValue,
-        if (note != null && note.trim().isNotEmpty)
-          'disputeNote': note.trim(),
-        'disputedAt': DateTime.now().toIso8601String(),
-        'statusBeforeDispute': job.status.apiValue,
-      });
-    });
-  }
-
-  @override
-  Future<void> withdrawDispute(String jobId) async {
-    await _db.runTransaction((tx) async {
-      final ref = _jobs.doc(jobId);
-      final snap = await tx.get(ref);
-      if (!snap.exists) throw StateError('İlan bulunamadı');
-      final job = Job.fromMap(snap.id, snap.data()!);
-      if (job.status != JobStatus.disputed || job.statusBeforeDispute == null) {
-        throw StateError('Geri çekilecek bir şikayet yok');
-      }
-      tx.update(ref, {
-        'status': job.statusBeforeDispute!.apiValue,
-        'disputedBy': FieldValue.delete(),
-        'disputeReason': FieldValue.delete(),
-        'disputeNote': FieldValue.delete(),
-        'disputedAt': FieldValue.delete(),
-        'statusBeforeDispute': FieldValue.delete(),
-      });
-    });
-  }
 }

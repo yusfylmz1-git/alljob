@@ -195,13 +195,7 @@ class _JobFilters extends StatelessWidget {
               onSelected: (_) => onClearAll(),
             ),
             const SizedBox(width: 6),
-            for (final s in [
-              JobStatus.open,
-              JobStatus.inProgress,
-              JobStatus.completed,
-              JobStatus.disputed,
-              JobStatus.cancelled,
-            ]) ...[
+            for (final s in JobStatus.values) ...[
               FilterChip(
                 label: Text(s.labelTR),
                 selected: status == s,
@@ -356,10 +350,8 @@ class _StatusChip extends StatelessWidget {
     final palette = context.palette;
     final (bg, fg) = switch (status) {
       JobStatus.open => (palette.successSurface, palette.success),
-      JobStatus.disputed => (palette.dangerSurface, palette.danger),
       JobStatus.cancelled ||
       JobStatus.expired => (palette.surfaceMuted, palette.inkMuted),
-      _ => (palette.surfaceMuted, palette.primary),
     };
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),

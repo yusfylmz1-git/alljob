@@ -51,18 +51,8 @@ class JobStatusChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final palette = context.palette;
-    // workerSelected + inProgress aynı “İş yürüyor” rengi.
     final (Color fg, Color bg) = switch (status) {
       JobStatus.open => (palette.info, palette.infoSurface),
-      JobStatus.workerSelected || JobStatus.inProgress => (
-          palette.warning,
-          palette.warningSurface,
-        ),
-      JobStatus.completed || JobStatus.rated => (
-          palette.success,
-          palette.successSurface,
-        ),
-      JobStatus.disputed => (palette.danger, palette.dangerSurface),
       JobStatus.cancelled || JobStatus.expired => (
           palette.inkMuted,
           palette.surfaceMuted,
@@ -107,7 +97,6 @@ class NearbyJobCard extends StatelessWidget {
     final theme = Theme.of(context);
     final palette = context.palette;
     final ago = _timeAgo(job.createdAt);
-    final offers = job.offerCount > 0 ? ' · ${job.offerCount} ilgilendi' : '';
 
     return PremiumSurfaceCard(
       onTap: () => context.push(RoutePaths.jobDetail(job.jobId)),
@@ -165,7 +154,7 @@ class NearbyJobCard extends StatelessWidget {
                         ?.copyWith(color: palette.inkMuted)),
                 const SizedBox(height: 4),
                 Text(
-                  '📍 ${job.district} · $ago$offers',
+                  '📍 ${job.district} · $ago',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: theme.textTheme.bodySmall

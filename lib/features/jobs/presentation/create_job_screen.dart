@@ -161,9 +161,6 @@ class _CreateJobScreenState extends ConsumerState<CreateJobScreen> {
       priceType: JobPriceType.inspection,
       budget: null,
       status: JobStatus.open,
-      offerCount: 0,
-      customerConfirmedDone: false,
-      artisanConfirmedDone: false,
       createdAt: now,
       // Kolay İş süresi UI'da gizli — burada da ZORLANIR. Kullanıcı normal
       // ilan formunda 7 gün seçip sonra kategoriyi Kolay İş'e çevirirse

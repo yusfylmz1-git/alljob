@@ -333,28 +333,14 @@ class _JobCard extends StatelessWidget {
               const SizedBox(height: 12),
               Row(
                 children: [
-                  if (status == JobStatus.open || status == JobStatus.expired)
-                    OfferCountBadge(count: job.offerCount)
-                  else if (status == JobStatus.completed)
-                    _InfoChip(
-                      icon: Icons.star_outline_rounded,
-                      label: 'Değerlendir',
-                    )
-                  else if (status == JobStatus.rated)
-                    _InfoChip(
-                      icon: Icons.verified_outlined,
-                      label: 'Değerlendirildi',
-                    )
-                  else if (status.isInWork || status == JobStatus.disputed)
-                    _InfoChip(
-                      icon: Icons.handyman_outlined,
-                      label: status.simpleLabelTR,
-                    )
-                  else
-                    _InfoChip(
-                      icon: Icons.person_outline,
-                      label: status.simpleLabelTR,
-                    ),
+                  _InfoChip(
+                    icon: switch (status) {
+                      JobStatus.open => Icons.campaign_outlined,
+                      JobStatus.cancelled => Icons.block_outlined,
+                      JobStatus.expired => Icons.schedule_outlined,
+                    },
+                    label: status.simpleLabelTR,
+                  ),
                   const Spacer(),
                   Icon(Icons.chevron_right, color: palette.inkFaint),
                 ],
