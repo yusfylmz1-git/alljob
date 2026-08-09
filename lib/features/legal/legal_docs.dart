@@ -8,7 +8,7 @@
 library;
 
 /// KVKK başvuruları ve genel iletişim adresi (tüm metinlerde geçer).
-const kLegalContactEmail = 'aboneai.plus@gmail.com';
+const kLegalContactEmail = 'ilandahizmet@gmail.com';
 
 /// Yasal metinler + hosting HTML marka adı (uygulama `AppConstants.appName` ile hizalı).
 const kAppBrandName = 'İlanda Hizmet';

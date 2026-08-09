@@ -67,7 +67,8 @@
       **OLMAMALI**
 - [ ] **12.4.6** ⭐ Gizlilik politikasındaki silme maddesi hesap-silme
       sayfasıyla **çelişmiyor**
-- [ ] **12.4.7** İletişim e-postası doğru: `aboneai.plus@gmail.com`
+- [ ] **12.4.7** ⭐ İletişim e-postası **`ilandahizmet@gmail.com`**
+      *(`aboneai.plus@gmail.com` HİÇBİR yerde geçmemeli — eski adres)*
 - [ ] **12.4.8** Ana sayfadaki yasal kartlar doğru sayfalara gidiyor
 
 > [!warning] Kod değişirse bu metinler de değişir
