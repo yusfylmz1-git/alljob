@@ -349,6 +349,28 @@ void main() {
               'çalışma üzerine yazsın, bildirim çoğalmasın.');
     });
 
+    test('özet sorgusu MEVCUT bileşik indekse uyar', () {
+      // jobs indeksi: category ASC, status ASC, createdAt DESC.
+      // Sorgu bu üçlüyü kullanmazsa Firestore failed-precondition atar ve
+      // özet HİÇ gönderilmez — üstelik sessizce (yalnız logda görünür).
+      final ozet = cf.substring(cf.indexOf('exports.sendProductRequestDigest'));
+      final sorgu = ozet.substring(0, ozet.indexOf('.get()'));
+      expect(sorgu.contains('"category", "==", PRODUCT_REQUEST_CATEGORY'),
+          isTrue);
+      expect(sorgu.contains('"status", "=="'), isTrue,
+          reason: 'status filtresi sorguda kalmalı — bellekte yapılırsa '
+              'yeni bir indeks (category + createdAt) gerekir.');
+      expect(sorgu.contains('"createdAt", ">="'), isTrue);
+
+      final indeksler = read('firestore.indexes.json');
+      expect(
+          indeksler.contains('"category"') &&
+              indeksler.contains('"status"') &&
+              indeksler.contains('"createdAt"'),
+          isTrue,
+          reason: 'jobs bileşik indeksi durmalı.');
+    });
+
     test('özet kendi talebini açana geri gitmez', () {
       final ozet = cf.substring(cf.indexOf('exports.sendProductRequestDigest'));
       expect(ozet.contains('alicilar.delete(j.customerId)'), isTrue);

@@ -4696,8 +4696,14 @@ exports.sendProductRequestDigest = onSchedule(
       const since = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
       let talepler;
       try {
+        // ⚠️ Alan SIRASI mevcut bileşik indekse uyar:
+        //   jobs → category ASC, status ASC, createdAt DESC
+        // `status` filtresini sorgudan çıkarıp bellekte yapsaydık YENİ bir
+        // indeks (category + createdAt) gerekirdi; onsuz sorgu
+        // `failed-precondition` atar ve özet HİÇ gönderilmez.
         talepler = await db.collection("jobs")
             .where("category", "==", PRODUCT_REQUEST_CATEGORY)
+            .where("status", "==", "open")
             .where("createdAt", ">=", since)
             .limit(500)
             .get();
@@ -4710,11 +4716,10 @@ exports.sendProductRequestDigest = onSchedule(
         return;
       }
 
-      // İl → açık talep sayısı. Kapalı/süresi dolmuş talepler sayılmaz.
+      // İl → talep sayısı.
       const ilSayaci = new Map();
       talepler.docs.forEach((d) => {
         const j = d.data() || {};
-        if ((j.status || "open") !== "open") return;
         const il = j.province || "";
         if (!il) return;
         ilSayaci.set(il, (ilSayaci.get(il) || 0) + 1);
