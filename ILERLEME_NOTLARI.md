@@ -26,29 +26,33 @@
 
 **Tarih:** 2026-08-09
 
-**Oturum 83: TUR B + web/admin/test defteri. 8 commit · 471/471 test ·
-analyze 0. ⚠️ HİÇBİRİ DEPLOY EDİLMEDİ, CİHAZ TESTİ BEKLİYOR.**
+**Oturum 83: TUR B + web/admin/test defteri. 10 commit · 471/471 test ·
+analyze 0. ✅ HEPSİ DEPLOY EDİLDİ. ⚠️ CİHAZ TESTİ BEKLİYOR.**
 
-### 🔴 İLK İŞ: DEPLOY + CİHAZ TESTİ
-Bu oturumda **kural ve CF değişti ama deploy edilmedi**. Sıra:
+### ✅ DEPLOY TAMAMLANDI (2026-08-09)
+
+| Ne | Durum |
+|---|---|
+| `firestore.rules` | ✅ 1278 → 823 satır |
+| Cloud Functions | ✅ **40 fonksiyon** — yerel export sayısıyla birebir |
+| Tanıtım sitesi (`alljob1`) | ✅ www.ilandahizmet.com |
+| Admin paneli (`alljob1-admin`) | ✅ |
+
+**Silinen 5 CF** Firebase'den de kaldırıldı (`functions:delete` ile elle):
+`adminResolveDispute` · `archiveCompletedChats` · `autoCompleteJobs` ·
+`onOfferWritten` · `remindJobAutoComplete`.
+
+> [!warning] CF deploy'u silme gerektiriyorsa etkileşimsiz ortamda DURUR
+> `firebase deploy --only functions` kodda olmayan fonksiyon bulursa
+> onay ister; terminalden onay alınamayınca **iptal eder** (hiçbir şey
+> bozulmaz). Önce `firebase functions:delete <ad...> --region europe-west1`
+> çalıştır, sonra deploy et. `--force` ile atlama — geri dönüşü yok.
+
+### 🔴 SIRADAKİ İŞ: CİHAZ TESTİ
 
 ```bash
-# 1) Kural + CF birlikte (ikisi tutarlı olmalı, ayrı ayrı deploy etme)
-NODE_OPTIONS=--dns-result-order=ipv4first firebase deploy --only firestore:rules,functions
-
-# 2) Tanıtım sitesi (yeni logo + marka + düzeltilmiş yasal metinler)
-firebase deploy --only hosting:alljob1
-
-# 3) Admin paneli
-flutter build web --target lib/main_admin.dart --release
-firebase deploy --only hosting:alljob1-admin
+flutter clean && flutter run
 ```
-> Deploy ağ hatası alırsan: önce NODE_OPTIONS'suz dene. "service identity"
-> hatası → NODE_OPTIONS'u KALDIR. (bkz. `vault/05-Operasyon/Deploy-ve-Ortam.md`)
-
-**Silinen CF'ler Firebase'de DURUYOR olabilir** — deploy sırasında "delete
-function?" diye sorarsa EVET de: `onOfferWritten`, `autoCompleteJobs`,
-`remindJobAutoComplete`, `adminResolveDispute`, `archiveCompletedChats`.
 
 Sonra cihaz testi: **`vault/06-Test/00-TEST-PLANI.md` (v3, 395 adım)**
 sıfırdan yazıldı — oturum 82'nin 5 maddesi de içinde. En kritik adımlar:
