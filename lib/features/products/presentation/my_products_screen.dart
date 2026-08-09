@@ -8,6 +8,7 @@ import '../../../core/utils/snackbar_helper.dart';
 import '../../../core/widgets/app_image.dart';
 import '../../../core/widgets/gradient_app_bar.dart';
 import '../../../core/widgets/responsive_center.dart';
+import '../../../core/widgets/role_bottom_bar.dart';
 import '../../../core/widgets/status_views.dart';
 import '../../../data/models/product.dart';
 import '../../auth/application/auth_controller.dart';
@@ -21,12 +22,16 @@ class MyProductsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final user = ref.watch(currentUserProvider);
     if (user == null) {
-      return Scaffold(
-        appBar: const GradientAppBar(title: 'Ürünlerim'),
-        body: Center(
-          child: FilledButton(
-            onPressed: () => context.push(RoutePaths.login),
-            child: const Text('Giriş yap'),
+      // Geri tuşu: yığın yoksa Ana Sayfa'ya (Mağaza Keşfet'in sekmesi).
+      return MainTabScope(
+        tab: MainTab.explore,
+        child: Scaffold(
+          appBar: const GradientAppBar(title: 'Ürünlerim'),
+          body: Center(
+            child: FilledButton(
+              onPressed: () => context.push(RoutePaths.login),
+              child: const Text('Giriş yap'),
+            ),
           ),
         ),
       );
@@ -35,7 +40,9 @@ class MyProductsScreen extends ConsumerWidget {
     final async = ref.watch(myProductsProvider(user.uid));
     final palette = context.palette;
 
-    return Scaffold(
+    return MainTabScope(
+      tab: MainTab.explore,
+      child: Scaffold(
       appBar: GradientAppBar(
         title: 'Ürünlerim',
         subtitle: 'Vitrin ürünlerinizi yönetin',
@@ -185,6 +192,7 @@ class MyProductsScreen extends ConsumerWidget {
             ),
           );
         },
+      ),
       ),
     );
   }

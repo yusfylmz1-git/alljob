@@ -14,6 +14,7 @@ import '../../../core/utils/validators.dart';
 import '../../../core/widgets/app_image.dart';
 import '../../../core/widgets/gradient_app_bar.dart';
 import '../../../core/widgets/responsive_center.dart';
+import '../../../core/widgets/role_bottom_bar.dart';
 import '../../../core/widgets/searchable_select_field.dart';
 import '../../../core/widgets/status_views.dart';
 import '../../../data/local/local_data_service.dart';
@@ -582,7 +583,11 @@ class _ProductEditScreenState extends ConsumerState<ProductEditScreen> {
 
     final palette = context.palette;
 
-    return Scaffold(
+    // Geri tuşu: yığın varsa oraya (Ürünlerim / Mağaza), yoksa Ana Sayfa'ya.
+    // Sarmalayıcı olmadan geri tuşu uygulamayı küçültüyordu.
+    return MainTabScope(
+      tab: MainTab.explore,
+      child: Scaffold(
       appBar: GradientAppBar(
         title: _isNew && _productId == null ? 'Yeni ürün' : 'Ürünü düzenle',
         subtitle: _contentLocked
@@ -909,6 +914,7 @@ class _ProductEditScreenState extends ConsumerState<ProductEditScreen> {
             ],
           ),
         ),
+      ),
       ),
     );
   }

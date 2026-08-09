@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/router/route_paths.dart';
 import '../../../core/widgets/responsive_center.dart';
+import '../../../core/widgets/role_bottom_bar.dart';
 import '../../../core/widgets/status_views.dart';
 import '../data/product_providers.dart';
 import 'widgets/product_card.dart';
@@ -24,9 +25,15 @@ class ArtisanProductsScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final async = ref.watch(myProductsProvider(uid));
+    // GİZLİLİK: `myProductsProvider` sahibin HER ürününü verir (taslak,
+    // duraklatılmış, satılmış). Burası BAŞKASININ vitrini — yalnız
+    // yayındakiler görünmeli. Aynı hata Dükkân bölümünde de vardı.
+    final async = ref.watch(publicProductsProvider(uid));
 
-    return Scaffold(
+    // Geri tuşu: yığın yoksa Ana Sayfa'ya (Mağaza Keşfet'in sekmesi).
+    return MainTabScope(
+      tab: MainTab.explore,
+      child: Scaffold(
       appBar: AppBar(
         title: Text(
           (sellerName != null && sellerName!.trim().isNotEmpty)
@@ -76,6 +83,7 @@ class ArtisanProductsScreen extends ConsumerWidget {
             ),
           );
         },
+        ),
       ),
     );
   }

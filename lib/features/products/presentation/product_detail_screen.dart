@@ -8,6 +8,7 @@ import '../../../core/utils/snackbar_helper.dart';
 import '../../../core/widgets/app_image.dart';
 import '../../../core/widgets/gradient_app_bar.dart';
 import '../../../core/widgets/responsive_center.dart';
+import '../../../core/widgets/role_bottom_bar.dart';
 import '../../../core/widgets/status_views.dart';
 import '../../../data/local/mock_database.dart' show kProfessionNames;
 import '../../../data/models/product.dart';
@@ -80,7 +81,12 @@ class ProductDetailScreen extends ConsumerWidget {
     final palette = context.palette;
     final theme = Theme.of(context);
 
-    return Scaffold(
+    // Geri tuşu: yığın varsa oraya (Keşfet/Dükkân/arama), yoksa Ana
+    // Sayfa'ya. Derin bağlantıyla açılan ürün detayında yığın boştur ve
+    // sarmalayıcı olmadan geri tuşu uygulamayı küçültürdü.
+    return MainTabScope(
+      tab: MainTab.explore,
+      child: Scaffold(
       appBar: const GradientAppBar(
         title: 'Ürün',
         icon: Icons.inventory_2_outlined,
@@ -236,6 +242,7 @@ class ProductDetailScreen extends ConsumerWidget {
             ),
           );
         },
+        ),
       ),
     );
   }

@@ -180,7 +180,7 @@ void main() {
           'lib/features/products/presentation/widgets/dukkan_bolumu.dart');
       expect(w.contains('publicProductsProvider'), isTrue,
           reason: 'Vitrin publicProductsProvider kullanmalı.');
-      expect(w.contains('myProductsProvider'), isFalse,
+      expect(w.contains('ref.watch(myProductsProvider'), isFalse,
           reason: 'myProductsProvider taslakları sızdırır.');
     });
 
@@ -496,6 +496,41 @@ void main() {
 
     test('Kolay İş anahtarı ürün kategorisi olarak listelenmez', () {
       expect(form.contains('p.code != kOtherProfession'), isTrue);
+    });
+  });
+
+  group('Geri tuşu — Mağaza ekranları uygulamayı küçültmez', () {
+    // Oturum 84 madde 4'te bu bir kez düzeltilmişti (MainTabScope), ama
+    // ürün ekranları o sırada üründe yoktu; geri geldiklerinde sarmalayıcı
+    // olmadan geldiler. Geri tuşu doğrudan sisteme gidiyordu.
+    // Sıra: açık menü → seçim modu → yığın → Ana Sayfa.
+
+    const ekranlar = [
+      'my_products_screen.dart',
+      'product_detail_screen.dart',
+      'product_edit_screen.dart',
+      'artisan_products_screen.dart',
+    ];
+
+    for (final ad in ekranlar) {
+      test('$ad MainTabScope ile sarılı', () {
+        final s = read('lib/features/products/presentation/$ad');
+        expect(s.contains('MainTabScope('), isTrue,
+            reason: '$ad geri tuşunda uygulamayı küçültür.');
+        expect(s.contains('MainTab.explore'), isTrue,
+            reason: 'Mağaza Keşfet sekmesine ait.');
+      });
+    }
+
+    test('başkasının vitrini taslakları SIZDIRMAZ', () {
+      // artisan_products_screen myProductsProvider kullanıyordu — o sahibin
+      // HER ürününü verir (taslak, duraklatılmış, satılmış).
+      final s = read(
+          'lib/features/products/presentation/artisan_products_screen.dart');
+      expect(s.contains('publicProductsProvider'), isTrue);
+      // Yorumda adı geçebilir; aranan gerçek KULLANIM (ref.watch).
+      expect(s.contains('ref.watch(myProductsProvider'), isFalse,
+          reason: 'Başkasının vitrininde yalnız yayındakiler görünmeli.');
     });
   });
 
