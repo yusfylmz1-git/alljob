@@ -7,6 +7,10 @@
 >
 > Dayanak: [[Mevcut-Akislar]] — akışlar koddan çıkarıldı (2026-08-09).
 
+> [!tip] Tek dosyada mı tercih edersin?
+> **[[TEST-TEK-DOSYA]]** — 395 adımın tamamı sırayla, tek dosyada.
+> Bu dosya bölüm bölüm gitmek isteyenler için; ikisi aynı adımları içerir.
+
 **Cihaz:** ______________ · **Sürüm:** ______________ · **Başlangıç:** ________
 
 ---
