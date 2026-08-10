@@ -371,18 +371,40 @@ class _PhoneVerificationSheetState
               onSubmitted: (_) => _loading ? null : _sendCode(),
             )
           else if (waitingSession)
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 28),
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 28),
               child: Center(
                 child: Column(
                   children: [
-                    SizedBox(
+                    const SizedBox(
                       width: 36,
                       height: 36,
                       child: CircularProgressIndicator(strokeWidth: 3),
                     ),
-                    SizedBox(height: 14),
-                    Text('Kod gönderiliyor…'),
+                    const SizedBox(height: 14),
+                    const Text('Kod gönderiliyor…'),
+                    const SizedBox(height: 6),
+                    // Beklerken ne olduğunu söyle: güvenlik doğrulaması
+                    // (reCAPTCHA) tarayıcı açabilir ve kullanıcı uygulamayı
+                    // "kilitlenmiş" sanıyordu. Vazgeçme yolu da burada —
+                    // 75 sn'lik zaman aşımını çaresiz beklemesin.
+                    Text(
+                      'Güvenlik doğrulaması yapılıyor. Tarayıcı açılırsa '
+                      'tamamlayın; uygulama kendiliğinden geri döner.',
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: context.palette.inkMuted,
+                          ),
+                    ),
+                    const SizedBox(height: 10),
+                    TextButton(
+                      onPressed: () => setState(() {
+                        _loading = false;
+                        _session = null;
+                        _step = _Step.phone;
+                      }),
+                      child: const Text('Vazgeç'),
+                    ),
                   ],
                 ),
               ),

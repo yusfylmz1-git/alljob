@@ -66,8 +66,11 @@ class PhoneVerificationException implements Exception {
   static const invalidCode = PhoneVerificationException(
     'Doğrulama kodu hatalı. Tekrar deneyin.',
   );
+  /// Numara BAŞKA bir hesapta doğrulanmış. Firebase bir telefonu yalnız tek
+  /// hesaba bağlar; bu kontrol sunucu tarafındadır ve atlatılamaz.
   static const alreadyInUse = PhoneVerificationException(
-    'Bu telefon numarası başka bir hesaba bağlı.',
+    'Bu numara başka bir hesapta doğrulanmış. Kendi numaranızsa o hesaba '
+    'giriş yapın veya farklı bir numara kullanın.',
   );
   static const tooManyRequests = PhoneVerificationException(
     'Çok fazla deneme yapıldı. Lütfen bir süre sonra tekrar deneyin.',
@@ -89,6 +92,13 @@ class PhoneVerificationException implements Exception {
   static const needsRecentLogin = PhoneVerificationException(
     'Güvenlik için numara değişikliğinden önce yeniden giriş yapmalısınız. '
     'Çıkış yapıp tekrar giriş yaptıktan sonra deneyin.',
+  );
+  /// SMS isteği yanıtsız kaldı — `verifyPhoneNumber` geri çağrı tabanlıdır ve
+  /// hiçbir geri çağrı gelmezse akış sonsuza kadar beklerdi. En sık sebep
+  /// reCAPTCHA doğrulamasının yarıda kalması (tarayıcı sekmesi kapatıldı).
+  static const timedOut = PhoneVerificationException(
+    'Kod gönderilemedi — doğrulama tamamlanmadı. Numaranızı kontrol edip '
+    'tekrar deneyin.',
   );
   static const unknown = PhoneVerificationException(
     'Doğrulama başarısız. Lütfen tekrar deneyin.',

@@ -38,6 +38,9 @@ class FirebasePhoneVerificationRepository
       final completer = Completer<PhoneVerificationSession>();
       await _auth.verifyPhoneNumber(
         phoneNumber: phoneE164,
+        // NOT: bu `timeout` OTOMATİK KOD OKUMA süresidir (SMS Retriever),
+        // isteğin kendi zaman aşımı DEĞİL. Aşağıdaki `.timeout(...)` ayrı
+        // bir korumadır — bkz. sonraki yorum.
         timeout: const Duration(seconds: 60),
         verificationCompleted: (_) {
           // Android otomatik doğrulama: kodu yine de elle isteyeceğiz; burada
@@ -58,7 +61,22 @@ class FirebasePhoneVerificationRepository
         },
         codeAutoRetrievalTimeout: (_) {},
       );
-      return completer.future;
+
+      // ⏱️ SONSUZ BEKLEME KORUMASI (2026-08-10 kullanıcı bulgusu:
+      // "Kod gönderiliyor" ekranında uzunca bekliyor).
+      //
+      // `verifyPhoneNumber` geri çağrı tabanlıdır: ne `codeSent` ne de
+      // `verificationFailed` tetiklenmezse Completer SONSUZA KADAR bekler
+      // ve kullanıcı dönüşü olmayan bir ekranda kalır. Bu, reCAPTCHA
+      // akışı yarıda kalınca (tarayıcı sekmesi kapatıldı, doğrulama
+      // tamamlanmadı) veya ağ sessizce düşünce gerçekten oluyor.
+      //
+      // 75 sn: Firebase'in kendi 60 sn'lik otomatik okuma penceresinden
+      // uzun tutuldu ki normal akışı kesmesin.
+      return completer.future.timeout(
+        const Duration(seconds: 75),
+        onTimeout: () => throw PhoneVerificationException.timedOut,
+      );
     } on fb.FirebaseAuthException catch (e) {
       throw _map(e);
     }
