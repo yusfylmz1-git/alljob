@@ -47,6 +47,18 @@ app.*.map.json
 /android/build/
 /android/.gradle/
 
+# ⚠️ YAYIN İMZASI — ASLA COMMIT'LENMEZ.
+# Bu dosyalar repoya girerse uygulamanın kimliği çalınabilir: aynı imzayla
+# sahte sürüm üretilir. Play Store'da bir uygulamanın imzası DEĞİŞTİRİLEMEZ,
+# yani sızan anahtar geri alınamaz — uygulamayı yeni paket adıyla baştan
+# yayınlamak gerekir (tüm kullanıcılar ve yorumlar kaybolur).
+# Yedeği repo dışında, şifreli bir yerde tut.
+android/key.properties
+*.jks
+*.keystore
+*.p12
+*.pepk
+
 # Cloud Functions (Node) — bağımlılıklar commit'lenmez
 functions/node_modules/
 functions/.env

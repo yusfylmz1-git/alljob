@@ -1,12 +1,14 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-    <!-- Takip Merkezi yerel hatırlatmaları (flutter_local_notifications).
-         Kesin alarm (SCHEDULE_EXACT_ALARM) BİLİNÇLİ istenmedi: inexact planlama
-         kullanılıyor (Play kısıtlaması yok; hatırlatma birkaç dk sapabilir). -->
+    <!-- Push bildirimleri (FCM). Android 13+ çalışma anında izin ister;
+         tanılama satırı Bildirim tercihleri ekranının altındadır. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
-    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
     <uses-permission android:name="android.permission.VIBRATE"/>
-    <!-- Takip Merkezi Faz 3: ses notu kaydı (record paketi). -->
-    <uses-permission android:name="android.permission.RECORD_AUDIO"/>
+    <!-- KALDIRILAN İZİNLER (2026-08-10, Play Store hazırlığı):
+         RECORD_AUDIO ve RECEIVE_BOOT_COMPLETED, Takip Merkezi modülüne
+         aitti; modül 4476326'da silindi ve `record` paketi de pubspec'ten
+         çıktı. Kullanılmayan izin Play'de veri güvenliği formunda
+         açıklama gerektirir ve kurulum öncesi kullanıcıya gösterilir —
+         mikrofon izni isteyen bir hizmet uygulaması güven kaybettirir. -->
     <!-- Kamera: profil/iş fotoğrafı (image_picker). required="false":
          kamerasız cihazlar da uygulamayı kurabilir (galeriden seçilir). -->
     <uses-permission android:name="android.permission.CAMERA"/>
