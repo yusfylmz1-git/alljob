@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_palette.dart';
 import '../../../../core/widgets/app_image.dart';
-import '../../../../data/local/mock_database.dart' show kProfessionNames;
+import '../../../../data/models/product_category.dart';
 import '../../../../data/models/product.dart';
 
 /// Keşfet / liste ürün kartı.
@@ -21,7 +21,7 @@ class ProductCard extends StatelessWidget {
     final palette = context.palette;
     final theme = Theme.of(context);
     final cat =
-        kProfessionNames[product.categoryCode] ?? product.categoryCode;
+        ProductCategory.label(product.categoryCode);
 
     return Material(
       color: palette.card,

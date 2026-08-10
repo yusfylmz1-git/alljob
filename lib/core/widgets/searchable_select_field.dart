@@ -214,8 +214,15 @@ class _SearchableSelectSheetState<T> extends State<_SearchableSelectSheet<T>> {
     final palette = context.palette;
     final theme = Theme.of(context);
     final q = _query.text;
+    // Arama HEM öğe adına HEM grup başlığına bakar (2026-08-10): kullanıcı
+    // "İnşaat" yazınca o kategorinin altındaki tüm meslekler listelenmeli.
+    // Yalnız ada bakılsaydı kategori adı yazmak sıfır sonuç verirdi — oysa
+    // başlıklar ekranda görünüyor, aranabilir olmaları beklenir.
+    final grupAdi = widget.groupLabel;
     final filtered = widget.items
-        .where((e) => matchesTrSearch(widget.itemLabel(e), q))
+        .where((e) =>
+            matchesTrSearch(widget.itemLabel(e), q) ||
+            (grupAdi != null && matchesTrSearch(grupAdi(e), q)))
         .toList(growable: false);
     final h = MediaQuery.sizeOf(context).height * 0.72;
     final showClear = widget.allowClear && q.trim().isEmpty;
@@ -226,8 +233,14 @@ class _SearchableSelectSheetState<T> extends State<_SearchableSelectSheet<T>> {
       if (showClear) null, // "Tümü" satırı
     ];
     final grup = widget.groupLabel;
-    // Arama sırasında gruplama kapalı: sonuç zaten daraldı, başlık gürültü.
-    if (grup == null || q.trim().isNotEmpty) {
+    // Arama METİN eşleşmesiyse gruplama kapalı: sonuç zaten daraldı, başlık
+    // gürültü olur. Ama kullanıcı KATEGORİ adı yazdıysa başlıklar kalır —
+    // "tesisat" gibi bir kelime birden fazla kategoriye değebilir ve
+    // sonucun neden geldiğini başlık açıklar.
+    final kategoriAramasi = grup != null &&
+        q.trim().isNotEmpty &&
+        filtered.any((e) => matchesTrSearch(grup(e), q));
+    if (grup == null || (q.trim().isNotEmpty && !kategoriAramasi)) {
       rows.addAll(filtered);
     } else {
       String? sonGrup;

@@ -10,7 +10,7 @@ import '../../../core/widgets/gradient_app_bar.dart';
 import '../../../core/widgets/responsive_center.dart';
 import '../../../core/widgets/role_bottom_bar.dart';
 import '../../../core/widgets/status_views.dart';
-import '../../../data/local/mock_database.dart' show kProfessionNames;
+import '../../../data/models/product_category.dart';
 import '../../../data/models/product.dart';
 import '../../../data/models/report.dart';
 import '../../auth/application/auth_controller.dart';
@@ -107,7 +107,7 @@ class ProductDetailScreen extends ConsumerWidget {
               icon: Icons.inventory_2_outlined,
             );
           }
-          final cat = kProfessionNames[p.categoryCode] ?? p.categoryCode;
+          final cat = ProductCategory.label(p.categoryCode);
           final isMine = me?.uid == p.ownerUid;
 
           return ResponsiveCenter(

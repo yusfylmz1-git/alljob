@@ -13,7 +13,7 @@ import '../../../../core/widgets/skeleton.dart';
 import '../../../../core/widgets/status_views.dart';
 import '../../../../data/local/local_data_service.dart';
 import '../../../../data/models/geo_models.dart';
-import '../../../../data/local/mock_database.dart' show kProfessionNames;
+import '../../../../data/models/product_category.dart';
 import '../../../../data/models/product.dart';
 import '../../../auth/application/auth_controller.dart';
 import '../../data/product_providers.dart';
@@ -79,7 +79,7 @@ class _ProductsExplorePanelState extends ConsumerState<ProductsExplorePanel> {
     final q = _query.trim();
     if (q.isNotEmpty) {
       list = list.where((p) {
-        final cat = kProfessionNames[p.categoryCode] ?? p.categoryCode;
+        final cat = ProductCategory.label(p.categoryCode);
         return matchesTrSearch(p.title, q) ||
             matchesTrSearch(p.ownerName, q) ||
             matchesTrSearch(cat, q) ||
@@ -226,13 +226,13 @@ class _Header extends ConsumerWidget {
   final VoidCallback onClearFilters;
 
   Future<void> _pickCategory(BuildContext context) async {
-    final professions = kProfessionNames.entries.toList()
-      ..sort((a, b) => a.value.compareTo(b.value));
+    // Ürün kategorileri (meslek listesi DEĞİL) — tanımlı sırada.
     final picked = await _showFilterSheet(
       context,
       title: 'Kategori',
       options: [
-        for (final e in professions) (value: e.key, label: e.value),
+        for (final c in ProductCategory.sirali)
+          (value: c, label: ProductCategory.label(c)),
       ],
       selected: categoryCode,
     );
@@ -261,8 +261,9 @@ class _Header extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final palette = context.palette;
     final theme = Theme.of(context);
-    final catLabel =
-        categoryCode == null ? 'Kategori' : (kProfessionNames[categoryCode] ?? categoryCode!);
+    final catLabel = categoryCode == null
+        ? 'Kategori'
+        : ProductCategory.label(categoryCode!);
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),

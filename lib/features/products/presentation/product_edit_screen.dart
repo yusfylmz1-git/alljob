@@ -19,9 +19,8 @@ import '../../../core/widgets/searchable_select_field.dart';
 import '../../../core/widgets/status_views.dart';
 import '../../../data/local/local_data_service.dart';
 import '../../../data/models/geo_models.dart';
-import '../../../data/models/job.dart' show kOtherProfession;
 import '../../../data/models/product.dart';
-import '../../../data/models/profession.dart';
+import '../../../data/models/product_category.dart';
 import '../../artisan/application/my_profile_controller.dart';
 import '../../auth/application/auth_controller.dart';
 import '../../auth/presentation/email_verification_gate.dart';
@@ -83,8 +82,10 @@ class _ProductEditScreenState extends ConsumerState<ProductEditScreen> {
         setState(() {
           _province = loc.province;
           _district = loc.district;
-          final codes = draft?.profile.professionCodes ?? const [];
-          if (codes.isNotEmpty) _categoryCode = codes.first;
+          // Kategori ön-seçimi KALDIRILDI (2026-08-10): kullanıcının
+          // MESLEĞİ ürün kategorisi olarak dolduruluyordu. Artık ikisi ayrı
+          // listeler — meslek kodu ürün kategorisi değil. Ayrıca "herkes
+          // satabilir" olduğu için satıcının mesleği hiç olmayabilir.
           _loading = false;
         });
         return;
@@ -920,48 +921,45 @@ class _ProductEditScreenState extends ConsumerState<ProductEditScreen> {
   }
 }
 
-/// Ürün kategorisi seçici — aramalı + kategoriye göre gruplu.
+/// Ürün kategorisi seçici — aramalı, kategoriye özgü.
 ///
-/// Önce düz bir `DropdownButtonFormField` idi: 144 meslek tek listede,
-/// arama yok. Kullanıcı aradığını kaydırarak bulmak zorundaydı ve liste
-/// inşaat mesleklerine göre sıralı olduğu için beyaz yaka hizmetler sona
-/// düşüyordu — meslek kategorilerinin eklenme sebebinin (2026-08-10)
-/// aynısı, ama ürün formu o turda atlanmıştı.
+/// Önce düz bir `DropdownButtonFormField` içinde **144 MESLEK** vardı.
+/// İki ayrı sorun: (1) arama yoktu, kullanıcı kaydırarak buluyordu;
+/// (2) liste HİZMET listesiydi — "Avukat", "Fizyoterapi", "Köpek
+/// Gezdirme" altında ürün satmak anlamsız, üstelik "Boyacı" kategorisi
+/// boya mı satıldığını yoksa boyacı mı arandığını belirsiz bırakıyordu.
 ///
-/// Veri kaynağı `professionsProvider` (asset) — `kProfessionNames` mock
-/// sabiti DEĞİL, çünkü kategori bilgisi yalnız asset'te var.
-class _UrunKategoriSecici extends ConsumerWidget {
+/// Artık [ProductCategory]: ürünün KENDİSİNİ tarif eden 14 kategori.
+/// Liste sabit olduğu için asset okumaya da gerek kalmadı.
+class _UrunKategoriSecici extends StatelessWidget {
   const _UrunKategoriSecici({required this.value, required this.onChanged});
 
   final String? value;
   final ValueChanged<String?> onChanged;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final professionsAsync = ref.watch(professionsProvider);
-    return professionsAsync.when(
-      loading: () => const LinearProgressIndicator(),
-      error: (_, _) => const Text('Meslek listesi yüklenemedi'),
-      data: (professions) {
-        // `other` bir ilan/ürün kategorisi değil (Kolay İş anahtarı).
-        final secilebilir =
-            professions.where((p) => p.code != kOtherProfession).toList();
-        final adlar = {for (final p in secilebilir) p.code: p.nameTR};
-        final kategoriler = {for (final p in secilebilir) p.code: p.category};
+  Widget build(BuildContext context) {
+    // Eski kayıt meslek koduyla gelmiş olabilir (modül kaldırılmadan önce
+    // öyle yazılıyordu). Tanınmayan kod listede yoksa alan BOŞ görünür ve
+    // kullanıcı farkında olmadan kategoriyi değiştirmiş olurdu; bu yüzden
+    // listeye eklenir ve "Diğer" adıyla gösterilir.
+    final kodlar = [
+      ...ProductCategory.sirali,
+      if (value != null &&
+          value!.isNotEmpty &&
+          !ProductCategory.tanidik(value!))
+        value!,
+    ];
 
-        return SearchableSelectField<String>(
-          label: 'Kategori',
-          value: value,
-          items: secilebilir.map((p) => p.code).toList(),
-          itemLabel: (c) => adlar[c] ?? c,
-          hint: 'Kategori seçin',
-          searchHint: 'Kategori ara (örn. hırdavat, mobilya…)',
-          prefixIcon: Icons.category_outlined,
-          groupLabel: (c) => ProfessionCategory.label(
-              kategoriler[c] ?? ProfessionCategory.diger),
-          onSelected: onChanged,
-        );
-      },
+    return SearchableSelectField<String>(
+      label: 'Kategori',
+      value: value,
+      items: kodlar,
+      itemLabel: ProductCategory.label,
+      hint: 'Kategori seçin',
+      searchHint: 'Kategori ara (örn. hırdavat, mobilya…)',
+      prefixIcon: Icons.category_outlined,
+      onSelected: onChanged,
     );
   }
 }

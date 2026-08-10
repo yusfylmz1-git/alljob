@@ -477,25 +477,62 @@ void main() {
           reason: '144 meslek düz listede aranamıyordu.');
     });
 
-    test('aramalı + gruplu bileşen kullanılıyor', () {
+    test('aramalı bileşen kullanılıyor', () {
       expect(form.contains('SearchableSelectField<String>'), isTrue);
-      expect(form.contains('groupLabel:'), isTrue,
-          reason: 'Kategori başlıkları olmalı — beyaz yaka hizmetler '
-              'inşaat mesleklerinin arkasına düşmesin.');
       expect(form.contains('searchHint:'), isTrue);
     });
 
-    test('kategori verisi asset’ten gelir (mock sabitinden değil)', () {
-      // kProfessionNames kategori bilgisi TAŞIMAZ; gruplama yalnız
-      // professionsProvider ile mümkün.
-      expect(form.contains('professionsProvider'), isTrue);
-      // Yorumlarda adı geçebilir; aranan şey gerçek KULLANIM (import).
-      expect(form.contains('show kProfessionNames'), isFalse,
-          reason: 'Mock sabiti gruplama için yetersiz — import kalmamalı.');
+    test('kategoriler MESLEK listesinden ayrı', () {
+      // professions.json bir HİZMET listesi: "Avukat", "Fizyoterapi",
+      // "Köpek Gezdirme" altında ürün satmak anlamsız. Ürün kategorileri
+      // ürünün KENDİSİNİ tarif eder.
+      expect(form.contains('ProductCategory'), isTrue);
+      expect(form.contains('professionsProvider'), isFalse,
+          reason: 'Ürün formu meslek listesini kullanmamalı.');
+      expect(form.contains('show kProfessionNames'), isFalse);
     });
 
-    test('Kolay İş anahtarı ürün kategorisi olarak listelenmez', () {
-      expect(form.contains('p.code != kOtherProfession'), isTrue);
+    test('kullanıcının MESLEĞİ kategori olarak ön-seçilmez', () {
+      // Form açılışta profildeki ilk meslek kodunu categoryCode yapıyordu.
+      // Artık ayrı listeler; ayrıca "herkes satabilir" olduğu için
+      // satıcının mesleği hiç olmayabilir.
+      expect(form.contains('_categoryCode = codes.first'), isFalse);
+    });
+
+    test('bilinmeyen eski kod listeye eklenir (veri kaybı olmasın)', () {
+      // Modül kaldırılmadan önceki ürünler MESLEK koduyla kaydedilmişti.
+      // O kod listede yoksa alan boş görünür ve kullanıcı farkında olmadan
+      // kategoriyi değiştirmiş olurdu.
+      expect(form.contains('ProductCategory.tanidik'), isTrue);
+    });
+
+    test('ürünün görüldüğü yerler de ürün kategorisi gösterir', () {
+      for (final f in [
+        'lib/features/products/presentation/product_detail_screen.dart',
+        'lib/features/products/presentation/widgets/product_card.dart',
+        'lib/features/products/presentation/widgets/products_explore_panel.dart',
+      ]) {
+        final s = read(f);
+        expect(s.contains('ProductCategory.label'), isTrue,
+            reason: '$f hâlâ meslek adı gösteriyor.');
+        expect(s.contains('kProfessionNames['), isFalse, reason: f);
+      }
+    });
+  });
+
+  group('Kategori araması — başlık yazınca altındakiler gelir', () {
+    test('arama grup başlığına da bakar', () {
+      final w = read('lib/core/widgets/searchable_select_field.dart');
+      expect(w.contains('matchesTrSearch(grupAdi(e), q)'), isTrue,
+          reason: '"İnşaat" yazınca o kategorinin meslekleri listelenmeli; '
+              'yalnız öğe adına bakılsaydı sıfır sonuç verirdi.');
+    });
+
+    test('kategori aramasında başlıklar KALIR', () {
+      // Normal metin aramasında başlık gürültü (sonuç zaten daraldı), ama
+      // kategori adı yazıldıysa sonucun neden geldiğini başlık açıklar.
+      final w = read('lib/core/widgets/searchable_select_field.dart');
+      expect(w.contains('kategoriAramasi'), isTrue);
     });
   });
 
