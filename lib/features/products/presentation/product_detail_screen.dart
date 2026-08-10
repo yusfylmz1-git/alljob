@@ -13,6 +13,7 @@ import '../../../core/widgets/status_views.dart';
 import '../../../data/models/product_category.dart';
 import '../../../data/models/product.dart';
 import '../../../data/models/report.dart';
+import '../../artisan/application/availability_gate.dart';
 import '../../auth/application/auth_controller.dart';
 import '../../auth/presentation/email_verification_gate.dart';
 import '../../chat/data/chat_providers.dart';
@@ -39,6 +40,12 @@ class ProductDetailScreen extends ConsumerWidget {
       context.showInfo('Bu sizin ürününüz.');
       return;
     }
+    // MÜSAİTLİK KAPISI — ürün detayı BEŞİNCİ giriştir (2026-08-10 bulgusu).
+    // Kapı dört yola bağlanmıştı; ürün modülü o sırada üründe yoktu, geri
+    // gelince kapısız geldi. Müsait olmayan usta ilandan mesaj atamıyor ama
+    // Mağaza'dan aynı kişiye yazabiliyordu.
+    if (!artisanAvailabilityAllowsNewChat(context, ref)) return;
+
     final emailOk = await ensureEmailVerified(
       context,
       ref,
@@ -56,14 +63,11 @@ class ProductDetailScreen extends ConsumerWidget {
         artisanName: p.ownerName,
         artisanPhotoUrl: p.ownerPhotoUrl,
       );
-      // İlk mesaj şablonu (product context — chat schema değişmez).
-      // NOT: deep-link şeması kayıtlı değil; ölü link yerine düz metin.
-      final body = 'Merhaba, «${p.title}» ürününüz hakkında yazıyorum.';
-      await chatRepo.sendMessage(
-        chatId: chatId,
-        senderUid: user.uid,
-        text: body,
-      );
+      // OTOMATİK İLK MESAJ KALDIRILDI (2026-08-10, kullanıcı kararı).
+      // Kullanıcı adına söz söylüyordu; ayrıca sohbet kullanıcı hiçbir şey
+      // yazmadan başlıyor, karşı taraf bildirim alıyordu — yanlışlıkla
+      // dokunmak bile mesaj gönderiyordu. Diğer sohbet girişleri (ilan
+      // detayı, profiller) da boş sohbet açar; parite sağlandı.
       if (!context.mounted) return;
       context.push(RoutePaths.chatThread(chatId));
     } catch (_) {

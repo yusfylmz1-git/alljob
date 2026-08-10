@@ -7,11 +7,18 @@ import 'my_profile_controller.dart';
 
 /// Müsait olmayan USTANIN yeni sohbet başlatmasını engelleyen ortak kapı.
 ///
-/// Neden ortak: sohbeti başlatan ÜÇ giriş var — ilan detayı, usta profili,
-/// genel kullanıcı profili. Kapı yalnız ilan detayındaydı ve diğer ikisi
-/// onu atlıyordu: müsait olmayan usta ilanı görüp mesaj atamıyor, ama
-/// ilandaki avatara dokunup profile geçince oradan yazabiliyordu
-/// (2026-08-10 bulgusu).
+/// Neden ortak: sohbeti başlatan **DÖRT** giriş var — ilan detayı, usta
+/// profili, genel kullanıcı profili ve **ürün detayı** (Mağaza). Kapı önce
+/// yalnız ilan detayındaydı ve diğerleri onu atlıyordu: müsait olmayan usta
+/// ilanı görüp mesaj atamıyor, ama ilandaki avatara dokunup profile geçince
+/// oradan yazabiliyordu (2026-08-10 bulgusu).
+///
+/// Ürün detayı SONRADAN eklendi (aynı gün): Mağaza modülü geri getirildiğinde
+/// kapısız geldi, çünkü kapı kurulduğu sırada o modül üründe yoktu. Müsait
+/// olmayan usta ilandan yazamayıp Mağaza'dan aynı kişiye yazabiliyordu.
+///
+/// ⚠️ Yeni bir sohbet girişi eklersen BU KAPIYI ÇAĞIR. Regresyon testi
+/// `startChat` çağrı sayısını sayar — kapısız bir giriş eklenirse kırılır.
 ///
 /// Kapının doğru yeri gezinme DEĞİL, eylemdir. Profili gizlemek deliği
 /// kapatmaz (arama, favoriler, mevcut sohbet hep aynı kişiye götürür) ve

@@ -114,4 +114,68 @@ void main() {
       expect(model.contains('bool canSend(String uid) => !isLocked;'), isTrue);
     });
   });
+
+  group('Kapı TÜM sohbet girişlerine bağlı', () {
+    // 2026-08-10: ürün detayı kapısız kaldı ve müsait olmayan usta
+    // Mağaza'dan mesaj atabiliyordu. Sebep: kapı kurulduğunda ürün modülü
+    // üründe yoktu, geri gelince kimse kapıyı hatırlamadı.
+    //
+    // Bu test SAYIYA dayanır: yeni bir `startChat` çağrısı eklenip kapısı
+    // unutulursa kırılır. Kırıldığında yapılacak şey sayıyı büyütmek DEĞİL,
+    // yeni girişe `artisanAvailabilityAllowsNewChat` eklemektir.
+
+    test('startChat çağıran her ekran kapıyı çağırır', () {
+      final dir = Directory('lib/features');
+      final ekranlar = dir
+          .listSync(recursive: true)
+          .whereType<File>()
+          .where((f) => f.path.endsWith('.dart'))
+          .where((f) => !f.path.contains('chat${Platform.pathSeparator}data'))
+          .map((f) => (yol: f.path, kod: f.readAsStringSync()))
+          .where((e) => e.kod.contains('.startChat('))
+          .toList();
+
+      expect(ekranlar, isNotEmpty, reason: 'Hiç giriş bulunamadı — test '
+          'kendisi bozulmuş olabilir.');
+
+      final kapisiz = ekranlar
+          .where((e) =>
+              // Ortak kapı VEYA kendi müsaitlik kontrolü. İlan detayı
+              // ikincisini yapar: kontrolü meslek/bölge eşleşmesiyle iç
+              // içe, o yüzden ortak fonksiyona taşınmadı.
+              !e.kod.contains('artisanAvailabilityAllowsNewChat') &&
+              !e.kod.contains('!profile.isAvailable') &&
+              // Sohbet ekranının kendisi MEVCUT sohbeti sürdürür; kapı
+              // yalnız YENİ sohbeti bağlar.
+              !e.yol.contains('chat_screen'))
+          .map((e) => e.yol)
+          .toList();
+
+      expect(kapisiz, isEmpty,
+          reason: 'Bu ekranlar sohbet başlatıyor ama müsaitlik kapısını '
+              'çağırmıyor — müsait olmayan usta buradan mesaj atabilir:\n'
+              '${kapisiz.join('\n')}');
+    });
+
+    test('ürün detayı kapıyı çağırır (2026-08-10 bulgusu)', () {
+      final s =
+          read('lib/features/products/presentation/product_detail_screen.dart');
+      expect(s.contains('artisanAvailabilityAllowsNewChat'), isTrue,
+          reason: 'Mağaza beşinci giriştir; kapısız kalmıştı.');
+    });
+  });
+
+  group('Sohbet kullanıcı adına söz söylemez', () {
+    test('ürün detayı otomatik ilk mesaj GÖNDERMEZ', () {
+      // Kullanıcı adına mesaj yazmak iki sorun doğuruyordu: sözü kullanıcı
+      // kurmuyordu ve sohbet o hiçbir şey yazmadan başlayıp karşı tarafa
+      // bildirim gidiyordu (yanlışlıkla dokunmak bile mesaj atıyordu).
+      final s =
+          read('lib/features/products/presentation/product_detail_screen.dart');
+      expect(s.contains('ürününüz hakkında yazıyorum'), isFalse,
+          reason: 'Otomatik ilk mesaj kaldırıldı.');
+      expect(s.contains('chatRepo.sendMessage('), isFalse,
+          reason: 'Sohbet boş açılmalı — diğer girişlerle parite.');
+    });
+  });
 }

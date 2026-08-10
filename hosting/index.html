@@ -3,9 +3,9 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>İlanda Hizmet — Bölgendeki ustaları bul, ilan ver, anlaş</title>
-  <meta name="description" content="İlanda Hizmet ile boyacı, elektrikçi, tesisatçı ve daha birçok ustayı bölgene göre bul. İlanını ver, uygulama içi sohbetle anlaş. Mağazada ürün sat veya ürün talebi aç.">
-  <meta name="theme-color" content="#EA580C">
+  <title>İlanda Hizmet — Bölgendeki ustayı bul, ilan ver, anlaş</title>
+  <meta name="description" content="İlanda Hizmet: bölgendeki ustaları bul, ilan ver, güvenli sohbetle anlaş. Mağazada ürün sat veya ürün talebi aç. Türkiye hizmet pazaryeri.">
+  <meta name="theme-color" content="#0F2438">
   <link rel="canonical" href="https://www.ilandahizmet.com/">
   <link rel="icon" type="image/png" href="favicon.png">
   <link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
@@ -17,266 +17,375 @@
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://www.ilandahizmet.com/">
   <meta property="og:image" content="https://www.ilandahizmet.com/assets/og-image.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;0,800;1,500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="assets/site.css">
 </head>
 <body>
   <a class="skip-link" href="#icerik">İçeriğe geç</a>
 
-  <header class="topnav" id="topnav">
-    <div class="container topnav-inner">
-      <a class="logo" href="/">
-        <img src="assets/logo-64.png" srcset="assets/logo-48.png 48w, assets/logo-64.png 64w, assets/logo-96.png 96w" sizes="40px" width="40" height="40" alt="İlanda Hizmet">
-        <span class="logo-word">İlanda Hizmet</span>
+  <!-- ═══ NAV ═══ -->
+  <header class="nav" id="topnav">
+    <div class="shell nav__inner">
+      <a class="brand" href="/">
+        <img src="assets/logo-64.png" srcset="assets/logo-48.png 48w, assets/logo-64.png 64w, assets/logo-96.png 96w" sizes="36px" width="36" height="36" alt="">
+        <span>İlanda Hizmet</span>
       </a>
 
-      <button type="button" class="nav-toggle" id="navToggle" aria-expanded="false" aria-controls="mainNav" aria-label="Menüyü aç">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true">
-          <path d="M4 7h16M4 12h16M4 17h16"/>
-        </svg>
+      <button type="button" class="nav__burger" id="navToggle" aria-expanded="false" aria-controls="mainNav" aria-label="Menüyü aç">
+        <span></span><span></span><span></span>
       </button>
 
-      <nav class="nav-links" id="mainNav" aria-label="Ana menü">
+      <nav class="nav__links" id="mainNav" aria-label="Ana menü">
         <a href="#ozellikler">Özellikler</a>
         <a href="#nasil">Nasıl çalışır</a>
+        <a href="#magaza">Mağaza</a>
         <a href="#yasal">Yasal</a>
-        <a class="btn btn-primary btn-sm" href="#indir">Uygulama</a>
+        <a class="btn btn--glow btn--sm" href="#indir">Uygulamayı bekle</a>
       </nav>
     </div>
   </header>
 
   <main id="icerik">
-    <section class="hero">
-      <div class="container hero-grid">
-        <div>
-          <div class="eyebrow">
-            <span class="eyebrow-dot" aria-hidden="true"></span>
-            Hizmet pazaryeri · Türkiye
+    <!-- ═══ HERO — full-bleed dark ═══ -->
+    <section class="hero" id="indir">
+      <div class="hero__glow hero__glow--a" aria-hidden="true"></div>
+      <div class="hero__glow hero__glow--b" aria-hidden="true"></div>
+      <div class="hero__grid" aria-hidden="true"></div>
+
+      <div class="shell hero__layout">
+        <div class="hero__copy">
+          <div class="pill">
+            <span class="pill__dot"></span>
+            Türkiye · Hizmet pazaryeri
           </div>
-          <h1>İhtiyacın olan ustayı<br><em>cebine getir.</em></h1>
-          <p class="hero-lead">
-            Boya, elektrik, su tesisatı, tadilat ve daha fazlası.
-            Bölgendeki ustaları keşfet veya ilanını ver — doğrudan mesajlaş,
-            uygulama içinde anlaş. İstersen Mağaza’da ürün sat veya ara.
+          <h1>
+            İhtiyacın olan ustayı
+            <span class="hero__accent">anında bul.</span>
+          </h1>
+          <p class="hero__lead">
+            Boya, elektrik, tesisat, tadilat… Bölgendeki ustaları keşfet
+            ya da ilanını ver. Anlaşma uygulama içi sohbetle; numara paylaşmak
+            zorunda değilsin.
           </p>
-          <div class="hero-actions" id="indir">
-            <a class="btn btn-primary" href="mailto:ilandahizmet@gmail.com?subject=%C4%B0landa%20Hizmet%20bilgi">
-              Bilgi al
+          <div class="hero__cta">
+            <a class="btn btn--glow" href="mailto:ilandahizmet@gmail.com?subject=%C4%B0landa%20Hizmet">
+              Erken erişim iste
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
             </a>
-            <a class="btn btn-secondary" href="#nasil">Nasıl çalışır?</a>
+            <a class="btn btn--ghost" href="#nasil">3 adımda nasıl?</a>
           </div>
-          <p class="hero-note">
-            Android uygulaması yakında Google Play’de. Bu site tanıtım ve yasal bilgilendirme içindir.
-          </p>
+          <p class="hero__note">Android · Google Play yakında · Üyelik ücretsiz</p>
 
-          <div class="hero-stats" aria-label="Öne çıkanlar">
-            <div class="stat">
-              <strong>Çift rol</strong>
-              <span>Müşteri &amp; usta</span>
+          <div class="hero__trust">
+            <div class="hero__trust-item">
+              <strong>1 hesap</strong>
+              <span>Müşteri + usta</span>
             </div>
-            <div class="stat">
-              <strong>Güvenli</strong>
-              <span>Uygulama içi sohbet</span>
+            <div class="hero__trust-item">
+              <strong>Sohbet</strong>
+              <span>Uygulama içi</span>
             </div>
-            <div class="stat">
-              <strong>Yerel</strong>
-              <span>Bölgeye göre eşleşme</span>
+            <div class="hero__trust-item">
+              <strong>Mağaza</strong>
+              <span>Ürün sat / talep et</span>
             </div>
           </div>
         </div>
 
-        <div class="showcase" aria-hidden="false">
-          <div class="device">
-            <div class="device-notch" aria-hidden="true"></div>
-            <div class="device-screen">
-              <div class="device-appbar">
-                <img src="assets/logo-64.png" width="34" height="34" alt="">
-                <strong>İlanda Hizmet</strong>
+        <!-- Floating product cards (not old phone clone) -->
+        <div class="hero__stage" aria-hidden="true">
+          <div class="float-card float-card--main">
+            <div class="float-card__top">
+              <img src="assets/logo-64.png" width="28" height="28" alt="">
+              <span>Keşfet</span>
+              <span class="chip chip--live">Canlı</span>
+            </div>
+            <p class="float-card__q">Bugün ne lazım?</p>
+            <div class="float-row">
+              <div class="float-avatar">E</div>
+              <div>
+                <strong>Elektrikçi · Bursa</strong>
+                <span>Müsait · 4.9 ★</span>
               </div>
-              <span class="device-pill">Keşfet</span>
-              <h3>Bugün ne lazım?</h3>
-              <p>Usta ara, ilan ver veya Mağaza’ya bak.</p>
-              <ul class="device-list">
-                <li>
-                  <span class="ico" aria-hidden="true">📍</span>
-                  <div>
-                    <strong>Yakındaki ustalar</strong>
-                    <span>Meslek + bölge filtresi</span>
-                  </div>
-                </li>
-                <li>
-                  <span class="ico" aria-hidden="true">📋</span>
-                  <div>
-                    <strong>İlan ver</strong>
-                    <span>İlgilenen usta mesaj atsın</span>
-                  </div>
-                </li>
-                <li>
-                  <span class="ico" aria-hidden="true">🛒</span>
-                  <div>
-                    <strong>Mağaza</strong>
-                    <span>Ürün sat · ürün talebi aç</span>
-                  </div>
-                </li>
-              </ul>
+              <span class="chip">Mesaj</span>
+            </div>
+            <div class="float-row">
+              <div class="float-avatar float-avatar--2">B</div>
+              <div>
+                <strong>Boyacı · Nilüfer</strong>
+                <span>Yakınında · 4.8 ★</span>
+              </div>
+              <span class="chip">Mesaj</span>
+            </div>
+            <div class="float-row float-row--muted">
+              <div class="float-avatar float-avatar--3">T</div>
+              <div>
+                <strong>Tesisatçı · Osmangazi</strong>
+                <span>Kolay İş · 1 gün</span>
+              </div>
+              <span class="chip chip--soft">İlan</span>
             </div>
           </div>
+
+          <div class="float-card float-card--mini float-card--chat">
+            <span class="mini-label">Sohbet</span>
+            <p class="bubble bubble--in">Merhaba, yarın uygun musunuz?</p>
+            <p class="bubble bubble--out">Evet, öğleden sonra gelebilirim.</p>
+          </div>
+
+          <div class="float-card float-card--mini float-card--shop">
+            <span class="mini-label">Mağaza</span>
+            <strong>Matkap seti · 2. el</strong>
+            <span class="price">₺1.250</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Profession marquee -->
+      <div class="marquee" aria-hidden="true">
+        <div class="marquee__track">
+          <span>Elektrikçi</span><span>Boyacı</span><span>Tesisatçı</span><span>Marangoz</span>
+          <span>Klima</span><span>Fayans</span><span>Nakliye</span><span>Temizlik</span>
+          <span>Cam balkon</span><span>Mobilya montaj</span><span>Bahçe</span><span>Çilingir</span>
+          <span>Elektrikçi</span><span>Boyacı</span><span>Tesisatçı</span><span>Marangoz</span>
+          <span>Klima</span><span>Fayans</span><span>Nakliye</span><span>Temizlik</span>
+          <span>Cam balkon</span><span>Mobilya montaj</span><span>Bahçe</span><span>Çilingir</span>
         </div>
       </div>
     </section>
 
+    <!-- ═══ BENTO FEATURES ═══ -->
     <section class="section" id="ozellikler">
-      <div class="container">
-        <div class="section-head">
-          <h2>Neden İlanda Hizmet?</h2>
-          <p>
-            Klasik rehber listesinden farklı: hem ustayı arayıp bulabilir
-            hem ilanını verip aranmayı bekleyebilirsin — tek uygulamada.
+      <div class="shell">
+        <div class="section__head">
+          <p class="section__kicker">Neden biz?</p>
+          <h2>Tek uygulama.<br>İki rol. Sıfır aracılık karmaşası.</h2>
+          <p class="section__sub">
+            Klasik “rehber listesi” değil: bul, ilan ver, yazış, anlaş —
+            hepsi aynı yerde.
           </p>
         </div>
-        <div class="feature-grid">
-          <article class="feature-card">
-            <div class="feature-ico" aria-hidden="true">📍</div>
-            <h3>Bölgene göre</h3>
-            <p>İl ve meslek ile filtrele; sana yakın ustaları gör.</p>
+
+        <div class="bento">
+          <article class="bento__cell bento__cell--wide bento__cell--brand">
+            <div class="bento__icon" aria-hidden="true">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M12 21s7-4.5 7-11a7 7 0 10-14 0c0 6.5 7 11 7 11z" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="10" r="2.5" stroke="currentColor" stroke-width="1.8"/></svg>
+            </div>
+            <h3>Bölgene göre eşleşme</h3>
+            <p>İl + meslek filtresi. Uzak illerden spam teklif değil; kendi bölgesindeki ustalar.</p>
+            <ul class="bento__tags">
+              <li>İl bazlı</li>
+              <li>Meslek seçimi</li>
+              <li>Yakınında rozeti</li>
+            </ul>
           </article>
-          <article class="feature-card">
-            <div class="feature-ico" aria-hidden="true">📋</div>
+
+          <article class="bento__cell">
+            <div class="bento__icon" aria-hidden="true">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M4 6h16v12H4z" stroke="currentColor" stroke-width="1.8" rx="2"/><path d="M8 10h8M8 14h5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+            </div>
             <h3>İlan ver</h3>
-            <p>İhtiyacını yaz; bölgendeki uygun ustalara bildirim gitsin.</p>
+            <p>İhtiyacını yaz; uygun ustalara bildirim gitsin. Kolay İş ile acil işler 1 gün yayında.</p>
           </article>
-          <article class="feature-card">
-            <div class="feature-ico" aria-hidden="true">💬</div>
-            <h3>Uygulama içi mesaj</h3>
-            <p>Görüşmeyi uygulamada yürüt; numara paylaşmak zorunlu değil.</p>
+
+          <article class="bento__cell">
+            <div class="bento__icon" aria-hidden="true">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M21 12a8 8 0 11-3-6.3L21 6v6z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M8 12h5M8 15h3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+            </div>
+            <h3>Güvenli sohbet</h3>
+            <p>Numara paylaşmadan konuş. Aynı kişiyle tek kutu; karmaşık teklif zinciri yok.</p>
           </article>
-          <article class="feature-card">
-            <div class="feature-ico" aria-hidden="true">🛒</div>
+
+          <article class="bento__cell bento__cell--tall">
+            <div class="bento__icon" aria-hidden="true">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M4 7h16v13H4z" stroke="currentColor" stroke-width="1.8"/><path d="M8 7V5a4 4 0 018 0v2" stroke="currentColor" stroke-width="1.8"/></svg>
+            </div>
             <h3>Mağaza</h3>
-            <p>Malzeme ve ekipman sat; ya da “şu ürüne ihtiyacım var” talebi aç.</p>
+            <p>Malzeme, hırdavat, ekipman sat. Ya da “şu ürüne ihtiyacım var” talebi aç — satıcılar görsün.</p>
+            <div class="bento__fake-ui">
+              <div class="fake-product">
+                <div class="fake-product__img"></div>
+                <div>
+                  <strong>Matkap seti</strong>
+                  <span>Hırdavat · ₺1.250</span>
+                </div>
+              </div>
+              <div class="fake-product">
+                <div class="fake-product__img fake-product__img--2"></div>
+                <div>
+                  <strong>Fayans artığı</strong>
+                  <span>Yapı malzeme · Görüşülür</span>
+                </div>
+              </div>
+            </div>
           </article>
-          <article class="feature-card">
-            <div class="feature-ico" aria-hidden="true">⭐</div>
-            <h3>Değerlendirmeler</h3>
-            <p>Çalıştığın kişiye puan ve yorum bırak; şeffaf güven oluştur.</p>
+
+          <article class="bento__cell">
+            <div class="bento__icon" aria-hidden="true">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M12 3l2.4 4.9L20 9l-4 3.9.9 5.6L12 16.3 7.1 18.5 8 12.9 4 9l5.6-1.1L12 3z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+            </div>
+            <h3>Değerlendirme</h3>
+            <p>İş bitince karşılıklı puan. Şeffaf güven — sahte “aracı onay” adımı yok.</p>
           </article>
-          <article class="feature-card">
-            <div class="feature-ico" aria-hidden="true">🛡️</div>
-            <h3>Hesap ve güvenlik</h3>
-            <p>Google ile giriş, şikayet, engelleme ve hesap silme kontrolü sende.</p>
+
+          <article class="bento__cell">
+            <div class="bento__icon" aria-hidden="true">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M12 3a9 9 0 100 18 9 9 0 000-18z" stroke="currentColor" stroke-width="1.8"/><path d="M9 12l2 2 4-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </div>
+            <h3>Kontrol sende</h3>
+            <p>Şikayet, engelle, bildirim tercihleri, hesap silme — hepsi uygulama içinde.</p>
           </article>
         </div>
       </div>
     </section>
 
-    <section class="section" id="nasil">
-      <div class="container">
-        <div class="section-head">
-          <h2>Nasıl çalışır?</h2>
-          <p>Üç adımda başla — üyelik ücretsiz.</p>
+    <!-- ═══ HOW IT WORKS — vertical timeline on mobile, 3 col desktop ═══ -->
+    <section class="section section--dark" id="nasil">
+      <div class="shell">
+        <div class="section__head section__head--light">
+          <p class="section__kicker section__kicker--light">Akış</p>
+          <h2>Üç adım. Aracı yok.</h2>
+          <p class="section__sub">Uygulama sizi buluşturur; fiyat ve zaman sizin aranızda.</p>
         </div>
-        <div class="steps">
-          <div class="step">
-            <div class="step-num">1</div>
-            <h3>İndir ve giriş yap</h3>
-            <p>Google hesabınla hızlıca kaydol. Tek hesapla hem müşteri hem usta ol.</p>
+
+        <ol class="timeline">
+          <li class="timeline__step">
+            <div class="timeline__num">01</div>
+            <h3>Giriş yap</h3>
+            <p>Google ile saniyeler içinde. Tek hesap hem müşteri hem usta modunda çalışır.</p>
+          </li>
+          <li class="timeline__step">
+            <div class="timeline__num">02</div>
+            <h3>Bul veya duyur</h3>
+            <p>Usta ara, ilan ver, Kolay İş aç veya Mağaza’ya ürün koy. Bildirimler doğru kişilere gider.</p>
+          </li>
+          <li class="timeline__step">
+            <div class="timeline__num">03</div>
+            <h3>Yazış &amp; anlaş</h3>
+            <p>Sohbetle netleştir. İş bitince değerlendir — güven bir sonraki kullanıcıya kalır.</p>
+          </li>
+        </ol>
+      </div>
+    </section>
+
+    <!-- ═══ MAGAZA SPOT ═══ -->
+    <section class="section" id="magaza">
+      <div class="shell magaza">
+        <div class="magaza__copy">
+          <p class="section__kicker">Yeni</p>
+          <h2>Mağaza: sat, ara, buluş.</h2>
+          <p>
+            Usta olmak zorunda değilsin. Elindeki malzemeyi veya ekipmanı vitrine koy;
+            ihtiyacın varsa talep ilanı aç. Satıcılar günlük özetle haberdar olur —
+            bildirim yağmuru yok.
+          </p>
+          <ul class="check-list">
+            <li>Ürün vitrini + fotoğraf</li>
+            <li>Ürün talebi (7 gün)</li>
+            <li>Satıcıyla doğrudan sohbet</li>
+          </ul>
+        </div>
+        <div class="magaza__visual" aria-hidden="true">
+          <div class="magaza-card">
+            <div class="magaza-card__badge">Ürünler</div>
+            <div class="magaza-card__grid">
+              <div class="magaza-tile"><span>Hırdavat</span></div>
+              <div class="magaza-tile magaza-tile--2"><span>Mobilya</span></div>
+              <div class="magaza-tile magaza-tile--3"><span>Boya</span></div>
+              <div class="magaza-tile magaza-tile--4"><span>Tesisat</span></div>
+            </div>
           </div>
-          <div class="step">
-            <div class="step-num">2</div>
-            <h3>Usta bul veya ilan ver</h3>
-            <p>Filtreyle ustaları listele, ilan yayınla veya Mağaza’ya göz at.</p>
-          </div>
-          <div class="step">
-            <div class="step-num">3</div>
-            <h3>Mesajlaş ve anlaş</h3>
-            <p>Detayları uygulama içinde konuş; iş bitince değerlendirme bırak.</p>
+          <div class="magaza-card magaza-card--demand">
+            <div class="magaza-card__badge magaza-card__badge--alt">Talep</div>
+            <p>“Bursa’da ikinci el fayans kesme makinesi arıyorum.”</p>
+            <span class="magaza-card__meta">7 gün · günlük özet bildirim</span>
           </div>
         </div>
       </div>
     </section>
 
-    <section class="section" id="yasal">
-      <div class="container">
-        <div class="section-head">
-          <h2>Yasal ve hesap</h2>
-          <p>Play Store ve kullanıcı hakları için gerekli metinler. Hesap silme uygulama içinde yan menü → Hesap Ayarları’ndan yapılır.</p>
+    <!-- ═══ LEGAL ═══ -->
+    <section class="section section--soft" id="yasal">
+      <div class="shell">
+        <div class="section__head">
+          <p class="section__kicker">Güven &amp; yasal</p>
+          <h2>Şeffaf, erişilebilir belgeler</h2>
+          <p class="section__sub">
+            Hesap silme: uygulama içinde <strong>yan menü → Hesap Ayarları → Hesabı Sil</strong>.
+          </p>
         </div>
         <div class="legal-grid">
-          <a class="legal-card" href="kullanim-kosullari.html">
-            <h3>Kullanım Koşulları</h3>
-            <p>Hizmeti kullanırken geçerli kurallar.</p>
-            <span class="arrow">Oku →</span>
+          <a class="legal" href="kullanim-kosullari.html">
+            <span class="legal__icon">01</span>
+            <strong>Kullanım Koşulları</strong>
+            <span>Kurallar ve sorumluluklar</span>
           </a>
-          <a class="legal-card" href="gizlilik-politikasi.html">
-            <h3>Gizlilik Politikası</h3>
-            <p>Hangi veriyi neden işlediğimiz.</p>
-            <span class="arrow">Oku →</span>
+          <a class="legal" href="gizlilik-politikasi.html">
+            <span class="legal__icon">02</span>
+            <strong>Gizlilik Politikası</strong>
+            <span>Hangi veri, neden işlenir</span>
           </a>
-          <a class="legal-card" href="kvkk-aydinlatma.html">
-            <h3>KVKK Aydınlatma</h3>
-            <p>6698 sayılı kanun kapsamında bilgilendirme.</p>
-            <span class="arrow">Oku →</span>
+          <a class="legal" href="kvkk-aydinlatma.html">
+            <span class="legal__icon">03</span>
+            <strong>KVKK Aydınlatma</strong>
+            <span>6698 sayılı kanun</span>
           </a>
-          <a class="legal-card" href="hesap-silme.html">
-            <h3>Hesap silme</h3>
-            <p>Menü → Hesap Ayarları → Hesabı Sil.</p>
-            <span class="arrow">Oku →</span>
+          <a class="legal" href="hesap-silme.html">
+            <span class="legal__icon">04</span>
+            <strong>Hesap silme</strong>
+            <span>Menü → Hesap Ayarları</span>
           </a>
-          <a class="legal-card" href="mailto:ilandahizmet@gmail.com">
-            <h3>İletişim</h3>
-            <p>ilandahizmet@gmail.com</p>
-            <span class="arrow">Yaz →</span>
+          <a class="legal" href="mailto:ilandahizmet@gmail.com">
+            <span class="legal__icon">@</span>
+            <strong>İletişim</strong>
+            <span>ilandahizmet@gmail.com</span>
           </a>
         </div>
       </div>
     </section>
 
-    <section class="cta">
-      <div class="container">
-        <div class="cta-panel">
-          <div>
-            <h2>Usta mısın, iş mi arıyorsun?</h2>
-            <p>Uygulama yayına girdiğinde Play linki burada olacak. Şimdilik bize yaz — seni bilgilendirelim.</p>
-          </div>
-          <a class="btn btn-primary" href="mailto:ilandahizmet@gmail.com?subject=%C4%B0landa%20Hizmet">
-            Bize yaz
-          </a>
+    <!-- ═══ FINAL CTA ═══ -->
+    <section class="finale">
+      <div class="shell finale__box">
+        <div>
+          <h2>Usta mısın, iş mi arıyorsun?</h2>
+          <p>Play linki yayında burada olacak. Şimdiden listemize yaz — ilk sende olsun.</p>
         </div>
+        <a class="btn btn--glow btn--lg" href="mailto:ilandahizmet@gmail.com?subject=%C4%B0landa%20Hizmet%20erken%20eri%C5%9Fim">
+          Bize yaz
+        </a>
       </div>
     </section>
   </main>
 
-  <footer class="site-footer">
-    <div class="container">
-      <div class="footer-grid">
-        <div class="footer-brand">
-          <a class="logo" href="/">
-            <img src="assets/logo-64.png" width="40" height="40" alt="">
-            <span class="logo-word">İlanda Hizmet</span>
-          </a>
-          <p>Müşteri ile ustayı buluşturan hizmet pazaryeri. Güvenli sohbet, yerel eşleşme, Mağaza.</p>
-        </div>
-        <div class="footer-col">
-          <h4>Keşfet</h4>
-          <ul>
-            <li><a href="#ozellikler">Özellikler</a></li>
-            <li><a href="#nasil">Nasıl çalışır</a></li>
-            <li><a href="#indir">Uygulama</a></li>
-          </ul>
-        </div>
-        <div class="footer-col">
-          <h4>Yasal</h4>
-          <ul>
-            <li><a href="gizlilik-politikasi.html">Gizlilik</a></li>
-            <li><a href="kullanim-kosullari.html">Koşullar</a></li>
-            <li><a href="kvkk-aydinlatma.html">KVKK</a></li>
-            <li><a href="hesap-silme.html">Hesap silme</a></li>
-          </ul>
-        </div>
+  <footer class="footer">
+    <div class="shell footer__grid">
+      <div>
+        <a class="brand brand--footer" href="/">
+          <img src="assets/logo-64.png" width="36" height="36" alt="">
+          <span>İlanda Hizmet</span>
+        </a>
+        <p class="footer__tag">Müşteri ile ustayı buluşturan hizmet pazaryeri.</p>
       </div>
-      <div class="footer-bottom">
-        © 2026 İlanda Hizmet ·
-        <a href="mailto:ilandahizmet@gmail.com">ilandahizmet@gmail.com</a>
+      <div class="footer__col">
+        <h4>Ürün</h4>
+        <a href="#ozellikler">Özellikler</a>
+        <a href="#nasil">Nasıl çalışır</a>
+        <a href="#magaza">Mağaza</a>
       </div>
+      <div class="footer__col">
+        <h4>Yasal</h4>
+        <a href="gizlilik-politikasi.html">Gizlilik</a>
+        <a href="kullanim-kosullari.html">Koşullar</a>
+        <a href="kvkk-aydinlatma.html">KVKK</a>
+        <a href="hesap-silme.html">Hesap silme</a>
+      </div>
+    </div>
+    <div class="shell footer__bottom">
+      <span>© 2026 İlanda Hizmet</span>
+      <a href="mailto:ilandahizmet@gmail.com">ilandahizmet@gmail.com</a>
     </div>
   </footer>
 
@@ -288,25 +397,24 @@
       if (!nav || !btn || !links) return;
 
       function setOpen(open) {
-        nav.classList.toggle('nav-open', open);
+        nav.classList.toggle('is-open', open);
         btn.setAttribute('aria-expanded', open ? 'true' : 'false');
         btn.setAttribute('aria-label', open ? 'Menüyü kapat' : 'Menüyü aç');
+        document.body.classList.toggle('nav-open', open);
       }
 
       btn.addEventListener('click', function () {
-        setOpen(!nav.classList.contains('nav-open'));
+        setOpen(!nav.classList.contains('is-open'));
       });
-
       links.querySelectorAll('a').forEach(function (a) {
         a.addEventListener('click', function () { setOpen(false); });
       });
-
       document.addEventListener('keydown', function (e) {
         if (e.key === 'Escape') setOpen(false);
       });
 
       var onScroll = function () {
-        nav.classList.toggle('is-scrolled', window.scrollY > 8);
+        nav.classList.toggle('is-scrolled', window.scrollY > 12);
       };
       onScroll();
       window.addEventListener('scroll', onScroll, { passive: true });
