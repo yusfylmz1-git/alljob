@@ -465,6 +465,35 @@ class FirebaseAuthRepository implements AuthRepository {
   }
 
   @override
+  Future<void> changePassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    final user = _auth.currentUser;
+    if (user == null) throw AuthException.notSignedIn;
+    final email = user.email?.trim();
+    if (email == null || email.isEmpty) {
+      throw AuthException.noPasswordProvider;
+    }
+    // E-posta sağlayıcısı yoksa (yalnız Google) şifre yok.
+    final hasPassword = user.providerData.any(
+      (p) => p.providerId == 'password',
+    );
+    if (!hasPassword) throw AuthException.noPasswordProvider;
+    if (newPassword.trim().length < 6) throw AuthException.weakPassword;
+    try {
+      final cred = fb.EmailAuthProvider.credential(
+        email: email,
+        password: currentPassword,
+      );
+      await user.reauthenticateWithCredential(cred);
+      await user.updatePassword(newPassword);
+    } on fb.FirebaseAuthException catch (e) {
+      throw _map(e);
+    }
+  }
+
+  @override
   Future<void> sendEmailVerification() async {
     final fbUser = _auth.currentUser;
     if (fbUser == null) throw AuthException.notSignedIn;
@@ -737,6 +766,8 @@ class FirebaseAuthRepository implements AuthRepository {
         return AuthException.wrongPassword;
       case 'weak-password':
         return AuthException.weakPassword;
+      case 'requires-recent-login':
+        return AuthException.requiresRecentLogin;
       case 'popup-closed-by-user':
       case 'cancelled-popup-request':
       case 'user-cancelled':

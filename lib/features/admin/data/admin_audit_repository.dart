@@ -44,20 +44,139 @@ class AuditEntry {
     'invite_revoke' => 'Davet iptal edildi',
     'stats_rebuild' => 'İstatistikler yeniden kuruldu',
     'moderate_job' => 'İlan moderasyonu',
-    'set_artisan_flags' => 'Usta bayrakları',
-    'hide_review' => 'Değerlendirme gizleme',
+    'set_artisan_flags' => 'Usta vitrin ayarı',
+    'hide_review' => 'Değerlendirme gizlendi',
     'get_chat_transcript' => 'Sohbet kanıtı okundu',
     'hide_message' => 'Mesaj kaldırıldı',
-    'unhide_message' => 'Mesaj kaldırma geri alındı',
-    'suspend_user' => 'Kullanıcı askıya alındı',
-    'unsuspend_user' => 'Askı kaldırıldı',
+    'unhide_message' => 'Mesaj geri getirildi',
+    'suspend_user' => 'Hesap askıya alındı',
+    'unsuspend_user' => 'Hesap askısı kaldırıldı',
     'resolve_report' => 'Şikayet karara bağlandı',
     'claim_report' => 'Şikayet üstlenildi',
     'release_report' => 'Şikayet bırakıldı',
+    'moderate_product' => 'Ürün moderasyonu',
+    'update_config' => 'Sistem ayarı güncellendi',
+    'grant_premium' => 'Premium tanımlandı / iptal',
+    'review_certificates' => 'Belge incelemesi',
+    'add_user_note' => 'Dahili not eklendi',
+    'bulk_plan_update' => 'Toplu plan güncellemesi',
+    'bulk_suspend' => 'Toplu askı',
+    'export' => 'Dışa aktarım',
+    'broadcast' => 'Duyuru gönderildi',
     // Artık üretilmiyor (hakemlik kalktı); ESKİ kayıtlar okunabilsin diye durur.
     'resolve_dispute' => 'Anlaşmazlık çözüldü',
     _ => action,
   };
+
+  /// Hedef türünün Türkçe etiketi.
+  String get targetTypeLabelTR {
+    final t = (targetType ?? '').toLowerCase();
+    return switch (t) {
+      'user' || 'users' => 'Kullanıcı',
+      'job' || 'jobs' => 'İlan',
+      'product' || 'products' => 'Ürün',
+      'report' || 'reports' => 'Şikayet',
+      'review' || 'reviews' => 'Değerlendirme',
+      'artisan' || 'artisanprofile' || 'artisan_profile' => 'Usta profili',
+      'message' || 'messages' => 'Mesaj',
+      'chat' || 'chats' => 'Sohbet',
+      'config' || 'adminconfig' => 'Sistem ayarı',
+      'invite' => 'Davet',
+      '' => 'Hedef',
+      _ => targetType!,
+    };
+  }
+
+  /// Operatörün okuyabileceği tek satırlık özet (UID yığını değil).
+  String get summaryLine {
+    final parts = <String>[actionLabelTR];
+    final detail = detailSummary;
+    if (detail != null && detail.isNotEmpty) parts.add(detail);
+    return parts.join(' · ');
+  }
+
+  /// `after` / `before` haritasından insan dilinde kısa özet.
+  String? get detailSummary {
+    final a = after;
+    if (a == null || a.isEmpty) return null;
+    final parts = <String>[];
+
+    void add(String label, dynamic v) {
+      if (v == null) return;
+      final s = '$v'.trim();
+      if (s.isEmpty) return;
+      parts.add('$label: $s');
+    }
+
+    if (a['role'] != null) {
+      final r = '${a['role']}';
+      parts.add(r == 'null' || r.isEmpty ? 'rol kaldırıldı' : 'rol → $r');
+    }
+    if (a['status'] != null) {
+      final st = '${a['status']}';
+      parts.add(switch (st) {
+        'resolved' => 'sonuç: çözüldü',
+        'dismissed' => 'sonuç: reddedildi',
+        'open' => 'durum: açık',
+        'reviewing' => 'durum: inceleniyor',
+        'active' => 'yayında',
+        'pending_review' => 'incelemede',
+        'rejected' => 'reddedildi',
+        'hidden' => 'gizlendi',
+        _ => 'durum: $st',
+      });
+    }
+    if (a['decision'] != null) add('karar', a['decision']);
+    if (a['suspended'] != null) {
+      parts.add(a['suspended'] == true ? 'askıya alındı' : 'askı kaldırıldı');
+    }
+    if (a['reason'] != null && '${a['reason']}'.trim().isNotEmpty) {
+      parts.add('neden: ${a['reason']}');
+    }
+    if (a['note'] != null && '${a['note']}'.trim().isNotEmpty) {
+      parts.add('not: ${a['note']}');
+    }
+    if (a['adminNote'] != null && '${a['adminNote']}'.trim().isNotEmpty) {
+      parts.add('yönetici notu: ${a['adminNote']}');
+    }
+    if (a['assignedTo'] != null) add('üstlenen', a['assignedTo']);
+    if (a['adminVerified'] != null) {
+      parts.add(
+        a['adminVerified'] == true
+            ? 'platform onayı verildi'
+            : 'platform onayı kaldırıldı',
+      );
+    }
+    if (a['featured'] != null) {
+      parts.add(a['featured'] == true ? 'öne çıkarıldı' : 'öne çıkarma kalktı');
+    }
+    if (a['moderationHidden'] != null) {
+      parts.add(
+        a['moderationHidden'] == true ? 'vitrin gizlendi' : 'vitrin gösterildi',
+      );
+    }
+    if (a['days'] != null) add('gün', a['days']);
+    if (a['revoke'] == true) parts.add('premium iptal');
+    if (a['expiresAt'] != null) add('bitiş', a['expiresAt']);
+    if (a['kind'] != null) add('tür', a['kind']);
+    if (a['rowCount'] != null) add('satır', a['rowCount']);
+    if (a['mode'] != null) add('mod', a['mode']);
+    if (a['approve'] != null) {
+      parts.add(a['approve'] == true ? 'belgeler onaylandı' : 'belgeler reddedildi');
+    }
+    if (a['moderationHidden'] == null &&
+        a['hidden'] != null) {
+      parts.add(a['hidden'] == true ? 'gizlendi' : 'gösterildi');
+    }
+    // Bilinen anahtar yoksa ham anahtar=değer (max 3).
+    if (parts.isEmpty) {
+      for (final e in a.entries.take(3)) {
+        if (e.value == null) continue;
+        parts.add('${e.key}: ${e.value}');
+      }
+    }
+    return parts.isEmpty ? null : parts.join(' · ');
+  }
 
   static DateTime _date(dynamic v) {
     if (v is String) return DateTime.tryParse(v) ?? DateTime.now();
@@ -85,15 +204,40 @@ class AuditEntry {
 /// bir grup eylem kodunu kapsar; [AuditCategory.all] hepsini geçirir.
 enum AuditCategory {
   all('Tümü'),
-  roles('Roller'),
-  suspension('Askı'),
-  reports('Şikayet');
+  users('Kullanıcı'),
+  content('İçerik'),
+  reports('Şikayet'),
+  roles('Kadro'),
+  system('Sistem');
 
   const AuditCategory(this.labelTR);
   final String labelTR;
 
   bool matches(AuditEntry e) => switch (this) {
     AuditCategory.all => true,
+    AuditCategory.users => const {
+      'suspend_user',
+      'unsuspend_user',
+      'bulk_suspend',
+      'set_artisan_flags',
+      'grant_premium',
+      'review_certificates',
+      'add_user_note',
+    }.contains(e.action),
+    AuditCategory.content => const {
+      'moderate_job',
+      'moderate_product',
+      'hide_review',
+      'hide_message',
+      'unhide_message',
+      'get_chat_transcript',
+      'bulk_plan_update',
+    }.contains(e.action),
+    AuditCategory.reports => const {
+      'resolve_report',
+      'claim_report',
+      'release_report',
+    }.contains(e.action),
     AuditCategory.roles => const {
       'grant_admin',
       'set_role',
@@ -103,17 +247,11 @@ enum AuditCategory {
       'invite_accept',
       'invite_revoke',
     }.contains(e.action),
-    AuditCategory.suspension => const {
-      'suspend_user',
-      'unsuspend_user',
-    }.contains(e.action),
-    AuditCategory.reports => const {
-      'resolve_report',
-      'claim_report',
-      'release_report',
-      // Mesaj moderasyonu her zaman bir şikayetten doğar → bu kategoride.
-      'hide_message',
-      'unhide_message',
+    AuditCategory.system => const {
+      'stats_rebuild',
+      'update_config',
+      'export',
+      'broadcast',
     }.contains(e.action),
   };
 }

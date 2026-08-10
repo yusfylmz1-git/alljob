@@ -38,6 +38,15 @@ abstract interface class AuthRepository {
 
   Future<void> sendPasswordReset(String email);
 
+  /// Oturum açmış kullanıcının şifresini değiştirir (e-posta/şifre hesabı).
+  ///
+  /// Güvenlik: [currentPassword] ile yeniden doğrulama gerekir. Google-only
+  /// hesaplarda e-posta şifresi yoktur → [AuthException].
+  Future<void> changePassword({
+    required String currentPassword,
+    required String newPassword,
+  });
+
   /// Oturum açmış kullanıcıya e-posta doğrulama bağlantısı gönderir.
   /// (Kayıtta otomatik gönderilir; bu, profildeki "yeniden gönder" için.)
   Future<void> sendEmailVerification();
@@ -106,6 +115,13 @@ class AuthException implements Exception {
   static const wrongPassword = AuthException('E-posta veya şifre hatalı.');
   static const weakPassword = AuthException(
     'Şifre çok zayıf, en az 6 karakter kullanın.',
+  );
+  static const requiresRecentLogin = AuthException(
+    'Güvenlik için tekrar giriş yapıp şifre değiştirmeyi deneyin.',
+  );
+  static const noPasswordProvider = AuthException(
+    'Bu hesap e-posta/şifre ile bağlı değil (ör. Google). '
+    'Şifre sıfırlama e-postası yalnızca e-posta hesabında çalışır.',
   );
   static const cancelled = AuthException('Giriş iptal edildi.');
   static const providerDisabled = AuthException(

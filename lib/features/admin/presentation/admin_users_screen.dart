@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'admin_chrome.dart';
 
 import '../../../core/theme/app_palette.dart';
 import '../../../core/utils/snackbar_helper.dart';
@@ -11,10 +10,18 @@ import '../../../data/models/app_user.dart';
 import '../data/admin_export_util.dart';
 import '../data/admin_providers.dart';
 import '../data/admin_user_repository.dart';
-import 'admin_user_overview.dart';
+import 'admin_chrome.dart';
+import 'admin_list_search.dart';
+import 'admin_moderation_glossary.dart';
+import 'admin_person_hub.dart';
 import 'paged_footer.dart';
 
-/// Yönetici kullanıcı yönetimi: arama + sayfalı dizin (PR2) + bulk/export (PR14).
+export 'admin_person_hub.dart' show showAdminUserActions;
+
+/// Kullanıcı dizini — kişi-merkezli adminin ana listesi.
+///
+/// Kart → [showAdminUserActions] (AdminPersonHub): kimlik, aktivite, usta
+/// vitrini, notlar, askı. Rol atama yalnız Kadro sekmesinde.
 class AdminUsersScreen extends ConsumerStatefulWidget {
   const AdminUsersScreen({super.key});
 
@@ -24,6 +31,8 @@ class AdminUsersScreen extends ConsumerStatefulWidget {
 
 class _AdminUsersScreenState extends ConsumerState<AdminUsersScreen> {
   final _query = TextEditingController();
+  final _listFilter = TextEditingController();
+  String _listQuery = '';
   bool _searching = false;
   bool _searched = false;
   AppUser? _result;
@@ -34,6 +43,7 @@ class _AdminUsersScreenState extends ConsumerState<AdminUsersScreen> {
   @override
   void dispose() {
     _query.dispose();
+    _listFilter.dispose();
     super.dispose();
   }
 
@@ -175,18 +185,16 @@ class _AdminUsersScreenState extends ConsumerState<AdminUsersScreen> {
   }
 
   Future<void> _openActions(AppUser user) async {
-    await showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      builder: (_) => _UserActionSheet(
-        user: user,
-        onChanged: () {
-          if (mounted) {
-            _search();
-            ref.read(userDirectoryControllerProvider.notifier).refresh();
-          }
-        },
-      ),
+    await showAdminUserActions(
+      context,
+      ref,
+      user.uid,
+      onChanged: () {
+        if (mounted) {
+          _search();
+          ref.read(userDirectoryControllerProvider.notifier).refresh();
+        }
+      },
     );
   }
 
@@ -202,10 +210,10 @@ class _AdminUsersScreenState extends ConsumerState<AdminUsersScreen> {
       appBar: AdminChrome.pageHeader(
         context: context,
         title: 'Kullanıcılar',
-        icon: Icons.manage_accounts_outlined,
+        icon: Icons.people_alt_outlined,
         subtitle: dirAsync.valueOrNull == null
-            ? null
-            : 'Dizin: ${dirAsync.value!.items.length}'
+            ? 'Kişi kartı · tüm işlemler tek yerde'
+            : '${dirAsync.value!.items.length} kişi yüklü'
                   '${dirAsync.value!.hasMore ? '+' : ''}',
         actions: [
           if (_selectMode) ...[
@@ -244,6 +252,7 @@ class _AdminUsersScreenState extends ConsumerState<AdminUsersScreen> {
               onPressed: () => setState(() => _selectMode = true),
               icon: const Icon(Icons.checklist),
             ),
+            const AdminHelpButton(highlightTitle: 'Hesap askıda'),
             IconButton(
               tooltip: 'Dizini yenile',
               icon: const Icon(Icons.refresh_rounded),
@@ -254,6 +263,15 @@ class _AdminUsersScreenState extends ConsumerState<AdminUsersScreen> {
       ),
       body: Column(
         children: [
+          AdminHintBanner(
+            text:
+                'Askı = hesabı dondurur. Usta “gizle / platform onayı” vitrin '
+                'ayarlarıdır (sözlük).',
+            onHelp: () => AdminModerationGlossary.show(
+              context,
+              highlightTitle: 'Hesap askıda',
+            ),
+          ),
           if (_selectMode)
             Material(
               color: palette.primary.withValues(alpha: 0.08),
@@ -291,7 +309,7 @@ class _AdminUsersScreenState extends ConsumerState<AdminUsersScreen> {
                   textInputAction: TextInputAction.search,
                   onSubmitted: (_) => _search(),
                   decoration: InputDecoration(
-                    labelText: 'E-posta veya UID',
+                    labelText: 'Kişi ara (e-posta veya UID)',
                     hintText: 'ornek@eposta.com',
                     prefixIcon: const Icon(Icons.search),
                     suffixIcon: IconButton(
@@ -353,10 +371,31 @@ class _AdminUsersScreenState extends ConsumerState<AdminUsersScreen> {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Kayıtlı kullanıcı dizini (en yeni üstte)',
+                  'Kayıtlı kişiler · karta dokun = tam dosya',
                   style: Theme.of(
                     context,
                   ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: _listFilter,
+                  onChanged: (v) => setState(() => _listQuery = v.trim()),
+                  decoration: InputDecoration(
+                    isDense: true,
+                    labelText: 'Dizinde süz (ad / e-posta / UID)',
+                    hintText: 'Yüklü satırlarda anında süz',
+                    prefixIcon: const Icon(Icons.filter_list, size: 20),
+                    border: const OutlineInputBorder(),
+                    suffixIcon: _listQuery.isEmpty
+                        ? null
+                        : IconButton(
+                            icon: const Icon(Icons.clear, size: 18),
+                            onPressed: () {
+                              _listFilter.clear();
+                              setState(() => _listQuery = '');
+                            },
+                          ),
+                  ),
                 ),
                 const SizedBox(height: 4),
               ],
@@ -368,11 +407,30 @@ class _AdminUsersScreenState extends ConsumerState<AdminUsersScreen> {
               error: (err, _) =>
                   ErrorView(message: _directoryErrorMessage(err)),
               data: (page) {
+                final items = _listQuery.isEmpty
+                    ? page.items
+                    : page.items
+                        .where(
+                          (u) => adminAnyMatch(
+                            [u.displayName, u.email, u.uid],
+                            _listQuery,
+                          ),
+                        )
+                        .toList();
                 if (page.items.isEmpty) {
                   return Center(
                     child: Text(
                       'Bu filtrede kullanıcı yok.',
                       style: TextStyle(color: palette.inkMuted),
+                    ),
+                  );
+                }
+                if (items.isEmpty) {
+                  return Center(
+                    child: Text(
+                      'Süzme sonucu yok. Daha fazla yükleyin veya aramayı temizleyin.',
+                      style: TextStyle(color: palette.inkMuted),
+                      textAlign: TextAlign.center,
                     ),
                   );
                 }
@@ -382,18 +440,20 @@ class _AdminUsersScreenState extends ConsumerState<AdminUsersScreen> {
                     maxWidth: 960,
                     padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
                     child: ListView.separated(
-                      itemCount: page.items.length + 1,
+                      itemCount: items.length + 1,
                       separatorBuilder: (_, _) => const SizedBox(height: 10),
                       itemBuilder: (context, i) {
-                        if (i == page.items.length) {
+                        if (i == items.length) {
                           return PagedFooter(
                             hasMore: page.hasMore,
                             loadingMore: page.loadingMore,
                             onLoadMore: dirCtrl.loadMore,
-                            endLabel: 'Dizinin sonu',
+                            endLabel: _listQuery.isEmpty
+                                ? 'Dizinin sonu'
+                                : 'Yüklü dizinde süzme',
                           );
                         }
-                        final u = page.items[i];
+                        final u = items[i];
                         final selected = _selected.contains(u.uid);
                         return _UserCard(
                           user: u,
@@ -439,6 +499,10 @@ class _UserCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final palette = context.palette;
     final theme = Theme.of(context);
+    final name = user.displayName.isEmpty ? 'İsimsiz' : user.displayName;
+    final letter = name.substring(0, 1).toUpperCase();
+    final photo = user.profilePhotoUrl?.trim();
+    final hasPhoto = photo != null && photo.startsWith('http');
     return Material(
       color: palette.card,
       borderRadius: BorderRadius.circular(16),
@@ -454,71 +518,113 @@ class _UserCard extends StatelessWidget {
               width: selected == true ? 2 : 1,
             ),
           ),
-          child: Column(
+          child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
-                children: [
-                  if (selected != null) ...[
-                    Icon(
-                      selected!
-                          ? Icons.check_box
-                          : Icons.check_box_outline_blank,
-                      color: palette.primary,
-                      size: 22,
-                    ),
-                    const SizedBox(width: 8),
-                  ],
-                  Expanded(
-                    child: Text(
-                      user.displayName.isEmpty ? '(isimsiz)' : user.displayName,
+              if (selected != null) ...[
+                Icon(
+                  selected! ? Icons.check_box : Icons.check_box_outline_blank,
+                  color: palette.primary,
+                  size: 22,
+                ),
+                const SizedBox(width: 10),
+              ],
+              ClipRRect(
+                borderRadius: BorderRadius.circular(14),
+                child: SizedBox(
+                  width: 48,
+                  height: 48,
+                  child: hasPhoto
+                      ? Image.network(
+                          photo,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, _, _) => ColoredBox(
+                            color: palette.primaryContainer,
+                            child: Center(
+                              child: Text(
+                                letter,
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w800,
+                                  color: palette.onPrimaryContainer,
+                                ),
+                              ),
+                            ),
+                          ),
+                        )
+                      : ColoredBox(
+                          color: palette.primaryContainer,
+                          child: Center(
+                            child: Text(
+                              letter,
+                              style: TextStyle(
+                                fontWeight: FontWeight.w800,
+                                fontSize: 18,
+                                color: palette.onPrimaryContainer,
+                              ),
+                            ),
+                          ),
+                        ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      name,
                       style: theme.textTheme.titleMedium?.copyWith(
                         fontWeight: FontWeight.w800,
                       ),
                       overflow: TextOverflow.ellipsis,
                     ),
-                  ),
-                  if (user.suspended)
-                    _Chip(
-                      label: 'Askıya Alındı',
-                      bg: palette.dangerSurface,
-                      fg: palette.danger,
-                    )
-                  else
-                    _Chip(
-                      label: 'Aktif',
-                      bg: palette.successSurface,
-                      fg: palette.success,
+                    const SizedBox(height: 2),
+                    Text(
+                      user.email.isEmpty ? 'E-posta yok' : user.email,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: palette.inkMuted,
+                      ),
+                      overflow: TextOverflow.ellipsis,
                     ),
-                ],
-              ),
-              const SizedBox(height: 6),
-              SelectableText(
-                user.email,
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: palette.inkMuted,
-                ),
-              ),
-              const SizedBox(height: 2),
-              SelectableText(
-                'UID: ${user.uid}',
-                style: theme.textTheme.labelSmall?.copyWith(
-                  color: palette.inkFaint,
-                ),
-              ),
-              if (selected == null) ...[
-                const SizedBox(height: 12),
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: Text(
-                    'Yönet →',
-                    style: TextStyle(
-                      color: palette.primary,
-                      fontWeight: FontWeight.w700,
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 4,
+                      children: [
+                        _Chip(
+                          label: user.suspended ? 'Askıda' : 'Aktif',
+                          bg: user.suspended
+                              ? palette.dangerSurface
+                              : palette.successSurface,
+                          fg: user.suspended
+                              ? palette.danger
+                              : palette.success,
+                        ),
+                        if (user.hasArtisanProfile)
+                          _Chip(
+                            label: 'Usta',
+                            bg: palette.infoSurface,
+                            fg: palette.info,
+                          )
+                        else
+                          _Chip(
+                            label: 'Müşteri',
+                            bg: palette.surfaceMuted,
+                            fg: palette.inkMuted,
+                          ),
+                        if (user.phoneVerified)
+                          _Chip(
+                            label: 'Tel. ✓',
+                            bg: palette.surfaceMuted,
+                            fg: palette.inkMuted,
+                          ),
+                      ],
                     ),
-                  ),
+                  ],
                 ),
-              ],
+              ),
+              if (selected == null)
+                Icon(Icons.chevron_right, color: palette.inkFaint),
             ],
           ),
         ),
@@ -549,291 +655,3 @@ class _Chip extends StatelessWidget {
   }
 }
 
-/// Bir kullanıcıyı UID ile yükleyip askıya al / geri aç eylem sayfasını açar.
-/// Şikayet detayından "kullanıcıyı yönet" için ortak giriş
-/// noktası — moderasyon döngüsünü kapatır (bildirimden tek dokunuşla askıya al).
-Future<void> showAdminUserActions(
-  BuildContext context,
-  WidgetRef ref,
-  String uid, {
-  VoidCallback? onChanged,
-}) async {
-  AppUser? user;
-  try {
-    user = await ref.read(adminUserRepositoryProvider).findByUid(uid);
-  } catch (_) {
-    if (context.mounted) context.showError('Kullanıcı yüklenemedi.');
-    return;
-  }
-  if (!context.mounted) return;
-  if (user == null) {
-    context.showError('Kullanıcı bulunamadı.');
-    return;
-  }
-  await showModalBottomSheet<void>(
-    context: context,
-    isScrollControlled: true,
-    builder: (_) => _UserActionSheet(user: user!, onChanged: onChanged),
-  );
-}
-
-/// Kullanıcı için askıya al / geri aç eylem sayfası.
-class _UserActionSheet extends ConsumerStatefulWidget {
-  const _UserActionSheet({required this.user, this.onChanged});
-  final AppUser user;
-  final VoidCallback? onChanged;
-
-  @override
-  ConsumerState<_UserActionSheet> createState() => _UserActionSheetState();
-}
-
-class _UserActionSheetState extends ConsumerState<_UserActionSheet> {
-  final _reason = TextEditingController();
-  bool _busy = false;
-  String? _role; // hedefin mevcut yönetici rolü (null = yönetici değil)
-  bool _roleLoading = true;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadRole();
-  }
-
-  Future<void> _loadRole() async {
-    try {
-      final r = await ref
-          .read(adminUserRepositoryProvider)
-          .findRole(widget.user.uid);
-      if (!mounted) return;
-      setState(() {
-        _role = r;
-        _roleLoading = false;
-      });
-    } catch (_) {
-      if (!mounted) return;
-      setState(() => _roleLoading = false);
-    }
-  }
-
-  @override
-  void dispose() {
-    _reason.dispose();
-    super.dispose();
-  }
-
-  Future<void> _applyRole(String? role) async {
-    setState(() => _busy = true);
-    try {
-      await ref
-          .read(adminUserRepositoryProvider)
-          .setRole(widget.user.uid, role: role);
-      if (!mounted) return;
-      Navigator.of(context).pop();
-      widget.onChanged?.call();
-      context.showSuccess(
-        role == null
-            ? 'Yönetici yetkisi kaldırıldı.'
-            : 'Rol atandı: ${_roleLabel(role)}.',
-      );
-    } catch (_) {
-      if (!mounted) return;
-      setState(() => _busy = false);
-      context.showError('İşlem başarısız oldu. Tekrar deneyin.');
-    }
-  }
-
-  Future<void> _apply(bool suspend) async {
-    setState(() => _busy = true);
-    try {
-      await ref
-          .read(adminUserRepositoryProvider)
-          .setSuspended(
-            widget.user.uid,
-            suspended: suspend,
-            reason: _reason.text,
-          );
-      if (!mounted) return;
-      Navigator.of(context).pop();
-      widget.onChanged?.call();
-      context.showSuccess(
-        suspend
-            ? 'Kullanıcı askıya alındı.'
-            : 'Kullanıcının askısı kaldırıldı.',
-      );
-    } catch (_) {
-      if (!mounted) return;
-      setState(() => _busy = false);
-      context.showError('İşlem başarısız oldu. Tekrar deneyin.');
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final palette = context.palette;
-    final theme = Theme.of(context);
-    final u = widget.user;
-    return SafeArea(
-      child: Padding(
-        padding: EdgeInsets.only(
-          bottom: MediaQuery.of(context).viewInsets.bottom,
-        ),
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Center(
-                child: Container(
-                  margin: const EdgeInsets.only(bottom: 14),
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: palette.borderStrong,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
-              Text(
-                u.displayName.isEmpty ? '(isimsiz)' : u.displayName,
-                style: theme.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                u.email,
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: palette.inkMuted,
-                ),
-              ),
-              const SizedBox(height: 16),
-              if (u.suspended) ...[
-                Text(
-                  'Bu kullanıcı şu an askıda. Geri açıldığında yeniden içerik '
-                  'oluşturabilir.',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: palette.inkMuted,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                if (_busy)
-                  const Center(child: CircularProgressIndicator())
-                else
-                  FilledButton.icon(
-                    onPressed: () => _apply(false),
-                    icon: const Icon(Icons.lock_open_outlined, size: 18),
-                    label: const Text('Askıyı Kaldır'),
-                  ),
-              ] else ...[
-                Text(
-                  'Askıya alma nedeni (opsiyonel — yalnız denetim kaydına)',
-                  style: theme.textTheme.labelLarge?.copyWith(
-                    color: palette.inkMuted,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                TextField(
-                  controller: _reason,
-                  minLines: 2,
-                  maxLines: 4,
-                  enabled: !_busy,
-                  decoration: const InputDecoration(
-                    hintText: 'Örn. tekrarlanan spam / taciz…',
-                  ),
-                ),
-                const SizedBox(height: 16),
-                if (_busy)
-                  const Center(child: CircularProgressIndicator())
-                else
-                  FilledButton.icon(
-                    style: FilledButton.styleFrom(
-                      backgroundColor: palette.danger,
-                    ),
-                    onPressed: () => _apply(true),
-                    icon: const Icon(Icons.gpp_bad_outlined, size: 18),
-                    label: const Text('Askıya Al'),
-                  ),
-              ],
-              _buildRoleSection(context),
-              // 360° özet + dahili notlar (moderasyon kararı öncesi bağlam).
-              AdminUserOverview(uid: u.uid),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  /// Yönetici rolü bölümü. Herkese mevcut rol gösterilir; rol ATAMA yalnız
-  /// oturumdaki SÜPER yöneticiye açıktır (RBAC).
-  Widget _buildRoleSection(BuildContext context) {
-    final palette = context.palette;
-    final theme = Theme.of(context);
-    final canAssign = ref.watch(isSuperAdminProvider);
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const SizedBox(height: 20),
-        Divider(color: palette.hairline, height: 1),
-        const SizedBox(height: 16),
-        Row(
-          children: [
-            Icon(Icons.shield_outlined, size: 16, color: palette.inkMuted),
-            const SizedBox(width: 6),
-            Text(
-              'Yönetici rolü: ',
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: palette.inkMuted,
-              ),
-            ),
-            Text(
-              _roleLoading ? '…' : _roleLabel(_role),
-              style: theme.textTheme.bodyMedium?.copyWith(
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-          ],
-        ),
-        if (canAssign && !_busy && !_roleLoading) ...[
-          const SizedBox(height: 10),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              if (_role != 'moderator')
-                OutlinedButton.icon(
-                  onPressed: () => _applyRole('moderator'),
-                  icon: const Icon(Icons.gavel_outlined, size: 16),
-                  label: const Text('Moderatör yap'),
-                ),
-              if (_role != 'superadmin')
-                OutlinedButton.icon(
-                  onPressed: () => _applyRole('superadmin'),
-                  icon: const Icon(Icons.workspace_premium_outlined, size: 16),
-                  label: const Text('Süper Yönetici yap'),
-                ),
-              if (_role != null)
-                OutlinedButton.icon(
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: palette.danger,
-                  ),
-                  onPressed: () => _applyRole(null),
-                  icon: const Icon(Icons.remove_moderator_outlined, size: 16),
-                  label: const Text('Yetkiyi kaldır'),
-                ),
-            ],
-          ),
-        ],
-      ],
-    );
-  }
-}
-
-/// Rol kodunu Türkçe etikete çevirir (null = yönetici değil).
-String _roleLabel(String? role) => switch (role) {
-  'superadmin' => 'Süper Yönetici',
-  'moderator' => 'Moderatör',
-  _ => 'Yok',
-};

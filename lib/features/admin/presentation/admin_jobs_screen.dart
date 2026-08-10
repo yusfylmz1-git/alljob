@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'admin_chrome.dart';
-
 import '../../../core/theme/app_palette.dart';
 import '../../../core/utils/snackbar_helper.dart';
 import '../../../core/widgets/responsive_center.dart';
@@ -11,6 +9,8 @@ import '../../../data/local/mock_database.dart' show kProfessionNames;
 import '../../../data/models/job.dart';
 import '../data/admin_export_util.dart';
 import '../data/admin_providers.dart';
+import 'admin_chrome.dart';
+import 'admin_list_search.dart';
 import 'admin_users_screen.dart';
 import 'paged_footer.dart';
 
@@ -24,11 +24,45 @@ class AdminJobsScreen extends ConsumerStatefulWidget {
 
 class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
   final _provinceCtrl = TextEditingController();
+  final _searchCtrl = TextEditingController();
+  String _query = '';
+  Job? _idHit;
+  bool _idSearching = false;
 
   @override
   void dispose() {
     _provinceCtrl.dispose();
+    _searchCtrl.dispose();
     super.dispose();
+  }
+
+  Future<void> _lookupId(String q) async {
+    final t = q.trim();
+    if (t.isEmpty) {
+      setState(() => _idHit = null);
+      return;
+    }
+    // Yalnız ID benzeri (boşluksuz, makul uzunluk) sunucuya sor.
+    if (t.contains(' ') || t.length < 8) {
+      setState(() => _idHit = null);
+      return;
+    }
+    setState(() => _idSearching = true);
+    try {
+      final job =
+          await ref.read(adminJobRepositoryProvider).findById(t);
+      if (!mounted) return;
+      setState(() {
+        _idHit = job;
+        _idSearching = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _idHit = null;
+        _idSearching = false;
+      });
+    }
   }
 
   @override
@@ -87,6 +121,27 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
       ),
       body: Column(
         children: [
+          AdminListSearchBar(
+            controller: _searchCtrl,
+            label: 'İlan ara',
+            hint: 'Başlık, il, kategori, müşteri, ilan ID…',
+            onChanged: (v) {
+              setState(() => _query = v.trim());
+              _lookupId(v);
+            },
+            onSubmitted: _lookupId,
+            onClear: () => setState(() {
+              _query = '';
+              _idHit = null;
+            }),
+          ),
+          if (_idSearching)
+            const LinearProgressIndicator(minHeight: 2)
+          else if (_idHit != null)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 4, 12, 0),
+              child: _JobCard(job: _idHit!),
+            ),
           _JobFilters(
             status: statusFilter,
             provinceController: _provinceCtrl,
@@ -123,10 +178,39 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
                     'İlanlar yüklenemedi. Filtre indeksi hazır olmayabilir.',
               ),
               data: (page) {
+                final items = _query.isEmpty
+                    ? page.items
+                    : page.items
+                        .where(
+                          (j) => adminAnyMatch(
+                            [
+                              j.jobId,
+                              j.title,
+                              j.province,
+                              j.district,
+                              j.category,
+                              kProfessionNames[j.category],
+                              j.customerId,
+                              j.customerName,
+                            ],
+                            _query,
+                          ),
+                        )
+                        .toList();
                 if (page.items.isEmpty) {
                   return Center(
                     child: Text(
                       'İlan bulunamadı.',
+                      style: TextStyle(color: context.palette.inkMuted),
+                    ),
+                  );
+                }
+                if (items.isEmpty && _idHit == null) {
+                  return Center(
+                    child: Text(
+                      'Arama sonucu yok. Tam ilan ID yapıştırıp Enter deneyin '
+                      'veya daha fazla yükleyin.',
+                      textAlign: TextAlign.center,
                       style: TextStyle(color: context.palette.inkMuted),
                     ),
                   );
@@ -137,18 +221,20 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
                     maxWidth: 960,
                     padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
                     child: ListView.separated(
-                      itemCount: page.items.length + 1,
+                      itemCount: items.length + 1,
                       separatorBuilder: (_, _) => const SizedBox(height: 10),
                       itemBuilder: (context, i) {
-                        if (i == page.items.length) {
+                        if (i == items.length) {
                           return PagedFooter(
                             hasMore: page.hasMore,
                             loadingMore: page.loadingMore,
                             onLoadMore: controller.loadMore,
-                            endLabel: 'İlan listesinin sonu',
+                            endLabel: _query.isEmpty
+                                ? 'İlan listesinin sonu'
+                                : 'Yüklü listede arama',
                           );
                         }
-                        return _JobCard(job: page.items[i]);
+                        return _JobCard(job: items[i]);
                       },
                     ),
                   ),

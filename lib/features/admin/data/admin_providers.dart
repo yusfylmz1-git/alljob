@@ -2,18 +2,20 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/config/backend_config.dart';
 import '../../../data/models/app_user.dart';
-import '../../../data/models/artisan_profile.dart';
 import '../../../data/models/job.dart';
+import '../../../data/models/product.dart';
 import '../../auth/application/auth_controller.dart';
 import 'admin_artisan_repository.dart';
 import 'admin_audit_repository.dart';
 import 'admin_capabilities.dart';
 import 'admin_invite_repository.dart';
 import 'admin_job_repository.dart';
+import 'admin_product_repository.dart';
 import 'admin_report.dart';
 import 'admin_report_repository.dart';
 import 'admin_review_repository.dart';
 import 'admin_runtime_config_repository.dart';
+import 'admin_insights_repository.dart';
 import 'admin_stats_repository.dart';
 import 'admin_support_repository.dart';
 import 'admin_user_repository.dart';
@@ -134,6 +136,35 @@ final jobDirectoryControllerProvider =
       );
     });
 
+// ── Mağaza ürün kuyruğu ──
+final adminProductRepositoryProvider = Provider<AdminProductRepository>((ref) {
+  if (useFirebaseBackend) return FirebaseAdminProductRepository();
+  return MockAdminProductRepository();
+});
+
+/// Varsayılan: inceleme kuyruğu (pending_review).
+final productDirectoryFilterProvider =
+    StateProvider.autoDispose<AdminProductListFilter>(
+  (ref) => AdminProductListFilter.pendingReview,
+);
+
+final productDirectoryControllerProvider =
+    StateNotifierProvider.autoDispose<
+      PagedController<Product>,
+      AsyncValue<PagedData<Product>>
+    >((ref) {
+      final repo = ref.watch(adminProductRepositoryProvider);
+      final filter = ref.watch(productDirectoryFilterProvider);
+      return PagedController<Product>(
+        fetch: ({beforeCursor, limit = 30}) => repo.fetchPage(
+          beforeCursor: beforeCursor,
+          limit: limit,
+          filter: filter,
+        ),
+        cursorOf: (p) => p.createdAt.toUtc().toIso8601String(),
+      );
+    });
+
 final adminArtisanRepositoryProvider = Provider<AdminArtisanRepository>((ref) {
   if (useFirebaseBackend) return FirebaseAdminArtisanRepository();
   return MockAdminArtisanRepository();
@@ -148,13 +179,13 @@ final artisanDirectoryVerifiedFilterProvider = StateProvider.autoDispose<bool?>(
 
 final artisanDirectoryControllerProvider =
     StateNotifierProvider.autoDispose<
-      PagedController<ArtisanProfile>,
-      AsyncValue<PagedData<ArtisanProfile>>
+      PagedController<AdminArtisanListItem>,
+      AsyncValue<PagedData<AdminArtisanListItem>>
     >((ref) {
       final repo = ref.watch(adminArtisanRepositoryProvider);
       final profession = ref.watch(artisanDirectoryProfessionFilterProvider);
       final verified = ref.watch(artisanDirectoryVerifiedFilterProvider);
-      return PagedController<ArtisanProfile>(
+      return PagedController<AdminArtisanListItem>(
         fetch: ({beforeCursor, limit = 30}) => repo.fetchPage(
           beforeCursor: beforeCursor,
           limit: limit,
@@ -163,7 +194,7 @@ final artisanDirectoryControllerProvider =
               ? verified
               : null,
         ),
-        cursorOf: (a) => a.createdAt.toUtc().toIso8601String(),
+        cursorOf: (a) => a.profile.createdAt.toUtc().toIso8601String(),
       );
     });
 
@@ -246,6 +277,18 @@ final adminStatsProvider = StreamProvider<AdminStatsSnapshot>((ref) {
     return Stream.value(const AdminStatsSnapshot());
   }
   return ref.watch(adminStatsRepositoryProvider).watchGlobal();
+});
+
+final adminInsightsRepositoryProvider = Provider<AdminInsightsRepository>((ref) {
+  if (useFirebaseBackend) return FirebaseAdminInsightsRepository();
+  return MockAdminInsightsRepository();
+});
+
+/// Superadmin özet paneli: örneklem dağılımları (bölge / meslek / ürün…).
+/// Yalnız superadmin yükler — ~4×400 okuma; moderatörde boş.
+final adminInsightsProvider = FutureProvider.autoDispose<AdminInsights?>((ref) async {
+  if (!ref.watch(isSuperAdminProvider)) return null;
+  return ref.watch(adminInsightsRepositoryProvider).fetchInsights();
 });
 
 final adminAuditRepositoryProvider = Provider<AdminAuditRepository>((ref) {

@@ -131,7 +131,15 @@ class _AdminReportsScreenState extends ConsumerState<AdminReportsScreen> {
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
-      builder: (_) => _ReportDetailSheet(report: report),
+      useSafeArea: true,
+      showDragHandle: true,
+      builder: (ctx) {
+        final h = MediaQuery.sizeOf(ctx).height;
+        return SizedBox(
+          height: h * 0.92,
+          child: _ReportDetailSheet(report: report),
+        );
+      },
     );
   }
 }
@@ -723,32 +731,16 @@ class _ReportDetailSheetState extends ConsumerState<_ReportDetailSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final palette = context.palette;
     final theme = Theme.of(context);
     final r = widget.report;
 
-    return SafeArea(
-      child: Padding(
-        padding: EdgeInsets.only(
-          bottom: MediaQuery.of(context).viewInsets.bottom,
-        ),
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Center(
-                child: Container(
-                  margin: const EdgeInsets.only(bottom: 14),
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: palette.borderStrong,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
+    return Padding(
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.viewInsetsOf(context).bottom,
+      ),
+      child: ListView(
+        padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
+        children: [
               Row(
                 children: [
                   _TargetBadge(target: r.target),
@@ -780,147 +772,184 @@ class _ReportDetailSheetState extends ConsumerState<_ReportDetailSheet> {
                       '(metin yoktu)',
                   ].join('\n'),
                 ),
-              // Şikayetçi hesabını silmişse uid düşer (KVKK); kayıt kalır.
+              // Taraflar — şikayet EDEN ile EDİLEN asla karışmasın.
+              Text(
+                'Taraflar',
+                style: theme.textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const SizedBox(height: 8),
               _InfoBlock(
-                label: 'Şikayet eden (uid)',
+                label: 'Şikayet eden (şikâyetçi)',
                 value: r.reporterUid.isEmpty
                     ? 'Hesap silindi'
                     : r.reporterUid,
               ),
-              _InfoBlock(label: 'Şikayet edilen (uid)', value: r.reportedUid),
-              _InfoBlock(label: 'Hedef kimliği', value: r.targetId),
-              if (r.chatId != null) ...[
-                _InfoBlock(label: 'Sohbet kimliği', value: r.chatId!),
-                if (!_busy)
-                  OutlinedButton.icon(
-                    onPressed: _openTranscript,
-                    icon: const Icon(Icons.forum_outlined, size: 18),
-                    label: const Text('Sohbet kanıtını aç'),
-                  ),
-              ],
+              _InfoBlock(
+                label: 'Şikayet edilen (hedef kişi)',
+                value: r.reportedUid.isEmpty ? '—' : r.reportedUid,
+              ),
+              _InfoBlock(label: 'Hedef kayıt', value: r.targetId),
+              if (r.chatId != null)
+                _InfoBlock(label: 'Sohbet', value: r.chatId!),
               _InfoBlock(label: 'Tarih', value: _formatDate(r.createdAt)),
               if (r.resolvedBy != null)
-                _InfoBlock(label: 'İşleyen (uid)', value: r.resolvedBy!),
+                _InfoBlock(label: 'İşleyen', value: r.resolvedBy!),
               if (r.assignedTo != null)
                 _InfoBlock(
-                  label: 'Üstlenen (uid)',
+                  label: 'Üstlenen',
                   value: r.assignedTo == ref.read(currentUserProvider)?.uid
-                      ? '${r.assignedTo}  (siz)'
+                      ? 'Siz'
                       : r.assignedTo!,
                 ),
-              if (!r.status.isClosed && !_busy) ...[
-                const SizedBox(height: 4),
-                Builder(
-                  builder: (context) {
-                    final myUid = ref.read(currentUserProvider)?.uid;
-                    final mine = r.assignedTo != null && r.assignedTo == myUid;
-                    if (r.assignedTo == null) {
-                      return OutlinedButton.icon(
-                        onPressed: () => _assign(true),
-                        icon: const Icon(Icons.pan_tool_alt_outlined, size: 18),
-                        label: const Text('Şikayeti üstlen'),
-                      );
-                    }
-                    if (mine) {
-                      return OutlinedButton.icon(
-                        onPressed: () => _assign(false),
-                        icon: const Icon(
-                          Icons.free_cancellation_outlined,
-                          size: 18,
-                        ),
-                        label: const Text('Üstlenmeyi bırak'),
-                      );
-                    }
-                    return OutlinedButton.icon(
-                      onPressed: () => _assign(true),
-                      icon: const Icon(Icons.swap_horiz_rounded, size: 18),
-                      label: const Text('Devral'),
-                    );
-                  },
-                ),
-              ],
-              // Mesaj şikayeti: içeriği sohbetten kaldır / geri al. Hedef
-              // mesajı sunucu şikayet kaydından türetir.
-              if (r.target == ReportTarget.message) ...[
-                const SizedBox(height: 4),
-                Wrap(
-                  spacing: 10,
-                  runSpacing: 10,
-                  children: [
-                    OutlinedButton.icon(
-                      onPressed: _busy ? null : () => _moderateMessage(true),
-                      icon: const Icon(Icons.gavel_rounded, size: 18),
-                      label: const Text('Mesajı kaldır'),
-                    ),
-                    OutlinedButton.icon(
-                      onPressed: _busy ? null : () => _moderateMessage(false),
-                      icon: const Icon(Icons.undo_rounded, size: 18),
-                      label: const Text('Kaldırmayı geri al'),
-                    ),
-                  ],
-                ),
-              ],
-              if (r.reportedUid.isNotEmpty) ...[
-                const SizedBox(height: 4),
-                OutlinedButton.icon(
-                  onPressed: _busy
-                      ? null
-                      : () => showAdminUserActions(context, ref, r.reportedUid),
-                  icon: const Icon(Icons.manage_accounts_outlined, size: 18),
-                  label: const Text('Bildirilen kullanıcıyı yönet'),
-                ),
-              ],
-              const SizedBox(height: 12),
+
+              // ── Birincil karar (en sık iş) ──
+              const SizedBox(height: 16),
               Text(
-                'Çözüm notu (opsiyonel)',
-                style: theme.textTheme.labelLarge?.copyWith(
-                  color: palette.inkMuted,
+                'Karar',
+                style: theme.textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.w800,
                 ),
               ),
               const SizedBox(height: 6),
               TextField(
                 controller: _noteController,
                 minLines: 2,
-                maxLines: 4,
+                maxLines: 3,
                 enabled: !_busy,
                 decoration: const InputDecoration(
-                  hintText: 'Kararınıza dair kısa bir not…',
+                  labelText: 'Çözüm notu (isteğe bağlı)',
+                  hintText: 'Kısa not…',
                 ),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 12),
               if (_busy)
                 const Center(
                   child: Padding(
-                    padding: EdgeInsets.all(8),
+                    padding: EdgeInsets.all(12),
                     child: CircularProgressIndicator(strokeWidth: 2.5),
                   ),
                 )
-              else
-                Wrap(
-                  spacing: 10,
-                  runSpacing: 10,
-                  children: [
-                    if (r.status != ReportStatus.reviewing)
-                      OutlinedButton.icon(
-                        onPressed: () => _apply(ReportStatus.reviewing),
-                        icon: const Icon(Icons.visibility_outlined, size: 18),
-                        label: const Text('İncelemeye Al'),
-                      ),
-                    FilledButton.icon(
-                      onPressed: () => _apply(ReportStatus.resolved),
-                      icon: const Icon(Icons.check_circle_outline, size: 18),
-                      label: const Text('Çözüldü'),
+              else ...[
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton.icon(
+                    onPressed: () => _apply(ReportStatus.resolved),
+                    icon: const Icon(Icons.check_circle_outline, size: 18),
+                    label: const Text('Çözüldü — kapat'),
+                    style: FilledButton.styleFrom(
+                      minimumSize: const Size.fromHeight(48),
                     ),
-                    FilledButton.tonalIcon(
-                      onPressed: () => _apply(ReportStatus.dismissed),
-                      icon: const Icon(Icons.block_outlined, size: 18),
-                      label: const Text('Reddet'),
-                    ),
-                  ],
+                  ),
                 ),
-            ],
-          ),
-        ),
+                const SizedBox(height: 8),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton.tonalIcon(
+                    onPressed: () => _apply(ReportStatus.dismissed),
+                    icon: const Icon(Icons.block_outlined, size: 18),
+                    label: const Text('Geçersiz — kapat'),
+                    style: FilledButton.styleFrom(
+                      minimumSize: const Size.fromHeight(44),
+                    ),
+                  ),
+                ),
+                if (r.status != ReportStatus.reviewing) ...[
+                  const SizedBox(height: 8),
+                  TextButton.icon(
+                    onPressed: () => _apply(ReportStatus.reviewing),
+                    icon: const Icon(Icons.visibility_outlined, size: 18),
+                    label: const Text('İncelemeye al'),
+                  ),
+                ],
+
+                // ── İkincil eylemler ──
+                const SizedBox(height: 20),
+                Text(
+                  'İşlemler',
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                if (!r.status.isClosed)
+                  Builder(
+                    builder: (context) {
+                      final myUid = ref.read(currentUserProvider)?.uid;
+                      final mine =
+                          r.assignedTo != null && r.assignedTo == myUid;
+                      if (r.assignedTo == null) {
+                        return OutlinedButton.icon(
+                          onPressed: () => _assign(true),
+                          icon:
+                              const Icon(Icons.pan_tool_alt_outlined, size: 18),
+                          label: const Text('Şikayeti üstlen'),
+                        );
+                      }
+                      if (mine) {
+                        return OutlinedButton.icon(
+                          onPressed: () => _assign(false),
+                          icon: const Icon(
+                            Icons.free_cancellation_outlined,
+                            size: 18,
+                          ),
+                          label: const Text('Üstlenmeyi bırak'),
+                        );
+                      }
+                      return OutlinedButton.icon(
+                        onPressed: () => _assign(true),
+                        icon: const Icon(Icons.swap_horiz_rounded, size: 18),
+                        label: const Text('Devral'),
+                      );
+                    },
+                  ),
+                if (r.chatId != null) ...[
+                  const SizedBox(height: 8),
+                  OutlinedButton.icon(
+                    onPressed: _openTranscript,
+                    icon: const Icon(Icons.forum_outlined, size: 18),
+                    label: const Text('Sohbet kanıtını aç'),
+                  ),
+                ],
+                if (r.target == ReportTarget.message) ...[
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      OutlinedButton.icon(
+                        onPressed: () => _moderateMessage(true),
+                        icon: const Icon(Icons.gavel_rounded, size: 18),
+                        label: const Text('Mesajı kaldır'),
+                      ),
+                      OutlinedButton.icon(
+                        onPressed: () => _moderateMessage(false),
+                        icon: const Icon(Icons.undo_rounded, size: 18),
+                        label: const Text('Mesajı geri al'),
+                      ),
+                    ],
+                  ),
+                ],
+                if (r.reportedUid.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  FilledButton.tonalIcon(
+                    onPressed: () => showAdminUserActions(
+                      context,
+                      ref,
+                      r.reportedUid,
+                      contextHint:
+                          'Şikayet EDİLEN kişi — askı / not (rol atama yok)',
+                    ),
+                    icon: const Icon(Icons.gpp_bad_outlined, size: 18),
+                    label: const Text('Şikayet edileni askıya al / not'),
+                    style: FilledButton.styleFrom(
+                      minimumSize: const Size.fromHeight(48),
+                    ),
+                  ),
+                ],
+              ],
+        ],
       ),
     );
   }

@@ -24,9 +24,11 @@ Claim'leri yalnız CF `adminSetRole` yazar. → [[Guvenlik-Kurallari]]
 yapabileceği yetenek dizesi kümesiyle belirlenir:
 
 ```
-reports.manage · disputes.manage · users.read · users.suspend
+reports.manage · users.read · users.suspend
 jobs.read · jobs.moderate · artisans.read · artisans.moderate
 reviews.moderate · stats.read · products.read · products.moderate
+(+ superadmin/opt-in: products.purge · chats.read · audit.read ·
+ staff.manage · config.manage · export.run · finance.manage)
 ```
 
 Bu küme `DEFAULT_MODERATOR_CAPABILITIES` olarak **CF tarafında da** tanımlıdır.
@@ -42,22 +44,51 @@ alıp gerçek kullanımı gözlemlemek için var.
 `capsFieldMissing` — eski admin kayıtlarında yetenek alanı yok; varsayılan
 moderatör kümesi uygulanır.
 
+## Operatör zihinsel modeli (v3 UX)
+
+| Öncelik | Sekme | Ne için |
+|---|---|---|
+| 1 | **Kullanıcılar** | Ana kişi dizini. Kart → **kişi hub** (kimlik, aktivite, not, usta vitrin araçları, askı) |
+| 2 | **Şikayetler** | Günlük kuyruk; şikayet edilen/eden → kişi hub |
+| 3 | **Usta vitrini** | Keşfet profilleri; kişi adı + vitrin kısayolları (asıl dosya hub'da) |
+| 4 | İlanlar / Ürünler | İçerik moderasyonu |
+| 5 | Destek / Bildirim / Platform | Operasyon |
+| 6 | Kadro / Denetim / Sistem | Superadmin |
+
+**Kişi hub:** `admin_person_hub.dart` → `showAdminUserActions`. Rol atama **yok**
+(yalnız Kadro). Usta bayrakları + premium + belge burada ve vitrin listesinde.
+
+**Yorumlar sekmesi yok.** Üründe serbest metin yorum yoktur (yıldız + etiket);
+ayrı moderasyon kuyruğu menüde tutulmaz. Kod: `admin_reviews_screen.dart`
+(devre dışı bırakıldı).
+
+**Hesabım:** `admin_account_sheet.dart` — her admin kendi şifresini değiştirir
+veya sıfırlama e-postası ister (`AuthRepository.changePassword`).
+
+**Denetim:** `AuditEntry.actionLabelTR` + `detailSummary` + kısa UID; kategoriler
+Kullanıcı / İçerik / Şikayet / Kadro / Sistem.
+
+**Ürün kuyruğu:** `status + createdAt` indeksi yoksa istemci süzmeli fallback.
+
 ## Ekranlar
 
 | Ekran | Dosya |
 |---|---|
-| Kabuk + yönlendirme | `admin_app.dart` (1051 st), `admin_chrome.dart` |
-| Gösterge paneli | `admin_dashboard_screen.dart` |
-| Şikayetler | `admin_reports_screen.dart` (1007 st) |
-| Kullanıcılar | `admin_users_screen.dart` (839 st), `admin_user_overview.dart` |
-| Ustalar | `admin_artisans_screen.dart`, `admin_certificate_sheet.dart` |
+| Kabuk + yönlendirme | `admin_app.dart`, `admin_chrome.dart` |
+| Gösterge paneli | `admin_dashboard_screen.dart` — kuyruklar + KPI + **dağılım içgörüleri** |
+| İçgörü toplama | `admin_insights_repository.dart` — son ~400 job/usta/ürün/user örneklemi |
+| **Kullanıcılar** (ana dizin) | `admin_users_screen.dart` + **`admin_person_hub.dart`** |
+| 360° özet + notlar | `admin_user_overview.dart` (hub içine gömülü) |
+| Şikayetler | `admin_reports_screen.dart` |
+| Usta vitrini | `admin_artisans_screen.dart`, `admin_certificate_sheet.dart`, `admin_premium_sheet.dart` |
 | İlanlar | `admin_jobs_screen.dart` |
-| Anlaşmazlıklar | `admin_disputes_screen.dart` |
+| **Ürünler (Mağaza)** | `admin_products_screen.dart` — `pending_review` kuyruğu, `adminModerateProduct` |
 | Değerlendirmeler | `admin_reviews_screen.dart` |
-| Duyuru | `admin_broadcast_screen.dart` (512 st) |
+| ~~Anlaşmazlıklar~~ | **Kaldırıldı** (Tur B) |
+| Duyuru | `admin_broadcast_screen.dart` |
 | Destek | `admin_support_screen.dart` |
 | Admin kadrosu | `admin_roster_screen.dart` |
-| Denetim kaydı | `admin_audit_screen.dart` |
+| Denetim kaydı | `admin_audit_screen.dart` + `admin_audit_repository.dart` |
 | Platform / ayarlar | `admin_platform_screen.dart`, `admin_settings_screen.dart` |
 | Toplu plan (ücretsiz dönem bitişi) | `admin_bulk_plan_screen.dart` — yalnız superadmin |
 
@@ -83,6 +114,9 @@ yayınlamadan** değiştirilebilen ayarlar:
 |---|---|
 | `minAppVersion` | Altındaki istemciler `/force-update` ekranına kilitlenir |
 | `maintenanceMode` | Tüm kullanıcılar `/maintenance` ekranına (giriş açık kalır) |
+| `premiumFreeDuringBeta` | Premium beta ücretsiz |
+| `productsEnabled` | Mağaza ürün vitrini kill-switch |
+| `productsForceReview` | Her yayın `pending_review` |
 
 Kullanıcı uygulaması bunu `appRuntimeConfigProvider` ile canlı dinler ve
 router `redirect` uygular. → [[Navigasyon-ve-Rotalar]]

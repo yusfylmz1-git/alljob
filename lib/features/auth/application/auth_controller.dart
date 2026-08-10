@@ -113,6 +113,22 @@ class AuthController extends AsyncNotifier<void> {
     return !state.hasError;
   }
 
+  /// Oturumdaki hesabın şifresini değiştirir (e-posta/şifre).
+  /// Başarısızsa false; hata mesajı [state]'te.
+  Future<bool> changePassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    state = const AsyncLoading();
+    state = await AsyncValue.guard(
+      () => _repo.changePassword(
+        currentPassword: currentPassword,
+        newPassword: newPassword,
+      ),
+    );
+    return !state.hasError;
+  }
+
   /// E-posta doğrulama bağlantısını (yeniden) gönderir.
   Future<bool> sendEmailVerification() async {
     state = const AsyncLoading();

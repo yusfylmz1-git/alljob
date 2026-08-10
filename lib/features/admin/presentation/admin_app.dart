@@ -18,8 +18,9 @@ import 'admin_chrome.dart';
 import 'admin_dashboard_screen.dart';
 import 'admin_jobs_screen.dart';
 import 'admin_platform_screen.dart';
+import 'admin_account_sheet.dart';
+import 'admin_products_screen.dart';
 import 'admin_reports_screen.dart';
-import 'admin_reviews_screen.dart';
 import 'admin_roster_screen.dart';
 import 'admin_settings_screen.dart';
 import 'admin_support_screen.dart';
@@ -84,19 +85,20 @@ class _AdminHomeScreenState extends ConsumerState<_AdminHomeScreen> {
     final email = ref.watch(currentUserProvider)?.email ?? '';
     final wide = MediaQuery.sizeOf(context).width >= 900;
 
-    // Bilgi mimarisi: Operasyon → Kişiler → İletişim → Platform → Sistem
+    // Operatör önceliği: Kişiler → kuyruklar → içerik → sistem.
+    // SIRA pages ⇄ destinations ⇄ dashboard onOpenSection BİRE BİR.
+    // Not: serbest metin "yorum" yok — değerlendirme yıldız+etiket; ayrı
+    // Yorumlar sekmesi kaldırıldı (moderasyon ihtiyacı düşük, menü şişiyordu).
     final pages = <Widget>[
       AdminDashboardScreen(onOpenSection: (i) => setState(() => _index = i)),
-      const AdminReportsScreen(),
-      const AdminUsersScreen(),
-      const AdminArtisansScreen(),
-      const AdminJobsScreen(),
-      const AdminReviewsScreen(),
-      const AdminSupportScreen(),
-      const AdminBroadcastScreen(),
-      const AdminPlatformScreen(),
-      // Toplu plan yönetimi: ücretsiz dönem bitişi (madde 7). Yalnız
-      // superadmin — geri alınamaz toplu yazma yapar.
+      const AdminUsersScreen(), // 1
+      const AdminReportsScreen(), // 2
+      const AdminArtisansScreen(), // 3
+      const AdminJobsScreen(), // 4
+      const AdminProductsScreen(), // 5
+      const AdminSupportScreen(), // 6
+      const AdminBroadcastScreen(), // 7
+      const AdminPlatformScreen(), // 8
       if (isSuper) const AdminBulkPlanScreen(),
       if (isSuper) const AdminRosterScreen(),
       if (isSuper) const AdminAuditScreen(),
@@ -108,6 +110,11 @@ class _AdminHomeScreenState extends ConsumerState<_AdminHomeScreen> {
         selectedIcon: Icons.dashboard,
         label: 'Özet',
       ),
+      const _NavItem(
+        icon: Icons.people_alt_outlined,
+        selectedIcon: Icons.people_alt,
+        label: 'Kullanıcılar',
+      ),
       _NavItem(
         icon: Icons.flag_outlined,
         selectedIcon: Icons.flag,
@@ -115,14 +122,9 @@ class _AdminHomeScreenState extends ConsumerState<_AdminHomeScreen> {
         badge: openReports,
       ),
       const _NavItem(
-        icon: Icons.manage_accounts_outlined,
-        selectedIcon: Icons.manage_accounts,
-        label: 'Kullanıcılar',
-      ),
-      const _NavItem(
         icon: Icons.handyman_outlined,
         selectedIcon: Icons.handyman,
-        label: 'Ustalar',
+        label: 'Usta vitrini',
       ),
       const _NavItem(
         icon: Icons.work_outline,
@@ -130,9 +132,9 @@ class _AdminHomeScreenState extends ConsumerState<_AdminHomeScreen> {
         label: 'İlanlar',
       ),
       const _NavItem(
-        icon: Icons.rate_review_outlined,
-        selectedIcon: Icons.rate_review,
-        label: 'Yorumlar',
+        icon: Icons.inventory_2_outlined,
+        selectedIcon: Icons.inventory_2,
+        label: 'Ürünler',
       ),
       const _NavItem(
         icon: Icons.support_agent_outlined,
@@ -149,7 +151,6 @@ class _AdminHomeScreenState extends ConsumerState<_AdminHomeScreen> {
         selectedIcon: Icons.storefront,
         label: 'Platform',
       ),
-      // SIRA `pages` ile birebir eşleşmeli — IndexedStack indeksle çalışır.
       if (isSuper)
         const _NavItem(
           icon: Icons.groups_outlined,
@@ -195,6 +196,7 @@ class _AdminHomeScreenState extends ConsumerState<_AdminHomeScreen> {
               onSelect: select,
               email: email,
               roleLabel: roleLabel,
+              onAccount: () => showAdminAccountSheet(context),
               onSignOut: () =>
                   ref.read(authControllerProvider.notifier).signOut(),
             ),
@@ -206,6 +208,7 @@ class _AdminHomeScreenState extends ConsumerState<_AdminHomeScreen> {
                     section: destinations[safeIndex].label,
                     email: email,
                     roleLabel: roleLabel,
+                    onAccount: () => showAdminAccountSheet(context),
                     onSignOut: () =>
                         ref.read(authControllerProvider.notifier).signOut(),
                   ),
@@ -227,6 +230,7 @@ class _AdminHomeScreenState extends ConsumerState<_AdminHomeScreen> {
         onSelect: select,
         email: email,
         roleLabel: roleLabel,
+        onAccount: () => showAdminAccountSheet(context),
         onSignOut: () => ref.read(authControllerProvider.notifier).signOut(),
       ),
       appBar: AppBar(
@@ -280,6 +284,11 @@ class _AdminHomeScreenState extends ConsumerState<_AdminHomeScreen> {
             ),
           ),
           IconButton(
+            tooltip: 'Hesabım',
+            icon: const Icon(Icons.manage_accounts_outlined),
+            onPressed: () => showAdminAccountSheet(context),
+          ),
+          IconButton(
             tooltip: 'Çıkış',
             icon: const Icon(Icons.logout_rounded),
             onPressed: () =>
@@ -300,6 +309,7 @@ class _AdminNavDrawer extends StatelessWidget {
     required this.onSelect,
     required this.email,
     required this.roleLabel,
+    required this.onAccount,
     required this.onSignOut,
   });
 
@@ -308,6 +318,7 @@ class _AdminNavDrawer extends StatelessWidget {
   final ValueChanged<int> onSelect;
   final String email;
   final String roleLabel;
+  final VoidCallback onAccount;
   final VoidCallback onSignOut;
 
   @override
@@ -460,6 +471,23 @@ class _AdminNavDrawer extends StatelessWidget {
             const Divider(color: AdminChrome.railDivider, height: 1),
             ListTile(
               leading: const Icon(
+                Icons.manage_accounts_outlined,
+                color: AdminChrome.railMuted,
+              ),
+              title: const Text(
+                'Hesabım / şifre',
+                style: TextStyle(
+                  color: AdminChrome.railFg,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              onTap: () {
+                Navigator.pop(context);
+                onAccount();
+              },
+            ),
+            ListTile(
+              leading: const Icon(
                 Icons.logout_rounded,
                 color: AdminChrome.railMuted,
               ),
@@ -491,6 +519,7 @@ class _AdminSideRail extends StatelessWidget {
     required this.onSelect,
     required this.email,
     required this.roleLabel,
+    required this.onAccount,
     required this.onSignOut,
   });
 
@@ -500,6 +529,7 @@ class _AdminSideRail extends StatelessWidget {
   final ValueChanged<int> onSelect;
   final String email;
   final String roleLabel;
+  final VoidCallback onAccount;
   final VoidCallback onSignOut;
 
   @override
@@ -705,6 +735,35 @@ class _AdminSideRail extends StatelessWidget {
                         ],
                       ),
                     ),
+                  if (extended)
+                    SizedBox(
+                      width: double.infinity,
+                      child: TextButton.icon(
+                        onPressed: onAccount,
+                        icon: const Icon(
+                          Icons.manage_accounts_outlined,
+                          size: 18,
+                        ),
+                        label: const Text('Hesabım'),
+                        style: TextButton.styleFrom(
+                          foregroundColor: AdminChrome.railMuted,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 6,
+                          ),
+                        ),
+                      ),
+                    )
+                  else
+                    IconButton(
+                      tooltip: 'Hesabım',
+                      onPressed: onAccount,
+                      icon: const Icon(
+                        Icons.manage_accounts_outlined,
+                        color: AdminChrome.railMuted,
+                        size: 20,
+                      ),
+                    ),
                   SizedBox(
                     width: double.infinity,
                     child: TextButton.icon(
@@ -735,12 +794,14 @@ class _AdminTopBar extends StatelessWidget {
     required this.section,
     required this.email,
     required this.roleLabel,
+    required this.onAccount,
     required this.onSignOut,
   });
 
   final String section;
   final String email;
   final String roleLabel;
+  final VoidCallback onAccount;
   final VoidCallback onSignOut;
 
   @override
@@ -792,7 +853,12 @@ class _AdminTopBar extends StatelessWidget {
                   fontWeight: FontWeight.w500,
                 ),
               ),
-            const SizedBox(width: 8),
+            const SizedBox(width: 4),
+            IconButton(
+              tooltip: 'Hesabım / şifre',
+              onPressed: onAccount,
+              icon: const Icon(Icons.manage_accounts_outlined, size: 20),
+            ),
             IconButton(
               tooltip: 'Çıkış',
               onPressed: onSignOut,

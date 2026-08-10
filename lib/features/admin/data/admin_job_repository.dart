@@ -14,6 +14,9 @@ abstract interface class AdminJobRepository {
     String? province,
   });
 
+  /// Tam ilan kimliği ile bul (yoksa null).
+  Future<Job?> findById(String jobId);
+
   /// hide | unhide | force_cancel
   Future<void> moderate(String jobId, {required String decision, String? note});
 }
@@ -49,6 +52,15 @@ class FirebaseAdminJobRepository implements AdminJobRepository {
     }
     final snap = await q.limit(limit).get();
     return snap.docs.map((d) => Job.fromMap(d.id, d.data())).toList();
+  }
+
+  @override
+  Future<Job?> findById(String jobId) async {
+    final id = jobId.trim();
+    if (id.isEmpty) return null;
+    final snap = await _db.collection('jobs').doc(id).get();
+    if (!snap.exists || snap.data() == null) return null;
+    return Job.fromMap(snap.id, snap.data()!);
   }
 
   @override
@@ -102,6 +114,9 @@ class MockAdminJobRepository implements AdminJobRepository {
     if (list.length > limit) list = list.sublist(0, limit);
     return list;
   }
+
+  @override
+  Future<Job?> findById(String jobId) async => _jobs[jobId.trim()];
 
   @override
   Future<void> moderate(

@@ -152,6 +152,22 @@ class MockAuthRepository implements AuthRepository {
     // Mock: gerçek e-posta gönderilmez. Güvenlik için hesap olmasa da hata vermez.
   }
 
+  @override
+  Future<void> changePassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    await _delay();
+    final user = _current;
+    if (user == null) throw AuthException.notSignedIn;
+    final key = user.email.trim().toLowerCase();
+    final account = _accounts[key];
+    if (account == null) throw AuthException.noPasswordProvider;
+    if (account.password != currentPassword) throw AuthException.wrongPassword;
+    if (newPassword.trim().length < 6) throw AuthException.weakPassword;
+    _accounts[key] = _Account(password: newPassword, user: account.user);
+  }
+
   /// Test kancası: "kullanıcı e-postadaki bağlantıya tıkladı" simülasyonu.
   /// Gerçekte doğrulama Firebase Auth tarafında gerçekleşir; mock'ta bekleyen
   /// doğrulama [refreshEmailVerified] çağrılınca hesaba işlenir.

@@ -230,12 +230,13 @@ void main() {
           createdAt: DateTime(2026, 1, 2),
         ),
       ];
+      // Mesaj gizleme artık "İçerik" kategorisinde (şikayet kararlarından ayrı).
       final filtered =
-          filterAudit(entries, category: AuditCategory.reports);
+          filterAudit(entries, category: AuditCategory.content);
       expect(filtered.length, 2);
       // Ham action değil okunabilir etiket gösterilmeli.
       expect(entries[0].actionLabelTR, 'Mesaj kaldırıldı');
-      expect(entries[1].actionLabelTR, 'Mesaj kaldırma geri alındı');
+      expect(entries[1].actionLabelTR, 'Mesaj geri getirildi');
     });
   });
 
@@ -341,6 +342,8 @@ void main() {
       expect(e.actionLabelTR, 'Rol atandı');
       expect(e.targetId, 'u9');
       expect(e.after?['role'], 'moderator');
+      expect(e.targetTypeLabelTR, 'Kullanıcı');
+      expect(e.detailSummary, contains('rol → moderator'));
 
       // Bilinmeyen eylem kodu olduğu gibi gösterilir.
       final unknown = AuditEntry.fromMap('l2', {'action': 'foo_bar'});
@@ -395,6 +398,9 @@ void main() {
       expect(
           filterAudit(all, category: AuditCategory.reports).map((x) => x.id),
           ['3']);
+      expect(
+          filterAudit(all, category: AuditCategory.users).map((x) => x.id),
+          ['2']);
       expect(filterAudit(all).length, 4); // all → hepsi
 
       // Serbest metin (aktör veya hedef).
@@ -403,7 +409,7 @@ void main() {
 
       // Kategori + arama birlikte.
       expect(
-          filterAudit(all, category: AuditCategory.suspension, query: 'u9')
+          filterAudit(all, category: AuditCategory.users, query: 'u9')
               .map((x) => x.id),
           ['2']);
     });
@@ -562,7 +568,7 @@ void main() {
           reason: 'Ödeme alındı, doğrulama düştü', days: 30);
 
       expect(until, isNotNull);
-      final after = (await repo.fetchPage()).single;
+      final after = (await repo.fetchPage()).single.profile;
       expect(after.isPremium, isTrue);
       expect(repo.overrides.single.reason, 'Ödeme alındı, doğrulama düştü');
       expect(repo.overrides.single.days, 30);
@@ -605,7 +611,7 @@ void main() {
           await repo.setPremiumOverride('a1', reason: 'İade edildi', revoke: true);
 
       expect(until, isNull);
-      expect((await repo.fetchPage()).single.isPremium, isFalse);
+      expect((await repo.fetchPage()).single.profile.isPremium, isFalse);
       expect(repo.overrides.single.revoke, isTrue);
     });
 
@@ -633,7 +639,7 @@ void main() {
       ]);
       await repo.reviewCertificates('a1', approve: true);
 
-      final after = (await repo.fetchPage()).single;
+      final after = (await repo.fetchPage()).single.profile;
       expect(after.hasApprovedCertificates, isTrue);
       expect(after.certificateStatus, 'approved');
       // Mavi tik ayrı bir sinyal — belge onayı onu değiştirmemeli.
@@ -653,7 +659,7 @@ void main() {
 
       await repo.reviewCertificates('a1',
           approve: false, note: 'Belge okunaksız, net fotoğraf yükleyin.');
-      final after = (await repo.fetchPage()).single;
+      final after = (await repo.fetchPage()).single.profile;
       expect(after.certificateStatus, 'rejected');
       expect(after.certificateNote, contains('okunaksız'));
       expect(after.hasApprovedCertificates, isFalse);

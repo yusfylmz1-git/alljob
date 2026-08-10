@@ -3,14 +3,37 @@ import 'package:cloud_functions/cloud_functions.dart';
 
 import '../../../data/models/artisan_profile.dart';
 
+/// Liste satırı: usta profili + `users` kimliği (ad/e-posta).
+///
+/// Eski ekran yalnız meslek kodlarını başlık yapıyordu; operatör kim
+/// olduğunu göremiyordu. Ad her zaman `users` dökümanından okunur.
+class AdminArtisanListItem {
+  const AdminArtisanListItem({
+    required this.profile,
+    required this.displayName,
+    this.email = '',
+    this.photoUrl,
+  });
+
+  final ArtisanProfile profile;
+  final String displayName;
+  final String email;
+  final String? photoUrl;
+
+  String get uid => profile.uid;
+}
+
 /// Yönetici usta tarayıcısı + bayraklar.
 abstract interface class AdminArtisanRepository {
-  Future<List<ArtisanProfile>> fetchPage({
+  Future<List<AdminArtisanListItem>> fetchPage({
     String? beforeCursor,
     int limit = 30,
     String? profession,
     bool? isVerified,
   });
+
+  /// Tek usta profili (kişi hub / detay). Yoksa null.
+  Future<ArtisanProfile?> fetchByUid(String uid);
 
   Future<void> setFlags(
     String uid, {
@@ -94,7 +117,7 @@ class FirebaseAdminArtisanRepository implements AdminArtisanRepository {
   final FirebaseFunctions _functions;
 
   @override
-  Future<List<ArtisanProfile>> fetchPage({
+  Future<List<AdminArtisanListItem>> fetchPage({
     String? beforeCursor,
     int limit = 30,
     String? profession,
@@ -111,9 +134,43 @@ class FirebaseAdminArtisanRepository implements AdminArtisanRepository {
       q = q.where('createdAt', isLessThan: beforeCursor);
     }
     final snap = await q.limit(limit).get();
-    return snap.docs
+    final profiles = snap.docs
         .map((d) => ArtisanProfile.fromMap(d.id, d.data()))
         .toList();
+    return _enrichWithUsers(profiles);
+  }
+
+  @override
+  Future<ArtisanProfile?> fetchByUid(String uid) async {
+    final snap = await _db.collection('artisanProfiles').doc(uid).get();
+    if (!snap.exists || snap.data() == null) return null;
+    return ArtisanProfile.fromMap(snap.id, snap.data()!);
+  }
+
+  /// Sayfa uids için users dökümanlarını paralel oku (ad/e-posta).
+  Future<List<AdminArtisanListItem>> _enrichWithUsers(
+    List<ArtisanProfile> profiles,
+  ) async {
+    if (profiles.isEmpty) return const [];
+    final snaps = await Future.wait(
+      profiles.map((p) => _db.collection('users').doc(p.uid).get()),
+    );
+    final byUid = <String, Map<String, dynamic>>{};
+    for (final s in snaps) {
+      if (s.exists && s.data() != null) byUid[s.id] = s.data()!;
+    }
+    return [
+      for (final p in profiles)
+        AdminArtisanListItem(
+          profile: p,
+          displayName: () {
+            final n = (byUid[p.uid]?['displayName'] as String?)?.trim() ?? '';
+            return n.isEmpty ? 'İsimsiz usta' : n;
+          }(),
+          email: (byUid[p.uid]?['email'] as String?)?.trim() ?? '',
+          photoUrl: byUid[p.uid]?['profilePhotoUrl'] as String?,
+        ),
+    ];
   }
 
   @override
@@ -218,8 +275,11 @@ class MockAdminArtisanRepository implements AdminArtisanRepository {
 
   void put(ArtisanProfile p) => _items[p.uid] = p;
 
+  /// Test için ad/e-posta doldurma (users join simülasyonu).
+  final Map<String, ({String name, String email})> userMeta = {};
+
   @override
-  Future<List<ArtisanProfile>> fetchPage({
+  Future<List<AdminArtisanListItem>> fetchPage({
     String? beforeCursor,
     int limit = 30,
     String? profession,
@@ -240,8 +300,18 @@ class MockAdminArtisanRepository implements AdminArtisanRepository {
       }
     }
     if (list.length > limit) list = list.sublist(0, limit);
-    return list;
+    return [
+      for (final p in list)
+        AdminArtisanListItem(
+          profile: p,
+          displayName: userMeta[p.uid]?.name ?? 'İsimsiz usta',
+          email: userMeta[p.uid]?.email ?? '',
+        ),
+    ];
   }
+
+  @override
+  Future<ArtisanProfile?> fetchByUid(String uid) async => _items[uid];
 
   @override
   Future<void> setFlags(
@@ -250,7 +320,41 @@ class MockAdminArtisanRepository implements AdminArtisanRepository {
     bool? featured,
     bool? moderationHidden,
   }) async {
-    // Mock: no-op (UI tests use real flags via CF in prod).
+    final cur = _items[uid];
+    if (cur == null) return;
+    // copyWith bayrakları kasıtlı korur — mock'ta doğrudan yeniden kur.
+    _items[uid] = ArtisanProfile(
+      uid: cur.uid,
+      profession: cur.profession,
+      professions: cur.professions,
+      experienceYears: cur.experienceYears,
+      aboutText: cur.aboutText,
+      serviceAreas: cur.serviceAreas,
+      certificates: cur.certificates,
+      workPhotos: cur.workPhotos,
+      isVerified: cur.isVerified,
+      emailVerified: cur.emailVerified,
+      averageRating: cur.averageRating,
+      totalReviews: cur.totalReviews,
+      totalRatingSum: cur.totalRatingSum,
+      topTags: cur.topTags,
+      completedJobs: cur.completedJobs,
+      isPremium: cur.isPremium,
+      premiumExpiresAt: cur.premiumExpiresAt,
+      premiumProductId: cur.premiumProductId,
+      certificateStatus: cur.certificateStatus,
+      certificateNote: cur.certificateNote,
+      alwaysAvailable: cur.alwaysAvailable,
+      manualPause: cur.manualPause,
+      weeklySchedule: cur.weeklySchedule,
+      createdAt: cur.createdAt,
+      adminVerified: adminVerified ?? cur.adminVerified,
+      featured: featured ?? cur.featured,
+      moderationHidden: moderationHidden ?? cur.moderationHidden,
+      showPhoneOnProfile: cur.showPhoneOnProfile,
+      publicPhone: cur.publicPhone,
+      socialLinks: cur.socialLinks,
+    );
   }
 
   /// Manuel premium müdahale kaydı (sunucudaki `premiumOverrides` karşılığı) —

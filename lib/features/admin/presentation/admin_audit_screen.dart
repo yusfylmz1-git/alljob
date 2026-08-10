@@ -41,8 +41,8 @@ class _AdminAuditScreenState extends ConsumerState<AdminAuditScreen> {
         title: 'Denetim Kaydı',
         icon: Icons.receipt_long_outlined,
         subtitle: pageAsync.valueOrNull == null
-            ? null
-            : '${pageAsync.value!.entries.length} kayıt yüklü'
+            ? 'Kim ne yaptı — okunabilir özet'
+            : '${pageAsync.value!.entries.length} kayıt'
                   '${pageAsync.value!.hasMore ? '+' : ''}',
         actions: [
           IconButton(
@@ -263,7 +263,12 @@ class _AuditCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final palette = context.palette;
     final theme = Theme.of(context);
-    final detail = _detailLine(entry);
+    final detail = entry.detailSummary;
+    final targetId = entry.targetId;
+    final shortActor = _shortId(entry.actorUid);
+    final shortTarget =
+        targetId == null || targetId.isEmpty ? null : _shortId(targetId);
+
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
@@ -275,25 +280,60 @@ class _AuditCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(_icon(entry.action), size: 16, color: palette.primary),
-              const SizedBox(width: 8),
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: palette.primary.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(_icon(entry.action), size: 18, color: palette.primary),
+              ),
+              const SizedBox(width: 10),
               Expanded(
-                child: Text(
-                  entry.actionLabelTR,
-                  style: theme.textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.w700,
-                  ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      entry.actionLabelTR,
+                      style: theme.textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    if (detail != null) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        detail,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: palette.inkMuted,
+                          height: 1.35,
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
               ),
             ],
           ),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: [
+              _MetaChip(
+                icon: Icons.person_outline,
+                label: 'Yapan · $shortActor',
+              ),
+              if (shortTarget != null)
+                _MetaChip(
+                  icon: Icons.gps_fixed,
+                  label: '${entry.targetTypeLabelTR} · $shortTarget',
+                ),
+            ],
+          ),
           const SizedBox(height: 8),
-          _kv(context, 'Yapan', entry.actorUid),
-          if (entry.targetId != null && entry.targetId!.isNotEmpty)
-            _kv(context, 'Hedef', entry.targetId!),
-          if (detail != null) _kv(context, 'Ayrıntı', detail),
-          const SizedBox(height: 6),
           Text(
             _formatDate(entry.createdAt),
             style: theme.textTheme.labelSmall?.copyWith(
@@ -305,37 +345,18 @@ class _AuditCard extends StatelessWidget {
     );
   }
 
-  Widget _kv(BuildContext context, String k, String v) {
-    final palette = context.palette;
-    final theme = Theme.of(context);
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 2),
-      child: Text.rich(
-        TextSpan(
-          children: [
-            TextSpan(
-              text: '$k: ',
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: palette.inkFaint,
-              ),
-            ),
-            TextSpan(
-              text: v,
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: palette.inkMuted,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
+  /// Tam UID yerine okunabilir kısa imza (kopyalanabilir tam id ayrıntıda yok —
+  /// arama kutusu hâlâ tam UID ile çalışır).
+  static String _shortId(String id) {
+    if (id.length <= 10) return id;
+    return '${id.substring(0, 6)}…${id.substring(id.length - 4)}';
   }
 
   IconData _icon(String action) => switch (action) {
-    'grant_admin' || 'set_role' => Icons.workspace_premium_outlined,
+    'grant_admin' || 'set_role' || 'set_capabilities' =>
+      Icons.workspace_premium_outlined,
     'revoke_admin' => Icons.remove_moderator_outlined,
-    'suspend_user' => Icons.gpp_bad_outlined,
+    'suspend_user' || 'bulk_suspend' => Icons.gpp_bad_outlined,
     'unsuspend_user' => Icons.lock_open_outlined,
     'resolve_report' => Icons.flag_outlined,
     'claim_report' => Icons.pan_tool_alt_outlined,
@@ -343,25 +364,49 @@ class _AuditCard extends StatelessWidget {
     'resolve_dispute' => Icons.gavel_outlined,
     'hide_message' => Icons.speaker_notes_off_outlined,
     'unhide_message' => Icons.undo_rounded,
-    _ => Icons.bolt_outlined,
+    'set_artisan_flags' => Icons.handyman_outlined,
+    'moderate_job' => Icons.work_outline,
+    'moderate_product' => Icons.inventory_2_outlined,
+    'grant_premium' => Icons.workspace_premium,
+    'broadcast' => Icons.campaign_outlined,
+    'update_config' => Icons.tune_outlined,
+    'export' => Icons.download_outlined,
+    'stats_rebuild' => Icons.restart_alt,
+    _ => Icons.history_outlined,
   };
+}
 
-  /// `after` haritasından okunabilir kısa bir özet üretir.
-  String? _detailLine(AuditEntry e) {
-    final a = e.after;
-    if (a == null) return null;
-    final parts = <String>[];
-    if (a['role'] != null) parts.add('rol: ${a['role']}');
-    if (a['status'] != null) parts.add('durum: ${a['status']}');
-    if (a['decision'] != null) parts.add('karar: ${a['decision']}');
-    if (a['suspended'] != null) {
-      parts.add(a['suspended'] == true ? 'askıya alındı' : 'askı kaldırıldı');
-    }
-    if (a['reason'] != null && '${a['reason']}'.isNotEmpty) {
-      parts.add('neden: ${a['reason']}');
-    }
-    if (a['assignedTo'] != null) parts.add('üstlenen: ${a['assignedTo']}');
-    return parts.isEmpty ? null : parts.join(' · ');
+class _MetaChip extends StatelessWidget {
+  const _MetaChip({required this.icon, required this.label});
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: palette.surfaceMuted,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 12, color: palette.inkFaint),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: palette.inkMuted,
+              fontFamily: 'monospace',
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 
