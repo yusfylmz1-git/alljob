@@ -137,7 +137,7 @@ void main() {
       expect(res.dryRun, isTrue);
       // Veri DEĞİŞMEMELİ.
       final liste = await repo.fetchPage();
-      expect(liste.every((p) => !p.manualPause), isTrue,
+      expect(liste.every((p) => !p.profile.manualPause), isTrue,
           reason: 'dryRun veri yazmamalı.');
     });
 
@@ -156,9 +156,9 @@ void main() {
 
       final liste = await repo.fetchPage();
       final odeyen = liste.firstWhere((p) => p.uid == 'odeyen');
-      expect(odeyen.manualPause, isFalse,
+      expect(odeyen.profile.manualPause, isFalse,
           reason: 'Parasını ödeyen ustaya dokunulmamalı.');
-      expect(odeyen.isPremium, isTrue);
+      expect(odeyen.profile.isPremium, isTrue);
     });
 
     test('onlyWithoutActivePremium=false ödeyenlere de dokunur', () async {
@@ -190,8 +190,9 @@ void main() {
         reason: 'yalnız duraklat',
       );
       final p = (await repo.fetchPage()).single;
-      expect(p.manualPause, isTrue);
-      expect(p.isPremium, isTrue, reason: 'Bu mod premium\'a dokunmamalı.');
+      expect(p.profile.manualPause, isTrue);
+      expect(p.profile.isPremium, isTrue,
+          reason: 'Bu mod premium\'a dokunmamalı.');
     });
 
     test('işlem denetim için kaydedilir', () async {
