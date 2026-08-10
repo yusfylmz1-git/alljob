@@ -14,10 +14,11 @@ const kLegalContactEmail = 'ilandahizmet@gmail.com';
 const kAppBrandName = 'İlanda Hizmet';
 
 /// Metinlerin "Son güncelleme" etiketi — içerik değişince güncelle.
-const kLegalUpdated = '15 Temmuz 2026';
+const kLegalUpdated = '10 Ağustos 2026';
 
-/// Store girişlerine verilecek canlı URL'ler (Firebase Hosting).
-const kLegalBaseUrl = 'https://alljob1.web.app';
+/// Store girişlerine verilecek canlı URL'ler (kanonik tanıtım domaini).
+/// Eski `alljob1.web.app` hâlâ yönlendirebilir; store formunda bunu kullanın.
+const kLegalBaseUrl = 'https://www.ilandahizmet.com';
 
 class LegalSection {
   const LegalSection({this.heading, required this.body});
@@ -114,7 +115,7 @@ const legalTerms = LegalDoc(
     LegalSection(
       heading: '9. Hesabın Silinmesi',
       body:
-          'Hesabınızı dilediğiniz an Profil → Hesabı Sil adımlarıyla kalıcı olarak silebilirsiniz. Nelerin silindiği ve nelerin anonimleştirildiği Gizlilik Politikasında açıklanmıştır.',
+          'Hesabınızı dilediğiniz an yan menü → Hesap Ayarları → Hesabı Sil adımlarıyla kalıcı olarak silebilirsiniz. Nelerin silindiği ve nelerin anonimleştirildiği Gizlilik Politikasında ve Hesap Silme Talimatında açıklanmıştır.',
     ),
     LegalSection(
       heading: '10. Değişiklikler',
@@ -165,7 +166,7 @@ const legalPrivacy = LegalDoc(
     LegalSection(
       heading: '5. Saklama ve Silme',
       body:
-          'Hesabınızı Profil → Hesabı Sil adımlarıyla kalıcı olarak silebilirsiniz. Silme işleminde:\n\n• Hesabınız, profiliniz, favorileriniz, teklifleriniz ve yüklediğiniz dosyalar SİLİNİR,\n• Ustaya bağlanmamış açık ilanlarınız silinir; aktif işleriniz iptal edilir,\n• Tamamlanmış işler, yaptığınız değerlendirmeler ve sohbetlerdeki adınız "Silinmiş Kullanıcı" olarak ANONİMLEŞTİRİLİR (diğer kullanıcıların kayıtlarının ve kazanılmış itibarının korunması için),\n• Uygulama içi bildirim kayıtları en geç 30 gün içinde kendiliğinden silinir.\n\nAyrıntılı talimat: $kLegalBaseUrl/hesap-silme.html',
+          'Hesabınızı yan menü → Hesap Ayarları → Hesabı Sil adımlarıyla kalıcı olarak silebilirsiniz. Silme işleminde:\n\n• Hesabınız, profiliniz, favorileriniz, takip kayıtlarınız, ürünleriniz, tüm ilanlarınız, hakkınızda yazılmış değerlendirmeler ve yüklediğiniz dosyalar SİLİNİR,\n• Başkaları hakkında yazdığınız değerlendirmeler ve sohbetlerdeki adınız / fotoğrafınız "Silinmiş Kullanıcı" olarak ANONİMLEŞTİRİLİR (karşı tarafın mesaj geçmişinin ve kazanılmış itibarın korunması için),\n• Destek yazışmalarında kimliğiniz düşer; gövde kalabilir,\n• Kötüye kullanım şikayet kayıtları meşru menfaat nedeniyle silinmez (şikayet eden kimliği anonimleşir).\n\nAyrıntılı talimat: $kLegalBaseUrl/hesap-silme.html',
     ),
     LegalSection(
       heading: '6. Güvenlik',
@@ -259,17 +260,17 @@ const legalDeletion = LegalDoc(
   sections: [
     LegalSection(
       body:
-          'İlanda Hizmet hesabınızı ve verilerinizi dilediğiniz an kalıcı olarak silebilirsiniz.',
+          'İlanda Hizmet hesabınızı ve verilerinizi dilediğiniz an kalıcı olarak silebilirsiniz. Google Play ve KVKK hesap silme yükümlülüğüne uygun olarak silme işlemi uygulama içinden yapılır.',
     ),
     LegalSection(
       heading: 'Uygulama içinden silme (önerilen)',
       body:
-          '1. Uygulamada oturum açın,\n2. Alt bardan Profil sekmesine gidin,\n3. "Hesabı Sil" satırına dokunun,\n4. Onay ekranındaki "Kalıcı Olarak Sil" ile işlemi tamamlayın.\n\nİşlem birkaç saniye sürer; tamamlandığında oturumunuz kapanır.',
+          '1. Uygulamada oturum açın,\n2. Sol üstteki menü düğmesini açın,\n3. "Hesap Ayarları" satırına dokunun,\n4. "Hesabı Sil" satırına dokunun,\n5. Onay ekranındaki "Kalıcı Olarak Sil" ile işlemi tamamlayın.\n\nİşlem birkaç saniye sürebilir; tamamlandığında oturumunuz kapanır.\n\nNot: Hesap silme, Profil sekmesinde değil; yan menüdeki Hesap Ayarları bölümündedir.',
     ),
     LegalSection(
       heading: 'Neler silinir, neler anonimleştirilir?',
       body:
-          '• SİLİNİR: hesabınız, profiliniz, favorileriniz, teklifleriniz, yüklediğiniz tüm fotoğraf ve dosyalar, ustaya bağlanmamış açık ilanlarınız,\n• İPTAL EDİLİR: devam eden aktif işleriniz (karşı taraf bilgilendirilir),\n• ANONİMLEŞTİRİLİR: tamamlanmış işler, yaptığınız değerlendirmeler ve sohbet geçmişindeki adınız "Silinmiş Kullanıcı" olarak görünür (diğer kullanıcıların kayıtlarının korunması için).',
+          '• SİLİNİR: hesabınız, profiliniz, favorileriniz, takip kayıtlarınız, ürünleriniz, tüm ilanlarınız, hakkınızda yazılmış değerlendirmeler, yüklediğiniz fotoğraf ve dosyalar, üyelik satın alma kayıtlarınız,\n• ANONİMLEŞTİRİLİR: başkaları hakkında yazdığınız değerlendirmeler ve sohbetlerdeki adınız / profil fotoğrafınız "Silinmiş Kullanıcı" olarak görünür (karşı tarafın mesaj geçmişinin korunması için),\n• DESTEK YAZIŞMALARI: gövde kalabilir; kimlik bilgileriniz düşer,\n• ŞİKAYET KAYITLARI: kötüye kullanım denetimi için kalır; şikayet eden kimliği anonimleşir.',
     ),
     LegalSection(
       heading: 'Uygulamaya erişemiyorsanız',

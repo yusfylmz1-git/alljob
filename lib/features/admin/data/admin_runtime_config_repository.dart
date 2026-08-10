@@ -10,6 +10,8 @@ class AdminRuntimeConfig {
     this.premiumFreeDuringBeta = true,
     this.maintenanceMode = false,
     this.minAppVersion,
+    this.productsEnabled = true,
+    this.productsForceReview = false,
     this.appDisplayName,
     this.tagline,
     this.supportEmail,
@@ -31,6 +33,12 @@ class AdminRuntimeConfig {
   final bool premiumFreeDuringBeta;
   final bool maintenanceMode;
   final String? minAppVersion;
+
+  /// Mağaza ürün vitrini (tüketici `isProductsLive`).
+  final bool productsEnabled;
+
+  /// Yayınlar zorunlu incelemeye düşer (`publishProduct` CF).
+  final bool productsForceReview;
 
   final String? appDisplayName;
   final String? tagline;
@@ -63,6 +71,8 @@ class AdminRuntimeConfig {
       premiumFreeDuringBeta: map['premiumFreeDuringBeta'] != false,
       maintenanceMode: map['maintenanceMode'] == true,
       minAppVersion: s('minAppVersion'),
+      productsEnabled: map['productsEnabled'] != false,
+      productsForceReview: map['productsForceReview'] == true,
       appDisplayName: s('appDisplayName'),
       tagline: s('tagline'),
       supportEmail: s('supportEmail'),
@@ -140,6 +150,8 @@ class MockAdminRuntimeConfigRepository implements AdminRuntimeConfigRepository {
       'premiumFreeDuringBeta': _config.premiumFreeDuringBeta,
       'maintenanceMode': _config.maintenanceMode,
       'minAppVersion': _config.minAppVersion,
+      'productsEnabled': _config.productsEnabled,
+      'productsForceReview': _config.productsForceReview,
       'appDisplayName': _config.appDisplayName,
       'tagline': _config.tagline,
       'supportEmail': _config.supportEmail,

@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/config/app_runtime_config.dart';
 import '../../../core/config/backend_config.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../data/models/product.dart';
@@ -13,8 +14,17 @@ final productRepositoryProvider = Provider<ProductRepository>((ref) {
   return MockProductRepository(ref.watch(mockDatabaseProvider));
 });
 
+/// Mağaza ürün vitrini açık mı? Yerel hard-off + remote `productsEnabled`.
+///
+/// Config henüz yüklenmediyse yerel sabite düşer (varsayılan: açık).
+final productsLiveProvider = Provider<bool>((ref) {
+  final remote = ref.watch(appRuntimeConfigProvider).valueOrNull;
+  if (remote != null) return remote.isProductsLive;
+  return AppConstants.kProductsEnabled;
+});
+
 final discoverProductsProvider = StreamProvider<List<Product>>((ref) {
-  if (!AppConstants.kProductsEnabled) {
+  if (!ref.watch(productsLiveProvider)) {
     return Stream.value(const <Product>[]);
   }
   return ref.watch(productRepositoryProvider).watchDiscoverProducts(

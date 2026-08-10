@@ -261,6 +261,12 @@ class MyProductsScreen extends ConsumerWidget {
           context.push(RoutePaths.productDetail(p.id));
           return;
         case 'publish':
+          if (!ref.read(productsLiveProvider)) {
+            if (context.mounted) {
+              context.showError('Mağaza şu an kapalı; ürün yayınlanamaz.');
+            }
+            return;
+          }
           await repo.publishProduct(p.id);
           if (context.mounted) context.showSuccess('Ürün yayınlandı.');
           return;

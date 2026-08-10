@@ -233,37 +233,52 @@ class _AdminHomeScreenState extends ConsumerState<_AdminHomeScreen> {
         backgroundColor: AdminChrome.topBarBg,
         foregroundColor: Colors.white,
         elevation: 0,
-        titleSpacing: 0,
+        scrolledUnderElevation: 0,
+        titleSpacing: 4,
+        iconTheme: const IconThemeData(color: Colors.white),
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              'İlanda Hizmet Ops',
-              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800),
+              'İlanda Hizmet',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w800,
+                letterSpacing: -0.2,
+              ),
             ),
             Text(
               destinations[safeIndex].label,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontSize: 12, color: Colors.white70),
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.white.withValues(alpha: 0.72),
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ],
         ),
         actions: [
-          if (email.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.only(right: 4),
-              child: Center(
-                child: Text(
-                  roleLabel,
-                  style: const TextStyle(
-                    fontSize: 11,
-                    color: Colors.white60,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
+          Container(
+            margin: const EdgeInsets.only(right: 4),
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: AdminChrome.railSelected.withValues(alpha: 0.18),
+              borderRadius: BorderRadius.circular(99),
+              border: Border.all(
+                color: AdminChrome.railSelected.withValues(alpha: 0.35),
               ),
             ),
+            child: Text(
+              roleLabel,
+              style: const TextStyle(
+                fontSize: 11,
+                color: Color(0xFFFFEDD5),
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
           IconButton(
             tooltip: 'Çıkış',
             icon: const Icon(Icons.logout_rounded),
@@ -314,11 +329,12 @@ class _AdminNavDrawer extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Ops Console',
+                          'İlanda Hizmet',
                           style: TextStyle(
                             color: Colors.white,
                             fontWeight: FontWeight.w800,
                             fontSize: 16,
+                            letterSpacing: -0.2,
                           ),
                         ),
                         Text(
@@ -326,6 +342,7 @@ class _AdminNavDrawer extends StatelessWidget {
                           style: TextStyle(
                             color: AdminChrome.railMuted,
                             fontSize: 12,
+                            fontWeight: FontWeight.w600,
                           ),
                         ),
                       ],
@@ -336,63 +353,111 @@ class _AdminNavDrawer extends StatelessWidget {
             ),
             if (email.isNotEmpty)
               Padding(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-                child: Text(
-                  '$roleLabel · $email',
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: AdminChrome.railMuted,
-                    fontSize: 11,
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+                child: Container(
+                  width: double.infinity,
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.06),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: AdminChrome.railDivider),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        roleLabel,
+                        style: const TextStyle(
+                          color: AdminChrome.railSelected,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        email,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: AdminChrome.railMuted,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),
-            const Divider(color: Color(0xFF1E293B), height: 1),
+            const Divider(color: AdminChrome.railDivider, height: 1),
             Expanded(
               child: ListView.builder(
-                padding: const EdgeInsets.symmetric(vertical: 8),
+                padding: const EdgeInsets.fromLTRB(10, 10, 10, 8),
                 itemCount: destinations.length,
                 itemBuilder: (context, i) {
                   final d = destinations[i];
                   final selected = i == selectedIndex;
-                  return ListTile(
-                    selected: selected,
-                    selectedTileColor: AdminChrome.railSelectedBg,
-                    leading: d.badge > 0
-                        ? _BadgeIcon(
-                            icon: selected ? d.selectedIcon : d.icon,
-                            count: d.badge,
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 4),
+                    child: Material(
+                      color: selected
+                          ? AdminChrome.railSelectedBg
+                          : Colors.transparent,
+                      borderRadius: BorderRadius.circular(12),
+                      child: ListTile(
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 2,
+                        ),
+                        leading: d.badge > 0
+                            ? _BadgeIcon(
+                                icon: selected ? d.selectedIcon : d.icon,
+                                count: d.badge,
+                                color: selected
+                                    ? AdminChrome.railSelected
+                                    : AdminChrome.railMuted,
+                              )
+                            : Icon(
+                                selected ? d.selectedIcon : d.icon,
+                                color: selected
+                                    ? AdminChrome.railSelected
+                                    : AdminChrome.railMuted,
+                              ),
+                        title: Text(
+                          d.label,
+                          style: TextStyle(
                             color: selected
-                                ? AdminChrome.railSelected
+                                ? AdminChrome.railFg
                                 : AdminChrome.railMuted,
-                          )
-                        : Icon(
-                            selected ? d.selectedIcon : d.icon,
-                            color: selected
-                                ? AdminChrome.railSelected
-                                : AdminChrome.railMuted,
+                            fontWeight:
+                                selected ? FontWeight.w700 : FontWeight.w500,
+                            fontSize: 14,
                           ),
-                    title: Text(
-                      d.label,
-                      style: TextStyle(
-                        color: selected
-                            ? AdminChrome.railSelected
-                            : AdminChrome.railFg,
-                        fontWeight: selected
-                            ? FontWeight.w700
-                            : FontWeight.w500,
-                        fontSize: 14,
+                        ),
+                        trailing: selected
+                            ? Container(
+                                width: 6,
+                                height: 6,
+                                decoration: const BoxDecoration(
+                                  color: AdminChrome.railSelected,
+                                  shape: BoxShape.circle,
+                                ),
+                              )
+                            : null,
+                        onTap: () {
+                          Navigator.pop(context);
+                          onSelect(i);
+                        },
                       ),
                     ),
-                    onTap: () {
-                      Navigator.pop(context);
-                      onSelect(i);
-                    },
                   );
                 },
               ),
             ),
-            const Divider(color: Color(0xFF1E293B), height: 1),
+            const Divider(color: AdminChrome.railDivider, height: 1),
             ListTile(
               leading: const Icon(
                 Icons.logout_rounded,
@@ -400,7 +465,10 @@ class _AdminNavDrawer extends StatelessWidget {
               ),
               title: const Text(
                 'Çıkış yap',
-                style: TextStyle(color: AdminChrome.railFg),
+                style: TextStyle(
+                  color: AdminChrome.railFg,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
               onTap: () {
                 Navigator.pop(context);
@@ -466,7 +534,7 @@ class _AdminSideRail extends StatelessWidget {
                             ),
                           ),
                           Text(
-                            'Ops Console',
+                            'Yönetim',
                             style: TextStyle(
                               color: AdminChrome.railMuted,
                               fontSize: 11,
@@ -700,17 +768,17 @@ class _AdminTopBar extends StatelessWidget {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
               decoration: BoxDecoration(
-                color: const Color(0xFFECFDF5),
+                color: const Color(0xFFFFEDD5),
                 borderRadius: BorderRadius.circular(99),
-                border: Border.all(color: const Color(0xFFA7F3D0)),
+                border: Border.all(color: const Color(0xFFFDBA74)),
               ),
               child: const Text(
-                'LIVE',
+                'CANLI',
                 style: TextStyle(
-                  color: Color(0xFF047857),
+                  color: Color(0xFFC2410C),
                   fontSize: 10,
                   fontWeight: FontWeight.w800,
-                  letterSpacing: 0.6,
+                  letterSpacing: 0.5,
                 ),
               ),
             ),
@@ -824,7 +892,13 @@ class _AdminLoginScreenState extends ConsumerState<_AdminLoginScreen> {
           if (wideLogin)
             Expanded(
               child: Container(
-                color: AdminChrome.railBg,
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [Color(0xFF1B3A5C), Color(0xFF0F2438)],
+                  ),
+                ),
                 padding: const EdgeInsets.all(40),
                 child: const Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -833,7 +907,7 @@ class _AdminLoginScreenState extends ConsumerState<_AdminLoginScreen> {
                     BrandMark(size: 72),
                     SizedBox(height: 20),
                     Text(
-                      'İlanda Hizmet\nOps Console',
+                      'İlanda Hizmet\nYönetim',
                       style: TextStyle(
                         color: Colors.white,
                         fontSize: 32,
@@ -844,7 +918,7 @@ class _AdminLoginScreenState extends ConsumerState<_AdminLoginScreen> {
                     ),
                     SizedBox(height: 12),
                     Text(
-                      'Şikayet, kullanıcı, ilan ve platform\n'
+                      'Şikayet, kullanıcı, ilan, Mağaza ve platform\n'
                       'moderasyonu için güvenli yönetim alanı.',
                       style: TextStyle(
                         color: AdminChrome.railMuted,
@@ -857,11 +931,15 @@ class _AdminLoginScreenState extends ConsumerState<_AdminLoginScreen> {
               ),
             ),
           Expanded(
-            child: Center(
+            child: ColoredBox(
+              color: AdminChrome.surface,
+              child: Center(
               child: SingleChildScrollView(
-                padding: EdgeInsets.symmetric(
-                  horizontal: wideLogin ? 28 : 20,
-                  vertical: wideLogin ? 28 : 24,
+                padding: EdgeInsets.fromLTRB(
+                  wideLogin ? 28 : 20,
+                  wideLogin ? 28 : 20 + MediaQuery.paddingOf(context).top,
+                  wideLogin ? 28 : 20,
+                  wideLogin ? 28 : 24,
                 ),
                 child: ConstrainedBox(
                   constraints: const BoxConstraints(maxWidth: 400),
@@ -871,10 +949,18 @@ class _AdminLoginScreenState extends ConsumerState<_AdminLoginScreen> {
                       mainAxisSize: MainAxisSize.min,
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
+                        if (!wideLogin) ...[
+                          const Center(child: BrandMark(size: 56)),
+                          const SizedBox(height: 18),
+                        ],
                         Text(
                           'Yönetici girişi',
+                          textAlign:
+                              wideLogin ? TextAlign.start : TextAlign.center,
                           style: theme.textTheme.headlineSmall?.copyWith(
                             fontWeight: FontWeight.w800,
+                            letterSpacing: -0.3,
+                            color: AdminChrome.topBarBg,
                           ),
                         ),
                         const SizedBox(height: 6),
@@ -933,6 +1019,7 @@ class _AdminLoginScreenState extends ConsumerState<_AdminLoginScreen> {
                   ),
                 ),
               ),
+            ),
             ),
           ),
         ],

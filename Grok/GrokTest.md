@@ -3,8 +3,9 @@
 | Alan | Değer |
 |---|---|
 | **Rapor tarihi** | 2026-08-10 |
+| **Kontrol turu** | 2026-08-10 (sırayla doğrulama + admin Mağaza ayarı eklendi) |
 | **Analiz eden** | Grok (proje yöneticisi + kullanıcı gözü) |
-| **Dal** | `hemen-lazim` (origin'e göre **27 commit önde**) |
+| **Dal** | `hemen-lazim` (origin'e göre **29 commit önde**; çalışma ağacı temizdi, sonra admin ayarı eklendi) |
 | **Paket kimliği** | `com.sepettehizmet.app` |
 | **Sürüm** | `1.0.0+1` |
 | **Marka** | İlanda Hizmet |

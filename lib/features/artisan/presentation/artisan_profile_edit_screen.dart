@@ -335,7 +335,28 @@ class _EditFormState extends ConsumerState<_EditForm> {
       );
       return;
     }
-    if (draft.profile.serviceAreas.isEmpty) {
+    // BEKLEYEN BÖLGE SEÇİMİNİ OTOMATİK EKLE (2026-08-10, kullanıcı bulgusu).
+    //
+    // Kullanıcı il+ilçe seçip "+" düğmesine basmayı unutuyor, sonra Kaydet
+    // deyince "en az bir hizmet bölgesi ekleyin" uyarısı alıyordu — oysa
+    // seçimini EKRANDA görüyor. Uyarı haklı görünüp yanlış hissettiriyordu.
+    //
+    // Seçim zaten ekranda duruyorsa niyet açıktır; "+" bir onay adımı değil,
+    // yalnızca birden fazla bölge eklemeyi mümkün kılan bir araçtır. Kaydet
+    // basılınca bekleyen seçim de eklenir.
+    //
+    // `addServiceArea` zaten tekilleştiriyor: kullanıcı "+" bastıysa ve
+    // seçim ekranda durmaya devam ediyorsa ikinci kez eklenmez.
+    if (_addProvince != null && _addDistrict != null) {
+      _controller.addServiceArea(
+        ServiceArea(province: _addProvince!.name, district: _addDistrict!.name),
+      );
+    }
+    // Bölge listesini otomatik eklemeden SONRA oku (controller güncellendi).
+    final bolgeler =
+        ref.read(myProfileControllerProvider).valueOrNull?.profile.serviceAreas ??
+            draft.profile.serviceAreas;
+    if (bolgeler.isEmpty) {
       context.showError('En az bir hizmet bölgesi ekleyin.');
       return;
     }
@@ -688,7 +709,14 @@ class _EditFormState extends ConsumerState<_EditForm> {
                     const SizedBox(height: 12),
                     if (profile.serviceAreas.isEmpty)
                       Text(
-                        'Henüz bölge eklemediniz.',
+                        // Kullanıcı ilçeyi seçmiş ama "+" basmamışsa
+                        // "eklemediniz" demek yanlış hissettiriyordu —
+                        // seçimini ekranda görüyor. Kaydet zaten bekleyen
+                        // seçimi otomatik ekler; metin de bunu söylesin.
+                        _addProvince != null && _addDistrict != null
+                            ? 'Seçtiğiniz bölge kaydederken eklenecek. '
+                                'Birden fazla bölge için "+" kullanın.'
+                            : 'Henüz bölge eklemediniz.',
                         style: Theme.of(context).textTheme.bodySmall,
                       )
                     else
@@ -1243,17 +1271,32 @@ class _ProfessionMultiSelectState
         final q = _query.text;
         // Liste sırası sabit kalır (seçilince en üste zıplamaz); seçili
         // olanlar üstteki chip'lerde + satırda ✓ ile görünür.
+        // Arama HEM meslek adına HEM KATEGORİ başlığına bakar (2026-08-10):
+        // kullanıcı "İnşaat" yazınca o kategorinin altındaki tüm meslekler
+        // listelenmeli. Başlıklar ekranda görünüyor, aranabilir olmaları
+        // beklenir — yalnız ada bakılsaydı kategori adı sıfır sonuç verirdi.
         final filtered = professions
             .where(
-              (p) => matchesTrSearch(p.nameTR, q) || matchesTrSearch(p.code, q),
+              (p) =>
+                  matchesTrSearch(p.nameTR, q) ||
+                  matchesTrSearch(p.code, q) ||
+                  matchesTrSearch(ProfessionCategory.label(p.category), q),
             )
             .toList(growable: false);
 
         // Satır listesi: kategori başlığı (String) + meslek (Profession).
-        // 144 meslek düz listede taranamıyordu (2026-08-10). Arama yazılınca
-        // gruplama kapanır — sonuç zaten daraldı, başlık gürültü olur.
+        // 144 meslek düz listede taranamıyordu (2026-08-10).
+        //
+        // Normal metin aramasında gruplama kapanır (sonuç zaten daraldı,
+        // başlık gürültü). Ama KATEGORİ adı yazıldıysa başlıklar KALIR —
+        // sonucun neden geldiğini açıklar ve birden fazla kategori
+        // eşleşebilir.
+        final kategoriAramasi = q.trim().isNotEmpty &&
+            filtered.any(
+              (p) => matchesTrSearch(ProfessionCategory.label(p.category), q),
+            );
         final rows = <Object>[];
-        if (q.trim().isNotEmpty) {
+        if (q.trim().isNotEmpty && !kategoriAramasi) {
           rows.addAll(filtered);
         } else {
           String? sonGrup;

@@ -40,6 +40,9 @@ class DukkanBolumu extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // Admin "Mağaza kapalı" ise profilde dükkân göstermeyiz (ölü link olmasın).
+    if (!ref.watch(productsLiveProvider)) return const SizedBox.shrink();
+
     final urunler =
         ref.watch(publicProductsProvider(saticiUid)).valueOrNull ?? const [];
     if (urunler.isEmpty) return const SizedBox.shrink();

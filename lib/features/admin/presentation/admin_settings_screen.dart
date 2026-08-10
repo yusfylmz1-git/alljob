@@ -86,7 +86,7 @@ class _AdminSettingsScreenState extends ConsumerState<AdminSettingsScreen> {
         context: context,
         title: 'Sistem ayarları',
         icon: Icons.tune_outlined,
-        subtitle: 'Bakım · beta · zorunlu sürüm',
+        subtitle: 'Bakım · beta · Mağaza · zorunlu sürüm',
       ),
       body: cfgAsync.when(
         loading: () => const LoadingView(),
@@ -141,6 +141,44 @@ class _AdminSettingsScreenState extends ConsumerState<AdminSettingsScreen> {
                   onChanged: (!canManage || _busy)
                       ? null
                       : (v) => _patch({'maintenanceMode': v}),
+                ),
+                const Divider(height: 28),
+                Text(
+                  'Mağaza',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Ürün vitrini kill-switch ve yayın denetimi. '
+                  'Deploy gerekmez; uygulama canlı okur.',
+                  style: TextStyle(color: palette.inkMuted, fontSize: 13),
+                ),
+                const SizedBox(height: 8),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Mağaza ürün vitrini açık'),
+                  subtitle: const Text(
+                    'Kapalıyken Keşfet’te ürün listesi ve Dükkân gizlenir; '
+                    'yeni yayın reddedilir. Talepler (ürün talebi ilanı) etkilenmez.',
+                  ),
+                  value: cfg.productsEnabled,
+                  onChanged: (!canManage || _busy)
+                      ? null
+                      : (v) => _patch({'productsEnabled': v}),
+                ),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Ürün yayınında zorunlu inceleme'),
+                  subtitle: const Text(
+                    'Açıkken her yayın “İncelemede” kalır; admin onaylamadan '
+                    'vitrine düşmez. İletişim kalıbı zaten otomatik inceleme tetikler.',
+                  ),
+                  value: cfg.productsForceReview,
+                  onChanged: (!canManage || _busy)
+                      ? null
+                      : (v) => _patch({'productsForceReview': v}),
                 ),
                 const SizedBox(height: 8),
                 TextField(

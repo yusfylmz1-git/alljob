@@ -827,14 +827,20 @@ void main() {
       final c = AdminRuntimeConfig.fromMap({});
       expect(c.premiumFreeDuringBeta, isTrue);
       expect(c.maintenanceMode, isFalse);
+      expect(c.productsEnabled, isTrue);
+      expect(c.productsForceReview, isFalse);
       final c2 = AdminRuntimeConfig.fromMap({
         'premiumFreeDuringBeta': false,
         'maintenanceMode': true,
         'minAppVersion': '1.0.0',
+        'productsEnabled': false,
+        'productsForceReview': true,
       });
       expect(c2.premiumFreeDuringBeta, isFalse);
       expect(c2.maintenanceMode, isTrue);
       expect(c2.minAppVersion, '1.0.0');
+      expect(c2.productsEnabled, isFalse);
+      expect(c2.productsForceReview, isTrue);
     });
 
     test('mock runtime config update + watch', () async {

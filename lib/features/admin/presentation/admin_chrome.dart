@@ -2,16 +2,29 @@ import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_palette.dart';
 
-/// Admin ops konsolu renkleri (tüketici gradyanından bağımsız, sade “console”).
+/// Admin ops konsolu — marka paletiyle hizalı (navy + orange).
+///
+/// Tüketici gradyanından bağımsız ama logo ile uyumlu: koyu lacivert kabuk,
+/// turuncu seçili durum. Eski sky-blue vurgu kaldırıldı.
 abstract final class AdminChrome {
-  static const Color railBg = Color(0xFF0F172A);
-  static const Color railFg = Color(0xFFE2E8F0);
-  static const Color railMuted = Color(0xFF94A3B8);
-  static const Color railSelected = Color(0xFF38BDF8);
-  static const Color railSelectedBg = Color(0x1A38BDF8);
-  static const Color topBarBg = Color(0xFF111827);
-  static const Color surface = Color(0xFFF8FAFC);
-  static const Color cardBorder = Color(0xFFE2E8F0);
+  /// Yan menü / çekmece zemini — AppColors.secondary deep.
+  static const Color railBg = Color(0xFF0F2438);
+  static const Color railFg = Color(0xFFF2F4F7);
+  static const Color railMuted = Color(0xFF98A2B3);
+
+  /// Seçili sekme — AppColors.primary (#EA580C).
+  static const Color railSelected = Color(0xFFEA580C);
+  static const Color railSelectedBg = Color(0x26EA580C);
+
+  /// Mobil AppBar / üst şerit.
+  static const Color topBarBg = Color(0xFF15304B);
+
+  /// Sayfa zemini — AppColors.background.
+  static const Color surface = Color(0xFFFAFAFB);
+  static const Color cardBorder = Color(0xFFE4E7EC);
+
+  /// İnce ayırıcı (rail içi).
+  static const Color railDivider = Color(0x1AFFFFFF);
 
   /// Dar ekran (telefon) — kabuk zaten başlık/menü gösteriyor; çift AppBar olmasın.
   static bool isCompact(BuildContext context) =>
@@ -91,13 +104,13 @@ abstract final class AdminChrome {
                     width: 36,
                     height: 36,
                     decoration: BoxDecoration(
-                      color: theme.colorScheme.primary.withValues(alpha: 0.1),
+                      color: railSelected.withValues(alpha: 0.12),
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: Icon(
                       icon,
                       size: 20,
-                      color: theme.colorScheme.primary,
+                      color: railSelected,
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -146,17 +159,17 @@ abstract final class AdminChrome {
     String? hint,
   }) {
     final theme = Theme.of(context);
-    final color = accent ?? theme.colorScheme.primary;
+    final color = accent ?? railSelected;
     final child = Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: theme.colorScheme.surface,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(14),
         border: Border.all(color: cardBorder),
         boxShadow: const [
           BoxShadow(
-            color: Color(0x0A0F172A),
-            blurRadius: 8,
+            color: Color(0x0A101828),
+            blurRadius: 10,
             offset: Offset(0, 2),
           ),
         ],
@@ -167,11 +180,11 @@ abstract final class AdminChrome {
           Row(
             children: [
               Container(
-                width: 32,
-                height: 32,
+                width: 34,
+                height: 34,
                 decoration: BoxDecoration(
                   color: color.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(10),
                 ),
                 child: Icon(icon, size: 18, color: color),
               ),
@@ -218,7 +231,7 @@ abstract final class AdminChrome {
       color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(14),
         child: child,
       ),
     );

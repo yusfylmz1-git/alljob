@@ -3116,6 +3116,13 @@ exports.adminUpdateConfig = onCall(
         const v = patch.minAppVersion.trim();
         next.minAppVersion = v.length ? v : null;
       }
+      // Mağaza (ürün vitrini) — admin panelinden kill-switch + zorunlu inceleme.
+      if (typeof patch.productsEnabled === "boolean") {
+        next.productsEnabled = patch.productsEnabled;
+      }
+      if (typeof patch.productsForceReview === "boolean") {
+        next.productsForceReview = patch.productsForceReview;
+      }
 
       // Platform / marka / iletişim (public read — gizli anahtar koyma).
       const strFields = [
@@ -3153,6 +3160,8 @@ exports.adminUpdateConfig = onCall(
         premiumFreeDuringBeta: true,
         maintenanceMode: false,
         minAppVersion: null,
+        productsEnabled: true,
+        productsForceReview: false,
         announcementEnabled: false,
       };
       await ref.set({...seed, ...before, ...next}, {merge: true});
@@ -3166,6 +3175,8 @@ exports.adminUpdateConfig = onCall(
           premiumFreeDuringBeta: before.premiumFreeDuringBeta,
           maintenanceMode: before.maintenanceMode,
           minAppVersion: before.minAppVersion ?? null,
+          productsEnabled: before.productsEnabled !== false,
+          productsForceReview: before.productsForceReview === true,
           announcementEnabled: before.announcementEnabled === true,
         },
         after: next,
@@ -4316,13 +4327,23 @@ exports.publishProduct = onCall(
         );
       }
 
-      // Force review config
+      // Mağaza bayrakları (adminConfig/runtime).
       let forceReview = false;
       try {
         const cfg = await db.collection("adminConfig").doc("runtime").get();
-        forceReview = cfg.exists &&
-          cfg.data() && cfg.data().productsForceReview === true;
-      } catch (_) { /* ignore */ }
+        const c = cfg.exists ? (cfg.data() || {}) : {};
+        // productsEnabled yoksa açık sayılır; yalnız açık false kapatır.
+        if (c.productsEnabled === false) {
+          throw new HttpsError(
+              "failed-precondition",
+              "Magaza su an kapali. Daha sonra tekrar deneyin.",
+          );
+        }
+        forceReview = c.productsForceReview === true;
+      } catch (e) {
+        if (e instanceof HttpsError) throw e;
+        /* config okunamazsa yayın akışı bozulmasın */
+      }
 
       const contactHit = PRODUCT_CONTACT_RE.test(title + " " + description);
       let nextStatus = "active";

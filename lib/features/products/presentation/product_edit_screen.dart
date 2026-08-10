@@ -306,8 +306,12 @@ class _ProductEditScreenState extends ConsumerState<ProductEditScreen> {
       context.go(RoutePaths.login);
       return;
     }
+    if (publish && !ref.read(productsLiveProvider)) {
+      context.showError('Mağaza şu an kapalı; ürün yayınlanamaz.');
+      return;
+    }
     if (_categoryCode == null || _categoryCode!.isEmpty) {
-      context.showError('Kategori (meslek) seçin.');
+      context.showError('Kategori seçin.');
       return;
     }
     final province = _province?.name ?? '';

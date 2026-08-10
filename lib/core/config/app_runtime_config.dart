@@ -11,6 +11,8 @@ class AppRuntimeConfig {
     this.premiumFreeDuringBeta = AppConstants.premiumFreeDuringBeta,
     this.maintenanceMode = false,
     this.minAppVersion,
+    this.productsEnabled = true,
+    this.productsForceReview = false,
     this.appDisplayName,
     this.tagline,
     this.supportEmail,
@@ -30,6 +32,14 @@ class AppRuntimeConfig {
   final bool premiumFreeDuringBeta;
   final bool maintenanceMode;
   final String? minAppVersion;
+
+  /// Mağaza ürün vitrini açık mı? (deploy'suz kill-switch).
+  /// Alan yoksa `true` — Mağaza varsayılan açık; admin kapatır.
+  /// Yerel `AppConstants.kProductsEnabled == false` bunu ezer (hard off).
+  final bool productsEnabled;
+
+  /// true ise her yayın denemesi `pending_review`'a düşer (publishProduct CF).
+  final bool productsForceReview;
 
   final String? appDisplayName;
   final String? tagline;
@@ -52,6 +62,11 @@ class AppRuntimeConfig {
       ((announcementTitle ?? '').trim().isNotEmpty ||
           (announcementBody ?? '').trim().isNotEmpty);
 
+  /// Ürün vitrini fiilen kullanılabilir mi?
+  /// Yerel hard-off VEYA remote kapalı → false.
+  bool get isProductsLive =>
+      AppConstants.kProductsEnabled && productsEnabled;
+
   factory AppRuntimeConfig.fromMap(Map<String, dynamic>? map) {
     if (map == null) return const AppRuntimeConfig();
     String? s(String k) {
@@ -65,6 +80,9 @@ class AppRuntimeConfig {
       premiumFreeDuringBeta: map['premiumFreeDuringBeta'] != false,
       maintenanceMode: map['maintenanceMode'] == true,
       minAppVersion: s('minAppVersion'),
+      // Yoksa açık (Mağaza varsayılan). Yalnız açık `false` yazar kapatır.
+      productsEnabled: map['productsEnabled'] != false,
+      productsForceReview: map['productsForceReview'] == true,
       appDisplayName: s('appDisplayName'),
       tagline: s('tagline'),
       supportEmail: s('supportEmail'),
