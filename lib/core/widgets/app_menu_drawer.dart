@@ -311,12 +311,10 @@ class AppMenuDrawer extends ConsumerWidget {
 class _DrawerFooter extends StatelessWidget {
   const _DrawerFooter();
 
-  static const String _site = 'https://ilandahizmet.com';
-
   Future<void> _openSite(BuildContext context) async {
     try {
       final ok = await launchUrl(
-        Uri.parse(_site),
+        Uri.parse(AppConstants.siteUrl),
         mode: LaunchMode.externalApplication,
       );
       if (!ok && context.mounted) context.showError('Bağlantı açılamadı.');
@@ -346,7 +344,7 @@ class _DrawerFooter extends StatelessWidget {
                       size: 16, color: palette.primary),
                   const SizedBox(width: 6),
                   Text(
-                    'ilandahizmet.com',
+                    AppConstants.siteLabel,
                     style: theme.textTheme.bodyMedium?.copyWith(
                       color: palette.primary,
                       fontWeight: FontWeight.w700,

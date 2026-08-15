@@ -7,6 +7,17 @@ class AppConstants {
   static const String appName = 'İlanda Hizmet';
   static const String appSlogan = 'Bölgenizdeki en iyi ustalar cebinizde';
 
+  /// Tanıtım sitesi — menü altındaki bağlantı ve künye için.
+  ///
+  /// ⚠️ YASAL METİN ADRESLERİ BURADA DEĞİL: onlar
+  /// `features/legal/legal_docs.dart` → `kLegalBaseUrl` altındadır ve `www.`
+  /// ön ekini taşır (store formlarına girilen kanonik adres odur). İkinci bir
+  /// kaynak tanımlamak, biri değişince diğerinin sessizce eskimesi demektir.
+  static const String siteUrl = 'https://ilandahizmet.com';
+
+  /// Menüde/künyede gösterilen kısa biçim (şema ve `www.` olmadan).
+  static const String siteLabel = 'ilandahizmet.com';
+
   // Form / içerik limitleri
   static const int minPasswordLength = 6;
   static const int maxAboutLength = 500;
@@ -66,6 +77,12 @@ class AppConstants {
   static const int maxPhotoSizeBytes = 5 * 1024 * 1024; // 5 MB
   static const List<String> allowedImageExtensions = ['jpg', 'jpeg', 'png'];
 
+  /// Usta vitrin iş fotoğrafları (Storage + profil dizisi).
+  static const int maxWorkPhotos = 10;
+
+  /// Sertifika / belge görselleri.
+  static const int maxCertificates = 5;
+
   // Görsel yükleme optimizasyonu (Storage bant genişliği / fatura):
   // ham fotoğrafı Firebase'e göndermeden önce image_picker ile küçültüp
   // JPEG'e sıkıştırıyoruz. ~1080px + %70 kalite, 5 MB'lık bir fotoğrafı
@@ -73,11 +90,41 @@ class AppConstants {
   static const double imagePickMaxWidth = 1080;
   static const int imagePickImageQuality = 70;
 
-  // Feed sunucu-tarafı okuma tavanı (Firestore doküman OKUMA faturası):
-  // istemci filtresi/sıralaması uygulanmadan önce sunucudan en fazla bu kadar
-  // ilan çekilir. Süresi dolan/coğrafi elenen ilanlar için bir miktar pay bırakır.
-  static const int openJobsFetchCap = 60;
-  static const int nearbyJobsFetchCap = 100;
+  // — GÖRSEL ORANLARI (2026-08-14 cihaz bulgusu: "resimler yarım çıkıyor,
+  //   profil fotosu yayık görünüyor") —
+  //
+  // Kök neden: kırpma adımı YOKTU. Kullanıcı hangi oranda fotoğraf seçerse
+  // seçsin, kart `AspectRatio` + `BoxFit.cover` ile onu zorla çerçeveye
+  // sığdırıyordu; dikey fotoğrafın altı/üstü kesiliyordu ("yarım").
+  //
+  // Çözüm: yüklemeden ÖNCE kullanıcıya kırpma ekranı gösterilir — çerçeveyi
+  // kendisi seçer. Kart oranı ile kırpma oranı AYNI olmalı; aksi hâlde
+  // kırpma bir şey çözmez.
+
+  /// Ürün / ilan görseli oranı — 4:5 dikey (modern Instagram varsayılanı).
+  /// Telefonda kareye göre %25 daha büyük alan, ürün detayı daha net.
+  static const double photoAspectWidth = 4;
+  static const double photoAspectHeight = 5;
+
+  /// Kart ızgarasında kullanılacak `childAspectRatio`.
+  ///
+  /// Görsel 4:5 (yani genişliğin 1.25 katı yükseklik) + altında ~92 px'lik
+  /// metin şeridi (başlık 2 satır + fiyat + kategori + iç boşluk).
+  ///
+  /// 220 px genişlikte gereken oran ≈ 0.599; **0.55** güvenli pay bırakır:
+  /// büyük yazı tipi ölçeği (erişilebilirlik ayarı) ve "ÖNE ÇIKAN" rozetinin
+  /// eklediği satır da sığar.
+  ///
+  /// ⚠️ Bu değeri YÜKSELTME. 0.62'de kart taşıyor ve fotoğrafın altında
+  /// sarı-siyah overflow şeridi çıkıyordu (2026-08-14 cihaz bulgusu).
+  /// Kart daha kısa görünsün istiyorsan görsel oranını değiştir, bunu değil.
+  static const double photoCardAspectRatio = 0.55;
+
+  // Feed sunucu-tarafı okuma tavanı (Firestore doküman OKUMA faturası).
+  // 2026-08-11: biraz düşürüldü — liste hâlâ dolu görünür, sayfa/scroll ile
+  // yenileme zaten var; her açılışta fazla doc çekilmesin.
+  static const int openJobsFetchCap = 50;
+  static const int nearbyJobsFetchCap = 80;
 
   // Keşfet Ürünler (PRD-006)
   static const bool kAdminProductModerationEnabled = true;
@@ -88,13 +135,30 @@ class AppConstants {
   static const int productDescMax = 2000;
   static const int maxProductTags = 8;
   static const int maxActiveProductsPerOwner = 50;
-  static const int productDiscoverFetchCap = 60;
+
+  /// Fiyat/bütçe üst sınırı (₺). Tavan olmadan kullanıcı "999999999999"
+  /// yazabiliyordu: kart düzenini bozar, sıralamayı anlamsızlaştırır ve
+  /// yanlışlıkla girilen basamak müşteriyi kaçırır. 100 milyon ₺ bir hizmet
+  /// pazaryeri için fazlasıyla geniş; kural tarafında da aranır.
+  static const double maxPriceAmount = 100000000;
+
+  // — Canlı dinleyici tavanları (MALİYET) —
+  //
+  // Bu üç sorgu `limit()` olmadan çalışıyordu: dinleyici açık kaldığı sürece
+  // koleksiyondaki HER döküman okunur ve her değişiklikte yeniden faturalanır.
+  // Popüler bir usta binlerce takipçiye ulaştığında tek ekran açılışı binlerce
+  // okuma demekti. Tavanlar UI'nin gösterebileceğinden geniş, faturayı
+  // öngörülebilir kılacak kadar dar.
+  static const int favoritesFetchCap = 200;
+  static const int followersFetchCap = 200;
+  static const int blockedFetchCap = 200;
+  static const int chatThreadsFetchCap = 200;
+  static const int productDiscoverFetchCap = 48;
   static const int productSoftDeleteDays = 30;
 
-  // Usta aramasında sunucudan çekilecek en fazla profil (istemci filtre/sıralama
-  // öncesi tavan). Müsaitlik hesaplanmış alan olduğundan sıralama istemcide;
-  // bu tavan patolojik okuma sayısını sınırlar (CF + areaKeys[] ölçeğine kadar).
-  static const int artisanFetchCap = 300;
+  // Usta aramasında sunucudan çekilecek en fazla profil (istemci filtre öncesi).
+  // 300 → 180: ilk ekran için yeterli; "daha fazla"/yenile ile taze sorgu.
+  static const int artisanFetchCap = 180;
 
   // Mağaza (ürün vitrini) açık mı. Modül 2026-08-10'da geri getirildi;
   // bayrak, tamamlanmadan yayına çıkmasın diye bir kapı olarak duruyor.

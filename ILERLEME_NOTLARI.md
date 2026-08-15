@@ -8,7 +8,7 @@
 
 ## 🎯 Proje Hakkında
 - **Proje adı:** **İlanda Hizmet** (`sepette_hizmet` Dart paketi · `com.sepettehizmet.app` paket kimliği) — hizmet pazaryeri uygulaması.
-  *(Marka üç kez değişti: "Ustasından"/`usta_cepte` → "Sepette Hizmet" → "İlanda Hizmet" (oturum 82). Paket adı, uygulama kimliği ve `kProMonthlyProductId` BİLEREK eski adında — değiştirmek veri/satın alma kaybettirir.)*
+  *(Görünen marka İlanda Hizmet. Teknik kimlik `sepettehizmet`. Play/App Store kaydı yokken IAP `usta_cepte_*` → `sepette_hizmet_pro_*` çekildi; mağazada ürün açıldıktan sonra kilit.)*
 - **Amaç:** Müşterileri (tamirat/tadilat ihtiyacı olanlar) bölge ve meslek bazlı ustalarla buluşturmak. TR pazarı.
 - **Platform:** Flutter — Android + iOS + Web
 - **Backend (hedef):** Firebase (Auth, Firestore, Storage, Cloud Functions, FCM)
@@ -23,6 +23,276 @@
 ---
 
 ## ✅ Son Durum (EN SON BURAYI OKU)
+
+**Tarih:** 2026-08-15 — **TAM DENETİM + YAYIN SERTLEŞTİRMESİ**
+
+`flutter analyze` 0 · **814 test** · `npm run lint` 0 hata · release AAB
+doğrulandı (R8 açık). Commit: `1b8d46f`.
+
+Rapor (artifact): denetim defteri — bulgular, gerekçeler ve Play Console
+adımları. Kaynak: `vault/05-Operasyon/denetim-2026-08-15.html`.
+
+### İki P0 (ikisi de düzeltildi + teste bağlandı)
+
+1. **Bir satın alma → sınırsız premium.** `grantArtisanPremium` `tokenHash`'i
+   hesaplayıp yazıyor ama **hiç okumuyordu**; doküman anahtarı `uid` olduğu
+   için aynı Play token'ı farklı hesaplardan gönderen herkes premium
+   oluyordu. Artık `membershipTokens/{hash}` sahibi tutuyor, yazım
+   `runTransaction` ile yarıştırılamaz, `deleteAccount` siliyor.
+2. **Harici bağlantıların hiçbiri açılmıyordu.** Manifest'te `<queries>`
+   içinde `VIEW` beyanı yoktu → Android 11+ paket görünürlüğü nedeniyle
+   `launchUrl` **sessizce** başarısız (menü site bağlantısı, WhatsApp,
+   sosyal medya, yasal metinler). Eklenti bu bloğu kendi manifest'inde
+   taşımıyor.
+
+### Aynı oturumda kapatılan P1/P2
+
+- **Eşzamanlı ilan limiti artık atomik** — kural motoru transaction
+  yapamadığı için sayaç tazelenmeden gelen istekler limitten geçiyordu
+  (TOCTOU). `onJobCreated` içinde `openReserved` rezervasyonu.
+- **Tüm admin callable'ları App Check zorluyor** (30 fonksiyon).
+- **R8/ProGuard açıldı** + keep kuralları; release AAB ile doğrulandı.
+- **`functions/` ilk kez lint'leniyor** — hiç yapılandırma yoktu. İlk koşuda
+  5 ölü tanım + 2 hatalı regex kaçışı buldu. `predeploy` hook'una bağlandı.
+- **`debugPrint` → `AppLog.d`** (40 çağrı, 11 dosya). `debugPrint` release'te
+  de yazıyor ve satırlar uid/chatId/FCM token öneki taşıyordu.
+- **`yan_logo.png` silindi** (4,85 MB) — kod hiç yüklemiyordu, varlıkların
+  yarısıydı.
+- **Sürüm `1.0.0+1` → `1.0.1+2`** (Play aynı `versionCode`'u reddeder).
+
+### ⚠️ Bu oturumda yaşanan iki kaza (kasaya yazıldı)
+
+- PowerShell `Set-Content -Encoding utf8` zaten UTF-8 olan `index.js`'i
+  ikinci kez kodladı (1150 bozuk karakter + BOM). **Türkçe kaynak dosyada
+  toplu değişiklik için PowerShell kullanma.**
+- Bunu geri almak için atılan `git stash`, çalışma ağacındaki
+  **commit'lenmemiş ~350 satırlık CF işini** de aldı. Testler yakaladı,
+  düşürülen stash SHA'sından kurtarıldı. **Stash'ten önce commit al.**
+
+### Geriye kalan: yalnız Play Console (elle)
+
+Kodda yapılacak iş bırakılmadı. Veri güvenliği formu, SHA-256 kaydı,
+abonelik ürünü ve yasal URL girişleri konsoldan yapılır — adım adım liste
+denetim raporundadır.
+
+---
+
+## 📌 Oturum 84 (2026-08-14) — arşiv
+
+**Tarih:** 2026-08-14 (4. oturum) — **FOTOĞRAF ALTYAPISI**
+
+`flutter analyze` 0 · **734/734 test** · release AAB 59.8 MB ·
+yeni test `test/fotograf_kirpma_test.dart` (13 test).
+
+### Sorun
+
+Cihaz bulgusu: *"resimler yarım çıkıyor, profil fotoğrafı yayık görünüyor."*
+
+**Kök neden: kırpma adımı hiç yoktu.** Kullanıcı hangi oranda fotoğraf
+seçerse seçsin, kart `AspectRatio` + `BoxFit.cover` ile onu zorla çerçeveye
+sığdırıyordu — dikey fotoğrafın altı/üstü kesiliyordu. Avatar da kare
+olmayan kaynakta kafayı ortalayamıyordu.
+
+### Çözüm
+
+- **`image_cropper`** paketi + Android manifest `UCropActivity` kaydı.
+- **Ortak servis:** `lib/core/utils/photo_picker.dart` →
+  `PhotoPicker.pickPhoto()` / `pickMultiPhoto()`.
+  ⚠️ **Yeni foto yükleme yeri eklersen bunu kullan**; doğrudan
+  `ImagePicker().pickImage()` çağırma — kırpma atlanır, hata geri döner.
+- **Şekiller:** profil `square` (1:1 kilitli) · ürün/ilan/vitrin `portrait`
+  (4:5) · sertifika `free` (zorunlu oran belge metnini keser).
+- **Kart oranları 4:5'e hizalandı** — `AppConstants.photoAspectWidth/Height`
+  ve `photoCardAspectRatio`. Kritik kural: **kırpma oranı ile kart oranı
+  AYNI olmalı**, yoksa kırpma hiçbir şey çözmez.
+- Kırpma iptal edilirse fotoğraf ham hâliyle eklenir (seçim boşa gitmez).
+
+**Sohbet fotoğrafı bilinçli olarak kırpmasız** — mesajlaşmada Instagram ve
+WhatsApp da kırpma dayatmaz.
+
+### Aynı oturumda düzeltilen iki cihaz bulgusu daha
+
+1. **Telefon numarası profilde görünmüyordu.** `setPhoneVisibility` yalnız
+   `artisanProfiles/{uid}` yazıyordu; profil başlığı `users/{uid}.publicPhone`
+   okuyor — yazılan yer okunan yer değildi. Artık ikisine de yazılıyor ve
+   `users` yazımı koşulsuz (mağaza sahibinin usta profili olmayabilir).
+2. **WhatsApp ikonu gerçek logo değildi** (`Icons.chat` düz balon).
+   `lib/core/widgets/whatsapp_icon.dart` — CustomPaint ile marka logosu.
+   Paket eklenmedi (tek ikon için ~1 MB font bağımlılığı gereksiz).
+
+---
+
+**Tarih:** 2026-08-14 (3. oturum) — **TELEFON DOĞRULAMA KÖK NEDENİ BULUNDU**
+
+### 🔴 SENİN YAPMAN GEREKEN — 1 dakika
+
+**`androidcheck.googleapis.com` API'si KAPALI.** Telefon doğrulamanın
+sürekli `(unknown)` vermesinin sebebi bu.
+
+<https://console.cloud.google.com/apis/library/androidcheck.googleapis.com?project=alljob1>
+→ **ENABLE** → 2-3 dk bekle → uygulamayı tamamen kapatıp aç.
+
+CLI ile açılamadı (`PERMISSION_DENIED`); Console oturumu gerekiyor.
+
+**Neden:** Firebase Auth, Android'de SMS göndermeden ÖNCE cihaz doğrulaması
+(Play Integrity / SafetyNet) yapar. Bu API kapalıysa doğrulama düşer, SDK
+ayırt edici kod üretemez ve `code=unknown` fırlatır. **SMS hiç gönderilmez** —
+bu yüzden "numara değiştir" de çalışmıyordu (o düğme sağlam, aynı duvara
+çarpıyordu).
+
+### Canlı projeden API ile doğrulananlar (sorun YOK)
+
+Phone provider ✅ · SMS bölge TR ✅ · debug+release SHA-1/SHA-256 ✅
+(yerel keystore'larla eşleşiyor) · App Check tümü UNENFORCED (bloklamıyor) ·
+playintegrity + identitytoolkit ✅ · **androidcheck ❌**
+
+### Kodda yapılanlar
+
+- `code=unknown` → `deviceCheckFailed` eşlemesi. Kullanıcı artık
+  "(unknown)" yerine ne yapacağını söyleyen bir mesaj görüyor.
+- `[TANI][telefon]` logu kök nedeni ve 3 kontrol adımını yazıyor.
+- Yeni belge: **`docs/TELEFON_DOGRULAMA_TANI.md`** — kayıtlı numaraları
+  nerede göreceğin, SMS harcamadan test numaraları, tam tanı listesi.
+
+**Test numaraları (gerçek SMS gitmez, cihaz doğrulamasını da atlar):**
+`+90 555 000 00 00` ve `+90 555 555 55 55` → kod `123456`
+
+`flutter analyze` 0 · **715/715 test**
+
+---
+
+**Tarih:** 2026-08-14 (2. oturum) — **YAYIN ÖNCESİ TAM DENETİM**
+
+Rapor: **`docs/YAYIN_DENETIMI_2026_08_14.md`** (bulgular + senin yapman
+gerekenler). `flutter analyze` 0 · **712/712 test** · release AAB 59.3 MB ·
+yeni test `test/yayin_hazirlik_denetimi_test.dart` (14 test).
+
+### ✅ KURALLAR CANLIDA
+
+`firebase deploy --only firestore:rules` yapıldı. Canlı ruleset doğrulandı
+(2026-08-14 15:25 UTC): `providerFlagOk` her iki sağlayıcı bayrağında aktif.
+Usta/mağaza açmak artık **sunucu tarafında** doğrulanmış telefon istiyor.
+
+### ✅ 11 KIRIK TEST KAPANDI — işlev kaybı YOKTU
+
+Tek tek incelendi; hepsi yeniden yazım sonrası eskiyen, kaynak-metin tarayan
+testlerdi. Kod doğruydu. Davranış iddiaları korunarak güncellendi:
+
+- `label: 'X'` → `label: const Text('X')` biçim değişikliği (5 test)
+- `_AvailabilitySwitch` imzası değişti + sabit karakter penceresi kaydı (3)
+- "Usta modu" anahtarı kaldırıldı → müsaitlik anahtarı (1)
+- **`direct_contact`:** müsaitlik kapısı silinmemiş, ortak
+  `artisanAvailabilityAllowsNewChat()`'e taşınmıştı — güvenlik kaybı yok
+- **`test_bulgulari_10`:** `manualPause` eleme değil SIRALAMA skorunda;
+  müsait olmayan usta bildirimi almaya devam ediyor
+
+**`otherModeUnreadProvider` şüphesi kapandı:** provider bilinçli olarak 0
+döndürüyor (mod switch'i kalkınca "karşı mod" kavramı da kalktı). Okunmamış
+sayacı alt barda `totalUnreadProvider` ile çalışıyor.
+
+### Düzeltilen kritik sorunlar
+
+1. **Çıkışta sahte çökme** ("oturum kapatınca uygulama duruyor") — 10
+   korumasız canlı dinleyici. Ortak yardımcı
+   `lib/core/utils/signout_safe_stream.dart` → `.signOutSafe(etiket, uid)`.
+   ⚠️ uid'e bağlı yeni `snapshots()` eklersen BU ÇAĞRIYI YAP.
+2. **Bildirim sessiz arızası (2 kusur):** `notDetermined`'da token
+   yazılıyordu (izin kapalıyken "açık" görünüyordu); çıkışta
+   `_tokenRefreshSub` iptal edilmediği için İKİNCİ hesapta token yenileme
+   hiç yazılmıyordu.
+3. **Telefon doğrulama sunucuda zorunlu değildi** — `firestore.rules`
+   `providerFlagOk()`. Yalnız bayrağı AÇARKEN aranır; mevcut ustalar
+   kilitlenmez. Mock paritesi eklendi.
+4. **Fiyat tavanı yoktu** — `AppConstants.maxPriceAmount` (100M ₺).
+5. **4 limitsiz canlı dinleyici** (favoriler, takipçiler, engellenenler,
+   sohbet listesi) → 200'lük tavanlar. Maliyet riski.
+6. **Çift gönderim** — doğrulama sayfası açıkken Kaydet/Mağazayı aç etkin
+   kalıyordu.
+
+### Senin yapman gerekenler (rapordaki tam liste)
+
+- Kuralları deploy et (yukarıdaki komut)
+- Firebase Console: Phone sağlayıcısı + SMS region policy (+90) + release
+  SHA-256 → **gerçek cihazda uçtan uca telefon doğrulaması dene**
+- Keystore yedeği + Play App Signing
+
+---
+
+**Tarih:** 2026-08-14
+
+**Kaynak:** `vault/06-Test/new.md` — dört madde tamamlandı.
+`flutter analyze` temiz · 686 test geçiyor · yeni test dosyası
+`test/saglayici_telefon_kapisi_test.dart` (13 test).
+
+### Yapılanlar
+
+1. **Sağlayıcı telefon kapısı (madde 1–2).** Yeni ortak dosya
+   `lib/features/auth/application/provider_phone_gate.dart` →
+   `ensureVerifiedPhoneForProvider()`. Usta profili kaydı ve mağaza kurulumu
+   bu kapıdan geçer: `phoneVerified` false ise **kayıt yapılmaz**, sebebi
+   anlatan sayfa → `PhoneVerificationSheet` açılır. Vazgeçilirse form açık
+   kalır, veri kaybolmaz. `availability_gate.dart` ile aynı desen —
+   **yeni bir sağlayıcı kaydı girişi eklersen bu kapıyı çağır.**
+   Meslek/bölge (usta) ve kategori/bölge (mağaza) zorunluluğu zaten vardı.
+
+2. **Sohbette WhatsApp (madde 3).** `chat_screen.dart` → `_WhatsappAction`
+   AppBar eylemi, `wa.me` bağlantısı açar. **İki koşul birlikte:**
+   `phoneVerified` **ve** `publicPhone` dolu. Hassas `phoneNumber` alanı
+   KULLANILMAZ — ona bağlamak gizli numarayı sohbetten sızdırırdı.
+
+3. **Kategori çeşitlendirmesi (madde 4).** `product_category.dart` 14 → 28
+   kategori: giyim, kozmetik, gıda/market, pet, kırtasiye, tarım, güvenlik,
+   temizlik, hediyelik + aydınlatma, banyo/seramik, boya, ısıtma/soğutma,
+   kapı/pencere. **Eski kodların hiçbiri değişmedi** (kural 6). Sıralama
+   gruplandı: yapı → ev → araç/iş → genel perakende, `diger` sonda.
+
+4. **Profil çip taşması (madde 4).** Yeni widget
+   `lib/core/widgets/collapsible_chips.dart`: ilk 6 çip görünür, kalanı
+   "+N daha" rozetinin arkasında açılır/kapanır. Profildeki satış
+   kategorileri ve mağaza bölgeleri bunu kullanır.
+
+### ⚠️ Devralınan 11 kırık test (bu oturumun işi DEĞİL)
+
+`profile_simplify_test` · `unified_profile_test` · `profile_common_fields_test`
+· `artisan_login_test` · `direct_contact_test` ·
+`test_bulgulari_2026_08_09/10_test` içindeki 11 test kırık. Sebep: bu oturum
+ÖNCESİNDE `profile_screen.dart` yeniden yazılmış (+689/−270, commit edilmemiş)
+ve bu testler kaynak dosyayı **metin olarak** tarıyor — aradıkları
+`otherModeUnreadProvider` ve `label: 'İlanlarım'` dizgileri artık dosyada yok
+(düğme `label: const Text('İlanlarım')` biçimine geçmiş).
+
+Doğrulandı: profil dosyası `HEAD` hâline alınınca 11 test de geçiyor; benim
+çip düzenlemem eklendiğinde/çıkarıldığında sayı 11'de sabit kalıyor.
+**Karar gerekli:** testler yeni profil yapısına mı güncellenecek, yoksa eksik
+`otherModeUnreadProvider` bağlantısı profile geri mi eklenecek? (İkincisi
+gerçek bir işlev kaybı olabilir — karşı moddaki okunmamış mesaj rozeti.)
+
+---
+
+**Tarih:** 2026-08-13
+
+**Marka hizası:** görünen ad İlanda Hizmet; paket / IAP `sepettehizmet`.
+Play ve App Store kaydı olmadığı teyit edildi. Canlı koddaki `usta_cepte`
+kimlikleri çekildi:
+
+- `kProMonthlyProductId` = `sepette_hizmet_pro_monthly`
+- CF `PLAY_PACKAGE_NAME` = `com.sepettehizmet.app` (eskiden yanlışlıkla
+  `com.ustacepte.usta_cepte` idi — Premium doğrulaması bozuktu)
+- `UstaCepteApp` → `SepetteHizmetApp`
+
+`verifyMembershipPurchase` CF'si canlıdaysa bu paket/ürün kimliği değişikliği
+deploy ister. Mağazada ürün **şimdiden** `sepette_hizmet_pro_monthly` ile
+açılmalı.
+
+**Deploy (2026-08-13):** `firestore.rules` zaten canlıdaydı (atlandı).
+CF güncellendi: `verifyMembershipPurchase` + `adminBulkPlanUpdate` +
+`adminUpdateProductCategories` → Successful update.
+
+**Firebase iOS (2026-08-13):** yeni app `com.sepettehizmet.app`
+(`…ios:af72f93e17f9bccc9aba96`). `GoogleService-Info.plist` +
+`firebase_options.dart` güncel. Apple Developer + Codemagic sırada.
+
+---
 
 **Tarih:** 2026-08-10
 

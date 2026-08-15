@@ -59,10 +59,34 @@ yolla tanımlı.
 
 Belirti: `languageVersion=17 matching` hatası → JDK 17 yolunu kontrol et.
 
-### iOS appId eski
-`firebase_options.dart` içinde iOS `appId` hâlâ eski kayda ait
-(`com.ustacepte.ustaCepte`). iOS'a gerçekten çıkılacaksa yeniden
-`flutterfire configure` gerekir.
+### iOS kaydı
+`com.sepettehizmet.app` Firebase iOS app'i açık
+(`1:839781526307:ios:af72f93e17f9bccc9aba96`).
+`ios/Runner/GoogleService-Info.plist` + `firebase_options.dart` hizalı.
+Eski `usta_cepte` iOS kaydı duruyor; kullanılmıyor.
+
+### 🔴 R8 hataları YALNIZ release derlemede görünür
+2026-08-15'te `minifyEnabled` + `shrinkResources` açıldı
+(`android/app/build.gradle.kts`), koruma kuralları
+`android/app/proguard-rules.pro` içinde.
+
+R8 "kullanılmıyor" sandığı sınıfı **siler**. Yansımayla çağrılan her şey
+korunmalıdır: Firebase modelleri, **Play Billing (para yolu)**, uCrop
+(manifest'ten açılır), bildirim alıcıları, Flutter gömülü katmanı.
+
+> [!warning] Debug derleme R8 çalıştırmaz
+> Bir keep kuralı eksikse hata debug'da **asla** görünmez. Bağımlılık
+> eklendiğinde/yükseltildiğinde `flutter build appbundle --release` ile
+> derleyip **gerçek cihazda** satın alma + fotoğraf kırpma + bildirim
+> akışlarını dene.
+
+`build/app/outputs/mapping/release/mapping.txt` Crashlytics'in yığın izlerini
+çözmesi için gerekir; sürüm başına saklanmalıdır.
+
+### Cloud Functions lint kapısı
+`firebase.json` → `functions.predeploy` artık `npm run lint` çalıştırır.
+Lint **hata** verirse deploy durur (uyarılar durdurmaz). Kapıyı atlamak
+gerekirse `--force` değil, önce hatayı düzelt.
 
 ## Yapılandırma anahtarları
 
@@ -82,7 +106,7 @@ const String kAppCheckWebRecaptchaKey = '6Lf...';  // web reCAPTCHA v3
 `lib/features/membership/billing_config.dart`:
 ```dart
 const bool kBillingEnabled = true;
-const String kProMonthlyProductId = 'usta_cepte_pro_monthly';  // ⚠ değiştirilemez
+const String kProMonthlyProductId = 'sepette_hizmet_pro_monthly';  // ⚠ mağazada açıldıktan sonra değiştirilemez
 ```
 
 ## Uygulama kimlikleri
@@ -90,7 +114,7 @@ const String kProMonthlyProductId = 'usta_cepte_pro_monthly';  // ⚠ değiştir
 | Platform | Paket |
 |---|---|
 | Android | `com.sepettehizmet.app` (doğrulandı) |
-| iOS | eski kayıt — güncellenmedi |
+| iOS | `com.sepettehizmet.app` (`…ios:af72f93e17f9bccc9aba96`) |
 
 ## Çalışma zamanı kontrolleri (deploy'suz)
 
@@ -107,11 +131,18 @@ yayınlanmaz:
 ## Deploy öncesi kontrol listesi
 
 ```bash
-flutter analyze          # "No issues found!" olmalı
-flutter test             # tümü geçmeli
+flutter analyze                    # "No issues found!" olmalı
+flutter test                       # tümü geçmeli
+npm --prefix functions run lint    # 0 hata (uyarı serbest)
 ```
 
 Sonra değişikliğin türüne göre:
+
+- [ ] **Play'e sürüm çıkılacaksa** — `pubspec.yaml` içindeki `versionCode`
+      (`+N`) artırıldı mı? Play aynı sayıyı ikinci kez KABUL ETMEZ
+- [ ] **Bağımlılık eklendi/yükseltildiyse** — `flutter build appbundle
+      --release` + gerçek cihaz testi (R8 keep kuralı eksikse yalnız burada
+      görünür) → [[Bilinen-Tuzaklar]]
 
 - [ ] **Kural değiştiyse** — testi yok, elle doğrula. Ana akışları dene:
       ilan aç, ilgi bildir, mesaj yaz, usta seç, tamamla, değerlendir

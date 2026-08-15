@@ -189,6 +189,90 @@ void main() {
           isTrue);
     });
 
+    test('sürüm 1.0.0+1 değil (Play aynı versionCode\'u reddeder)', () {
+      final pubspec = read('pubspec.yaml');
+      final m = RegExp(r'^version:\s*(\S+)', multiLine: true)
+          .firstMatch(pubspec);
+      expect(m, isNotNull, reason: 'pubspec.yaml içinde version yok.');
+      final surum = m!.group(1)!;
+      expect(surum, isNot('1.0.0+1'),
+          reason: 'Şablon sürümü duruyor. Her Play yüklemesinde '
+              'versionCode (+N) BENZERSİZ olmalı.');
+      final code = int.tryParse(surum.split('+').last);
+      expect(code, isNotNull, reason: 'versionCode sayı olmalı: $surum');
+      expect(code, greaterThan(1));
+    });
+
+    test('R8 açık ve koruma kuralları var', () {
+      final gradle = read('android/app/build.gradle.kts');
+      expect(gradle.contains('isMinifyEnabled = true'), isTrue,
+          reason: 'R8 kapalı — paket büyür, kod okunabilir kalır.');
+      expect(gradle.contains('proguard-rules.pro'), isTrue);
+
+      // Yansımayla çağrılan kritik paketler korunmalı. Biri düşerse hata
+      // YALNIZ release derlemede ve çalışma anında görünür.
+      final rules = read('android/app/proguard-rules.pro');
+      for (final paket in [
+        'com.google.firebase', // Firestore/Auth model sınıfları
+        'com.android.billingclient', // PARA YOLU
+        'com.yalantis.ucrop', // fotoğraf kırpma (manifest'ten açılır)
+        'com.dexterous', // bildirim alıcıları
+        'io.flutter',
+      ]) {
+        expect(rules.contains(paket), isTrue,
+            reason: '$paket korunmuyor — R8 silerse release\'te çöker.');
+      }
+      // Crashlytics yığın izleri okunamaz olmasın.
+      expect(rules.contains('SourceFile,LineNumberTable'), isTrue,
+          reason: 'Satır bilgisi atılırsa çökme raporları anlamsızlaşır.');
+    });
+  });
+
+  group('Cloud Functions · denetim kapıları', () {
+    test('lint yapılandırması var ve deploy öncesi çalışıyor', () {
+      // 2026-08-15 denetimi: functions/ HİÇ denetlenmiyordu (yapılandırma
+      // dosyası yoktu). İlk koşuda 5 ölü tanım + 2 hatalı regex kaçışı buldu.
+      expect(File('functions/eslint.config.js').existsSync(), isTrue,
+          reason: 'ESLint yapılandırması yok — functions denetlenmiyor.');
+      final pkg = read('functions/package.json');
+      expect(pkg.contains('"lint"'), isTrue);
+      final fb = read('firebase.json');
+      expect(fb.contains('predeploy'), isTrue,
+          reason: 'Lint deploy öncesi otomatik çalışmıyor — kapı unutulur.');
+    });
+
+    test('admin callable\'ları App Check zorluyor', () {
+      final cf = read('functions/index.js');
+      expect(cf.contains('ADMIN_CALL_OPTS'), isTrue);
+      // Zorlamasız kalan admin fonksiyonu olmamalı.
+      final bare = RegExp(r'onCall\(\s*\n?\s*\{region: REGION\}')
+          .allMatches(cf)
+          .length;
+      expect(bare, 0,
+          reason: 'App Check zorlamayan callable kalmış — çalınmış admin '
+              'oturumu panel dışından kullanılabilir.');
+    });
+
+    test('eşzamanlı açık ilan limiti sunucuda atomik', () {
+      // Kural motoru transaction yapamaz: sayaç tazelenmeden gelen istekler
+      // aynı eski değeri okur ve hepsi limitten geçerdi (TOCTOU).
+      final cf = read('functions/index.js');
+      final i = cf.indexOf('exports.onJobCreated');
+      final j = cf.indexOf('\nexports.', i + 1);
+      final govde = cf.substring(i, j == -1 ? cf.length : j);
+      expect(govde.contains('openReserved'), isTrue,
+          reason: 'Rezervasyon sayacı yok — eşzamanlı ilanlar limiti aşar.');
+      expect(govde.contains('MAX_OPEN_JOBS'), isTrue);
+      expect(govde.contains('runTransaction'), isTrue);
+      // Rezervasyonun tazelikle karşılaştırılabilmesi için sayısal damga şart.
+      expect(cf.contains('updatedAtMs'), isTrue,
+          reason: 'jobStats.updatedAtMs yazılmazsa rezervasyon hep "taze" '
+              'sayılır ve limit yanlış tarafa kayar.');
+    });
+
+  });
+
+  group('Android · harici bağlantılar', () {
     // BELİRTİ: "bağlantıya basıyorum hiçbir şey olmuyor" — hata da yok.
     // SEBEP: Android 11 (API 30) paket görünürlüğü. `<queries>` içinde VIEW
     // beyanı yoksa url_launcher tarayıcıyı göremez; `canLaunchUrl` false
@@ -201,6 +285,37 @@ void main() {
               'ilandahizmet.com, sosyal medya, WhatsApp) sessizce ölür.');
       expect(manifest.contains('android:scheme="https"'), isTrue,
           reason: 'https şeması beyan edilmemiş.');
+    });
+  });
+
+  group('Gizlilik · release günlüğü', () {
+    // `debugPrint` adına rağmen RELEASE derlemede de yazar (yalnız profile
+    // modunda susar). Satırlar uid, chatId ve FCM token öneki taşıyordu;
+    // cihaza erişimi olan biri `adb logcat` ile okuyabilirdi.
+    test('doğrudan debugPrint kullanılmıyor (AppLog.d var)', () {
+      expect(File('lib/core/utils/app_log.dart').existsSync(), isTrue);
+
+      // İzinli istisnalar: main dosyaları (Firebase kurulum tanılaması,
+      // zaten kDebugMode ile sarılı) ve AppLog'un kendisi.
+      const izinli = {
+        'lib\\main.dart',
+        'lib\\main_admin.dart',
+        'lib\\core\\utils\\app_log.dart',
+        'lib\\core\\utils\\signout_safe_stream.dart',
+      };
+
+      final ihlaller = <String>[];
+      for (final f in Directory('lib').listSync(recursive: true)) {
+        if (f is! File || !f.path.endsWith('.dart')) continue;
+        final rel = f.path.replaceAll('/', '\\');
+        if (izinli.any(rel.endsWith)) continue;
+        if (RegExp(r'\bdebugPrint\(').hasMatch(f.readAsStringSync())) {
+          ihlaller.add(rel);
+        }
+      }
+      expect(ihlaller, isEmpty,
+          reason: 'Bu dosyalar release\'te de günlük yazıyor — '
+              'AppLog.d kullanın: ${ihlaller.join(", ")}');
     });
   });
 

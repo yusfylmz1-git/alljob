@@ -212,6 +212,70 @@ token'ı tekrar kullanılamaz".
 
 ---
 
+## 🔴 Kural motoru transaction yapamaz — sayaç limitleri yarışır
+
+`firestore.rules` içindeki `openJobQuotaOk()` "aynı anda 5 açık ilan"
+kısıtını denormalize sayaçtan (`jobStats.openCount`) okur. Ama sayacı
+`onJobCreated` ilan yazıldıktan **sonra** tazeler. Arka arkaya gönderilen
+istekler aynı eski değeri okur ve **hepsi kuraldan geçer** (TOCTOU).
+
+Kural motorunda `count()` de transaction da yoktur; tek atomik yer Cloud
+Function'dır. 2026-08-15'te eşzamanlılık kapısı `onJobCreated` içindeki
+günlük limit transaction'ına eklendi (`openReserved` rezervasyon sayacı).
+
+> [!warning] Rezervasyon damgası SAYISAL olmalı
+> `jobStats.updatedAtMs` yazılmazsa rezervasyon hep "taze" sayılır ve limit
+> yanlış tarafa kayar. ISO dizesi karşılaştırması kırılgandır.
+
+**Genel kural:** kuralda okunan bir sayaç CF tarafından *sonradan*
+yazılıyorsa, o limit tek başına kuralla uygulanamaz.
+
+---
+
+## 🔴 `debugPrint` release'te de yazar
+
+Adı yanıltıcıdır: `debugPrint` yalnız **profile** modunda susar, release'te
+`logcat`'e yazmaya devam eder. 2026-08-15 denetiminde 40 çağrı uid, chatId
+ve FCM token öneki basıyordu.
+
+Tanılama satırı için `AppLog.d()` kullan (`lib/core/utils/app_log.dart`) —
+gövdesi `kDebugMode` ile sarılıdır. Sözleşme testi doğrudan `debugPrint`
+kullanımını yakalar; istisnalar `main.dart` / `main_admin.dart`.
+
+> Kullanıcının görmesi gereken arıza `context.showError(...)`, geliştiricinin
+> canlıda görmesi gereken arıza Crashlytics'tir — ikisi de günlük değildir.
+
+---
+
+## 🟠 PowerShell dosyayı yeniden kodlar — UTF-8 kaynağa DOKUNMA
+
+`Get-Content -Raw` + `Set-Content -Encoding utf8` zinciri, zaten UTF-8 olan
+bir dosyayı **ikinci kez** kodlar: `ı` → `Ä±`, `—` → `â€"`. 2026-08-15'te
+`functions/index.js` bu şekilde 1150 yerden bozuldu; üstüne BOM da eklendi.
+
+**Kural:** Türkçe içeren kaynak dosyalarda toplu değişiklik için PowerShell
+kullanma. `Edit` aracı ya da Node (`fs.readFileSync/writeFileSync`) baytları
+korur.
+
+> Bozulma geri alınabilir (bilgi kaybı yok): her karakter bir cp1252 baytıdır,
+> tabloyla bayta çevrilip yeniden UTF-8 okunur. Ama BOM ve emoji (`👤` →
+> `ğŸ‘¤`) elle ele alınmalıdır.
+
+---
+
+## 🟠 `git stash` çalışma ağacındaki BAŞKA işi de alır
+
+`git stash push -- dosya` yalnız o dosyayı alır ama **tüm** değişikliklerini
+alır — sizin bu oturumda yazdıklarınızı da, önceki oturumlardan kalan
+commit'lenmemiş işi de. 2026-08-15'te bir kodlama hatasını geri almak için
+kullanıldı ve ~350 satırlık commit'lenmemiş CF işi (fan-out toplu okuma,
+ürün talebi bildirimleri) birlikte gitti; testler yakaladı.
+
+> Düşürülen stash bile kurtarılabilir: `git stash drop` çıktısındaki SHA ile
+> `git show <sha>:yol`. Ama en iyisi stash'ten önce commit almaktır.
+
+---
+
 ## 🟠 Firestore kuralları
 
 ### `.get()` olmadan claim okuma her şeyi çökertir
