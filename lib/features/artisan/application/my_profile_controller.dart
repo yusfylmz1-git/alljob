@@ -1,6 +1,6 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/constants/app_constants.dart';
 import '../../../core/utils/validators.dart';
 import '../../../data/models/artisan_profile.dart';
 import '../../../data/models/availability.dart';
@@ -10,6 +10,7 @@ import '../../../data/models/job.dart'
 import '../../../data/models/social_links.dart';
 import '../../auth/application/auth_controller.dart';
 import '../data/my_profile_repository.dart';
+import '../../../core/utils/app_log.dart';
 
 /// Ustanın düzenlemekte olduğu profil taslağı (kaydedilmemiş hali).
 class MyProfileDraft {
@@ -252,11 +253,20 @@ class MyProfileController extends AsyncNotifier<MyProfileDraft> {
         ));
   }
 
-  void addWorkPhoto(String handle) => _update((d) => d.copyWith(
-        profile: d.profile.copyWith(
-          workPhotos: [...d.profile.workPhotos, handle],
-        ),
-      ));
+  /// İş fotoğrafı ekler. Tavan doluysa false (UI uyarı gösterir).
+  bool addWorkPhoto(String handle) {
+    final cur = state.valueOrNull;
+    if (cur == null) return false;
+    if (cur.profile.workPhotos.length >= AppConstants.maxWorkPhotos) {
+      return false;
+    }
+    _update((d) => d.copyWith(
+          profile: d.profile.copyWith(
+            workPhotos: [...d.profile.workPhotos, handle],
+          ),
+        ));
+    return true;
+  }
 
   void removeWorkPhoto(String handle) => _update((d) => d.copyWith(
         profile: d.profile.copyWith(
@@ -264,11 +274,20 @@ class MyProfileController extends AsyncNotifier<MyProfileDraft> {
         ),
       ));
 
-  void addCertificate(String handle) => _update((d) => d.copyWith(
-        profile: d.profile.copyWith(
-          certificates: [...d.profile.certificates, handle],
-        ),
-      ));
+  /// Belge ekler. Tavan doluysa false.
+  bool addCertificate(String handle) {
+    final cur = state.valueOrNull;
+    if (cur == null) return false;
+    if (cur.profile.certificates.length >= AppConstants.maxCertificates) {
+      return false;
+    }
+    _update((d) => d.copyWith(
+          profile: d.profile.copyWith(
+            certificates: [...d.profile.certificates, handle],
+          ),
+        ));
+    return true;
+  }
 
   void removeCertificate(String handle) => _update((d) => d.copyWith(
         profile: d.profile.copyWith(
@@ -326,7 +345,9 @@ class MyProfileController extends AsyncNotifier<MyProfileDraft> {
             manualPause: !active,
           ),
         ));
-    return save();
+    // `users.available` AYNI yazımda güncellenir (eskiden ayrı ikinci bir
+    // updateUserProfile çağrısıydı — aynı dokümana mükerrer yazma).
+    return save(available: active);
   }
 
   /// Doğrulanmış telefonun profilde herkese açık gösterilmesini açar/kapatır
@@ -388,7 +409,13 @@ class MyProfileController extends AsyncNotifier<MyProfileDraft> {
   }
 
   /// Taslağı kalıcı hale getirir. Başarılıysa true döner.
-  Future<bool> save() async {
+  /// [available] verilirse `users/{uid}.available` AYNI yazımda güncellenir.
+  ///
+  /// Neden parametre: müsaitlik anahtarı eskiden `save()` + ayrı bir
+  /// `updateUserProfile(available:)` çağırıyordu — aynı dokümana ARDIŞIK
+  /// İKİ yazma. Ölçekte (çok sayıda satıcı sık aç/kapa yapınca) bu gereksiz
+  /// fatura ve gecikme demekti.
+  Future<bool> save({bool? available}) async {
     final current = state.valueOrNull;
     if (current == null) return false;
 
@@ -427,13 +454,15 @@ class MyProfileController extends AsyncNotifier<MyProfileDraft> {
             publicPhone: sanitized.profile.publicPhone ?? '',
             socialLinks: sanitized.profile.socialLinks,
             aboutText: sanitized.profile.aboutText,
+            // null → alan değişmez (ayrı yazım gerekmez).
+            available: available,
           );
       return sanitized;
     });
 
     if (result.hasError) {
       _lastSaveError = result.error.toString();
-      debugPrint('[profil] kaydetme hatası: $_lastSaveError');
+      AppLog.d('[profil] kaydetme hatası: $_lastSaveError');
       // B-05: HATA DURUMUNA GEÇME. `state = result` yazılsaydı provider
       // AsyncError'a düşer, `valueOrNull` null olur ve düzenleme ekranı
       // `SizedBox.shrink()` çizerdi — kullanıcı "ekran donuyor" diye

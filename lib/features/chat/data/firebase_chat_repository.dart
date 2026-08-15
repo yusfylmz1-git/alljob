@@ -1,9 +1,10 @@
 import 'dart:async' show unawaited;
 
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter/foundation.dart';
 
 import '../../../core/constants/app_constants.dart';
+import '../../../core/utils/app_log.dart';
+import '../../../core/utils/signout_safe_stream.dart';
 import '../../../data/models/chat.dart';
 import 'chat_repository.dart';
 
@@ -83,7 +84,15 @@ class FirebaseChatRepository implements ChatRepository {
     // permission-denied üretiyordu. Yeni sohbetler `members`i ilk yazımda
     // koyuyor (createChat); geriye dönük veri çıkarsa onarım istemciden değil
     // Admin SDK'lı bir Cloud Function'dan yapılmalıdır.
-    return _chats.where('members.$uid', isEqualTo: true).snapshots().map((snap) {
+    return _chats
+        .where('members.$uid', isEqualTo: true)
+        // Tavan (maliyet): dinleyici açık kaldığı sürece eşleşen HER sohbet
+        // okunur ve her mesajda yeniden faturalanır. Aktif kullanıcıda bu
+        // sayı sürekli büyür; liste zaten `updatedAt`e göre kırpılıp
+        // gösteriliyor.
+        .limit(AppConstants.chatThreadsFetchCap)
+        .snapshots()
+        .map((snap) {
       final list = <ChatThread>[];
       for (final doc in snap.docs) {
         final t = _threadFromDoc(doc.id, doc.data());
@@ -106,9 +115,9 @@ class FirebaseChatRepository implements ChatRepository {
       // watchUnreadMeta) — beklenen durum, boş listeye düş.
     }).handleError(
       (Object e) {
-        debugPrint('[chat] thread listesi kapandı ($uid): $e');
+        AppLog.d('[chat] thread listesi kapandı ($uid): $e');
       },
-      test: _isPermissionDenied,
+      test: isSignOutDenial,
     );
   }
 
@@ -124,15 +133,11 @@ class FirebaseChatRepository implements ChatRepository {
         // zaten kurulacak.
         .handleError(
       (Object e) {
-        debugPrint('[chat] unreadMeta stream kapandı ($uid): $e');
+        AppLog.d('[chat] unreadMeta stream kapandı ($uid): $e');
       },
-      test: _isPermissionDenied,
+      test: isSignOutDenial,
     );
   }
-
-  /// Oturum kapanışında beklenen Firestore reddi mi?
-  static bool _isPermissionDenied(dynamic e) =>
-      e is FirebaseException && e.code == 'permission-denied';
 
   /// Thread listesinden doğru sayıyı yaz (yalnız değer değiştiyse).
   Future<void> _healUnreadMeta(String uid, List<ChatThread> threads) async {
@@ -158,7 +163,7 @@ class FirebaseChatRepository implements ChatRepository {
         'updatedAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
     } catch (e) {
-      debugPrint('[chat] unreadMeta heal atlandı ($uid): $e');
+      AppLog.d('[chat] unreadMeta heal atlandı ($uid): $e');
       _lastHealedMetaKey.remove(uid);
     }
   }
@@ -203,7 +208,7 @@ class FirebaseChatRepository implements ChatRepository {
       });
       _lastHealedMetaKey.remove(uid);
     } catch (e) {
-      debugPrint('[chat] unreadMeta decrement atlandı ($uid): $e');
+      AppLog.d('[chat] unreadMeta decrement atlandı ($uid): $e');
     }
   }
 
@@ -222,7 +227,7 @@ class FirebaseChatRepository implements ChatRepository {
         }
         return; // stream normal bitti
       } catch (e, st) {
-        debugPrint(
+        AppLog.d(
             '[chat] watchMessages hata (deneme ${attempt + 1}/$maxAttempts) '
             '$chatId: $e\n$st');
         if (attempt == maxAttempts - 1) rethrow;
@@ -260,7 +265,7 @@ class FirebaseChatRepository implements ChatRepository {
               ))
           .toList();
       return list.reversed.toList(growable: false);
-    });
+    }).signOutSafe('mesajlar', chatId);
   }
 
   @override
@@ -271,7 +276,7 @@ class FirebaseChatRepository implements ChatRepository {
       try {
         await pending;
       } catch (e) {
-        debugPrint('[chat] pending ensure hata ($chatId): $e');
+        AppLog.d('[chat] pending ensure hata ($chatId): $e');
       }
     }
 
@@ -319,7 +324,7 @@ class FirebaseChatRepository implements ChatRepository {
       final t = _threadFromDoc(chatId, data);
       _threads[chatId] = t; // önbelleği tazele (getThread çağrıları bulsun)
       return t;
-    });
+    }).signOutSafe('sohbet', chatId);
   }
 
   @override
@@ -334,7 +339,7 @@ class FirebaseChatRepository implements ChatRepository {
       _threads[chatId] = t; // önbelleğe al: sonraki getThread çağrıları bulsun
       return t;
     } catch (e) {
-      debugPrint('[chat] fetchThread ($chatId): $e');
+      AppLog.d('[chat] fetchThread ($chatId): $e');
       return null;
     }
   }
@@ -381,7 +386,7 @@ class FirebaseChatRepository implements ChatRepository {
             .doc(chatId)
             .update({'lastRead.$uid': Timestamp.fromDate(now)});
       } catch (e) {
-        debugPrint('[chat] markRead atlandı ($chatId): $e');
+        AppLog.d('[chat] markRead atlandı ($chatId): $e');
       }
 
       // Kaç düşürüleceği: önbellek sıcaksa oradan, değilse sohbet
@@ -401,7 +406,7 @@ class FirebaseChatRepository implements ChatRepository {
           // Son mesaj karşı taraftansa bu sohbet okunmamış sayılıyordu.
           dusulecek = (sender != null && sender != uid) ? 1 : 0;
         } catch (e) {
-          debugPrint('[chat] markRead sayaç okuması atlandı ($chatId): $e');
+          AppLog.d('[chat] markRead sayaç okuması atlandı ($chatId): $e');
           return;
         }
       }
@@ -550,7 +555,7 @@ class FirebaseChatRepository implements ChatRepository {
                 .doc(id)
                 .set({'members': derived}, SetOptions(merge: true));
           } catch (e) {
-            debugPrint('[chat] members heal ($id): $e');
+            AppLog.d('[chat] members heal ($id): $e');
           }
         }
         // Önbelleği sunucu verisiyle tazele
@@ -559,7 +564,7 @@ class FirebaseChatRepository implements ChatRepository {
       }
     } on FirebaseException catch (e) {
       if (e.code != 'permission-denied') rethrow;
-      debugPrint('[chat] get reddi, create denenecek ($id): $e');
+      AppLog.d('[chat] get reddi, create denenecek ($id): $e');
     }
 
     // Yok → oluştur
@@ -592,7 +597,7 @@ class FirebaseChatRepository implements ChatRepository {
             return;
           }
         } catch (_) {/* ignore */}
-        debugPrint(
+        AppLog.d(
           '[chat] sohbet oluşturulamadı ($id). '
           'Olası neden: e-posta doğrulanmamış / App Check / üye değil. $e',
         );
@@ -612,21 +617,32 @@ class FirebaseChatRepository implements ChatRepository {
     // e-posta paylaşabilir. Usta vitrininde zaten telefon gösterme seçeneği
     // var; sohbeti kısıtlamak tutarsızdı. `ContactMasker` sınıfı duruyor ama
     // sohbet akışında ARTIK ÇAĞRILMIYOR.
-    final now = DateTime.now();
-
+    // NOT: yerel `DateTime.now()` KULLANILMIYOR — hem mesaj hem sohbet
+    // damgası sunucudan geliyor (bkz. aşağıdaki serverTimestamp yorumları).
     await ensureChatReady(chatId);
 
     await _chats.doc(chatId).collection('messages').add({
       'senderUid': senderUid,
       'text': text,
       'imageHandle': imageHandle,
-      'createdAt': Timestamp.fromDate(now),
+      // SUNUCU ZAMAN DAMGASI (2026-08-14) — `Timestamp.fromDate(now)` DEĞİL.
+      //
+      // İki sebep:
+      //  1. Kural hız sınırı (`messageRateOk`) `createdAt == request.time`
+      //     arar; istemci saatiyle yazılan damga sınırı atlatmaya açıktı
+      //     (geçmiş tarih yazıp peş peşe mesaj gönderilebilirdi).
+      //  2. Saati yanlış cihazlarda mesajlar listede yanlış sıraya
+      //     giriyordu; sunucu damgası bunu da düzeltir.
+      'createdAt': FieldValue.serverTimestamp(),
     });
 
     final meta = <String, dynamic>{
       'lastMessage': imageHandle != null ? '📷 Fotoğraf' : text,
       'lastMessageSenderUid': senderUid,
-      'updatedAt': Timestamp.fromDate(now),
+      // Sunucu damgası: hız sınırı kuralı `createdAt`i bu alanla
+      // karşılaştırıyor — ikisi AYNI saat kaynağından gelmeli, yoksa
+      // istemci saati ileri olan cihazlar yanlışlıkla engellenir.
+      'updatedAt': FieldValue.serverTimestamp(),
     };
     final members = _membersFromChatId(chatId);
     if (members != null) meta['members'] = members;

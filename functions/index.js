@@ -9,6 +9,7 @@
 //  3) Yeni sohbet mesajında alıcının cihaz(lar)ına FCM push bildirimi gönder
 //     (`onMessageCreated`) + geçersiz token'ları temizle.
 //  4) Yeni iş ilanında AYNI İL + AYNI MESLEK ustalarına push (`onJobCreated`).
+//     Ürün talebi: aynı il + kategori satıcılarına anlık.
 //  5) Hesap silme (`deleteAccount` callable) — Play zorunluluğu + KVKK;
 //     yalnız sunucu, tüm koleksiyonları tutarlı temizleyebilir.
 //
@@ -50,11 +51,27 @@ setGlobalOptions({maxInstances: 10});
 // Fonksiyonları Firestore veritabanına yakın bölgede çalıştır (gecikme/maliyet).
 const REGION = "europe-west1";
 
-// App Check zorlaması YALNIZ tüketici (mobil) çağrılarında: mobil istemci
-// jetonu otomatik gönderir (main.dart activate). admin* callable'ları web
-// panelinden çağrılır ve web'de App Check reCAPTCHA anahtarı henüz yok —
-// onlara eklenirse panel kilitlenir (yetki zaten admin claim + assertCap'te).
+// App Check zorlaması — tüketici (mobil) çağrıları. İstemci jetonu otomatik
+// gönderir (main.dart → FirebaseAppCheck.activate).
 const CONSUMER_CALL_OPTS = {region: REGION, enforceAppCheck: true};
+
+// App Check zorlaması — admin (web paneli) çağrıları.
+//
+// 2026-08-15'e kadar admin callable'ları YALNIZ `{region: REGION}` kullanıyordu,
+// yani App Check zorlanmıyordu. Gerekçe "web'de reCAPTCHA anahtarı henüz yok"
+// idi; anahtar Oturum 76'da dolduruldu (`kAppCheckWebRecaptchaKey`) ve
+// `main_admin.dart` onu etkinleştiriyor — gerekçe geçersizleşti.
+//
+// Neden önemli: `assertCap` yetkiyi doğrular ama isteğin GERÇEK panelden mi
+// geldiğini doğrulamaz. App Check'in işi tam olarak budur — çalınmış bir admin
+// oturumunun curl/script ile kullanılmasını zorlaştırır. Admin yetkileri
+// (kullanıcı askıya alma, premium tanımlama, toplu işlem) en değerli hedeftir.
+//
+// ⚠️ DEPLOY SIRASI: Console → App Check → admin web uygulaması kaydı MONITOR
+// modundayken sorun çıkmaz; ENFORCE'a almadan önce panelden birkaç işlem
+// yapıp App Check metriklerinde "doğrulanmış" istek göründüğünü teyit et.
+// Anahtar silinir/alan adı değişirse panel kilitlenir.
+const ADMIN_CALL_OPTS = {region: REGION, enforceAppCheck: true};
 
 // Tek taraf "işi tamamladım" dedikten sonra karşı tarafın yanıt süresi (gün).
 // Mock paritesi: mock_job_repository.confirmDone aynı sayıyı kullanır.
@@ -68,8 +85,10 @@ const QUICK_SUPPORT_CATEGORY = "quick_support";
 // Ürün talebi kategorisi (Mağaza > İlan Ver). İstemci paritesi:
 // lib/data/models/job.dart kProductRequestCategory.
 //
-// Bu kategori USTA fan-out'una girmez; alıcısı satıcılardır ve bildirim
-// anlık değil GÜNLÜK ÖZET olarak gider (sendProductRequestDigest).
+// USTA fan-out'una girmez. Alıcı: aynı il + aynı productCategoryCode
+// satıcıları (yayında ürün veya mağaza kategorisi). Anlık bildirim
+// `onJobCreated` → `notifyProductRequestSellers`; akşam özeti
+// `sendProductRequestDigest` (anlık almış olanı atlar).
 const PRODUCT_REQUEST_CATEGORY = "product_request";
 
 // İş sonu değerlendirmesindeki OLUMLU etiketler. Yalnız bunlar usta
@@ -311,6 +330,60 @@ async function getFcmTokens(uid) {
 }
 
 /**
+ * Birden çok kullanıcının push dökümanını TEK turda okur (2026-08-14).
+ *
+ * Neden: fan-out her alıcı için ayrı `getFcmTokens(uid)` çağırıyordu —
+ * 120 alıcı = 120 ayrı Firestore round-trip. `getAll` aynı işi tek istekte
+ * yapar: okuma SAYISI aynı kalır (Firestore doküman başına faturalar) ama
+ * ağ gidiş-dönüşü 120 → 1 olur; CF süresi ve dolayısıyla hesaplama
+ * faturası belirgin düşer.
+ *
+ * Legacy public `users/{uid}.fcmTokens` yalnız private boşsa okunur —
+ * ikinci tur yalnız gerektiği kadar dökümanı kapsar.
+ *
+ * Dönen: Map<uid, {tokens, snap}>
+ */
+async function getFcmTokensBulk(uids) {
+  const sonuc = new Map();
+  if (!uids || uids.length === 0) return sonuc;
+
+  // Firestore getAll tek çağrıda sınırlı sayıda referans alır; parçala.
+  const CHUNK = 250;
+  const eksikLegacy = [];
+
+  for (let i = 0; i < uids.length; i += CHUNK) {
+    const dilim = uids.slice(i, i + CHUNK);
+    const refs = dilim.map((uid) =>
+      db.collection("users").doc(uid).collection("private").doc("push"));
+    const snaps = await db.getAll(...refs);
+    snaps.forEach((snap, k) => {
+      const uid = dilim[k];
+      const d = snap.exists ? (snap.data() || {}) : {};
+      const list = Array.isArray(d.fcmTokens) ? d.fcmTokens : [];
+      sonuc.set(uid, {tokens: list, snap});
+      if (list.length === 0) eksikLegacy.push(uid);
+    });
+  }
+
+  // Legacy yedek: yalnız private'ta token bulunmayanlar için.
+  for (let i = 0; i < eksikLegacy.length; i += CHUNK) {
+    const dilim = eksikLegacy.slice(i, i + CHUNK);
+    const refs = dilim.map((uid) => db.collection("users").doc(uid));
+    const snaps = await db.getAll(...refs);
+    snaps.forEach((snap, k) => {
+      const uid = dilim[k];
+      const d = snap.exists ? (snap.data() || {}) : {};
+      if (Array.isArray(d.fcmTokens) && d.fcmTokens.length > 0) {
+        const mevcut = sonuc.get(uid) || {tokens: [], snap: null};
+        sonuc.set(uid, {tokens: d.fcmTokens, snap: mevcut.snap});
+      }
+    });
+  }
+
+  return sonuc;
+}
+
+/**
  * Push tercihleri (`users/{uid}/private/push.prefs`).
  * Eksik alan = true (geriye dönük: eski hesaplar kesilmesin).
  * category: "chat" | "jobUpdates" | "nearbyJobs"
@@ -346,6 +419,8 @@ function pushCategoryFromData(data) {
   // özeti susturmak isteyen kullanıcı iş bildirimlerini de kapatmak
   // zorunda kalırdı. İstemci paritesi: NotificationPrefs.productDigest.
   if (t === "job" && data.kind === "productDigest") return "productDigest";
+  // Anlık ürün talebi — aynı tercih (kullanıcı bir anahtarla ikisini keser).
+  if (t === "job" && data.kind === "productRequest") return "productDigest";
   // Takip bildirimi sosyal bir olay; "iş güncellemeleri" tercihine bağlamak
   // yanlış olurdu (kullanıcı iş bildirimlerini kapatınca takipçi haberi de
   // susardı). İstemcide ayrı bir tercih YOK → şimdilik chat kategorisiyle
@@ -663,12 +738,24 @@ exports.onReviewWritten = onDocumentWritten(
 /**
  * Aynı anda AÇIK tutulabilecek ilan sayısı ve günlük ilan hakkı.
  *
- * Neden gerekli: ilan yayınlanınca EŞLEŞEN TÜM USTALARA bildirim gider
+ * Neden gerekli: ilan yayınlanınca EŞLEŞEN USTALARA bildirim gider
  * (`onJobCreated` fan-out). Limit olmadan tek kullanıcı sınırsız ilan açıp
  * platform çapında bildirim spam'i üretebilir.
  */
 const MAX_OPEN_JOBS = 5;
 const MAX_JOBS_PER_DAY = 10;
+
+// ── Maliyet tavanları (2026-08-11) ──────────────────────────────────────
+// Amaç: fatura patlamasın, kullanıcı da "bildirim gelmiyor" demesin.
+// Kalabalık meslek+ilde 500×N sorgu + herkese yazı pahalıydı. Tavanlar
+// makul; fazlası Keşfet → İlanlar listesinden hâlâ görünür.
+/** Meslek sorgusu başına en fazla profil okuması (eskiden 500). */
+const JOB_FANOUT_QUERY_LIMIT = 200;
+/** İl eşleşmesinden sonra bildirim alacak en fazla usta (eskiden limitsiz). */
+const JOB_FANOUT_RECIPIENT_CAP = 120;
+// NOT: `JOB_FANOUT_TOKEN_CONCURRENCY` 2026-08-14'te kaldırıldı. Token/prefs
+// okuması artık `getFcmTokensBulk` ile TEK turda yapılıyor; paralel worker
+// havuzuna gerek kalmadı (bkz. onJobCreated).
 
 /**
  * `users/{uid}/private/jobStats.openCount` sayacını tazeler.
@@ -695,10 +782,17 @@ async function refreshOpenJobCount(customerId) {
       const exp = Number(d.data().expiresAtMs || 0);
       if (!exp || exp > now) open += 1;
     });
+    // `updatedAtMs`: rezervasyon damgasıyla KARŞILAŞTIRILABİLİR olması için
+    // sayısal. `onJobCreated` içindeki eşzamanlılık kapısı "rezervasyon bu
+    // tazelemeden sonra mı yapıldı?" sorusunu bu iki sayıyla yanıtlar; ISO
+    // dizesi karşılaştırması kırılgan olurdu.
     await db.collection("users").doc(customerId)
         .collection("private").doc("jobStats")
-        .set({openCount: open, updatedAt: new Date().toISOString()},
-            {merge: true});
+        .set({
+          openCount: open,
+          updatedAt: new Date().toISOString(),
+          updatedAtMs: Date.now(),
+        }, {merge: true});
   } catch (e) {
     logger.warn(`refreshOpenJobCount failed for ${customerId}: ${e}`);
   }
@@ -851,6 +945,154 @@ exports.onMessageCreated = onDocumentCreated(
 );
 
 /**
+ * Ürün talebi alıcıları: aynı il + (varsa) aynı ürün kategorisi.
+ *
+ * İki kaynak birleşir (uid tekilleşir):
+ *  1) Yayında (`active`, gizlenmemiş) ürünü olanlar — davranıştan türer.
+ *  2) Mağaza açmış ve `shopCategories` içinde kodu seçmiş olanlar —
+ *     henüz ürünü olmayan satıcı da talebi görsün.
+ *
+ * [categoryCode] boşsa yalnız il eşleşir (eski talepler / eksik form).
+ * @return {Promise<Set<string>>}
+ */
+async function collectProductRequestSellerUids({
+  province, categoryCode, excludeUid, productDocs,
+}) {
+  const uids = new Set();
+  if (!province) return uids;
+
+  // uid → yayındaki ürünlerinden çıkan iller. shopServiceAreas boş
+  // kayıtlarda il buradan türer (canlı vaka: Yusuf, Bursa ürünü var,
+  // mağaza bölgesi yazılmamış → eski kod "satıcı yok" diyordu).
+  const ownerProvinces = new Map();
+  try {
+    const urunler = productDocs || await db.collection("products")
+        .where("status", "==", "active")
+        .limit(1200)
+        .get();
+    urunler.docs.forEach((d) => {
+      const p = d.data() || {};
+      if (p.moderationHidden === true) return;
+      const uid = p.ownerUid;
+      if (!uid || uid === excludeUid) return;
+      const il = p.province || "";
+      if (il) {
+        if (!ownerProvinces.has(uid)) ownerProvinces.set(uid, new Set());
+        ownerProvinces.get(uid).add(il);
+      }
+      if (il !== province) return;
+      if (categoryCode && (p.categoryCode || "") !== categoryCode) return;
+      uids.add(uid);
+    });
+  } catch (e) {
+    logger.warn(`productRequest ürün sorgusu: ${e}`);
+  }
+
+  if (categoryCode) {
+    try {
+      const shops = await db.collection("users")
+          .where("shopCategories", "array-contains", categoryCode)
+          .limit(JOB_FANOUT_QUERY_LIMIT)
+          .get();
+      const eksikBolge = [];
+      shops.docs.forEach((d) => {
+        if (d.id === excludeUid) return;
+        const u = d.data() || {};
+        if (u.hasShopProfile !== true) return;
+        const areas = Array.isArray(u.shopServiceAreas) ?
+          u.shopServiceAreas : [];
+        const alandan = areas.some((a) => a && a.province === province);
+        const urunden = ownerProvinces.has(d.id) &&
+            ownerProvinces.get(d.id).has(province);
+        if (alandan || urunden) {
+          uids.add(d.id);
+          return;
+        }
+        if (areas.length === 0) eksikBolge.push(d.id);
+      });
+      // Mağaza bölgesi hiç yazılmamışsa usta hizmet bölgesine bak.
+      if (eksikBolge.length > 0) {
+        const refs = eksikBolge
+            .slice(0, 50)
+            .map((id) => db.collection("artisanProfiles").doc(id));
+        const snaps = await db.getAll(...refs);
+        snaps.forEach((s, i) => {
+          if (!s.exists) return;
+          const areas = Array.isArray(s.data().serviceAreas) ?
+            s.data().serviceAreas : [];
+          if (areas.some((a) => a && a.province === province)) {
+            uids.add(eksikBolge[i]);
+          }
+        });
+      }
+    } catch (e) {
+      logger.warn(`productRequest mağaza sorgusu: ${e}`);
+    }
+  }
+  return uids;
+}
+
+/**
+ * Yeni ürün talebi → eşleşen satıcılara anlık bildirim (in-app + push).
+ * Tercih `productDigest` kapalıysa ikisi de kesilir.
+ * @return {Promise<void>}
+ */
+async function notifyProductRequestSellers(job, jobId) {
+  const province = job.province || "";
+  const categoryCode = job.productCategoryCode || "";
+  if (!province || !categoryCode) {
+    logger.info(
+        `productRequest ${jobId}: il veya kategori yok — anlık atlandı`);
+    return;
+  }
+  const uids = await collectProductRequestSellerUids({
+    province,
+    categoryCode,
+    excludeUid: job.customerId,
+  });
+  if (uids.size === 0) {
+    logger.info(
+        `productRequest ${jobId}: eşleşen satıcı yok ` +
+        `(${province} / ${categoryCode})`);
+    return;
+  }
+  const alicilar = [...uids].slice(0, JOB_FANOUT_RECIPIENT_CAP);
+  const title = `${province} bölgesinde yeni ürün talebi`;
+  const district = job.district ? ` · ${job.district}` : "";
+  const body = `${job.title || "Yeni talep"}${district}`;
+  const day = istanbulDayKey();
+  let gonderilen = 0;
+  for (const uid of alicilar) {
+    try {
+      const snap = await getPushDoc(uid);
+      if (!(await isPushCategoryAllowed(uid, "productDigest", snap))) continue;
+      await saveNotification(uid, `productRequest_${jobId}`, {
+        type: "job",
+        kind: "productRequest",
+        title,
+        body,
+        jobId,
+      });
+      await sendPushToUid(uid, title, body, {
+        type: "job",
+        kind: "productRequest",
+        jobId,
+      });
+      // Akşam özeti aynı kişiye ikinci kez gitmesin.
+      await db.collection("users").doc(uid)
+          .collection("private").doc("push")
+          .set({productRequestInstantDay: day}, {merge: true});
+      gonderilen++;
+    } catch (e) {
+      logger.warn(`productRequest ${jobId} ${uid}: ${e}`);
+    }
+  }
+  logger.info(
+      `productRequest ${jobId}: ${gonderilen}/${alicilar.length} satıcıya ` +
+      `anlık (${province} / ${categoryCode})`);
+}
+
+/**
  * Yeni bir iş ilanı verildiğinde, ilanın MESLEĞİNE sahip ve hizmet bölgeleri
  * arasında ilanın İLİ bulunan ustalara push bildirimi gönderir.
  *
@@ -879,17 +1121,59 @@ exports.onJobCreated = onDocumentCreated(
             .doc(`job_create_${job.customerId}`);
         const day = istanbulDayKey();
         let overLimit = false;
+        // "günlük" | "eşzamanlı" — kullanıcıya doğru cümleyi kurmak için.
+        let limitKind = "daily";
+
+        // EŞZAMANLI AÇIK İLAN LİMİTİ — burada da kesilir.
+        //
+        // `firestore.rules` → `openJobQuotaOk()` aynı sınırı uygular ama
+        // sayacı (`jobStats.openCount`) BU fonksiyon ilan yazıldıktan SONRA
+        // tazeler. Yani arka arkaya gönderilen istekler aynı eski sayacı
+        // okur ve hepsi kuraldan geçer (TOCTOU). Kural motoru transaction
+        // yapamaz; tek atomik yer burasıdır.
+        //
+        // `openReserved`: aynı rate-limit dokümanında tutulan REZERVASYON
+        // sayacı. Gerçek sayaç (`openCount`) sorguyla tazelenmeye devam
+        // eder — bu yalnız aynı andaki istekleri sıraya sokar.
+        const jobStatsRef = db.collection("users").doc(job.customerId)
+            .collection("private").doc("jobStats");
         try {
           await db.runTransaction(async (tx) => {
-            const snap = await tx.get(rlRef);
+            // Transaction'da TÜM okumalar yazımlardan önce gelmeli.
+            const [snap, statsSnap] = await Promise.all([
+              tx.get(rlRef),
+              tx.get(jobStatsRef),
+            ]);
             const r = snap.exists ? (snap.data() || {}) : {};
             const dayCount = r.dayKey === day ? Number(r.dayCount || 0) : 0;
             if (dayCount >= MAX_JOBS_PER_DAY) {
               overLimit = true;
+              limitKind = "daily";
               return;
             }
-            tx.set(rlRef, {dayKey: day, dayCount: dayCount + 1,
-              lastAtMs: Date.now()}, {merge: true});
+
+            // Sunucunun bildiği açık ilan sayısı + bu turda rezerve edilmiş
+            // ama sayaca henüz yansımamış olanlar.
+            const stats = statsSnap.exists ? (statsSnap.data() || {}) : {};
+            const openCount = Number(stats.openCount || 0);
+            // Rezervasyon yalnız sayaç tazelenene kadar anlamlı; damga eski
+            // ise (sayaç güncellenmiş) sıfırdan sayılır.
+            const reservedFresh =
+              Number(r.openReservedAtMs || 0) > Number(stats.updatedAtMs || 0);
+            const reserved = reservedFresh ? Number(r.openReserved || 0) : 0;
+            if (openCount + reserved >= MAX_OPEN_JOBS) {
+              overLimit = true;
+              limitKind = "concurrent";
+              return;
+            }
+
+            tx.set(rlRef, {
+              dayKey: day,
+              dayCount: dayCount + 1,
+              openReserved: reserved + 1,
+              openReservedAtMs: Date.now(),
+              lastAtMs: Date.now(),
+            }, {merge: true});
           });
         } catch (e) {
           // Sayaç yazılamadıysa ilanı ENGELLEME (kullanıcı mağdur olmasın).
@@ -901,11 +1185,15 @@ exports.onJobCreated = onDocumentCreated(
             cancelReason: "rateLimited",
           });
           const t = "İlan yayınlanamadı";
-          const b = `Günlük ilan hakkınızı doldurdunuz (${MAX_JOBS_PER_DAY}). ` +
-            "Yarın tekrar deneyebilirsiniz.";
+          const b = limitKind === "concurrent"
+            ? `Aynı anda en fazla ${MAX_OPEN_JOBS} açık ilanınız olabilir. ` +
+              "Yayındaki ilanlardan birini kaldırıp tekrar deneyin."
+            : `Günlük ilan hakkınızı doldurdunuz (${MAX_JOBS_PER_DAY}). ` +
+              "Yarın tekrar deneyebilirsiniz.";
           await saveNotification(job.customerId, `job_${jobId}`,
               {type: "job", title: t, body: b, jobId});
-          logger.warn(`job ${jobId} rate-limited for ${job.customerId}`);
+          logger.warn(
+              `job ${jobId} rate-limited (${limitKind}) for ${job.customerId}`);
           return;
         }
       }
@@ -916,30 +1204,34 @@ exports.onJobCreated = onDocumentCreated(
       const province = job.province || "";
       if (!category || !province) return;
 
-      // ÜRÜN TALEBİ buradan ÇIKAR. Alıcısı usta değil satıcı, ve bildirim
-      // anlık değil günlük özet — `sendProductRequestDigest` gönderir.
+      // ÜRÜN TALEBİ ustalara gitmez. Aynı il + kategorideki satıcılara
+      // anlık gider; akşam özeti anlık almayanları tamamlar.
       // Günlük ilan limiti YUKARIDA zaten işledi (talep de ona tabidir).
-      if (category === PRODUCT_REQUEST_CATEGORY) return;
+      if (category === PRODUCT_REQUEST_CATEGORY) {
+        await notifyProductRequestSellers(job, jobId);
+        return;
+      }
 
       const isQuickSupport = category === QUICK_SUPPORT_CATEGORY;
 
       // Alıcı profilleri:
       //  - Hemen Lazım: "other" kodu veya legacy quick_support.
       //  - Klasik: professions array-contains + legacy profession== (birleşik).
+      //  - QUERY_LIMIT: maliyet tavanı (eskiden 500).
       let profileDocs = [];
       if (isQuickSupport) {
         const [byOther, byQs, bySingleOther] = await Promise.all([
           db.collection("artisanProfiles")
               .where("professions", "array-contains", "other")
-              .limit(500)
+              .limit(JOB_FANOUT_QUERY_LIMIT)
               .get(),
           db.collection("artisanProfiles")
               .where("professions", "array-contains", QUICK_SUPPORT_CATEGORY)
-              .limit(500)
+              .limit(JOB_FANOUT_QUERY_LIMIT)
               .get(),
           db.collection("artisanProfiles")
               .where("profession", "==", "other")
-              .limit(500)
+              .limit(JOB_FANOUT_QUERY_LIMIT)
               .get(),
         ]);
         const map = new Map();
@@ -951,11 +1243,11 @@ exports.onJobCreated = onDocumentCreated(
         const [byArray, bySingle] = await Promise.all([
           db.collection("artisanProfiles")
               .where("professions", "array-contains", category)
-              .limit(500)
+              .limit(JOB_FANOUT_QUERY_LIMIT)
               .get(),
           db.collection("artisanProfiles")
               .where("profession", "==", category)
-              .limit(500)
+              .limit(JOB_FANOUT_QUERY_LIMIT)
               .get(),
         ]);
         const map = new Map();
@@ -965,45 +1257,93 @@ exports.onJobCreated = onDocumentCreated(
       }
       if (profileDocs.length === 0) return;
 
-      // Bölgede hizmet verenler (ilan sahibi hariç).
-      // NOT: Hemen Lazım da artık İL düzeyinde eşleşir (eskiden il+ilçeydi) —
-      // kısa işlerde usta sayısı az olduğundan ilçeye kısılan ilanların çoğu
-      // alıcısız kalıyordu. İstemci paritesi: Job.matchesArtisan (job.dart).
-      const recipientUids = [];
+      // Bölgede hizmet verenler (ilan sahibi hariç) + skor.
+      // NOT: Hemen Lazım da İL düzeyinde (Job.matchesArtisan paritesi).
+      // Müsait olmayan da listede kalır (ürün kararı: görür + bildirim alır).
+      const scored = [];
       profileDocs.forEach((d) => {
-        if (d.id === job.customerId) return; // kendi ilanına bildirim gitmesin
-        const areas = Array.isArray(d.data().serviceAreas) ?
-          d.data().serviceAreas :
-          [];
-        if (areas.some((a) => a && a.province === province)) {
-          recipientUids.push(d.id);
+        if (d.id === job.customerId) return;
+        const data = d.data() || {};
+        const areas = Array.isArray(data.serviceAreas) ? data.serviceAreas : [];
+        if (!areas.some((a) => a && a.province === province)) return;
+        // Öncelik: aktif (pause değil) → alwaysAvailable → premium → jitter.
+        // Jitter aynı skorda adaleti korur (hep aynı 120 kişi olmasın).
+        let score = Math.random();
+        if (data.manualPause !== true) score += 100;
+        if (data.alwaysAvailable === true) score += 20;
+        if (data.isPremium === true) score += 10;
+        const done = Number(data.completedJobs || 0);
+        if (Number.isFinite(done) && done > 0) {
+          score += Math.min(done, 40) * 0.05;
         }
+        scored.push({uid: d.id, score});
       });
-      if (recipientUids.length === 0) {
+      if (scored.length === 0) {
         logger.info(`Job ${jobId}: no matching artisans in ${province}`);
         return;
       }
+      scored.sort((a, b) => b.score - a.score);
+      const matchCount = scored.length;
+      const capped = scored.slice(0, JOB_FANOUT_RECIPIENT_CAP);
+      const recipientUids = capped.map((x) => x.uid);
 
       // Not: il adına ek ("'de/'da") ünlü uyumu gerektirdiğinden ekli kalıp
-      // kullanılmaz ("İstanbul'de" gibi hatalar oluşuyordu).
-      // Hemen Lazım il geneline gittiğinden başlıkta İL yazar; ilçe zaten
-      // gövdede görünür (aksi halde uzak bir ilçe "bölgenizde" sanılırdı).
-      // Görünen ad "Kolay İş" (2026-08-08); depolama kodu quick_support
-      // olarak DEĞİŞMEDİ (istemci paritesi: kQuickSupportName).
+      // kullanılmaz. Görünen ad "Kolay İş"; depolama kodu quick_support.
       const kind = isQuickSupport ? "Kolay İş ilanı" : "iş ilanı";
       const title =
         `${isQuickSupport ? "⚡ " : ""}${province} bölgesinde yeni ${kind}`;
       const district = job.district ? ` · ${job.district}` : "";
       const body = `${job.title || "Yeni ilan"}${district}`;
 
-      // Uygulama içi bildirim merkezi: eşleşen HER ustaya kayıt (push'tan
-      // bağımsız). 500 işlem/batch sınırına karşı parçalı yazım.
+      // Token + prefs: yalnız tavanlı liste, paralel (eskiden N seri get).
+      // nearbyJobs kapalıysa hem push hem in-app yazılmaz (tercihe saygı +
+      // yazma tasarrufu). İlan yine Keşfet listesinde görünür.
+      const tokens = [];
+      const tokenOwner = new Map();
+      const notifyUids = [];
+      let prefsSkipped = 0;
+
+      // TOPLU OKUMA (2026-08-14 optimizasyonu).
+      //
+      // Eskiden alıcı başına bir `getFcmTokens(uid)` çağrılıyordu: 120 alıcı
+      // = 120 ayrı Firestore round-trip (eşzamanlı worker'larla bile). Artık
+      // `getAll` ile tek turda okunuyor — faturalanan doküman sayısı aynı,
+      // ama CF çalışma süresi ve ağ yükü belirgin düşüyor.
+      //
+      // ⚠️ Eski koddaki `return` hatası da burada kapandı: tercihini
+      // kapatmış bir kullanıcı artık yalnız KENDİ bildirimini atlatıyor;
+      // eskiden o worker'ın kuyruğundaki herkesi sessizce düşürüyordu.
+      let pushMap;
+      try {
+        pushMap = await getFcmTokensBulk(recipientUids);
+      } catch (e) {
+        logger.warn(`Job ${jobId}: toplu token okuma: ${e}`);
+        pushMap = new Map();
+      }
+
+      for (const uid of recipientUids) {
+        const kayit = pushMap.get(uid);
+        if (!kayit) continue;
+        if (!prefsFromPushSnap(kayit.snap).nearbyJobs) {
+          prefsSkipped++;
+          continue;
+        }
+        notifyUids.push(uid);
+        kayit.tokens.forEach((t) => {
+          if (!tokenOwner.has(t)) {
+            tokenOwner.set(t, uid);
+            tokens.push(t);
+          }
+        });
+      }
+
+      // Uygulama içi bildirim: yalnız tercih açık + tavanlı alıcılar.
       const expireAt = Timestamp.fromMillis(
           Date.now() + NOTIFICATION_TTL_DAYS * 24 * 3600 * 1000);
       const nowIso = new Date().toISOString();
-      for (let i = 0; i < recipientUids.length; i += 450) {
+      for (let i = 0; i < notifyUids.length; i += 450) {
         const batch = db.batch();
-        for (const uid of recipientUids.slice(i, i + 450)) {
+        for (const uid of notifyUids.slice(i, i + 450)) {
           batch.set(
               db.collection("users").doc(uid)
                   .collection("notifications").doc(`job_${jobId}`),
@@ -1024,34 +1364,17 @@ exports.onJobCreated = onDocumentCreated(
         }
       }
 
-      // Alıcı token'ları (private/push + legacy public) — token→sahip haritası.
-      // nearbyJobs tercihi kapalı ustalar atlanır (uygulama içi merkez yukarıda yazıldı).
-      const tokens = [];
-      const tokenOwner = new Map();
-      let prefsSkipped = 0;
-      for (const uid of recipientUids) {
-        const {tokens: list, snap} = await getFcmTokens(uid);
-        if (!(await isPushCategoryAllowed(uid, "nearbyJobs", snap))) {
-          prefsSkipped++;
-          continue;
-        }
-        list.forEach((t) => {
-          if (!tokenOwner.has(t)) {
-            tokenOwner.set(t, uid);
-            tokens.push(t);
-          }
-        });
-      }
       if (tokens.length === 0) {
         logger.info(
             `Job ${jobId}: no push tokens ` +
-            `(artisans=${recipientUids.length}, prefsSkip=${prefsSkipped})`,
+            `(match=${matchCount}, cap=${recipientUids.length}, ` +
+            `prefsSkip=${prefsSkipped})`,
         );
         return;
       }
 
-      // FCM multicast en fazla 500 token kabul eder → parça parça gönder.
-      const invalidByOwner = new Map(); // uid → [token]
+      // FCM multicast en fazla 500 token.
+      const invalidByOwner = new Map();
       let success = 0;
       for (let i = 0; i < tokens.length; i += 500) {
         const chunk = tokens.slice(i, i + 500);
@@ -1090,7 +1413,10 @@ exports.onJobCreated = onDocumentCreated(
 
       logger.info(
           `Job ${jobId} (${category}/${province}): ` +
-          `${recipientUids.length} artisan, ${success}/${tokens.length} push ok`,
+          `match=${matchCount}, notify=${notifyUids.length}, ` +
+          `push ${success}/${tokens.length} ok` +
+          (matchCount > JOB_FANOUT_RECIPIENT_CAP ?
+            ` (capped@${JOB_FANOUT_RECIPIENT_CAP})` : ""),
       );
     },
 );
@@ -1280,6 +1606,16 @@ exports.deleteAccount = onCall(
       //     `delete` olmayan dokümanda sorun çıkarmaz (update'in aksine).
       writer.delete(db.collection("membershipPurchases").doc(uid));
 
+      //     Token sahiplenme kaydı (membershipTokens/{hash}) da SİLİNİR: uid
+      //     taşır (kişisel veri) ve hesap gidince kilidi tutmasının anlamı
+      //     kalmaz — aksi hâlde kullanıcı hesabını silip yeniden açtığında
+      //     KENDİ aboneliği "başkasına ait" diye reddedilirdi.
+      //     Sorgu `uid` alanı üzerinden: doküman kimliği hash'tir, token
+      //     burada elimizde yok.
+      const myTokens = await db.collection("membershipTokens")
+          .where("uid", "==", uid).get();
+      myTokens.forEach((d) => writer.delete(d.ref));
+
       // 4c) Destek talepleri → gövde kalır, kimlik anonimleşir. Yazışma iki
       //     taraflı kayıttır (itiraz/denetim), ama e-posta kişisel veridir.
       // 4d) Şikayetler → KALIR (kötüye kullanım kaydı, meşru menfaat).
@@ -1437,7 +1773,7 @@ exports.onArtisanProfileWritten = onDocumentWritten(
  * mantigina dokunmaz.
  */
 exports.adminReviewCertificates = onCall(
-    {region: REGION},
+    ADMIN_CALL_OPTS,
     async (request) => {
       const auth = request.auth;
       await assertCap(auth, "artisans.moderate");
@@ -1538,7 +1874,7 @@ exports.onReportWritten = onDocumentWritten(
 const MAX_OPEN_STAFF_NEEDS = 5;
 
 exports.adminRebuildStats = onCall(
-    {region: REGION, timeoutSeconds: 300},
+    {...ADMIN_CALL_OPTS, timeoutSeconds: 300},
     async (request) => {
       assertSuperadmin(request.auth);
       const lockRef = db.collection("adminStats").doc("_rebuildLock");
@@ -1661,7 +1997,7 @@ exports.adminRebuildStats = onCall(
 // karar yalnız burada verilir. (Başka kullanıcıları yönetici yapma yeteneği
 // ileride admin-only ayrı bir callable ile eklenebilir.)
 exports.claimAdminAccess = onCall(
-    {region: REGION},
+    ADMIN_CALL_OPTS,
     async (request) => {
       const auth = request.auth;
       if (!auth) {
@@ -1709,7 +2045,7 @@ exports.claimAdminAccess = onCall(
 // güncellenir/silinir, refresh token'lar iptal edilir (yeni yetki/kayıp kesin
 // yansısın), denetim kaydı yazılır.
 exports.adminSetRole = onCall(
-    {region: REGION},
+    ADMIN_CALL_OPTS,
     async (request) => {
       const auth = request.auth;
       assertSuperadmin(auth);
@@ -1785,7 +2121,7 @@ exports.adminSetRole = onCall(
 
 // Superadmin: moderatör capabilities listesini günceller (token revoke YOK).
 exports.adminSetCapabilities = onCall(
-    {region: REGION},
+    ADMIN_CALL_OPTS,
     async (request) => {
       const auth = request.auth;
       assertSuperadmin(auth);
@@ -1824,7 +2160,7 @@ exports.adminSetCapabilities = onCall(
 
 // Superadmin: e-posta ile moderatör daveti (şifre yok; superadmin davet yasak).
 exports.adminCreateInvite = onCall(
-    {region: REGION},
+    ADMIN_CALL_OPTS,
     async (request) => {
       const auth = request.auth;
       assertSuperadmin(auth);
@@ -1895,7 +2231,7 @@ exports.adminCreateInvite = onCall(
 );
 
 exports.adminRevokeInvite = onCall(
-    {region: REGION},
+    ADMIN_CALL_OPTS,
     async (request) => {
       const auth = request.auth;
       assertSuperadmin(auth);
@@ -1930,7 +2266,7 @@ exports.adminRevokeInvite = onCall(
 
 // Doğrulanmış e-posta ile pending daveti kabul et → moderator claim + roster.
 exports.adminAcceptInvite = onCall(
-    {region: REGION},
+    ADMIN_CALL_OPTS,
     async (request) => {
       const auth = request.auth;
       if (!auth) {
@@ -2035,7 +2371,7 @@ async function writeAuditLog(entry, batch) {
 // reports'a doğrudan YAZAMAZ (kural CF-only'e çevrildi): tüm mutasyon buradan
 // geçer → yetki doğrulanır, güncelleme ve denetim kaydı ATOMİK yazılır.
 exports.adminResolveReport = onCall(
-    {region: REGION},
+    ADMIN_CALL_OPTS,
     async (request) => {
       const auth = request.auth;
       await assertCap(auth, "reports.manage");
@@ -2085,7 +2421,7 @@ exports.adminResolveReport = onCall(
 // `assign:false` → yalnız ATAYAN kişi (veya herhangi bir yönetici) bırakabilir.
 // İstemci reports'a doğrudan yazamaz (kural CF-only) → buradan geçer + audit.
 exports.adminAssignReport = onCall(
-    {region: REGION},
+    ADMIN_CALL_OPTS,
     async (request) => {
       const auth = request.auth;
       await assertCap(auth, "reports.manage");
@@ -2141,7 +2477,7 @@ exports.adminAssignReport = onCall(
  * kaldirmasi ayri kavramlar (istemci ikisine farkli metin gosterir).
  */
 exports.adminModerateMessage = onCall(
-    {region: REGION},
+    ADMIN_CALL_OPTS,
     async (request) => {
       const auth = request.auth;
       await assertCap(auth, "reports.manage");
@@ -2239,7 +2575,7 @@ exports.adminModerateMessage = onCall(
 // H2: e-posta public users'ta yok → admin arama Auth Admin SDK ile.
 // users.read; e-posta yalnız admin paneline döner (audit yok — salt okuma).
 exports.adminLookupUser = onCall(
-    {region: REGION},
+    ADMIN_CALL_OPTS,
     async (request) => {
       const auth = request.auth;
       await assertCap(auth, "users.read");
@@ -2284,7 +2620,7 @@ exports.adminLookupUser = onCall(
  * yetkiye (chats.read + adminGetChatTranscript) baglidir.
  */
 exports.adminUserSummary = onCall(
-    {region: REGION},
+    ADMIN_CALL_OPTS,
     async (request) => {
       const auth = request.auth;
       await assertCap(auth, "users.read");
@@ -2371,7 +2707,7 @@ exports.adminUserSummary = onCall(
  * Notlar SILINMEZ (append-only): destek gecmisi butunlugu icin.
  */
 exports.adminAddUserNote = onCall(
-    {region: REGION},
+    ADMIN_CALL_OPTS,
     async (request) => {
       const auth = request.auth;
       await assertCap(auth, "users.read");
@@ -2405,7 +2741,7 @@ exports.adminAddUserNote = onCall(
 
 /** Kullanicinin dahili admin notlari (yeniden eskiye). */
 exports.adminListUserNotes = onCall(
-    {region: REGION},
+    ADMIN_CALL_OPTS,
     async (request) => {
       const auth = request.auth;
       await assertCap(auth, "users.read");
@@ -2444,7 +2780,7 @@ exports.adminListUserNotes = onCall(
 // yöneticiyi askıya alamazsın. setCustomUserClaims TÜM claim'leri değiştirir →
 // mevcut admin/role claim'leri KORUNARAK yalnız `suspended` eklenir/çıkarılır.
 exports.adminSetUserSuspended = onCall(
-    {region: REGION},
+    ADMIN_CALL_OPTS,
     async (request) => {
       const auth = request.auth;
       await assertCap(auth, "users.suspend");
@@ -2538,7 +2874,7 @@ exports.adminSetUserSuspended = onCall(
 
 // İlan gizle / göster / zorla iptal.
 exports.adminModerateJob = onCall(
-    {region: REGION},
+    ADMIN_CALL_OPTS,
     async (request) => {
       const auth = request.auth;
       await assertCap(auth, "jobs.moderate");
@@ -2608,7 +2944,7 @@ exports.adminModerateJob = onCall(
 );
 
 exports.adminSetArtisanFlags = onCall(
-    {region: REGION},
+    ADMIN_CALL_OPTS,
     async (request) => {
       const auth = request.auth;
       await assertCap(auth, "artisans.moderate");
@@ -2679,7 +3015,7 @@ exports.adminSetArtisanFlags = onCall(
  * Gerekce ZORUNLUDUR ve audit log'a yazilir (para etkili islem).
  */
 exports.adminGrantPremium = onCall(
-    {region: REGION},
+    ADMIN_CALL_OPTS,
     async (request) => {
       const auth = request.auth;
       await assertCap(auth, "finance.manage");
@@ -2801,7 +3137,7 @@ exports.adminGrantPremium = onCall(
  * yurur (Firestore batch siniri 500).
  */
 exports.adminBulkPlanUpdate = onCall(
-    {region: REGION, timeoutSeconds: 540},
+    {...ADMIN_CALL_OPTS, timeoutSeconds: 540},
     async (request) => {
       const auth = request.auth;
       await assertCap(auth, "finance.manage");
@@ -2913,7 +3249,7 @@ exports.adminBulkPlanUpdate = onCall(
 
 // Değerlendirme soft-hide (puan toplamı MVP'de değişmez).
 exports.adminHideReview = onCall(
-    {region: REGION},
+    ADMIN_CALL_OPTS,
     async (request) => {
       const auth = request.auth;
       await assertCap(auth, "reviews.moderate");
@@ -2944,7 +3280,7 @@ exports.adminHideReview = onCall(
 
 // Sohbet kanıtı — reportId + chatId zorunlu (K18).
 exports.adminGetChatTranscript = onCall(
-    {region: REGION},
+    ADMIN_CALL_OPTS,
     async (request) => {
       const auth = request.auth;
       await assertCap(auth, "chats.read");
@@ -3091,10 +3427,91 @@ function pickConfigString(patch, key, maxLen) {
   return v.slice(0, maxLen);
 }
 
+// Mağaza ürün kategorileri (adminConfig/productCategories).
+// Yalnız config.manage. Tüketici salt okur; boşsa istemci gömülü yedek kullanır.
+exports.adminUpdateProductCategories = onCall(
+    ADMIN_CALL_OPTS,
+    async (request) => {
+      const auth = request.auth;
+      await assertCap(auth, "config.manage");
+      const raw = request.data || {};
+      const list = raw.items;
+      if (!Array.isArray(list)) {
+        throw new HttpsError("invalid-argument", "items dizi olmalı.");
+      }
+      if (list.length === 0) {
+        throw new HttpsError(
+            "invalid-argument", "En az bir kategori gerekli.");
+      }
+      if (list.length > 60) {
+        throw new HttpsError(
+            "invalid-argument", "En fazla 60 kategori.");
+      }
+      const codeRe = /^[a-z][a-z0-9_]{1,39}$/;
+      const seen = new Set();
+      const items = [];
+      for (let i = 0; i < list.length; i++) {
+        const row = list[i] || {};
+        const code = String(row.code || "").trim();
+        const label = String(row.label || "").trim();
+        if (!codeRe.test(code)) {
+          throw new HttpsError(
+              "invalid-argument",
+              `Geçersiz kod: ${code || "(boş)"}`);
+        }
+        if (!label || label.length > 60) {
+          throw new HttpsError(
+              "invalid-argument",
+              `Etiket 1–60 karakter olmalı: ${code}`);
+        }
+        if (seen.has(code)) {
+          throw new HttpsError(
+              "invalid-argument", `Mükerrer kod: ${code}`);
+        }
+        seen.add(code);
+        items.push({
+          code,
+          label: label.slice(0, 60),
+          order: Number.isFinite(Number(row.order)) ?
+            Math.floor(Number(row.order)) : i,
+          active: row.active !== false,
+        });
+      }
+      const activeCount = items.filter((e) => e.active).length;
+      if (activeCount === 0) {
+        throw new HttpsError(
+            "invalid-argument",
+            "En az bir aktif kategori olmalı.");
+      }
+
+      const ref = db.collection("adminConfig").doc("productCategories");
+      const beforeSnap = await ref.get();
+      const before = beforeSnap.exists ? (beforeSnap.data() || {}) : {};
+      const payload = {
+        items,
+        updatedAt: new Date().toISOString(),
+        updatedBy: auth.uid,
+      };
+      await ref.set(payload);
+
+      await writeAuditLog({
+        actorUid: auth.uid,
+        action: "update_product_categories",
+        targetType: "adminConfig",
+        targetId: "productCategories",
+        before: {
+          count: Array.isArray(before.items) ? before.items.length : 0,
+        },
+        after: {count: items.length},
+      });
+      return {ok: true, count: items.length};
+    },
+);
+
 // Runtime config (adminConfig/runtime) — bayraklar + platform içeriği.
 // Yalnız config.manage.
 exports.adminUpdateConfig = onCall(
-    {region: REGION},
+    ADMIN_CALL_OPTS,
     async (request) => {
       const auth = request.auth;
       await assertCap(auth, "config.manage");
@@ -3387,7 +3804,7 @@ function parseBroadcastPayload(data) {
  * Anında toplu bildirim (+ FCM). Rate: 5 dk / admin.
  */
 exports.adminBroadcastNotification = onCall(
-    {region: REGION, timeoutSeconds: 120},
+    {...ADMIN_CALL_OPTS, timeoutSeconds: 120},
     async (request) => {
       const auth = request.auth;
       await assertCap(auth, "config.manage");
@@ -3450,7 +3867,7 @@ exports.adminBroadcastNotification = onCall(
  * scheduledAt: ISO string, en az ~2 dk sonrası.
  */
 exports.adminScheduleCampaign = onCall(
-    {region: REGION},
+    ADMIN_CALL_OPTS,
     async (request) => {
       const auth = request.auth;
       await assertCap(auth, "config.manage");
@@ -3511,7 +3928,7 @@ exports.adminScheduleCampaign = onCall(
  * Bekleyen kampanyayı iptal et.
  */
 exports.adminCancelCampaign = onCall(
-    {region: REGION},
+    ADMIN_CALL_OPTS,
     async (request) => {
       const auth = request.auth;
       await assertCap(auth, "config.manage");
@@ -3713,7 +4130,7 @@ exports.createSupportTicket = onCall(
  * Destek talebi güncelle (admin): status open|in_progress|resolved|closed + not.
  */
 exports.adminUpdateSupportTicket = onCall(
-    {region: REGION},
+    ADMIN_CALL_OPTS,
     async (request) => {
       const auth = request.auth;
       await assertCap(auth, "reports.manage");
@@ -3771,7 +4188,7 @@ exports.adminUpdateSupportTicket = onCall(
 
 // Toplu askıya alma — max 25; her hedef için ayrı audit (per-uid).
 exports.adminBulkSuspend = onCall(
-    {region: REGION},
+    ADMIN_CALL_OPTS,
     async (request) => {
       const auth = request.auth;
       await assertCap(auth, "users.suspend");
@@ -3876,7 +4293,7 @@ exports.adminBulkSuspend = onCall(
 
 // İstemci CSV dışa aktarım denetimi (satır verisi sunucuya gelmez).
 exports.adminLogExport = onCall(
-    {region: REGION},
+    ADMIN_CALL_OPTS,
     async (request) => {
       const auth = request.auth;
       await assertCap(auth, "export.run");
@@ -3899,7 +4316,7 @@ exports.adminLogExport = onCall(
 // ---------------------------------------------------------------------------
 //
 // Kurulum (bir kez):
-// 1) Play Console → Monetization → Subscriptions: usta_cepte_pro_monthly
+// 1) Play Console → Monetization → Subscriptions: sepette_hizmet_pro_monthly
 // 2) Google Cloud → IAM: Cloud Functions runtime SA'ya
 //    "Service Account User" + Play tarafında erişim (aşağı)
 // 3) Play Console → Users and permissions → Invite users →
@@ -3914,10 +4331,10 @@ exports.adminLogExport = onCall(
 const {google} = require("googleapis");
 const crypto = require("crypto");
 
-const PLAY_PACKAGE_NAME = "com.ustacepte.usta_cepte";
+const PLAY_PACKAGE_NAME = "com.sepettehizmet.app";
 const ALLOWED_PRODUCT_IDS = new Set([
-  "usta_cepte_pro_monthly",
-  "usta_cepte_pro_yearly",
+  "sepette_hizmet_pro_monthly",
+  "sepette_hizmet_pro_yearly",
 ]);
 
 /** Abonelik hâlâ hak tanır (bitiş tarihi gelecekteyse). */
@@ -4082,6 +4499,53 @@ async function grantArtisanPremium(uid, {
       .digest("hex")
       .slice(0, 32);
 
+  // TOKEN SAHİPLENME (tekrar kullanım kilidi).
+  //
+  // Play `purchaseToken`'ı doğrulamak "bu abonelik aktif mi?" sorusunu
+  // yanıtlar, "bu aboneliği ÇAĞIRAN kişi mi aldı?" sorusunu YANITLAMAZ.
+  // Kilit olmadan tek bir ödeme sınırsız hesaba premium verir: token'ı ele
+  // geçiren (ya da tek abonelik alıp token'ı paylaşan) herkes
+  // `verifyMembershipPurchase`'ı kendi oturumuyla çağırıp premium olur.
+  //
+  // Bu yüzden token hash'i AYRI bir dokümanda (`membershipTokens/{hash}`)
+  // sahibiyle birlikte tutulur ve create yarıştırılamaz bir transaction ile
+  // yapılır. Aynı token ikinci bir uid ile gelirse reddedilir.
+  //
+  // `membershipPurchases/{uid}` bunu ÇÖZMEZ: anahtarı uid olduğu için her
+  // hesap kendi dokümanını yazar, token'ın başkasında olduğu görülmez.
+  const tokenRef = db.collection("membershipTokens").doc(tokenHash);
+  await db.runTransaction(async (tx) => {
+    const snap = await tx.get(tokenRef);
+    if (snap.exists) {
+      const owner = (snap.data() || {}).uid;
+      if (owner && owner !== uid) {
+        logger.warn("premium token reuse blocked", {
+          uid,
+          ownerUid: owner,
+          productId,
+        });
+        throw new HttpsError(
+            "permission-denied",
+            "Bu satın alma başka bir hesaba ait.",
+        );
+      }
+      tx.set(tokenRef, {
+        productId,
+        expiresAt: Timestamp.fromDate(expiresAt),
+        updatedAt: FieldValue.serverTimestamp(),
+      }, {merge: true});
+      return;
+    }
+    // create: aynı anda iki istek gelirse transaction biri için patlar.
+    tx.create(tokenRef, {
+      uid,
+      productId,
+      expiresAt: Timestamp.fromDate(expiresAt),
+      createdAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+  });
+
   const premiumPatch = {
     isPremium: true,
     premiumExpiresAt: Timestamp.fromDate(expiresAt),
@@ -4230,8 +4694,11 @@ function foldTrSearchJs(s) {
       .toLowerCase();
 }
 
+// Not: karakter sınıfı içinde `-` SONDA ise kaçış gerekmez
+// (`[A-Za-z0-9._%+-]`). Eskiden `\-` yazılıydı; davranış birebir aynı,
+// yalnız gereksiz kaçış temizlendi (eşdeğerlik testle doğrulandı).
 const PRODUCT_CONTACT_RE =
-  /(@[A-Za-z0-9._]{3,})|(\+?\d[\d\s\-()]{8,}\d)|([A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,})|(whatsapp|telegram|instagram|http:\/\/|https:\/\/|www\.)/i;
+  /(@[A-Za-z0-9._]{3,})|(\+?\d[\d\s\-()]{8,}\d)|([A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,})|(whatsapp|telegram|instagram|http:\/\/|https:\/\/|www\.)/i;
 
 exports.publishProduct = onCall(
     CONSUMER_CALL_OPTS,
@@ -4441,7 +4908,7 @@ exports.updateProductContent = onCall(
 );
 
 exports.adminModerateProduct = onCall(
-    {region: REGION},
+    ADMIN_CALL_OPTS,
     async (request) => {
       const auth = request.auth;
       const data = request.data || {};
@@ -4690,24 +5157,17 @@ exports.purgeRemovedProducts = onSchedule(
 
 /**
  * Gün içinde açılan ürün taleplerini toplayıp ilgili satıcılara TEK bildirim
- * gönderir.
+ * gönderir. Anlık bildirim almış satıcıyı atlar (çift push yok).
  *
- * NEDEN ANLIK DEĞİL (kullanıcı kararı — PLAN-Magaza.md §Aşama 3):
- * Her talepte push atmak, talep sayısı arttıkça bildirim yorgunluğu yaratır;
- * kullanıcı push'u tamamen kapatınca İŞ İLANI bildirimlerini de kaçırır.
- * Yani ikincil bir özellik asıl işi bozardı. Özet, kişi başına tavanı
- * **günde 1 bildirime** sabitler — talep sayısından bağımsız.
- *
- * ALICI SEÇİMİ: aynı il + aynı kategoride YAYINDA ürünü olanlar. Ayrı bir
- * "satıcı" rolü yok (herkes satabilir), bu yüzden ölçüt davranıştan türer.
- * Ürünü olmayan ama ilgilenen kişiler için "tercih" kaynağı ERTELENDİ —
- * varsayıma dayanıyor ve şu an test edilemez.
+ * ALICI: aynı il + aynı productCategoryCode. Kaynaklar
+ * `collectProductRequestSellerUids` ile birebir (yayında ürün ∪ mağaza
+ * kategorisi). Kategorisi olmayan eski talep yalnız ile eşleşir.
  *
  * @return {Promise<void>}
  */
 exports.sendProductRequestDigest = onSchedule(
     {
-      // Akşam 19:00 — insanların telefonuna baktığı, mesai dışı bir saat.
+      // Akşam 19:00 — anlık kaçıranlar (yeni ürün ekleyen, token'sız) için net.
       schedule: "0 19 * * *",
       region: REGION,
       timeZone: "Europe/Istanbul",
@@ -4737,46 +5197,54 @@ exports.sendProductRequestDigest = onSchedule(
         return;
       }
 
-      // İl → talep sayısı.
-      const ilSayaci = new Map();
+      const talepListesi = [];
       talepler.docs.forEach((d) => {
         const j = d.data() || {};
         const il = j.province || "";
         if (!il) return;
-        ilSayaci.set(il, (ilSayaci.get(il) || 0) + 1);
+        talepListesi.push({
+          customerId: j.customerId || "",
+          province: il,
+          productCategoryCode: j.productCategoryCode || "",
+        });
       });
-      if (ilSayaci.size === 0) return;
+      if (talepListesi.length === 0) return;
 
-      // Alıcılar: o ilde YAYINDA ürünü olanlar. Ürün dokümanı hem ili hem
-      // sahibini taşıdığı için tek sorgu yeter (ayrı satıcı listesi yok).
-      let urunler;
+      // uid → kendi kategorisi/iline uyan talep sayısı.
+      // Ürün listesi bir kez okunur — her il/kategori çiftinde tekrar
+      // 1200 okuma yapılmasın.
+      let productDocs;
       try {
-        urunler = await db.collection("products")
+        productDocs = await db.collection("products")
             .where("status", "==", "active")
-            .limit(2000)
+            .limit(1200)
             .get();
       } catch (e) {
         logger.error("productRequestDigest ürün sorgusu düştü", e);
         return;
       }
-
-      // uid → o kişinin ilindeki talep sayısı (tekilleştirilmiş).
       const alicilar = new Map();
-      urunler.docs.forEach((d) => {
-        const p = d.data() || {};
-        if (p.moderationHidden === true) return;
-        const uid = p.ownerUid;
-        const il = p.province || "";
-        if (!uid || !il) return;
-        const adet = ilSayaci.get(il);
-        if (!adet) return;
-        alicilar.set(uid, adet);
-      });
+      const gorulen = new Set();
+      for (const t of talepListesi) {
+        const anahtar = `${t.province}\t${t.productCategoryCode}`;
+        if (gorulen.has(anahtar)) continue;
+        gorulen.add(anahtar);
+        const uids = await collectProductRequestSellerUids({
+          province: t.province,
+          categoryCode: t.productCategoryCode,
+          productDocs,
+        });
+        const adet = talepListesi.filter((x) =>
+          x.province === t.province &&
+          x.productCategoryCode === t.productCategoryCode).length;
+        uids.forEach((uid) => {
+          alicilar.set(uid, (alicilar.get(uid) || 0) + adet);
+        });
+      }
 
       // Kendi talebini açan kişiye kendi talebini haber verme.
-      talepler.docs.forEach((d) => {
-        const j = d.data() || {};
-        if (j.customerId) alicilar.delete(j.customerId);
+      talepListesi.forEach((t) => {
+        if (t.customerId) alicilar.delete(t.customerId);
       });
 
       if (alicilar.size === 0) {
@@ -4784,16 +5252,25 @@ exports.sendProductRequestDigest = onSchedule(
         return;
       }
 
+      const gunAnahtari = istanbulDayKey();
       let gonderilen = 0;
+      let anlikAtlanan = 0;
       for (const [uid, adet] of alicilar) {
         const baslik = "Yeni ürün talepleri";
         const govde = adet === 1 ?
-          "Bulunduğun ilde 1 yeni ürün talebi var." :
-          `Bulunduğun ilde ${adet} yeni ürün talebi var.`;
-        // Günde tek doküman: aynı gün ikinci kez çalışsa üzerine yazar,
-        // bildirim merkezi çoğalmaz.
-        const gunAnahtari = istanbulDayKey();
+          "Kategorinde 1 yeni ürün talebi var." :
+          `Kategorinde ${adet} yeni ürün talebi var.`;
         try {
+          const snap = await getPushDoc(uid);
+          // Bugün anlık almışsa akşam tekrar etme.
+          if (snap.exists &&
+              snap.data().productRequestInstantDay === gunAnahtari) {
+            anlikAtlanan++;
+            continue;
+          }
+          if (!(await isPushCategoryAllowed(uid, "productDigest", snap))) {
+            continue;
+          }
           await saveNotification(uid, `productDigest_${gunAnahtari}`, {
             type: "job",
             kind: "productDigest",
@@ -4810,8 +5287,8 @@ exports.sendProductRequestDigest = onSchedule(
         }
       }
       logger.info(
-          `productRequestDigest: ${gonderilen} kişiye özet gönderildi ` +
-          `(${ilSayaci.size} il)`);
+          `productRequestDigest: ${gonderilen} kişiye özet ` +
+          `(anlık atlanan ${anlikAtlanan})`);
     },
 );
 

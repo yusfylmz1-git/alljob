@@ -1,8 +1,9 @@
 import 'dart:async';
 
 import 'package:firebase_auth/firebase_auth.dart' as fb;
-import 'package:flutter/foundation.dart' show debugPrint, kIsWeb;
+import 'package:flutter/foundation.dart' show kIsWeb;
 
+import '../../../core/utils/app_log.dart';
 import 'phone_verification_repository.dart';
 
 /// Firebase Authentication ile telefon doğrulama (SMS OTP) + numarayı mevcut
@@ -127,10 +128,23 @@ class FirebasePhoneVerificationRepository
 
   PhoneVerificationException _map(fb.FirebaseAuthException e) {
     // TANI: gerçek Firebase hata kodunu terminale bas (catch bloğu yutmasın).
-    debugPrint(
+    AppLog.d(
       '[TANI][telefon] FirebaseAuthException: '
       'code=${e.code} message=${e.message}',
     );
+    if (e.code == 'unknown') {
+      AppLog.d(
+        '[TANI][telefon] code=unknown → SMS ÖNCESİ cihaz doğrulaması düştü.\n'
+        '  EN SIK SEBEP: uygulama henüz Play Store\'da YAYINLANMAMIŞ.\n'
+        '  Play Integrity mağazada olmayan uygulamayı tanımaz:\n'
+        '    "18002 Invalid PlayIntegrity token; app not Recognized by\n'
+        '     Play Store" (logcat: adb logcat | grep FirebaseAuth)\n'
+        '  → Bu bir kod hatası DEĞİL. Kapalı teste yüklenince düzelir.\n'
+        '  → O zamana kadar Firebase TEST NUMARALARI ile test et\n'
+        '    (5550000000 / kod 123456) — Play Integrity\'yi atlarlar.\n'
+        '  Ayrıntı: docs/TELEFON_DOGRULAMA_TANI.md',
+      );
+    }
     switch (e.code) {
       case 'invalid-phone-number':
         return PhoneVerificationException.invalidNumber;
@@ -146,6 +160,18 @@ class FirebasePhoneVerificationRepository
         return PhoneVerificationException.needsRecentLogin;
       case 'too-many-requests':
         return PhoneVerificationException.tooManyRequests;
+      case 'unknown':
+      case 'app-not-authorized':
+      case 'missing-client-identifier':
+        // Android: SMS ÖNCESİ cihaz doğrulaması (Play Integrity / SafetyNet)
+        // düştü. `unknown` bu durumda SDK'nın ayırt edici kod üretemediği
+        // hâldir — kullanıcıya "unknown" göstermek hiçbir şey anlatmıyordu.
+        //
+        // ⚠️ Ön koşul: Android API anahtarının "API kısıtlamaları" listesinde
+        // `androidcheck.googleapis.com` BULUNMALI. Yoksa bu hata TÜM
+        // cihazlarda çıkar ve hiç kimse telefonunu doğrulayamaz.
+        // Ayrıntı: docs/TELEFON_DOGRULAMA_TANI.md
+        return PhoneVerificationException.deviceCheckFailed;
       case 'operation-not-allowed':
         // Aynı kod iki farklı durumda döner: (a) Phone sağlayıcısı kapalı,
         // (b) SMS bölge politikası hedef ülkeye (+90) kapalı. Mesajdan ayırt et.

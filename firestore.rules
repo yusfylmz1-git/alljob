@@ -109,9 +109,29 @@ service cloud.firestore {
                 || d.socialLinks is map);
       }
 
+      // SAĞLAYICI OLMAK DOĞRULANMIŞ TELEFON İSTER (new.md madde 1–2).
+      //
+      // İstemci tarafında `ensureVerifiedPhoneForProvider()` kapısı var, ama
+      // istemci kapısı ATLATILABİLİR (doğrudan SDK çağrısı). Usta/mağaza
+      // profili açmak platformdaki güven sözleşmesidir: doğrulanmamış
+      // numarayla hizmet veren biri müşteriye ulaşılamaz olur.
+      //
+      // Yalnız `true`ya ÇEKERKEN aranır: kapatma (`false`) ve zaten açık
+      // profilin diğer alanlarını güncelleme serbesttir — mevcut ustalar
+      // kilitlenmez.
+      function providerFlagOk(field) {
+        let d = request.resource.data;
+        let acilyor = d.get(field, false) == true
+          && (resource == null || resource.data.get(field, false) != true);
+        return !acilyor
+          || request.auth.token.get('phone_number', null) != null;
+      }
+
       allow read: if true;
       // create'te resource null olduğundan doğrudan yazılan anahtarlara bakılır.
       allow create: if isSelf(uid)
+        && providerFlagOk('hasArtisanProfile')
+        && providerFlagOk('hasShopProfile')
         && !request.resource.data.keys()
               .hasAny(['phoneNumber', 'suspended', 'suspendedAt',
                        'email', 'fcmTokens',
@@ -124,6 +144,8 @@ service cloud.firestore {
       allow update: if isSelf(uid)
         && notSettingPublicPii()
         && phoneClaimOkFor('phoneVerified')
+        && providerFlagOk('hasArtisanProfile')
+        && providerFlagOk('hasShopProfile')
         && profileFieldsOk()
         && (!request.resource.data.diff(resource.data).affectedKeys()
                 .hasAny(['displayName'])
@@ -490,6 +512,32 @@ service cloud.firestore {
           return chat.get('lockedAt', null) == null;
         }
 
+        // SUNUCU TARAFI HIZ SINIRI (2026-08-14).
+        //
+        // İstemcide `minMessageInterval` (1.2 sn) ve `maxMessagesPerMinute`
+        // vardı ama istemci koruması ATLATILABİLİR: doğrudan SDK çağrısı
+        // yapan biri saniyede yüzlerce mesaj yazabilir → Firestore yazma +
+        // her mesajda tetiklenen push CF'si (onMessageCreated) fatura ve
+        // taciz riski demek.
+        //
+        // Nasıl çalışır: `createdAt` sunucu zaman damgası olmak ZORUNDA
+        // (istemci geçmiş tarih yazıp sınırı atlayamasın) ve sohbetin
+        // `updatedAt` alanından en az 1 saniye SONRA olmalı. `updatedAt`
+        // her mesajda güncellendiği için pratikte "aynı sohbete saniyede
+        // en fazla 1 mesaj" anlamına gelir.
+        //
+        // Neden 1 sn: istemci tavanı 1.2 sn; kural biraz gevşek tutuldu ki
+        // ağ gecikmesi normal kullanıcıyı yanlışlıkla engellemesin.
+        //
+        // ⚠️ `chats/{chatId}.updatedAt` yoksa (eski/iskelet doküman) kural
+        // sınır uygulamaz — mevcut sohbetler kilitlenmesin.
+        function messageRateOk() {
+          let chat = get(/databases/$(database)/documents/chats/$(chatId)).data;
+          let son = chat.get('updatedAt', null);
+          return request.resource.data.createdAt == request.time
+            && (son == null || request.time > son + duration.value(1, 's'));
+        }
+
         allow read: if memberOfChat();
         // Yalnızca gönderen kendi mesajını oluşturabilir; alıcı göndereni
         // engellediyse veya sohbet kilitliyse oluşturamaz.
@@ -499,6 +547,7 @@ service cloud.firestore {
           && memberOfChat()
           && senderMayWrite()
           && !recipientBlockedSender()
+          && messageRateOk()
           && messagePayloadOk();
         // Yumuşak silme: YALNIZ gönderen, YALNIZ `deleted=true` + içerik
         // alanlarının kaldırılması şeklinde güncelleyebilir (mesaj içeriği
@@ -624,7 +673,7 @@ service cloud.firestore {
       function jobCreateKeysOk() {
         return request.resource.data.keys().hasOnly([
           'customerId', 'customerName', 'customerPhotoURL',
-          'title', 'description', 'category',
+          'title', 'description', 'category', 'productCategoryCode',
           'province', 'district', 'neighborhood',
           'photos', 'priceType', 'budget',
           'status', 'cancelReason',
@@ -913,6 +962,14 @@ service cloud.firestore {
 
     // membershipPurchases — Play abonelik kanıtı (token). Yalnız CF (Admin SDK).
     match /membershipPurchases/{uid} {
+      allow read, write: if false;
+    }
+
+    // membershipTokens/{tokenHash} — bir Play satın alma token'ının SAHİBİ.
+    // Aynı token'ın ikinci bir hesaba premium vermesini engeller
+    // (grantArtisanPremium içindeki transaction). Yalnız CF (Admin SDK);
+    // istemci okuyabilseydi hangi token'ın kullanıldığı sızardı.
+    match /membershipTokens/{tokenHash} {
       allow read, write: if false;
     }
 

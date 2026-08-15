@@ -1,0 +1,738 @@
+<title>Yayın Öncesi Denetim Defteri</title>
+<style>
+  /* ---- Tokens: light (bare :root = complete palette) ----------------- */
+  :root {
+    --ground:        #F7F6F3;
+    --surface:       #FFFFFF;
+    --surface-sunk:  #EFEDE8;
+    --ink:           #1C1A17;
+    --ink-soft:      #4A463F;
+    --ink-mute:      #7A746A;
+    --rule:          #DDD9D1;
+    --rule-soft:     #E8E5DE;
+
+    /* Accent: oxidised copper — trade/craft register, not the usual indigo */
+    --accent:        #9C4A21;
+    --accent-soft:   #C97648;
+    --accent-wash:   #F3E4DA;
+
+    --p0:            #A62B18;
+    --p0-wash:       #F6E0DC;
+    --p1:            #8A6208;
+    --p1-wash:       #F6EBD4;
+    --p2:            #3E6146;
+    --p2-wash:       #E0EBE2;
+
+    --shadow: 0 1px 2px rgba(28,26,23,.05), 0 8px 24px -16px rgba(28,26,23,.22);
+
+    --measure: 68ch;
+    --step-0: 1rem;
+    --step-1: 1.13rem;
+    --step-2: 1.42rem;
+    --step-3: 1.9rem;
+    --step-4: 2.7rem;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground:       #16150F;
+      --surface:      #1F1E17;
+      --surface-sunk: #292720;
+      --ink:          #F0EDE4;
+      --ink-soft:     #C3BDAF;
+      --ink-mute:     #8E877A;
+      --rule:         #37342B;
+      --rule-soft:    #2B2922;
+
+      --accent:       #E0894F;
+      --accent-soft:  #B96536;
+      --accent-wash:  #33241A;
+
+      --p0:           #F08A72;
+      --p0-wash:      #3A211C;
+      --p1:           #E0B451;
+      --p1-wash:      #342A14;
+      --p2:           #8FC49D;
+      --p2-wash:      #1E2A21;
+
+      --shadow: 0 1px 2px rgba(0,0,0,.4), 0 8px 24px -16px rgba(0,0,0,.7);
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --ground:       #16150F;
+    --surface:      #1F1E17;
+    --surface-sunk: #292720;
+    --ink:          #F0EDE4;
+    --ink-soft:     #C3BDAF;
+    --ink-mute:     #8E877A;
+    --rule:         #37342B;
+    --rule-soft:    #2B2922;
+
+    --accent:       #E0894F;
+    --accent-soft:  #B96536;
+    --accent-wash:  #33241A;
+
+    --p0:           #F08A72;
+    --p0-wash:      #3A211C;
+    --p1:           #E0B451;
+    --p1-wash:      #342A14;
+    --p2:           #8FC49D;
+    --p2-wash:      #1E2A21;
+
+    --shadow: 0 1px 2px rgba(0,0,0,.4), 0 8px 24px -16px rgba(0,0,0,.7);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--ground);
+    color: var(--ink);
+    font-family: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+    font-size: var(--step-0);
+    line-height: 1.62;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap { max-width: 78rem; margin: 0 auto; padding: 0 clamp(1rem, 4vw, 3rem); }
+
+  /* ---- Masthead ------------------------------------------------------ */
+  header.mast {
+    border-bottom: 2px solid var(--ink);
+    padding: clamp(2.5rem, 6vw, 4.5rem) 0 1.4rem;
+    margin-bottom: 2.5rem;
+  }
+  .eyebrow {
+    font-family: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, monospace;
+    font-size: .72rem;
+    letter-spacing: .16em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin: 0 0 1rem;
+  }
+  h1 {
+    font-size: var(--step-4);
+    line-height: 1.04;
+    letter-spacing: -.022em;
+    font-weight: 600;
+    text-wrap: balance;
+    margin: 0 0 1rem;
+  }
+  .standfirst {
+    max-width: var(--measure);
+    font-size: var(--step-1);
+    color: var(--ink-soft);
+    margin: 0;
+  }
+  .meta {
+    display: flex; flex-wrap: wrap; gap: .5rem 2rem;
+    margin-top: 1.6rem;
+    font-family: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, monospace;
+    font-size: .74rem;
+    color: var(--ink-mute);
+    letter-spacing: .02em;
+  }
+  .meta b { color: var(--ink-soft); font-weight: 600; }
+
+  /* ---- Verdict strip ------------------------------------------------- */
+  .verdict {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr));
+    gap: 1px;
+    background: var(--rule);
+    border: 1px solid var(--rule);
+    border-radius: 10px;
+    overflow: hidden;
+    margin-bottom: 3.5rem;
+  }
+  .vcell { background: var(--surface); padding: 1.1rem 1.2rem; }
+  .vnum {
+    font-family: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, monospace;
+    font-size: 1.65rem; font-weight: 600; letter-spacing: -.03em;
+    font-variant-numeric: tabular-nums;
+    display: block; line-height: 1.1;
+  }
+  .vlab {
+    font-family: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, monospace;
+    font-size: .68rem; letter-spacing: .1em; text-transform: uppercase;
+    color: var(--ink-mute); margin-top: .35rem; display: block;
+  }
+  .vcell.is-p0 .vnum { color: var(--p0); }
+  .vcell.is-p1 .vnum { color: var(--p1); }
+  .vcell.is-ok .vnum { color: var(--p2); }
+
+  /* ---- Sections ------------------------------------------------------ */
+  section { margin-bottom: 3.75rem; scroll-margin-top: 1.5rem; }
+  h2 {
+    font-size: var(--step-3);
+    letter-spacing: -.018em;
+    line-height: 1.15;
+    font-weight: 600;
+    text-wrap: balance;
+    margin: 0 0 .35rem;
+    padding-bottom: .55rem;
+    border-bottom: 1px solid var(--rule);
+    display: flex; align-items: baseline; gap: .75rem;
+  }
+  h2 .num {
+    font-family: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, monospace;
+    font-size: .78rem; font-weight: 500; color: var(--accent);
+    letter-spacing: .08em; flex: none;
+  }
+  .lede { max-width: var(--measure); color: var(--ink-soft); margin: .9rem 0 1.6rem; }
+  h3 {
+    font-size: var(--step-1);
+    font-weight: 600; letter-spacing: -.008em;
+    margin: 2rem 0 .6rem;
+  }
+  p { max-width: var(--measure); margin: 0 0 1rem; }
+  ul { max-width: var(--measure); padding-left: 1.1rem; margin: 0 0 1rem; }
+  li { margin-bottom: .45rem; }
+  a { color: var(--accent); text-decoration-thickness: 1px; text-underline-offset: 2px; }
+  a:focus-visible, summary:focus-visible {
+    outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 3px;
+  }
+  code {
+    font-family: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, monospace;
+    font-size: .855em;
+    background: var(--surface-sunk);
+    padding: .12em .38em; border-radius: 4px;
+    color: var(--ink);
+  }
+
+  /* ---- Finding cards ------------------------------------------------- */
+  .finding {
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    border-left: 4px solid var(--rule);
+    border-radius: 8px;
+    padding: 1.35rem 1.5rem;
+    margin-bottom: 1.25rem;
+    box-shadow: var(--shadow);
+  }
+  .finding.p0 { border-left-color: var(--p0); }
+  .finding.p1 { border-left-color: var(--p1); }
+  .finding.p2 { border-left-color: var(--p2); }
+
+  .fhead {
+    display: flex; flex-wrap: wrap; align-items: center;
+    gap: .6rem; margin-bottom: .7rem;
+  }
+  .pill {
+    font-family: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, monospace;
+    font-size: .66rem; font-weight: 600;
+    letter-spacing: .09em; text-transform: uppercase;
+    padding: .22rem .5rem; border-radius: 4px; flex: none;
+  }
+  .pill.p0 { background: var(--p0-wash); color: var(--p0); }
+  .pill.p1 { background: var(--p1-wash); color: var(--p1); }
+  .pill.p2 { background: var(--p2-wash); color: var(--p2); }
+  .pill.fixed { background: var(--p2-wash); color: var(--p2); }
+  .pill.open  { background: var(--surface-sunk); color: var(--ink-mute); }
+
+  .ftitle {
+    font-size: var(--step-1); font-weight: 600;
+    letter-spacing: -.01em; margin: 0; flex: 1 1 16rem;
+    text-wrap: balance;
+  }
+  .floc {
+    font-family: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, monospace;
+    font-size: .73rem; color: var(--ink-mute);
+    margin: 0 0 .8rem; word-break: break-all;
+  }
+  .finding p { margin-bottom: .8rem; }
+  .finding p:last-child { margin-bottom: 0; }
+
+  .why {
+    background: var(--surface-sunk);
+    border-radius: 6px;
+    padding: .8rem 1rem;
+    margin: .9rem 0 0;
+    max-width: none;
+  }
+  .why .why-lab {
+    font-family: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, monospace;
+    font-size: .66rem; letter-spacing: .1em; text-transform: uppercase;
+    color: var(--ink-mute); display: block; margin-bottom: .3rem;
+  }
+  .why p { max-width: none; margin: 0; font-size: .95rem; color: var(--ink-soft); }
+
+  pre {
+    background: var(--surface-sunk);
+    border: 1px solid var(--rule-soft);
+    border-radius: 6px;
+    padding: .95rem 1.1rem;
+    overflow-x: auto;
+    margin: .9rem 0;
+    font-size: .82rem;
+    line-height: 1.55;
+  }
+  pre code { background: none; padding: 0; font-size: inherit; }
+
+  /* ---- Tables -------------------------------------------------------- */
+  .tscroll { overflow-x: auto; margin: 1.2rem 0; }
+  table {
+    border-collapse: collapse; width: 100%;
+    font-size: .9rem; min-width: 32rem;
+  }
+  th, td {
+    text-align: left; padding: .62rem .8rem;
+    border-bottom: 1px solid var(--rule-soft);
+    vertical-align: top;
+  }
+  th {
+    font-family: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, monospace;
+    font-size: .68rem; letter-spacing: .09em; text-transform: uppercase;
+    color: var(--ink-mute); font-weight: 600;
+    border-bottom: 1px solid var(--rule);
+  }
+  td.num { font-variant-numeric: tabular-nums; font-family: ui-monospace, Menlo, monospace; }
+  .ok   { color: var(--p2); font-weight: 600; }
+  .warn { color: var(--p1); font-weight: 600; }
+  .bad  { color: var(--p0); font-weight: 600; }
+
+  /* ---- Checklist ----------------------------------------------------- */
+  .check { list-style: none; padding: 0; max-width: var(--measure); }
+  .check li {
+    display: flex; gap: .7rem; align-items: baseline;
+    padding: .55rem 0; border-bottom: 1px solid var(--rule-soft);
+  }
+  .check .mark {
+    font-family: ui-monospace, Menlo, monospace;
+    font-size: .8rem; flex: none; width: 1.4rem;
+  }
+  .check .done { color: var(--p2); }
+  .check .todo { color: var(--p1); }
+
+  footer {
+    border-top: 2px solid var(--ink);
+    padding: 1.6rem 0 4rem;
+    color: var(--ink-mute);
+    font-family: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, monospace;
+    font-size: .74rem;
+    max-width: none;
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    a { transition: color .15s ease; }
+  }
+</style>
+
+<div class="wrap">
+
+<header class="mast">
+  <p class="eyebrow">Tam Yığın Denetim · İlanda Hizmet</p>
+  <h1>Yayın Öncesi Denetim Defteri</h1>
+  <p class="standfirst">
+    54.371 satır Dart, 4.900 satır Cloud Functions, 981 satır güvenlik kuralı
+    tarandı. İki kritik bulgu düzeltildi ve regresyon testine bağlandı; kalan
+    maddeler Play yayınından önce ve sonra yapılacaklar diye ayrıldı.
+  </p>
+  <div class="meta">
+    <span><b>Tarih</b> 15 Ağustos 2026</span>
+    <span><b>Dal</b> hemen-lazim</span>
+    <span><b>Analiz</b> temiz</span>
+    <span><b>Test</b> 807 geçti</span>
+  </div>
+</header>
+
+<div class="verdict">
+  <div class="vcell is-p0"><span class="vnum">2</span><span class="vlab">P0 · düzeltildi</span></div>
+  <div class="vcell is-p1"><span class="vnum">5</span><span class="vlab">P1 · yapısal</span></div>
+  <div class="vcell is-ok"><span class="vnum">4</span><span class="vlab">P2 · cila</span></div>
+  <div class="vcell is-ok"><span class="vnum">0</span><span class="vlab">Sızan sır</span></div>
+  <div class="vcell is-ok"><span class="vnum">0</span><span class="vlab">Katman ihlali</span></div>
+</div>
+
+<section>
+  <h2><span class="num">01</span> Mimari disiplin</h2>
+  <p class="lede">
+    Bu bölüm denetimin en sağlam çıkan tarafı. Katman ayrımı yalnız belgede
+    değil, kodda da tutuyor — ve bu makine tarafından doğrulanabilir.
+  </p>
+
+  <p>
+    Üç ayrı arama, sunum katmanında <b>tek bir</b> Firebase SDK çağrısı
+    bulamadı: <code>lib/features/**/presentation/</code> altında ne
+    <code>cloud_firestore</code>, ne <code>firebase_auth</code>, ne de
+    <code>FirebaseFirestore.instance</code> geçiyor. Veri erişimi istisnasız
+    repository arayüzlerinin ardında. Aynı şekilde kod tabanında hiç
+    <code>TODO</code>/<code>FIXME</code>/<code>HACK</code> yorumu yok — 54 bin
+    satır için olağandışı.
+  </p>
+
+  <h3>Gerçek bulgu: aşırı büyümüş ekranlar</h3>
+  <p>
+    Sorun katman <em>ihlali</em> değil, katman <em>yoğunluğu</em>. Beş dosya
+    1.000 satırı aşmış ve hepsi sunum katmanında:
+  </p>
+
+  <div class="tscroll">
+  <table>
+    <thead>
+      <tr><th>Dosya</th><th>Satır</th><th>İç sınıf</th><th>Değerlendirme</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><code>artisan_profile_edit_screen.dart</code></td><td class="num">1825</td><td class="num">18</td><td class="warn">Bölünmeli</td></tr>
+      <tr><td><code>chat_screen.dart</code></td><td class="num">1806</td><td class="num">—</td><td class="warn">Bölünmeli</td></tr>
+      <tr><td><code>profile_screen.dart</code></td><td class="num">1538</td><td class="num">—</td><td class="warn">Bölünmeli</td></tr>
+      <tr><td><code>admin_app.dart</code></td><td class="num">1168</td><td class="num">—</td><td>Admin — düşük öncelik</td></tr>
+      <tr><td><code>product_edit_screen.dart</code></td><td class="num">1032</td><td class="num">—</td><td>Sınırda</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <p>
+    Bunlar <em>God class</em> değil — iş mantığı taşımıyorlar, çoğunlukla widget
+    ağacı. Ama <code>artisan_profile_edit_screen.dart</code> içinde 18 ayrı sınıf
+    var; bunların bölüm widget'ları olarak
+    <code>presentation/widgets/</code> altına taşınması dosyayı üçte birine
+    indirir. Riskli bir iş değil, ama <b>yayından sonra</b> yapılmalı: davranış
+    değiştirmeyen büyük taşıma, sürüm öncesi en son isteyeceğin şeydir.
+  </p>
+</section>
+
+<section>
+  <h2><span class="num">02</span> Girdi güvenliği ve doğrulama</h2>
+  <p class="lede">
+    Beklediğimden güçlü çıktı. <code>lib/core/utils/validators.dart</code>
+    yalnız uzunluk bakmıyor — yapıştırma saldırı yüzeyini de kapatıyor.
+  </p>
+
+  <p>
+    <code>sanitizeFreeText</code> kontrol karakterlerini, sıfır genişlikli
+    boşlukları ve <b>RTL override</b> karakterlerini (<code>U+202A–202E</code>,
+    <code>U+2066–2069</code>) siliyor. Bu sonuncusu önemli: RTL override ile
+    ekranda görünen metin ters çevrilebilir ve bir kullanıcı adı başka bir şey
+    gibi gösterilebilir. Çoğu projede bu kontrol yoktur.
+  </p>
+
+  <p>
+    Sembol spam'i (<code>_longSymbolRun</code>), anlamlı harf eşiği ve
+    Türkçe'ye uygun unicode ad deseni (<code>\p{L}\p{M}</code>) de yerinde.
+    Enjeksiyon açısından: Firestore parametrik bir API, SQL yok, dolayısıyla
+    SQL injection yüzeyi de yok. XSS için Flutter'ın kendisi metin oluşturmuyor
+    (canvas render) — risk yalnız pazarlama sitesinde ve orası statik HTML.
+  </p>
+
+  <h3>Sunucu tarafı sınırlar</h3>
+  <p>
+    Kural motoru sayamadığı için açık ilan limiti (5) denormalize sayaçla
+    uygulanıyor: <code>users/{uid}/private/jobStats.openCount</code>, yalnız CF
+    yazıyor. Günlük hak (10) CF tarafında kesiliyor ve aşan ilan siliniyor değil
+    <em>iptal</em> ediliyor — kullanıcı içeriğini kaybetmiyor. Doğru tasarım.
+  </p>
+
+  <div class="finding p1">
+    <div class="fhead">
+      <span class="pill p1">P1</span>
+      <span class="pill open">Açık</span>
+      <h3 class="ftitle" style="margin:0">Açık ilan sayacında dar yarış penceresi</h3>
+    </div>
+    <p class="floc">firestore.rules:691 · functions/index.js:745 <code>refreshOpenJobCount</code></p>
+    <p>
+      <code>openCount</code>'u <code>onJobWritten</code> <em>ilan yazıldıktan
+      sonra</em> güncelliyor. Aynı anda gönderilen birden fazla ilan isteği aynı
+      eski sayacı okur ve hepsi limitten geçer.
+    </p>
+    <div class="why">
+      <span class="why-lab">Neden P0 değil</span>
+      <p>
+        İstismar penceresi birkaç yüz milisaniye ve kazanç sınırlı (5 yerine
+        belki 7 ilan). Günlük 10 ilan tavanı CF'te <em>senkron</em> kesildiği
+        için asıl spam kapısı zaten kapalı. Kalıcı çözüm sayacı ilan
+        oluşturmayla aynı transaction'a almaktır; bu da ilan yazımını CF'e
+        taşımak demektir — yayın sonrası işi.
+      </p>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2><span class="num">03</span> Bellek, kaynak ve performans</h2>
+  <p class="lede">
+    47 dosyada 55 <code>dispose()</code> tanımı var; controller sızıntısı
+    aramasında karşılıksız bir tane bulamadım. Asıl risk burada değil,
+    dinleyicilerdeydi — ve o zaten kapatılmış.
+  </p>
+
+  <p>
+    Canlı <code>snapshots()</code> dinleyicileri <code>signOutSafe()</code> ile
+    sarılmış: çıkış anında eski uid ile bir an canlı kalan akış
+    <code>permission-denied</code> üretiyor, bu yutuluyor, ama ağ
+    (<code>unavailable</code>) ve eksik indeks (<code>failed-precondition</code>)
+    hataları <b>yutulmuyor</b>. Ayrım doğru — gerçek arıza gizlenmiyor.
+  </p>
+
+  <p>
+    Maliyet tarafında 25 dosyada <code>.limit()</code> kullanımı var ve
+    sözleşme testi limitsiz dinleyici bırakılmasını engelliyor. Süzmenin
+    istemcide yapılması (müsaitlik) bilinçli bir karar: alternatifi her
+    açma/kapamada 50 ürüne CF yazmaktı.
+  </p>
+</section>
+
+<section>
+  <h2><span class="num">04</span> Veri katmanı ve dayanıklılık</h2>
+  <p class="lede">
+    Crashlytics her iki hata yolunu da yakalıyor ve çıkış akışındaki ANR riski
+    zaman aşımıyla kesilmiş.
+  </p>
+
+  <p>
+    <code>lib/main.dart:116-121</code> hem <code>FlutterError.onError</code> hem
+    <code>PlatformDispatcher.instance.onError</code> bağlıyor — senkron widget
+    hataları da, yakalanmayan async hatalar da rapora düşüyor. Release'te
+    Flutter'ın gri hata kutusu yerine markalı <code>AppErrorFallback</code>
+    gösteriliyor, debug'da kırmızı ekran kalıyor. Doğru ayrım.
+  </p>
+
+  <p>
+    Cloud Functions tarafında 13 yerde <code>runTransaction</code> /
+    <code>FieldValue.increment</code> kullanılmış, batch'ler 450'de commit'leniyor
+    (500 sınırı), zamanlanmış görevler idempotanlık damgası taşıyor. Bunlar
+    tecrübeyle yazılmış; tahminle değil.
+  </p>
+</section>
+
+<section>
+  <h2><span class="num">05</span> Gizlilik, kimlik ve güvenlik</h2>
+  <p class="lede">
+    Bu bölümde denetimin en ciddi bulgusu çıktı — ve düzeltildi.
+  </p>
+
+  <div class="finding p0">
+    <div class="fhead">
+      <span class="pill p0">P0</span>
+      <span class="pill fixed">Düzeltildi</span>
+      <h3 class="ftitle" style="margin:0">Bir satın alma, sınırsız premium hesap</h3>
+    </div>
+    <p class="floc">functions/index.js:4408 <code>grantArtisanPremium</code></p>
+    <p>
+      <code>verifyPlaySubscription</code> <b>"bu abonelik aktif mi?"</b> sorusunu
+      yanıtlıyordu; <b>"bu aboneliği çağıran kişi mi aldı?"</b> sorusunu
+      yanıtlamıyordu. Kod bir <code>tokenHash</code> hesaplayıp
+      <code>membershipPurchases</code> içine yazıyor, <em>ama hiçbir yerde
+      okumuyordu</em> — arama bunu doğruladı: 4417'de yazılıyor, 4438'de
+      saklanıyor, üçüncü bir kullanım yok.
+    </p>
+    <p>
+      Dokümanın anahtarı <code>uid</code> olduğu için her hesap kendi kaydını
+      yazıyordu; aynı <code>purchaseToken</code>'ın başka bir hesapta
+      kullanıldığı hiç görülmüyordu. Tek bir gerçek abonelik satın alıp token'ı
+      paylaşan (veya ele geçiren) herkes kendi oturumuyla
+      <code>verifyMembershipPurchase</code> çağırıp premium olabilirdi.
+    </p>
+    <p><b>Uygulanan çözüm</b> — token hash'i artık sahibiyle birlikte ayrı bir dokümanda ve yazım yarıştırılamaz:</p>
+<pre><code>const tokenRef = db.collection("membershipTokens").doc(tokenHash);
+await db.runTransaction(async (tx) =&gt; {
+  const snap = await tx.get(tokenRef);
+  if (snap.exists) {
+    const owner = (snap.data() || {}).uid;
+    if (owner &amp;&amp; owner !== uid) {
+      logger.warn("premium token reuse blocked", {uid, ownerUid: owner});
+      throw new HttpsError("permission-denied",
+          "Bu satın alma başka bir hesaba ait.");
+    }
+    ...
+  }
+  tx.create(tokenRef, {uid, productId, ...});   // yarış: biri düşer
+});</code></pre>
+    <div class="why">
+      <span class="why-lab">Yan etkiler de kapatıldı</span>
+      <p>
+        Yeni koleksiyon <code>firestore.rules</code> içinde istemciye tamamen
+        kapatıldı (<code>allow read, write: if false</code>) — hangi token'ın
+        kullanıldığı sızmamalı. <code>deleteAccount</code> artık bu kaydı da
+        siliyor: hem uid taşıdığı için KVKK gereği, hem de kalsaydı hesabını
+        silip yeniden açan kullanıcının <em>kendi</em> aboneliği "başkasına ait"
+        diye reddedilirdi.
+      </p>
+    </div>
+  </div>
+
+  <h3>Sağlam bulunanlar</h3>
+  <ul>
+    <li>Kod içinde düz metin sır <b>yok</b>. <code>key.properties</code> ve
+      <code>*.jks</code> hem <code>.gitignore</code>'da hem de git takibinde
+      değil — doğrulandı.</li>
+    <li>Tek "anahtar" görünen değer reCAPTCHA v3 <em>site</em> anahtarı; tanımı
+      gereği herkese açık, koruma kayıtlı alan adlarından geliyor.</li>
+    <li>Tüm 37 <code>onCall</code> fonksiyonunun yetki kapısı var —
+      <code>assertCap</code>, <code>assertSuperadmin</code> veya açık
+      <code>auth</code> kontrolü. İstisna bulunamadı.</li>
+    <li>Para/moderasyon koleksiyonları (<code>membershipPurchases</code>,
+      <code>premiumOverrides</code>, <code>adminUserNotes</code>,
+      <code>adminAuditLogs</code>) istemciye tamamen kapalı.</li>
+    <li>Sağlayıcı olmak <em>sunucu tarafında</em> doğrulanmış telefon istiyor
+      (<code>providerFlagOk</code>) — istemci kapısı atlatılsa bile geçilmiyor.</li>
+  </ul>
+
+  <div class="finding p1">
+    <div class="fhead">
+      <span class="pill p1">P1</span>
+      <span class="pill open">Açık</span>
+      <h3 class="ftitle" style="margin:0">Admin fonksiyonlarında App Check zorlanmıyor</h3>
+    </div>
+    <p class="floc">functions/index.js:58 · <code>CONSUMER_CALL_OPTS</code> vs <code>{region: REGION}</code></p>
+    <p>
+      Tüketici fonksiyonları <code>enforceAppCheck: true</code> ile korunuyor.
+      Admin fonksiyonlarının hepsi yalnız <code>{region: REGION}</code>
+      kullanıyor — yani App Check zorlanmıyor.
+    </p>
+    <div class="why">
+      <span class="why-lab">Neden P0 değil, ama neden yine de kapatılmalı</span>
+      <p>
+        Yetki kapısı (<code>assertCap</code>) sağlam durduğu için bu tek başına
+        bir yetki yükseltme değil; saldırganın hâlâ geçerli bir admin
+        oturumuna ihtiyacı var. Ama App Check'in işi tam olarak <em>çalınmış
+        oturumun uygulama dışından kullanılmasını</em> zorlaştırmaktır ve
+        admin yetkileri en değerli hedeftir. Admin paneli web'de çalıştığı
+        için açmadan önce reCAPTCHA sağlayıcısının web kaydı doğrulanmalı —
+        bu yüzden yayın sonrasına bırakılması makul.
+      </p>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2><span class="num">06</span> Arayüz sağlamlığı</h2>
+
+  <div class="finding p0">
+    <div class="fhead">
+      <span class="pill p0">P0</span>
+      <span class="pill fixed">Düzeltildi</span>
+      <h3 class="ftitle" style="margin:0">Harici bağlantıların hiçbiri açılmıyordu</h3>
+    </div>
+    <p class="floc">android/app/src/main/AndroidManifest.xml — <code>&lt;queries&gt;</code></p>
+    <p>
+      Android 11 (API 30) paket görünürlüğünü kısıtlıyor. Manifest'te
+      <code>VIEW</code> beyanı yoksa <code>canLaunchUrl</code> <code>false</code>
+      döner ve <code>launchUrl</code> <b>sessizce</b> başarısız olur — istisna
+      bile atılmaz. Manifest'te yalnızca <code>PROCESS_TEXT</code> beyanı vardı.
+    </p>
+    <p>
+      Pub önbelleğindeki eklenti kaynağını açıp doğruladım:
+      <code>url_launcher_android</code> bu bloğu <em>kendi</em> manifest'inde
+      taşımıyor, yalnız örnek uygulamasında var. Yani beyan uygulamanın
+      sorumluluğu ve eksikti.
+    </p>
+    <p>
+      <b>Etkilenen akışlar:</b> bu oturumda menüye eklediğim
+      <code>ilandahizmet.com</code> bağlantısı, profildeki sosyal medya
+      bağlantıları, sohbetteki WhatsApp (<code>wa.me</code>) düğmesi ve yasal
+      metin bağlantıları. Hepsi sessizce ölü durumdaydı.
+    </p>
+    <p>
+      Düzeltmede <code>https</code>, <code>http</code>, <code>tel</code> ve
+      <code>mailto</code> şemaları beyan edildi; regresyon testi manifest'i
+      kaynak üzerinden kilitliyor.
+    </p>
+  </div>
+
+  <h3>Sağlam bulunanlar</h3>
+  <p>
+    Çift gönderim koruması yaygın: 22 dosyada 230 <code>_busy</code>/
+    <code>_saving</code> kullanımı var ve mevcut bir sözleşme testi
+    <code>_busy</code>'nin telefon doğrulama kapısından <em>önce</em>
+    açıldığını doğruluyor — aksi hâlde doğrulama sayfası açıkken ikinci basış
+    ikinci sayfa açardı. Manifest'te <code>windowSoftInputMode="adjustResize"</code>
+    var, yani klavye açılınca taşma değil yeniden boyutlanma oluyor.
+  </p>
+</section>
+
+<section>
+  <h2><span class="num">07</span> Aksiyon planı</h2>
+
+  <h3>Yayından önce — zorunlu</h3>
+  <ul class="check">
+    <li><span class="mark done">✓</span><span><b>Play token tekrar kullanımı</b> — düzeltildi, teste bağlandı.</span></li>
+    <li><span class="mark done">✓</span><span><b>Manifest <code>&lt;queries&gt;</code></b> — düzeltildi, teste bağlandı.</span></li>
+    <li><span class="mark todo">▲</span><span><b>Kuralları ve fonksiyonları deploy et.</b> Düzeltmeler yalnız kaynakta; canlıya çıkmadan koruma yok: <code>firebase deploy --only firestore:rules,functions --project alljob1</code></span></li>
+    <li><span class="mark todo">▲</span><span><b>Sürüm numarasını yükselt.</b> <code>pubspec.yaml</code> hâlâ <code>1.0.0+1</code>. Play aynı <code>versionCode</code>'u ikinci kez kabul etmez.</span></li>
+    <li><span class="mark todo">▲</span><span><b>Gerçek cihazda release testi.</b> Menüdeki site bağlantısı, WhatsApp düğmesi ve satın alma akışı — <code>&lt;queries&gt;</code> düzeltmesi yalnız release derlemede doğrulanabilir.</span></li>
+  </ul>
+
+  <h3>Play Console tarafı</h3>
+  <p>
+    Kodda karşılığı olan ama konsolda ayrıca beyan isteyen maddeler:
+  </p>
+  <div class="tscroll">
+  <table>
+    <thead><tr><th>Gereklilik</th><th>Kodda durum</th><th>Yapılacak</th></tr></thead>
+    <tbody>
+      <tr>
+        <td>Hesap silme (uygulama içi <b>ve</b> web)</td>
+        <td class="ok">Var — <code>deleteAccount</code> CF + <code>hosting/hesap-silme.html</code></td>
+        <td>Web URL'sini Console'da <em>Data safety → Account deletion</em> alanına gir</td>
+      </tr>
+      <tr>
+        <td>Gizlilik politikası</td>
+        <td class="ok">Var — <code>gizlilik-politikasi.html</code></td>
+        <td>URL'yi Console'a gir; yayında olduğunu doğrula</td>
+      </tr>
+      <tr>
+        <td>Veri güvenliği formu</td>
+        <td class="warn">Beyan gerekli</td>
+        <td>Toplanan: e-posta, telefon, ad, fotoğraf, konum (il/ilçe), mesaj içeriği</td>
+      </tr>
+      <tr>
+        <td>İzinler</td>
+        <td class="ok">Sadeleştirilmiş</td>
+        <td><code>CAMERA</code>, <code>POST_NOTIFICATIONS</code>, <code>VIBRATE</code> — mikrofon/boot izinleri kaldırılmış, açıklama kolay</td>
+      </tr>
+      <tr>
+        <td>Abonelik ürünü</td>
+        <td class="ok"><code>sepette_hizmet_pro_monthly</code></td>
+        <td>Console'da ürün <b>aktif</b> olmalı; kimlik bir daha değişemez</td>
+      </tr>
+      <tr>
+        <td>İmza</td>
+        <td class="ok">Keystore çözümleniyor</td>
+        <td>Release SHA-256'yı Firebase'e ekle — telefon doğrulama buna bağlı</td>
+      </tr>
+      <tr>
+        <td>UGC politikası</td>
+        <td class="ok">Şikayet + engelleme + moderasyon var</td>
+        <td>Console'da UGC beyanı</td>
+      </tr>
+    </tbody>
+  </table>
+  </div>
+
+  <div class="why" style="max-width:var(--measure)">
+    <span class="why-lab">Atlanırsa reddedilir</span>
+    <p>
+      Release <b>SHA-256</b>'nın Firebase'e eklenmesi en sık atlanan adım.
+      Telefon doğrulaması buna bağlı ve doğrulama bozulursa <em>hiç kimse usta
+      veya mağaza olamaz</em> — uygulama açılır, çalışır görünür, ama kayıt
+      yolunun tamamı kapalıdır. Yayından sonra fark edilmesi en pahalı arıza bu.
+    </p>
+  </div>
+
+  <h3>Yayından sonra — P1</h3>
+  <ul>
+    <li><b>Açık ilan sayacı yarışı</b> — ilan oluşturmayı CF'e taşıyıp sayacı aynı transaction'a al.</li>
+    <li><b>Admin fonksiyonlarında App Check</b> — web reCAPTCHA kaydı doğrulandıktan sonra <code>enforceAppCheck</code> ekle.</li>
+    <li><b>Büyük ekranları böl</b> — <code>artisan_profile_edit_screen.dart</code> (18 sınıf) ve <code>chat_screen.dart</code>.</li>
+    <li><b>R8/ProGuard</b> — <code>minifyEnabled</code> tanımlı değil. Boyut ve tersine mühendislik direnci kazandırır; Firebase/IAP için keep kuralı gerekir, bu yüzden yayın öncesi değil.</li>
+    <li><b>ESLint sürüm uyumsuzluğu</b> — proje <code>.eslintrc</code> kullanıyor, kurulu ESLint v10 <code>eslint.config.js</code> istiyor. CF lint'i şu an hiç çalışmıyor.</li>
+  </ul>
+
+  <h3>P2 — cila</h3>
+  <ul>
+    <li><code>debugPrint</code> çağrıları release'te de çalışır. İçerikleri uid/chatId düzeyinde tanılama, sır değil — ama <code>kDebugMode</code> ile sarmak gürültüyü düşürür.</li>
+    <li>Site alan adı (<code>ilandahizmet.com</code>) menüde sabit yazılı; <code>AppConstants</code>'a taşınabilir.</li>
+    <li>Kasa notu <code>Bilinen-Tuzaklar.md</code> güncellendi: iOS <code>appId</code> maddesi artık geçersiz (düzeltilmiş), yerine <code>&lt;queries&gt;</code> ve token tuzakları eklendi.</li>
+  </ul>
+</section>
+
+<footer>
+  Denetim 15 Ağustos 2026 · dal <code>hemen-lazim</code> · flutter analyze temiz ·
+  807 test geçti · düzeltmeler <code>functions/index.js</code>,
+  <code>firestore.rules</code>, <code>AndroidManifest.xml</code>,
+  <code>test/yayin_hazirlik_denetimi_test.dart</code>
+</footer>
+
+</div>

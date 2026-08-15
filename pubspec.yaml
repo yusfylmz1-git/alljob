@@ -1,7 +1,10 @@
 name: sepette_hizmet
 description: "Sepette Hizmet - Hizmet pazaryeri"
 publish_to: 'none'
-version: 1.0.0+1
+# version: <sürüm adı>+<versionCode>
+# versionCode Play'de BENZERSİZ olmalı — aynı sayı ikinci kez yüklenemez.
+# Her Play yüklemesinde (kapalı test dâhil) +1 artır.
+version: 1.0.1+2
 
 environment:
   sdk: ^3.10.7
@@ -52,6 +55,7 @@ dependencies:
   in_app_purchase: ^3.3.0
   connectivity_plus: ^7.3.0
   url_launcher: ^6.3.2
+  image_cropper: ^12.2.1
   # NOT: "Usta Çantası" araç seti 2026-08-07'de üründen kaldırıldı. Onunla
   # birlikte şu bağımlılıklar da silindi (başka kullanıcıları yoktu):
   #   ar_flutter_plugin_plus · vector_math · share_plus · pdf · printing

@@ -13,12 +13,202 @@ Bunlar kozmetik görünür ama değiştirmek **kullanıcı verisi kaybettirir**.
 
 | Sabit | Dosya | Değiştirilirse |
 |---|---|---|
-| `_dbName = 'usta_cepte_tracking.db'` | `tracking/data/sqflite_tracking_repository.dart` | Uygulama **boş** veritabanı açar; kullanıcıların tüm Takip Merkezi kayıtları kaybolmuş görünür (dosya diskte durur, okunmaz) |
-| `kProMonthlyProductId = 'usta_cepte_pro_monthly'` | `membership/billing_config.dart` | Play Console'da ürün kimliği oluşturulduktan sonra **asla** değiştirilemez |
+| `kProMonthlyProductId = 'sepette_hizmet_pro_monthly'` | `membership/billing_config.dart` | Play / App Store'da ürün açıldıktan sonra **asla** değiştirilemez |
 | Firestore enum `apiValue`'ları | `data/models/*.dart` | Mevcut dokümanlar eski adı taşır → veri göçü gerekir |
 
-Marka adı iki kez değişti ("Usta Cepte" → "Sepette Hizmet" → "İlanda Hizmet") ama bu kimlikler
-**bilerek** eski adında bırakıldı. Kullanıcıya görünmezler.
+Görünen marka İlanda Hizmet; paket ve IAP kimliği `sepettehizmet`. Mağaza
+kaydı yokken `usta_cepte_*` buraya çekildi — ürün açıldıktan sonra kilit.
+
+---
+
+## 🔴 Çıkışta "uygulama çöktü" — canlı dinleyiciler
+
+**Yaşanan belirti:** kullanıcı çıkış yapıyor, ekranlar hata görünümüne
+düşüyor, "uygulama durdu" deniyor. Oysa hiçbir şey bozulmamıştır.
+
+**Sebep:** `users/{uid}/...` kapsamlı bir `snapshots()` dinleyicisi, çıkış
+anında bir an **eski uid** ile canlı kalır. Auth oturumu düşürdüğü an
+güvenlik kuralı onu tanımaz → akışa `permission-denied` **hatası** yayılır →
+Riverpod `AsyncError` → ekran hata görünümü.
+
+**Kural:** uid'e (veya chatId'ye) bağlı YENİ bir `snapshots()` eklersen
+sonuna `.signOutSafe('etiket', uid)` koy.
+
+```dart
+// lib/core/utils/signout_safe_stream.dart
+return _col(uid).snapshots().map(...).signOutSafe('bildirimler', uid);
+```
+
+> Yalnız `permission-denied` yutulur. Ağ (`unavailable`) ve eksik indeks
+> (`failed-precondition`) **yutulmamalı** — onlar gerçek arızadır; yutulursa
+> kullanıcı boş ekrana bakar ve sebebini asla öğrenemez.
+
+2026-08-14 denetiminde 10 dinleyici korumasız bulundu (bildirimler,
+tercihler, favoriler, takipçiler, engellenenler, ilanlarım, ürünlerim,
+mesajlar, sohbet). Sözleşme testi:
+`test/yayin_hazirlik_denetimi_test.dart`.
+
+---
+
+## 🔴 Bildirim sessizce çalışmayı bırakır
+
+İki gerçek kusur (2026-08-14'te düzeltildi) — ikisi de **hata vermeden**
+bildirimleri kesiyordu:
+
+1. **`notDetermined` ≠ izin var.** `requestPermission()` yalnız `denied`
+   diye kontrol edilirse, kullanıcı sistem penceresini kapattığında durum
+   `notDetermined` olur: token yazılır, Ayarlar "Bildirimler açık" der, ama
+   sistem bildirimi **hiç düşmez**. İkisini de kontrol et.
+2. **Çıkışta `_tokenRefreshSub` iptal edilmeli.** `registerFor` aboneliği
+   `??=` ile kurar; çıkışta iptal edilmezse **ikinci hesapta yeniden
+   kurulmaz** ve token yenilendiğinde hiçbir yere yazılmaz.
+
+Ayrıca çıkışta `_lastToken/_lastError/_lastStatus` sıfırlanmazsa Ayarlar
+ekranı yeni kullanıcıya **eski hesabın** durumunu gösterir.
+
+---
+
+## 🟠 Sağlayıcı olmak doğrulanmış telefon ister
+
+`hasArtisanProfile` / `hasShopProfile` bayrağını `true`ya çekmek, Auth
+jetonunda `phone_number` claim'i ister (`firestore.rules` →
+`providerFlagOk`). İstemci kapısı
+(`features/auth/application/provider_phone_gate.dart`) tek başına yeterli
+**değildir** — atlatılabilir.
+
+> Kural yalnız **AÇARKEN** arar. Kapatma ve zaten açık profilin diğer
+> alanlarını güncelleme serbest olmalı; aksi hâlde telefonu doğrulanmamış
+> mevcut ustalar profillerini hiç düzenleyemez.
+
+⚠️ Bu kapı kayıt yolunun üstünde: **telefon doğrulama bozuksa hiç kimse
+usta/mağaza olamaz.** Firebase Console'da Phone sağlayıcısı, SMS region
+policy (+90) ve release SHA-256 doğru olmalı.
+
+---
+
+## 🟠 Müsaitlik: satıcı kapalıysa vitrini de kapalı
+
+"Müsait değil" yalnız mesajı değil **görünürlüğü** de etkiler. Kapalı bir
+satıcının ürünü listede durursa müşteri ilgilenir ama yazamaz — ölü ilan.
+
+| Yer | Davranış |
+|---|---|
+| Keşfet ürün ızgarası | `availableDiscoverProductsProvider` eler |
+| Mağaza vitrini (profil) | `dukkan_bolumu.dart` gizler |
+| Ürün talepleri (Keşfet) | mağazası/müsaitliği olmayan sınırlı görür |
+| **Kendi ürünlerim** | **her zaman görünür** — sahibi "silindi" sanmasın |
+
+İki kural:
+
+1. **Sahibi hariç tut.** Kendi ürünü/vitrini kaybolan satıcı hata sanır.
+2. **Satıcı yüklenmeden gizleme.** `satici == null` iken göster; yükleme
+   sırasında liste boşalıp dolarsa titreme olur.
+
+> Süzme **istemci tarafında**: müsaitlik sık değişir, her açma/kapamada
+> 50 ürüne CF yazmak fatura ve gecikme demekti. Maliyet ürün başına değil
+> **benzersiz satıcı** başına bir okuma (`publicUserProvider` önbellekli).
+> Doğrudan rotayla detaya ulaşan yine mesaj atamaz — asıl kapı
+> `availability_gate.dart`.
+
+---
+
+## 🟠 Fotoğraf: kırpma ZORUNLU, oranlar eşleşmeli
+
+**Yaşanan belirti:** "resimler yarım çıkıyor", "profil fotoğrafı yayık".
+
+**Sebep:** kırpma adımı yoktu; kart `AspectRatio` + `BoxFit.cover` ile
+kullanıcının fotoğrafını zorla kesiyordu.
+
+**İki kural:**
+
+1. **Yeni foto yükleme yeri = `PhotoPicker` kullan.**
+   ```dart
+   final bytes = await PhotoPicker.pickPhoto(context,
+       source: source, shape: PhotoShape.portrait);
+   ```
+   Doğrudan `ImagePicker().pickImage()` çağırırsan kırpma atlanır.
+
+2. **Kırpma oranı ile kart oranı AYNI olmalı.** Kırpma 4:5 ama kart 1.15
+   ise kırpma hiçbir şey çözmez — kart yine keser. İkisi de
+   `AppConstants.photoAspectWidth/Height` sabitinden okumalı.
+
+| Yer | Şekil |
+|---|---|
+| Profil fotoğrafı | `square` (1:1 kilitli — avatar yuvarlak) |
+| Ürün / ilan / vitrin | `portrait` (4:5) |
+| Sertifika / belge | `free` (zorunlu oran metni keser) |
+| Sohbet fotoğrafı | kırpma YOK (bilinçli — WhatsApp da dayatmaz) |
+
+Android'de `UCropActivity` manifest'te kayıtlı olmalı; yoksa kırpıcı
+açılmaz ve fotoğraf sessizce kırpılmadan yüklenir.
+
+---
+
+## 🔴 `phoneNumber` Firestore'da DEĞİL, Auth'ta
+
+Hassas numara kural gereği `users/{uid}` dokümanına **yazılamaz**
+(`notSettingPublicPii`). Sunucu kaydı `users/{uid}/private/contact`
+altındadır ama orası **okunmuyor**.
+
+`AppUser.phoneNumber` değerini **Firebase Auth'tan** al:
+
+```dart
+phoneNumber: fbUser.phoneNumber,   // link/updatePhoneNumber sonrası dolu
+```
+
+2026-08-14'te bu eksikti: numara yalnız doğrulama ANINDA bellekte
+doluyordu, uygulama yeniden açılınca kayboluyordu ve "telefonumu profilde
+göster" anahtarı *"Telefon numarası bulunamadı"* hatası veriyordu.
+
+> Numarayı `users` dokümanına taşıyarak çözme — orası herkese açık okunur
+> ve Firestore alan bazlı gizleme yapamaz. Kullanıcının **yayınlamayı
+> seçtiği** numara ayrı bir alandır: `publicPhone`.
+
+**Üç ayrı alan, karıştırma:**
+
+| Alan | Yer | Kim görür |
+|---|---|---|
+| `phoneNumber` | Firebase Auth (+ `private/contact` kaydı) | yalnız sahibi |
+| `publicPhone` | `users/{uid}` | herkes (kullanıcı bilerek yayınladı) |
+| `showPhoneOnProfile` | `artisanProfiles/{uid}` | vitrin anahtarı |
+
+---
+
+## 🟠 Aynı adlı alan İKİ dokümanda olabilir
+
+`publicPhone` hem `users/{uid}` hem `artisanProfiles/{uid}` içinde var.
+2026-08-14'te `setPhoneVisibility` yalnız ikincisine yazıyordu, profil
+başlığı ise **birincisini** okuyordu → "göster" işaretlense de numara
+görünmüyordu.
+
+> Bir alanı yazarken **okuyan tarafın hangi dokümana baktığını** doğrula.
+> Ayrıca mağaza sahibinin `artisanProfiles` dokümanı **olmayabilir**:
+> `if (!snap.exists) return` ile başlayan yazımlar onları sessizce atlar.
+
+---
+
+## 🔴 Play token doğrulaması ≠ token sahipliği
+
+`verifyPlaySubscription` **"bu abonelik aktif mi?"** sorusunu yanıtlar.
+**"Bu aboneliği çağıran kişi mi aldı?"** sorusunu YANITLAMAZ.
+
+2026-08-15 denetiminde bulundu: `grantArtisanPremium` `tokenHash`'i
+hesaplayıp `membershipPurchases/{uid}` içine yazıyordu ama **hiçbir yerde
+okumuyordu**. Doküman anahtarı `uid` olduğu için aynı `purchaseToken` ile
+farklı hesaplardan çağrı yapmak sınırsız premium veriyordu — tek ödeme,
+sınırsız hesap. Doğrudan gelir kaybı.
+
+**Kural:** token hash'i **sahibiyle** ayrı bir dokümanda tutulur
+(`membershipTokens/{hash}` → `{uid}`) ve yazım `runTransaction` içindedir
+(iki eşzamanlı istek yarıştırılamasın). Farklı uid gelirse
+`permission-denied`.
+
+> Hesap silmede bu kayıt da silinmelidir: uid taşır (KVKK) **ve** kalırsa
+> kullanıcı hesabını silip yeniden açtığında kendi aboneliği "başkasına ait"
+> diye reddedilir.
+
+Regresyon: `test/yayin_hazirlik_denetimi_test.dart` → "Üyelik · satın alma
+token'ı tekrar kullanılamaz".
 
 ---
 
@@ -227,8 +417,20 @@ AR paketi Java 17 toolchain ister. `gradle.properties` içinde makineye özel
 yolla tanımlı. "languageVersion=17 matching" hatası → JDK 17 yolunu kontrol et.
 
 ### `firebase_options.dart` iOS appId
-iOS `appId` hâlâ **eski** kayda ait (`com.ustacepte.ustaCepte`). iOS'a
-gerçekten çıkılacaksa yeniden `flutterfire configure` gerekir.
+~~iOS `appId` hâlâ eski kayda ait.~~ **ÇÖZÜLDÜ** (2026-08-15 denetimi):
+`iosBundleId` artık `com.sepettehizmet.app` ve iOS `appId` alljob1 projesinin
+kendi kaydı. Paket kimliği bir daha değişirse burası yeniden üretilmelidir.
+
+### 🔴 `<queries>` olmadan hiçbir harici bağlantı açılmaz (Android 11+)
+API 30'dan itibaren paket görünürlüğü kısıtlıdır. `AndroidManifest.xml`
+içindeki `<queries>` bloğunda `VIEW`/`https` beyanı **yoksa**
+`canLaunchUrl` false döner ve `launchUrl` **sessizce** başarısız olur —
+istisna da yoktur, kullanıcı düğmenin "çalışmadığını" görür.
+
+`url_launcher` eklentisi bu bloğu kendi manifest'inde **taşımaz** (yalnız
+örnek uygulamasında vardır); tanımlamak uygulamanın sorumluluğudur.
+Yeni bir şema kullanacaksan (`tel:`, `mailto:`, özel şema) manifest'e onu da
+ekle. Sözleşme testi: `test/yayin_hazirlik_denetimi_test.dart`.
 
 → [[Deploy-ve-Ortam]]
 

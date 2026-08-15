@@ -1,10 +1,10 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/constants/app_constants.dart';
 import '../../../core/router/route_paths.dart';
@@ -14,6 +14,7 @@ import '../../../core/theme/app_palette.dart';
 import '../../../core/widgets/app_image.dart';
 import '../../../core/widgets/responsive_center.dart';
 import '../../../core/widgets/status_views.dart';
+import '../../../core/widgets/whatsapp_icon.dart';
 import '../../../data/models/blocked_user.dart';
 import '../../../data/models/chat.dart';
 import '../../../data/models/report.dart';
@@ -23,6 +24,7 @@ import '../../safety/data/safety_providers.dart';
 import '../../safety/presentation/report_sheet.dart';
 import '../../storage/storage_repository.dart';
 import '../data/chat_providers.dart';
+import '../../../core/utils/app_log.dart';
 
 /// Ekran E — Gerçek zamanlı sohbet. Metin + fotoğraf. İletişim bilgisi
 /// paylaşımı otomatik maskelenir ve gönderen uyarılır (PRD §5).
@@ -228,7 +230,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         imageQuality: AppConstants.imagePickImageQuality,
       );
     } catch (e) {
-      debugPrint('[TANI][sohbet-foto-secim] $e');
+      AppLog.d('[TANI][sohbet-foto-secim] $e');
       if (mounted) context.showError('Fotoğraf seçilemedi.');
       return;
     }
@@ -262,8 +264,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       _scrollToBottom();
     } catch (e, st) {
       // TANI: gerçek hatayı terminale bas (Storage izin/CORS/ağ vb.).
-      debugPrint('[TANI][sohbet-foto] $e');
-      debugPrint('$st');
+      AppLog.d('[TANI][sohbet-foto] $e');
+      AppLog.d('$st');
       if (mounted) {
         setState(() => item.failed = true);
         context.showError(
@@ -670,6 +672,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               ),
             ),
             actions: [
+              // WhatsApp: yalnız telefonu DOĞRULANMIŞ ve numarasını profilinde
+              // YAYINLAMIŞ karşı tarafta çıkar (new.md madde 3).
+              if (user != null && thread != null)
+                _WhatsappAction(uid: thread.otherUid(user.uid)),
               IconButton(
                 icon: const Icon(Icons.delete_outline),
                 tooltip: 'Mesaj sil',
@@ -1605,6 +1611,50 @@ class _CustomerPreviewSheet extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Sohbet başlığındaki WhatsApp düğmesi (new.md madde 3).
+///
+/// **İki koşul birlikte aranır — biri bile eksikse ikon ÇIKMAZ:**
+///  1. `phoneVerified` — numara SMS ile doğrulanmış olmalı.
+///  2. `publicPhone` dolu — kullanıcı numarasını profilinde BİLEREK
+///     yayınlamış olmalı.
+///
+/// ⚠️ `AppUser.phoneNumber` burada KULLANILMAZ: o hassas alandır
+/// (`users/{uid}/private/contact`) ve sahibi dışında kimseye gösterilmez.
+/// İkonu ona bağlamak gizli numarayı sohbetten sızdırırdı.
+class _WhatsappAction extends ConsumerWidget {
+  const _WhatsappAction({required this.uid});
+
+  final String uid;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final other = ref.watch(publicUserProvider(uid)).valueOrNull;
+    if (other == null || !other.phoneVerified) return const SizedBox.shrink();
+
+    // Yayınlanmış numarayı wa.me biçimine çevir (yalnız rakam).
+    final digits = (other.publicPhone ?? '').replaceAll(RegExp(r'[^0-9]'), '');
+    if (digits.isEmpty) return const SizedBox.shrink();
+
+    return IconButton(
+      tooltip: 'WhatsApp’tan yaz',
+      // Material'da WhatsApp ikonu yok; `Icons.chat` düz balon olduğu için
+      // marka tanınmıyordu (kullanıcı bulgusu). Gerçek logo çizilir.
+      icon: const WhatsappIcon(size: 24),
+      onPressed: () async {
+        final uri = Uri.parse('https://wa.me/$digits');
+        try {
+          final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
+          if (!ok && context.mounted) {
+            context.showError('WhatsApp açılamadı.');
+          }
+        } catch (_) {
+          if (context.mounted) context.showError('WhatsApp açılamadı.');
+        }
+      },
     );
   }
 }

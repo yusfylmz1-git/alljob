@@ -8,6 +8,7 @@ import 'package:in_app_purchase/in_app_purchase.dart';
 import '../artisan/application/my_profile_controller.dart';
 import 'billing_config.dart';
 import 'membership_package.dart';
+import '../../core/utils/app_log.dart';
 
 /// Play Billing sarmalayıcı. [kBillingEnabled] false iken no-op / bilgilendirme.
 ///
@@ -29,19 +30,19 @@ class BillingService {
     if (!kBillingEnabled || kIsWeb) return;
     final available = await _iap.isAvailable();
     if (!available) {
-      debugPrint('BillingService: mağaza kullanılamıyor');
+      AppLog.d('BillingService: mağaza kullanılamıyor');
       return;
     }
     _sub ??= _iap.purchaseStream.listen(
       _onPurchases,
-      onError: (Object e) => debugPrint('Billing purchaseStream: $e'),
+      onError: (Object e) => AppLog.d('Billing purchaseStream: $e'),
     );
     final resp = await _iap.queryProductDetails(kKnownSubscriptionIds);
     if (resp.error != null) {
-      debugPrint('Billing query error: ${resp.error}');
+      AppLog.d('Billing query error: ${resp.error}');
     }
     if (resp.notFoundIDs.isNotEmpty) {
-      debugPrint('Billing not found: ${resp.notFoundIDs}');
+      AppLog.d('Billing not found: ${resp.notFoundIDs}');
     }
     _products = resp.productDetails;
     _ready = true;
@@ -60,7 +61,7 @@ class BillingService {
     if (!_ready) await init();
     final product = productById(kProMonthlyProductId);
     if (product == null) {
-      debugPrint('Billing: ürün yok ($kProMonthlyProductId)');
+      AppLog.d('Billing: ürün yok ($kProMonthlyProductId)');
       return false;
     }
     // Abonelik ürünleri de plugin tarafında buyNonConsumable ile alınır.
@@ -72,7 +73,7 @@ class BillingService {
     for (final p in purchases) {
       if (p.status == PurchaseStatus.pending) continue;
       if (p.status == PurchaseStatus.error) {
-        debugPrint('Billing error: ${p.error}');
+        AppLog.d('Billing error: ${p.error}');
         if (p.pendingCompletePurchase) {
           await _iap.completePurchase(p);
         }
@@ -107,7 +108,7 @@ class BillingService {
       final data = res.data;
       return data['ok'] == true;
     } catch (e) {
-      debugPrint('verifyMembershipPurchase: $e');
+      AppLog.d('verifyMembershipPurchase: $e');
       // Üretimde sunucu doğrulaması zorunlu — istemci premium VERMEZ.
       // (Eski kDebugMode bypass kaldırıldı: sahte Pro riski.)
       return false;

@@ -11,6 +11,7 @@ import '../../../core/config/backend_config.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/router/route_paths.dart';
 import '../../../core/utils/snackbar_helper.dart';
+import '../../../core/utils/app_log.dart';
 
 /// Web push için VAPID (Voluntary Application Server Identification) anahtarı.
 ///
@@ -60,12 +61,19 @@ class PushService {
     try {
       final settings = await _messaging.requestPermission();
       _lastStatus = settings.authorizationStatus;
-      if (settings.authorizationStatus == AuthorizationStatus.denied) {
+      // `authorized` ve `provisional` (iOS sessiz bildirim) geçerlidir.
+      // `denied` VE `notDetermined` token yazmamalı: notDetermined, izin
+      // isteminin hiç sonuçlanmadığı hâldir (kullanıcı sistem penceresini
+      // kapattı). Eskiden yalnız `denied` bakılıyordu; notDetermined'da
+      // token yazılıp "Bildirimler açık" gösteriliyor ama sistem bildirimi
+      // hiç düşmüyordu — teşhisi en zor bildirim şikâyeti buydu.
+      if (settings.authorizationStatus == AuthorizationStatus.denied ||
+          settings.authorizationStatus == AuthorizationStatus.notDetermined) {
         // Android 13+/iOS: izin reddedilirse token HİÇ yazılmaz ve sistem
         // bildirimi hiç düşmez. Durum burada saklanır; kullanıcı Ayarlar'dan
         // izni açtığında `retry()` ile yeniden denenebilir.
         _lastError = 'İzin reddedildi (${settings.authorizationStatus.name})';
-        debugPrint('Push: izin reddedildi — token yazılmadı.');
+        AppLog.d('Push: izin reddedildi — token yazılmadı.');
         return;
       }
 
@@ -79,13 +87,13 @@ class PushService {
       final token = await _getToken();
       if (token == null) {
         _lastError = 'FCM token alınamadı (getToken null döndü)';
-        debugPrint('Push: token alınamadı.');
+        AppLog.d('Push: token alınamadı.');
         return;
       }
       await _saveToken(uid, token);
       _lastToken = token;
       _lastError = null;
-      debugPrint('Push: token kaydedildi (${token.substring(0, 12)}…).');
+      AppLog.d('Push: token kaydedildi (${token.substring(0, 12)}…).');
 
       _tokenRefreshSub ??= _messaging.onTokenRefresh.listen((t) {
         final u = _uid;
@@ -99,7 +107,7 @@ class PushService {
       // bu da sorunu görünmez kılar. Artık durum saklanıyor (Ayarlar'da
       // "Bildirim tanılama" ile görülebilir).
       _lastError = e.toString();
-      debugPrint('PushService.registerFor hatası: $e');
+      AppLog.d('PushService.registerFor hatası: $e');
     }
   }
 
@@ -116,7 +124,8 @@ class PushService {
     if (_lastToken != null && _lastError == null) {
       return 'Bildirimler açık (cihaz kayıtlı).';
     }
-    if (_lastStatus == AuthorizationStatus.denied) {
+    if (_lastStatus == AuthorizationStatus.denied ||
+        _lastStatus == AuthorizationStatus.notDetermined) {
       return 'Bildirim izni kapalı. Ayarlar → Uygulamalar → İlanda Hizmet → '
           'Bildirimler bölümünden açın, sonra "Yeniden dene"ye basın.';
     }
@@ -149,11 +158,23 @@ class PushService {
     try {
       await _unregisterBody(uid).timeout(_unregisterTimeout);
     } on TimeoutException {
-      debugPrint('PushService.unregisterFor: süre aşıldı, çıkışa devam.');
+      AppLog.d('PushService.unregisterFor: süre aşıldı, çıkışa devam.');
     } catch (e) {
-      debugPrint('PushService.unregisterFor hatası: $e');
+      AppLog.d('PushService.unregisterFor hatası: $e');
     } finally {
       _uid = null;
+      // Tanılama durumunu da sıfırla: aksi hâlde çıkış sonrası Ayarlar
+      // ekranı ESKİ hesabın "Bildirimler açık" satırını göstermeye devam
+      // eder ve yeni kullanıcı token'ı hiç yazılmamışken sorunu göremez.
+      _lastToken = null;
+      _lastError = null;
+      _lastStatus = null;
+      // Token yenileme aboneliği eski uid'e kapanır. `registerFor` bunu
+      // `??=` ile kurduğu için iptal edilmezse ikinci hesapta YENİDEN
+      // KURULMAZ ve token yenilendiğinde hiçbir yere yazılmaz — o cihaz
+      // sessizce bildirim almaz olurdu.
+      _tokenRefreshSub?.cancel();
+      _tokenRefreshSub = null;
     }
   }
 
@@ -235,7 +256,7 @@ class PushService {
         ),
       );
     } catch (e) {
-      debugPrint('Push kanal oluşturma: $e');
+      AppLog.d('Push kanal oluşturma: $e');
     }
   }
 
@@ -306,7 +327,7 @@ class PushService {
     try {
       _ref.read(routerProvider).push(route);
     } catch (e) {
-      debugPrint('PushService gezinme hatası: $e');
+      AppLog.d('PushService gezinme hatası: $e');
     }
   }
 

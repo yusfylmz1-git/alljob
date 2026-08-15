@@ -1,7 +1,7 @@
 import 'package:firebase_analytics/firebase_analytics.dart';
-import 'package:flutter/foundation.dart';
 
 import '../config/backend_config.dart';
+import '../utils/app_log.dart';
 
 /// İnce Analytics sarmalayıcı (YOL_HARITASI P1).
 ///
@@ -27,7 +27,7 @@ class AppAnalytics {
     try {
       await fa.logEvent(name: name, parameters: parameters);
     } catch (e) {
-      debugPrint('Analytics log ($name): $e');
+      AppLog.d('Analytics log ($name): $e');
     }
   }
 

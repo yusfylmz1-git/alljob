@@ -78,6 +78,23 @@ android {
             } else {
                 signingConfigs.getByName("debug")
             }
+
+            // R8: kod küçültme + karartma + kullanılmayan kaynakların atılması.
+            // Kazanç: daha küçük indirme boyutu ve tersine mühendisliğe direnç.
+            //
+            // `isShrinkResources` yalnız `isMinifyEnabled` ile birlikte
+            // çalışır (tek başına derleme hatası verir).
+            //
+            // Koruma kuralları: proguard-rules.pro. Yansımayla çağrılan her
+            // şey (Firebase modelleri, Play Billing, uCrop, bildirim
+            // alıcıları) orada korunuyor — R8 aksi hâlde onları SİLER ve hata
+            // YALNIZ release derlemede görünür.
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro",
+            )
         }
     }
 }

@@ -10,6 +10,8 @@ import '../theme/app_colors.dart';
 ///
 /// TEK GÖRSEL: uygulamanın her yeri aynı logoyu kullanır. Yan menü için bir
 /// süre ayrı bir `yan_logo.png` denendi; görünüm tutmadığı için geri alındı.
+/// Dosyanın kendisi 2026-08-15 denetiminde SİLİNDİ — kod hiç yüklemediği hâlde
+/// 4,85 MB olarak pakete giriyordu (toplam varlıkların yarısı).
 class BrandMark extends StatelessWidget {
   const BrandMark({
     super.key,

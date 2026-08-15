@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:url_launcher/url_launcher.dart';
 
+import '../../data/models/app_user.dart';
 import '../../features/auth/application/auth_controller.dart';
 import '../../features/auth/data/auth_repository.dart';
 import '../../features/chat/data/chat_providers.dart';
@@ -13,6 +15,16 @@ import '../theme/app_palette.dart';
 import '../theme/theme_mode_state.dart';
 import '../utils/snackbar_helper.dart';
 import 'brand_mark.dart';
+
+/// Menü alt başlığı — aktif mod değil, açık profiller.
+String _profileSubtitle(AppUser user) {
+  final parts = <String>[
+    if (user.hasArtisanProfile) 'Usta',
+    if (user.hasShopProfile) 'Mağaza',
+  ];
+  if (parts.isEmpty) return 'Hesap';
+  return parts.join(' · ');
+}
 
 /// ☰ menü düğmesi (hero başlıklarında kullanılır). Karşı moda okunmamış mesaj
 /// düştüyse üzerinde küçük kırmızı nokta gösterir — kullanıcı hangi modda
@@ -65,8 +77,7 @@ class DrawerMenuButton extends ConsumerWidget {
 /// Takip ve bildirimler BURADA YOK: takip profildeki sayaçtan, bildirimler
 /// her ekranın sağ üstündeki zilden açılır.
 ///
-/// MOD GEÇİŞİ BURADA YOK: profildeki "Usta modu" anahtarından yapılır.
-/// İki ayrı yer olması hangi modda olunduğunu belirsizleştiriyordu (B-16).
+/// MOD GEÇİŞİ YOK: yetenek hasArtisanProfile / hasShopProfile ile.
 class AppMenuDrawer extends ConsumerWidget {
   const AppMenuDrawer({super.key});
 
@@ -141,10 +152,6 @@ class AppMenuDrawer extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final user = ref.watch(currentUserProvider);
     final theme = Theme.of(context);
-    // NOT: Karşı moddaki okunmamış rozeti (`otherModeUnreadProvider`) burada
-    // mod geçiş satırında duruyordu. O satırlar kalktı; rozet profildeki
-    // "Usta modu" anahtarına taşındı (bkz. _ArtisanModeSwitch).
-
     return NavigationDrawer(
       children: [
         // Başlık: marka + kullanıcı kimliği.
@@ -195,7 +202,7 @@ class AppMenuDrawer extends ConsumerWidget {
                     Text(
                       user == null
                           ? 'Hoş geldiniz'
-                          : (user.isArtisan ? 'Usta Modu' : 'Müşteri Modu'),
+                          : _profileSubtitle(user),
                       style: theme.textTheme.bodySmall?.copyWith(
                         color: Colors.white.withValues(alpha: 0.72),
                       ),
@@ -216,11 +223,7 @@ class AppMenuDrawer extends ConsumerWidget {
           ),
         ]
 
-        // --- Oturum açmış kullanıcı (rol ayrımı YOK) ---
-        //
-        // "Usta Moduna Geç / Müşteri Moduna Geç" satırları KALDIRILDI:
-        // mod değişimi artık profildeki anahtardan yapılıyor, iki ayrı yer
-        // olması karışıklık yaratıyordu (B-16).
+        // --- Oturum açmış kullanıcı (aktif mod switch'i yok) ---
         else ...[
           // "İş İlanı Ver" satırı KALDIRILDI (2026-08-09): Keşfet'in üst
           // barındaki ikon tek giriş oldu. Aynı yere giden üçüncü kapıydı.
@@ -293,13 +296,83 @@ class AppMenuDrawer extends ConsumerWidget {
                 style: TextStyle(color: context.palette.danger)),
             onTap: () => _signOut(context, ref),
           ),
+
+        // Menü dibi: site bağlantısı + telif satırı.
+        const Divider(indent: 16, endIndent: 16),
+        const _DrawerFooter(),
       ],
     );
   }
 }
 
-/// Görünüm alt sayfası: tema modu (Sistem/Açık/Koyu) + mod başına vurgu rengi.
-/// Her dokunuş anında uygulanır (canlı önizleme) ve cihazda saklanır.
+/// Çekmecenin en altı: web sitesi bağlantısı ve telif satırı.
+///
+/// Site harici tarayıcıda açılır (uygulama içi web görünümü yok).
+class _DrawerFooter extends StatelessWidget {
+  const _DrawerFooter();
+
+  static const String _site = 'https://ilandahizmet.com';
+
+  Future<void> _openSite(BuildContext context) async {
+    try {
+      final ok = await launchUrl(
+        Uri.parse(_site),
+        mode: LaunchMode.externalApplication,
+      );
+      if (!ok && context.mounted) context.showError('Bağlantı açılamadı.');
+    } catch (_) {
+      if (context.mounted) context.showError('Bağlantı açılamadı.');
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final palette = context.palette;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          InkWell(
+            onTap: () => _openSite(context),
+            borderRadius: BorderRadius.circular(8),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.public_rounded,
+                      size: 16, color: palette.primary),
+                  const SizedBox(width: 6),
+                  Text(
+                    'ilandahizmet.com',
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: palette.primary,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            '© ${DateTime.now().year} ${AppConstants.appName}\n'
+            'Tüm hakları saklıdır.',
+            textAlign: TextAlign.center,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: palette.inkMuted,
+              height: 1.3,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Görünüm: tema (Sistem/Açık/Koyu) + tek vurgu rengi.
 class _AppearanceSheet extends ConsumerWidget {
   const _AppearanceSheet();
 
@@ -308,8 +381,7 @@ class _AppearanceSheet extends ConsumerWidget {
     final theme = Theme.of(context);
     final palette = context.palette;
     final mode = ref.watch(themeModeProvider);
-    final customerId = ref.watch(customerAccentIdProvider);
-    final artisanId = ref.watch(artisanAccentIdProvider);
+    final accentId = ref.watch(accentIdProvider);
 
     void setMode(ThemeMode? m) {
       if (m == null) return;
@@ -363,79 +435,36 @@ class _AppearanceSheet extends ConsumerWidget {
             const Divider(indent: 16, endIndent: 16),
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 10, 20, 2),
-              child: Text('Renk', style: theme.textTheme.titleMedium),
+              child: Text('Vurgu rengi', style: theme.textTheme.titleMedium),
             ),
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 0, 20, 10),
               child: Text(
-                'Her mod için ayrı bir vurgu rengi seç.',
+                'Düğmeler, linkler ve üst şerit bu rengi kullanır.',
                 style: theme.textTheme.bodySmall
                     ?.copyWith(color: palette.inkMuted),
               ),
             ),
-            _AccentRow(
-              label: 'Müşteri modu',
-              currentId: customerId,
-              onPick: (id) {
-                ref.read(customerAccentIdProvider.notifier).state = id;
-                saveCustomerAccentId(id);
-              },
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 4, 20, 16),
+              child: Wrap(
+                spacing: 14,
+                runSpacing: 12,
+                children: [
+                  for (final o in kAccentOptions)
+                    _Swatch(
+                      option: o,
+                      selected: o.id == accentId,
+                      onTap: () {
+                        ref.read(accentIdProvider.notifier).state = o.id;
+                        saveAccentId(o.id);
+                      },
+                    ),
+                ],
+              ),
             ),
-            _AccentRow(
-              label: 'Usta modu',
-              currentId: artisanId,
-              onPick: (id) {
-                ref.read(artisanAccentIdProvider.notifier).state = id;
-                saveArtisanAccentId(id);
-              },
-            ),
-            const SizedBox(height: 16),
           ],
         ),
-      ),
-    );
-  }
-}
-
-/// Bir mod için 4 renk örneği (swatch) satırı.
-class _AccentRow extends StatelessWidget {
-  const _AccentRow({
-    required this.label,
-    required this.currentId,
-    required this.onPick,
-  });
-
-  final String label;
-  final String currentId;
-  final ValueChanged<String> onPick;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            label,
-            style: theme.textTheme.labelLarge
-                ?.copyWith(color: context.palette.inkMuted),
-          ),
-          const SizedBox(height: 10),
-          Wrap(
-            spacing: 14,
-            runSpacing: 12,
-            children: [
-              for (final o in kAccentOptions)
-                _Swatch(
-                  option: o,
-                  selected: o.id == currentId,
-                  onTap: () => onPick(o.id),
-                ),
-            ],
-          ),
-        ],
       ),
     );
   }

@@ -3,15 +3,17 @@ import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart' as fb;
-import 'package:flutter/foundation.dart'
-    show debugPrint, kDebugMode, kIsWeb;
+import 'package:flutter/foundation.dart' show kDebugMode, kIsWeb;
 import 'package:google_sign_in/google_sign_in.dart';
 
+import '../../../core/utils/signout_safe_stream.dart';
 import '../../../core/utils/validators.dart';
 import '../../../data/models/app_user.dart';
+import '../../../data/models/geo_models.dart';
 import '../../../data/models/social_links.dart';
 import '../../../data/models/user_role.dart';
 import 'auth_repository.dart';
+import '../../../core/utils/app_log.dart';
 
 /// Firebase Authentication + Firestore `users` koleksiyonu ile çalışan
 /// [AuthRepository]. Rol ve profil bilgisi `users/{uid}` dökümanında tutulur.
@@ -60,6 +62,9 @@ class FirebaseAuthRepository implements AuthRepository {
       createdAt: DateTime.now(),
       profilePhotoUrl: fbUser.photoURL,
       emailVerified: fbUser.emailVerified,
+      // Doğrulanmış numara Auth'ta; `users` dokümanında tutulamaz (kural).
+      phoneNumber: fbUser.phoneNumber,
+      phoneVerified: (fbUser.phoneNumber ?? '').isNotEmpty,
       isAdmin: isAdmin,
       adminRole: role,
     );
@@ -111,6 +116,20 @@ class FirebaseAuthRepository implements AuthRepository {
               user = AppUser.fromMap(fbUser.uid, snap.data()!).copyWith(
                 email: fbUser.email ?? '',
                 emailVerified: fbUser.emailVerified,
+                // DOĞRULANMIŞ NUMARA (2026-08-14 cihaz bulgusu:
+                // "telefon numarası bulunamadı").
+                //
+                // `phoneNumber` hassas alandır ve KURAL GEREĞİ `users`
+                // dokümanında tutulamaz (`private/contact` altında). Bu
+                // yüzden `fromMap` onu hep boş bırakıyordu ve uygulama
+                // yeniden açıldığında "numaramı profilde göster" anahtarı
+                // gösterecek numara bulamıyordu.
+                //
+                // Firebase Auth doğrulanmış numarayı zaten taşıyor
+                // (linkWithCredential sonrası) — ek okuma yapmadan oradan
+                // alınır. `private/contact` yazımı sunucu tarafı kayıt
+                // olarak yerinde kalır.
+                phoneNumber: fbUser.phoneNumber,
                 isAdmin: isAdmin,
                 adminRole: role,
               );
@@ -572,6 +591,10 @@ class FirebaseAuthRepository implements AuthRepository {
     String? publicPhone,
     SocialLinks? socialLinks,
     String? aboutText,
+    bool? hasShopProfile,
+    List<String>? shopCategories,
+    List<ServiceArea>? shopServiceAreas,
+    bool? available,
   }) async {
     final fbUser = _auth.currentUser;
     if (fbUser == null) return;
@@ -601,6 +624,13 @@ class FirebaseAuthRepository implements AuthRepository {
     }
     if (socialLinks != null) data['socialLinks'] = socialLinks.toMap();
     if (aboutText != null) data['aboutText'] = aboutText.trim();
+    if (hasShopProfile != null) data['hasShopProfile'] = hasShopProfile;
+    if (shopCategories != null) data['shopCategories'] = shopCategories;
+    if (shopServiceAreas != null) {
+      data['shopServiceAreas'] =
+          shopServiceAreas.map((e) => e.toMap()).toList();
+    }
+    if (available != null) data['available'] = available;
 
     if (data.isEmpty) return;
 
@@ -635,6 +665,10 @@ class FirebaseAuthRepository implements AuthRepository {
         clearPublicPhone: telefonDegisti && yeniTelefon == null,
         socialLinks: socialLinks ?? cached.socialLinks,
         aboutText: aboutText?.trim() ?? cached.aboutText,
+        hasShopProfile: hasShopProfile ?? cached.hasShopProfile,
+        shopCategories: shopCategories ?? cached.shopCategories,
+        shopServiceAreas: shopServiceAreas ?? cached.shopServiceAreas,
+        available: available ?? cached.available,
       );
       _cached = updated;
       // UI anında yenilensin (snapshot gecikse bile); aksi halde profil
@@ -656,9 +690,23 @@ class FirebaseAuthRepository implements AuthRepository {
       // E-posta/telefon bu dokümanda YOK (ADR-11) — fromMap boş bırakır.
       return AppUser.fromMap(uid, data);
     } catch (e) {
-      debugPrint('[auth] fetchPublicUser($uid) hatası: $e');
+      AppLog.d('[auth] fetchPublicUser($uid) hatası: $e');
       return null;
     }
+  }
+
+  @override
+  Stream<AppUser?> watchPublicUser(String uid) {
+    if (uid.trim().isEmpty) return Stream.value(null);
+    return _userDoc(uid)
+        .snapshots()
+        .map((snap) {
+          final data = snap.data();
+          if (!snap.exists || data == null) return null;
+          return AppUser.fromMap(uid, data);
+        })
+        // Çıkışta bu dinleyici bir an eski oturumla canlı kalır.
+        .signOutSafe('herkese açık profil', uid);
   }
 
   @override
@@ -677,7 +725,7 @@ class FirebaseAuthRepository implements AuthRepository {
     } on FirebaseFunctionsException catch (e) {
       // Ham hata konsola: App Check reddi sahada "sebepsiz silinmiyor" gibi
       // görünüyordu; kod/mesaj/detay olmadan teşhis edilemiyor.
-      debugPrint(
+      AppLog.d(
         'deleteAccount CF hatası: ${e.code} / ${e.message} / '
         '${e.details}',
       );

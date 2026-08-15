@@ -9,9 +9,11 @@ import 'package:image_picker/image_picker.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/router/route_paths.dart';
 import '../../../core/theme/app_palette.dart';
+import '../../../core/utils/photo_picker.dart';
 import '../../../core/utils/snackbar_helper.dart';
 import '../../../core/utils/validators.dart';
 import '../../../core/widgets/app_image.dart';
+import '../../../core/widgets/disclaimer_note.dart';
 import '../../../core/widgets/gradient_app_bar.dart';
 import '../../../core/widgets/responsive_center.dart';
 import '../../../core/widgets/role_bottom_bar.dart';
@@ -25,7 +27,9 @@ import '../../artisan/application/my_profile_controller.dart';
 import '../../auth/application/auth_controller.dart';
 import '../../auth/presentation/email_verification_gate.dart';
 import '../../storage/storage_repository.dart';
+import '../data/product_category_providers.dart';
 import '../data/product_providers.dart';
+import '../../../core/utils/app_log.dart';
 
 /// Yeni ürün veya mevcut ürün düzenleme.
 class ProductEditScreen extends ConsumerStatefulWidget {
@@ -73,7 +77,11 @@ class _ProductEditScreenState extends ConsumerState<ProductEditScreen> {
     try {
       if (widget.productId == null) {
         final draft = ref.read(myProfileControllerProvider).valueOrNull;
-        final areas = draft?.profile.serviceAreas ?? const <ServiceArea>[];
+        final user = ref.read(currentUserProvider);
+        // Önce usta hizmet bölgeleri; yoksa mağaza bölgeleri.
+        final areas = (draft?.profile.serviceAreas.isNotEmpty ?? false)
+            ? draft!.profile.serviceAreas
+            : (user?.shopServiceAreas ?? const <ServiceArea>[]);
         final loc = areas.isEmpty
             ? (province: null as Province?, district: null as District?)
             : await _resolveLocation(
@@ -235,17 +243,18 @@ class _ProductEditScreenState extends ConsumerState<ProductEditScreen> {
       context.push(RoutePaths.login);
       return;
     }
-
     final source = await _chooseImageSource();
     if (source == null || !mounted) return;
 
-    final XFile? file;
+    // Her fotoğraf yüklemeden ÖNCE 4:5 kırpılır — vitrin ızgarası aynı
+    // oranda; kırpma olmadan dikey fotoğrafın altı/üstü kesiliyordu.
+    final List<Uint8List> files;
     try {
-      file = await ImagePicker().pickImage(
+      files = await PhotoPicker.pickMultiPhoto(
+        context,
         source: source,
-        preferredCameraDevice: CameraDevice.rear,
-        maxWidth: AppConstants.imagePickMaxWidth,
-        imageQuality: AppConstants.imagePickImageQuality,
+        limit: AppConstants.maxProductPhotos - _photos.length,
+        title: 'Ürün fotoğrafı',
       );
     } catch (_) {
       if (mounted) {
@@ -255,27 +264,27 @@ class _ProductEditScreenState extends ConsumerState<ProductEditScreen> {
       }
       return;
     }
-    if (file == null) return;
-
-    final bytes = await file.readAsBytes();
-    if (bytes.length > AppConstants.maxPhotoSizeBytes) {
-      if (mounted) {
-        context.showError('Görsel 5 MB\'dan küçük olmalı.');
-      }
-      return;
-    }
-    if (!mounted) return;
+    if (files.isEmpty) return;
 
     setState(() => _uploadingPhoto = true);
     try {
-      // Jobs paritesi: product/{uid}/{ts}.jpg (3 segment — storage.rules).
-      // productId yolu KULLANMA: 4 segment kural eşleşmez → upload reddedilir.
-      final handle = await ref.read(storageRepositoryProvider).uploadImage(
-            pathHint: 'product/${user.uid}',
-            bytes: Uint8List.fromList(bytes),
-          );
-      if (!mounted) return;
-      setState(() => _photos.add(handle));
+      final storage = ref.read(storageRepositoryProvider);
+      for (final bytes in files) {
+        if (_photos.length >= AppConstants.maxProductPhotos) break;
+        if (bytes.length > AppConstants.maxPhotoSizeBytes) {
+          if (mounted) {
+            context.showError('Bir görsel 5 MB\'dan büyük; atlandı.');
+          }
+          continue;
+        }
+        // Jobs paritesi: product/{uid}/{ts}.jpg (3 segment — storage.rules).
+        final handle = await storage.uploadImage(
+          pathHint: 'product/${user.uid}',
+          bytes: Uint8List.fromList(bytes),
+        );
+        if (!mounted) return;
+        setState(() => _photos.add(handle));
+      }
     } catch (e) {
       if (!mounted) return;
       final raw = e.toString();
@@ -288,6 +297,19 @@ class _ProductEditScreenState extends ConsumerState<ProductEditScreen> {
     } finally {
       if (mounted) setState(() => _uploadingPhoto = false);
     }
+  }
+
+  void _openPhotoPreview(int initialIndex) {
+    if (_photos.isEmpty) return;
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        fullscreenDialog: true,
+        builder: (_) => _ProductPhotoPreview(
+          handles: List.of(_photos),
+          initialIndex: initialIndex,
+        ),
+      ),
+    );
   }
 
   bool _listEq(List<String> a, List<String> b) {
@@ -458,8 +480,8 @@ class _ProductEditScreenState extends ConsumerState<ProductEditScreen> {
         }
       }
     } catch (e, st) {
-      debugPrint('ÜRÜN KAYIT/YAYIN HATASI (publish=$publish): $e');
-      debugPrint('$st');
+      AppLog.d('ÜRÜN KAYIT/YAYIN HATASI (publish=$publish): $e');
+      AppLog.d('$st');
       if (mounted) {
         context.showError(_saveErrorMessage(e));
       }
@@ -522,8 +544,7 @@ class _ProductEditScreenState extends ConsumerState<ProductEditScreen> {
     final msg = e.toString();
     if (msg.contains('publish-cf-missing') ||
         msg.contains('content-cf-missing')) {
-      return 'Yayın servisi henüz kurulu değil. Önce “Kaydet” ile taslak '
-          'oluşturun; yönetici functions deploy etmeli.';
+      return 'Yayın servisi henüz kurulu değil. Yönetici functions deploy etmeli.';
     }
     if (msg.contains('resource-exhausted') || msg.contains('Günlük')) {
       return 'Günlük yayın limitine ulaştınız.';
@@ -612,26 +633,25 @@ class _ProductEditScreenState extends ConsumerState<ProductEditScreen> {
             heightFactor: 1,
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 720),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed:
-                          _saving ? null : () => _save(publish: false),
-                      child: Text(_saving ? '…' : 'Kaydet'),
-                    ),
+              child: SizedBox(
+                width: double.infinity,
+                child: FilledButton(
+                  onPressed: _saving
+                      ? null
+                      : () => _save(
+                            // Taslak/yeni: yayınla. Yayındaki içerik
+                            // güncellemesi: kaydet (yeniden inceleme).
+                            publish: _status == ProductStatus.draft ||
+                                _isNew,
+                          ),
+                  child: Text(
+                    _saving
+                        ? '…'
+                        : (_status == ProductStatus.draft || _isNew)
+                            ? 'Yayınla'
+                            : 'Güncelle',
                   ),
-                  if (_status == ProductStatus.draft || _isNew) ...[
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: FilledButton(
-                        onPressed:
-                            _saving ? null : () => _save(publish: true),
-                        child: const Text('Yayınla'),
-                      ),
-                    ),
-                  ],
-                ],
+                ),
               ),
             ),
           ),
@@ -665,85 +685,90 @@ class _ProductEditScreenState extends ConsumerState<ProductEditScreen> {
                     .titleSmall
                     ?.copyWith(fontWeight: FontWeight.w700),
               ),
+              const SizedBox(height: 4),
+              Text(
+                'Galeriden birden fazla seçebilirsiniz · dokunun: önizleme',
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                      color: palette.inkMuted,
+                    ),
+              ),
               const SizedBox(height: 8),
-              SizedBox(
-                height: 96,
-                child: ListView(
-                  scrollDirection: Axis.horizontal,
-                  children: [
-                    ..._photos.asMap().entries.map((e) {
-                      return Padding(
-                        padding: const EdgeInsets.only(right: 8),
-                        child: Stack(
-                          children: [
-                            ClipRRect(
-                              borderRadius: BorderRadius.circular(12),
-                              child: SizedBox(
-                                width: 96,
-                                height: 96,
-                                child: AppImage(
-                                  handle: e.value,
-                                  fit: BoxFit.cover,
-                                ),
-                              ),
-                            ),
-                            Positioned(
-                              top: 2,
-                              right: 2,
-                              child: IconButton.filledTonal(
-                                visualDensity: VisualDensity.compact,
-                                iconSize: 16,
-                                onPressed: () =>
-                                    setState(() => _photos.removeAt(e.key)),
-                                icon: const Icon(Icons.close),
-                              ),
-                            ),
-                          ],
-                        ),
-                      );
-                    }),
-                    if (_photos.length < AppConstants.maxProductPhotos)
-                      InkWell(
-                        onTap: (_saving || _uploadingPhoto) ? null : _pickPhoto,
+              // Kolaj: 3 sütun grid + ekle kutusu.
+              GridView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: _photos.length +
+                    (_photos.length < AppConstants.maxProductPhotos &&
+                            !_contentLocked
+                        ? 1
+                        : 0),
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 3,
+                  mainAxisSpacing: 8,
+                  crossAxisSpacing: 8,
+                  childAspectRatio: 1,
+                ),
+                itemBuilder: (context, i) {
+                  if (i >= _photos.length) {
+                    return Material(
+                      color: palette.surfaceMuted,
+                      borderRadius: BorderRadius.circular(12),
+                      child: InkWell(
                         borderRadius: BorderRadius.circular(12),
-                        child: Container(
-                          width: 96,
-                          height: 96,
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: palette.hairline),
-                            color: palette.surfaceMuted,
-                          ),
+                        onTap: _uploadingPhoto || _contentLocked
+                            ? null
+                            : _pickPhoto,
+                        child: Center(
                           child: _uploadingPhoto
-                              ? const Center(
-                                  child: SizedBox(
-                                    width: 24,
-                                    height: 24,
-                                    child: CircularProgressIndicator(
-                                        strokeWidth: 2.4),
+                              ? const SizedBox(
+                                  width: 24,
+                                  height: 24,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
                                   ),
                                 )
-                              : Column(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    Icon(Icons.add_a_photo_outlined,
-                                        color: palette.inkMuted),
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      'Kamera / Galeri',
-                                      textAlign: TextAlign.center,
-                                      style: TextStyle(
-                                        fontSize: 10,
-                                        color: palette.inkMuted,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                  ],
+                              : Icon(
+                                  Icons.add_a_photo_outlined,
+                                  color: palette.primary,
                                 ),
                         ),
                       ),
-                  ],
-                ),
+                    );
+                  }
+                  return Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      Material(
+                        color: palette.surfaceMuted,
+                        borderRadius: BorderRadius.circular(12),
+                        clipBehavior: Clip.antiAlias,
+                        child: InkWell(
+                          onTap: () => _openPhotoPreview(i),
+                          child: AppImage(
+                            handle: _photos[i],
+                            fit: BoxFit.cover,
+                          ),
+                        ),
+                      ),
+                      if (!_contentLocked)
+                        Positioned(
+                          top: 2,
+                          right: 2,
+                          child: IconButton.filledTonal(
+                            visualDensity: VisualDensity.compact,
+                            iconSize: 16,
+                            style: IconButton.styleFrom(
+                              backgroundColor: Colors.black54,
+                              foregroundColor: Colors.white,
+                            ),
+                            onPressed: () =>
+                                setState(() => _photos.removeAt(i)),
+                            icon: const Icon(Icons.close),
+                          ),
+                        ),
+                    ],
+                  );
+                },
               ),
               const SizedBox(height: 16),
               TextFormField(
@@ -838,6 +863,11 @@ class _ProductEditScreenState extends ConsumerState<ProductEditScreen> {
                     }
                     final n = Validators.parseTrAmount(v);
                     if (n == null || n <= 0) return 'Geçerli fiyat girin';
+                    // Tavan: yanlışlıkla fazladan basamak girilen fiyat
+                    // kart düzenini bozar ve müşteriyi kaçırır.
+                    if (n > AppConstants.maxPriceAmount) {
+                      return 'Fiyat çok yüksek (en fazla 100.000.000 ₺)';
+                    }
                     return null;
                   },
                 ),
@@ -915,6 +945,10 @@ class _ProductEditScreenState extends ConsumerState<ProductEditScreen> {
                         onSelected: (d) => setState(() => _district = d),
                       ),
                     ),
+              const SizedBox(height: 20),
+              // Satıcıya özgü uyarı: mevzuat sorumluluğu (vergi, fatura,
+              // tüketici hakları) satıcıdadır — yayınlamadan önce görünür.
+              DisclaimerNote.forFlow(DisclaimerFlow.urunYayinlama),
               const SizedBox(height: 80),
             ],
           ),
@@ -934,24 +968,22 @@ class _ProductEditScreenState extends ConsumerState<ProductEditScreen> {
 /// boya mı satıldığını yoksa boyacı mı arandığını belirsiz bırakıyordu.
 ///
 /// Artık [ProductCategory]: ürünün KENDİSİNİ tarif eden 14 kategori.
-/// Liste sabit olduğu için asset okumaya da gerek kalmadı.
-class _UrunKategoriSecici extends StatelessWidget {
+/// Canlı ürün kategorisi listesi (adminConfig/productCategories).
+class _UrunKategoriSecici extends ConsumerWidget {
   const _UrunKategoriSecici({required this.value, required this.onChanged});
 
   final String? value;
   final ValueChanged<String?> onChanged;
 
   @override
-  Widget build(BuildContext context) {
-    // Eski kayıt meslek koduyla gelmiş olabilir (modül kaldırılmadan önce
-    // öyle yazılıyordu). Tanınmayan kod listede yoksa alan BOŞ görünür ve
-    // kullanıcı farkında olmadan kategoriyi değiştirmiş olurdu; bu yüzden
-    // listeye eklenir ve "Diğer" adıyla gösterilir.
+  Widget build(BuildContext context, WidgetRef ref) {
+    final catalog = catalogOf(ref);
+    // Eski / pasif kod listede yoksa alan boşalmasın — eklenir.
     final kodlar = [
-      ...ProductCategory.sirali,
+      ...catalog.sirali,
       if (value != null &&
           value!.isNotEmpty &&
-          !ProductCategory.tanidik(value!))
+          !catalog.sirali.contains(value!))
         value!,
     ];
 
@@ -959,11 +991,89 @@ class _UrunKategoriSecici extends StatelessWidget {
       label: 'Kategori',
       value: value,
       items: kodlar,
-      itemLabel: ProductCategory.label,
+      itemLabel: catalog.label,
       hint: 'Kategori seçin',
       searchHint: 'Kategori ara (örn. hırdavat, mobilya…)',
       prefixIcon: Icons.category_outlined,
       onSelected: onChanged,
+    );
+  }
+}
+
+/// Ürün fotoğrafı tam ekran önizleme — X, boşluk veya geri ile kapanır.
+class _ProductPhotoPreview extends StatefulWidget {
+  const _ProductPhotoPreview({
+    required this.handles,
+    required this.initialIndex,
+  });
+
+  final List<String> handles;
+  final int initialIndex;
+
+  @override
+  State<_ProductPhotoPreview> createState() => _ProductPhotoPreviewState();
+}
+
+class _ProductPhotoPreviewState extends State<_ProductPhotoPreview> {
+  late final PageController _page =
+      PageController(initialPage: widget.initialIndex);
+  late int _index = widget.initialIndex;
+
+  @override
+  void dispose() {
+    _page.dispose();
+    super.dispose();
+  }
+
+  void _close() {
+    if (Navigator.of(context).canPop()) Navigator.of(context).pop();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final total = widget.handles.length;
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(
+        backgroundColor: Colors.black,
+        foregroundColor: Colors.white,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.close),
+          onPressed: _close,
+        ),
+        title: total > 1
+            ? Text(
+                '${_index + 1} / $total',
+                style: const TextStyle(fontWeight: FontWeight.w600),
+              )
+            : null,
+      ),
+      body: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: _close,
+        child: PageView.builder(
+          controller: _page,
+          itemCount: total,
+          onPageChanged: (i) => setState(() => _index = i),
+          itemBuilder: (_, i) {
+            return InteractiveViewer(
+              minScale: 1,
+              maxScale: 4,
+              child: Center(
+                child: GestureDetector(
+                  // Fotoğrafa basınca kapanmasın; InteractiveViewer pan.
+                  onTap: () {},
+                  child: AppImage(
+                    handle: widget.handles[i],
+                    fit: BoxFit.contain,
+                  ),
+                ),
+              ),
+            );
+          },
+        ),
+      ),
     );
   }
 }

@@ -72,6 +72,14 @@
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_channel_id"
             android:value="high_importance_channel" />
+        <!-- Fotoğraf kırpma ekranı (image_cropper / uCrop).
+             Kayıt edilmezse kırpıcı açılırken ActivityNotFoundException
+             verir ve fotoğraf kırpılmadan yüklenir. -->
+        <activity
+            android:name="com.yalantis.ucrop.UCropActivity"
+            android:screenOrientation="portrait"
+            android:exported="false"
+            android:theme="@style/Theme.AppCompat.Light.NoActionBar" />
     </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and
@@ -82,6 +90,34 @@
         <intent>
             <action android:name="android.intent.action.PROCESS_TEXT"/>
             <data android:mimeType="text/plain"/>
+        </intent>
+        <!-- url_launcher görünürlüğü (Android 11 / API 30+).
+             ZORUNLU: API 30'dan itibaren paket görünürlüğü kısıtlıdır; bu blok
+             olmadan `canLaunchUrl` false döner ve `launchUrl` tarayıcıyı
+             AÇMAZ — üstelik hata da vermez, kullanıcı düğmenin çalışmadığını
+             sanır. url_launcher eklentisi bu bloğu KENDİ manifest'inde
+             taşımaz (yalnız örnek uygulamasında vardır), uygulama tanımlamak
+             zorundadır.
+             Kullanan yerler: menü altı ilandahizmet.com bağlantısı, profil
+             sosyal medya bağlantıları, sohbetteki WhatsApp (wa.me) düğmesi,
+             yasal metin bağlantıları. -->
+        <intent>
+            <action android:name="android.intent.action.VIEW"/>
+            <data android:scheme="https"/>
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW"/>
+            <data android:scheme="http"/>
+        </intent>
+        <!-- tel: telefonu açığa çıkaran ustaya arama düğmesi. -->
+        <intent>
+            <action android:name="android.intent.action.DIAL"/>
+            <data android:scheme="tel"/>
+        </intent>
+        <!-- mailto: destek / iletişim bağlantıları. -->
+        <intent>
+            <action android:name="android.intent.action.SENDTO"/>
+            <data android:scheme="mailto"/>
         </intent>
     </queries>
 </manifest>

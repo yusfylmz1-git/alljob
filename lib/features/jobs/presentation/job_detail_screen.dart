@@ -15,6 +15,7 @@ import '../../../core/widgets/status_views.dart';
 import '../../../data/local/mock_database.dart' show kProfessionNames;
 import '../../../data/models/job.dart';
 import '../../../data/models/report.dart';
+import '../../artisan/application/availability_gate.dart';
 import '../../artisan/application/my_profile_controller.dart';
 import '../../auth/application/auth_controller.dart';
 import '../../auth/presentation/email_verification_gate.dart';
@@ -22,6 +23,7 @@ import '../../chat/data/chat_providers.dart';
 import '../../safety/presentation/report_sheet.dart';
 import '../data/job_providers.dart';
 import 'widgets/job_widgets.dart';
+import '../../../core/utils/app_log.dart';
 
 /// İlan detayı — müşteri teklifleri görür/seçer, usta teklif verir.
 class JobDetailScreen extends ConsumerWidget {
@@ -63,7 +65,12 @@ class _JobDetailBody extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final user = ref.watch(currentUserProvider);
     final isOwner = user != null && user.uid == job.customerId;
-    final isArtisan = user != null && user.isArtisan;
+    // Aktif "usta modu" değil — profili açmış olmak yeterli (İlanlar
+    // sekmesiyle aynı kapı). Ürün talebinde mağaza profili gerekir.
+    final canRespond = user != null &&
+        (job.isProductRequest
+            ? user.hasShopProfile
+            : user.hasArtisanProfile);
 
     return ResponsiveCenter(
       maxWidth: 760,
@@ -74,10 +81,30 @@ class _JobDetailBody extends ConsumerWidget {
           const SizedBox(height: 16),
           if (isOwner)
             _OwnerOffersSection(job: job)
-          else if (isArtisan)
+          else if (canRespond)
             _ArtisanOfferSection(job: job)
+          else if (job.isProductRequest &&
+              user != null &&
+              !user.hasShopProfile)
+            _NoticeCard(
+              icon: Icons.storefront_outlined,
+              text: 'Ürün taleplerine yazmak için Profil → Mağaza’dan '
+                  '“Satış yapmaya başla” ile mağaza açın.',
+              actionLabel: 'Profile git',
+              onAction: () => context.push(RoutePaths.profile),
+            )
+          else if (!job.isProductRequest &&
+              user != null &&
+              !user.hasArtisanProfile)
+            _NoticeCard(
+              icon: Icons.handyman_outlined,
+              text: 'İş ilanlarına yazmak için Profil’den usta profili açın. '
+                  'İlan vermek için usta olmanız gerekmez.',
+              actionLabel: 'Profile git',
+              onAction: () => context.push(RoutePaths.profile),
+            )
           else
-            // Keşfetten gelen başka bir müşteri: salt okunur görünüm.
+            // Misafir veya salt müşteri: salt okunur görünüm.
             const _NoticeCard(
               icon: Icons.info_outline,
               text: 'Bu ilan başka bir müşteriye ait. İlanla yalnızca '
@@ -140,7 +167,7 @@ class _JobHeaderCard extends StatelessWidget {
           const SizedBox(height: 8),
           _MetaRow(
             icon: Icons.handyman_outlined,
-            text: kProfessionNames[job.category] ?? job.category,
+            text: kProfessionNames[job.category] ?? job.categoryLabelTR,
           ),
           _MetaRow(
             icon: Icons.place_outlined,
@@ -674,32 +701,40 @@ class _ArtisanOfferSection extends ConsumerWidget {
       return;
     }
 
-    final draft = ref.read(myProfileControllerProvider).valueOrNull;
-    if (draft == null) {
-      context.showError('Profil bilgileriniz yüklenemedi.');
-      return;
-    }
-    final profile = draft.profile;
-    if (profile.professionCodes.isEmpty || profile.serviceAreas.isEmpty) {
-      context.showError('Önce profilinizi (meslek + bölge) tamamlayın.');
-      return;
-    }
-    if (!profile.isAvailable) {
-      context.showError(
-        'Şu an "müsait değil" görünüyorsunuz. Mesaj göndermek için '
-        'profilinizden müsaitliği açın.',
-      );
-      return;
-    }
-    if (!job.matchesArtisan(
-      professionCodes: profile.professionCodes,
-      serviceAreas: profile.serviceAreas,
-    )) {
-      context.showError(
-        'Bu ilan meslek veya hizmet bölgenizle eşleşmiyor. '
-        'Profilinizdeki meslek ve bölgeleri kaydedip kontrol edin.',
-      );
-      return;
+    // Ortak müsaitlik kapısı (users.available + usta vitrin müsaitliği).
+    // isArtisan (aktif mod) DEĞİL — profili olan herkes bağlanır.
+    if (!artisanAvailabilityAllowsNewChat(context, ref)) return;
+
+    // Ürün talebi → mağaza profili (meslek eşleşmesi yok).
+    if (job.isProductRequest) {
+      if (!user.hasShopProfile) {
+        context.showError(
+          'Ürün taleplerine yazmak için Profil → Mağaza’dan '
+          '“Satış yapmaya başla” ile mağaza açın.',
+        );
+        return;
+      }
+    } else {
+      final draft = ref.read(myProfileControllerProvider).valueOrNull;
+      if (draft == null) {
+        context.showError('Profil bilgileriniz yüklenemedi.');
+        return;
+      }
+      final profile = draft.profile;
+      if (profile.professionCodes.isEmpty || profile.serviceAreas.isEmpty) {
+        context.showError('Önce profilinizi (meslek + bölge) tamamlayın.');
+        return;
+      }
+      if (!job.matchesArtisan(
+        professionCodes: profile.professionCodes,
+        serviceAreas: profile.serviceAreas,
+      )) {
+        context.showError(
+          'Bu ilan meslek veya hizmet bölgenizle eşleşmiyor. '
+          'Profilinizdeki meslek ve bölgeleri kaydedip kontrol edin.',
+        );
+        return;
+      }
     }
 
     // Sunucu da zorlar (chats create + isEmailVerified).
@@ -710,14 +745,19 @@ class _ArtisanOfferSection extends ConsumerWidget {
     );
     if (!emailOk || !context.mounted) return;
 
+    final draft = ref.read(myProfileControllerProvider).valueOrNull;
+    final name = draft?.displayName ??
+        (user.displayName.isEmpty ? 'Kullanıcı' : user.displayName);
+    final photo = draft?.profilePhotoUrl ?? user.profilePhotoUrl;
+
     try {
       final chatId = await ref.read(chatRepositoryProvider).startChat(
             customerUid: job.customerId,
             customerName: job.customerName,
             customerPhotoUrl: job.customerPhotoUrl,
             artisanUid: user.uid,
-            artisanName: draft.displayName,
-            artisanPhotoUrl: draft.profilePhotoUrl,
+            artisanName: name,
+            artisanPhotoUrl: photo,
             jobId: job.jobId,
             jobTitle: job.title,
           );
@@ -729,7 +769,7 @@ class _ArtisanOfferSection extends ConsumerWidget {
       context.showError(denied
           ? 'Mesaj gönderme izniniz yok. Hesabınız askıya alınmış olabilir.'
           : 'Sohbet açılamadı, tekrar deneyin.');
-      debugPrint('[job] startChat hatası: $e');
+      AppLog.d('[job] startChat hatası: $e');
     }
   }
 
@@ -737,11 +777,36 @@ class _ArtisanOfferSection extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final palette = context.palette;
     final theme = Theme.of(context);
+    final user = ref.watch(currentUserProvider);
 
     if (!job.status.isActiveForOffers) {
       return const _NoticeCard(
         icon: Icons.info_outline,
         text: 'Bu ilan artık teklife açık değil.',
+      );
+    }
+
+    // Müsaitlik: tıklamadan ÖNCE görünsün (users.available + vitrin).
+    final draft = ref.watch(myProfileControllerProvider).valueOrNull;
+    final unavailable = providerIsUnavailableForNewChat(
+      user: user,
+      profile: draft?.profile,
+    );
+
+    if (unavailable) {
+      final forShop = job.isProductRequest;
+      return _NoticeCard(
+        icon: Icons.pause_circle_outline,
+        tone: _NoticeTone.warning,
+        text: forShop
+            ? 'Müsait değilsiniz. Ürün taleplerine mesaj atmak için '
+                'Profil’den “Müsait” durumunuzu açın. Vitrininiz de '
+                'müsaitken öne çıkar.'
+            : 'Müsait değilsiniz. İlan sahiplerine mesaj atmak için '
+                'Profil’den “Müsait” durumunuzu açın. Bildirim almaya '
+                'devam edersiniz; yalnız yeni mesaj başlatamazsınız.',
+        actionLabel: 'Profilde müsaitliği aç',
+        onAction: () => context.push(RoutePaths.profile),
       );
     }
 
@@ -757,12 +822,21 @@ class _ArtisanOfferSection extends ConsumerWidget {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(Icons.handyman_outlined, size: 20, color: palette.info),
+              Icon(
+                job.isProductRequest
+                    ? Icons.storefront_outlined
+                    : Icons.handyman_outlined,
+                size: 20,
+                color: palette.info,
+              ),
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
-                  'İlgileniyorsan ilan sahibine doğrudan mesaj at. '
-                  'Detayları kendi aranızda konuşup anlaşabilirsiniz.',
+                  job.isProductRequest
+                      ? 'İlgileniyorsan talep sahibine doğrudan mesaj at. '
+                          'Ürün ve fiyatı sohbette konuşabilirsiniz.'
+                      : 'İlgileniyorsan ilan sahibine doğrudan mesaj at. '
+                          'Detayları kendi aranızda konuşup anlaşabilirsiniz.',
                   style: theme.textTheme.bodySmall
                       ?.copyWith(fontWeight: FontWeight.w600),
                 ),
@@ -784,30 +858,73 @@ class _ArtisanOfferSection extends ConsumerWidget {
   }
 }
 
+enum _NoticeTone { neutral, warning }
 
 class _NoticeCard extends StatelessWidget {
-  const _NoticeCard({required this.icon, required this.text});
+  const _NoticeCard({
+    required this.icon,
+    required this.text,
+    this.actionLabel,
+    this.onAction,
+    this.tone = _NoticeTone.neutral,
+  });
   final IconData icon;
   final String text;
+  final String? actionLabel;
+  final VoidCallback? onAction;
+  final _NoticeTone tone;
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
+    final bg = tone == _NoticeTone.warning
+        ? palette.warningSurface
+        : palette.surfaceMuted;
+    final fg = tone == _NoticeTone.warning
+        ? palette.warning
+        : palette.inkMuted;
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: context.palette.surfaceMuted,
+        color: bg,
         borderRadius: BorderRadius.circular(16),
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Icon(icon, color: context.palette.inkMuted),
-          const SizedBox(width: 12),
-          Expanded(
-              child: Text(text,
-                  style: Theme.of(context)
-                      .textTheme
-                      .bodyMedium
-                      ?.copyWith(color: context.palette.inkMuted))),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(icon, color: fg),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  text,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: tone == _NoticeTone.warning
+                            ? palette.ink
+                            : palette.inkMuted,
+                        fontWeight: tone == _NoticeTone.warning
+                            ? FontWeight.w600
+                            : null,
+                        height: 1.35,
+                      ),
+                ),
+              ),
+            ],
+          ),
+          if (actionLabel != null && onAction != null) ...[
+            const SizedBox(height: 12),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: FilledButton.tonalIcon(
+                onPressed: onAction,
+                icon: const Icon(Icons.person_outline, size: 18),
+                label: Text(actionLabel!),
+              ),
+            ),
+          ],
         ],
       ),
     );
