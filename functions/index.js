@@ -70,11 +70,26 @@ const CONSUMER_CALL_OPTS = {region: REGION, enforceAppCheck: true};
 // oturumunun curl/script ile kullanılmasını zorlaştırır. Admin yetkileri
 // (kullanıcı askıya alma, premium tanımlama, toplu işlem) en değerli hedeftir.
 //
-// ⚠️ DEPLOY SIRASI: Console → App Check → admin web uygulaması kaydı MONITOR
-// modundayken sorun çıkmaz; ENFORCE'a almadan önce panelden birkaç işlem
-// yapıp App Check metriklerinde "doğrulanmış" istek göründüğünü teyit et.
-// Anahtar silinir/alan adı değişirse panel kilitlenir.
-const ADMIN_CALL_OPTS = {region: REGION, enforceAppCheck: true};
+// ⚠️ ŞU AN KAPALI — ÖNCE reCAPTCHA ALAN ADI KAYDI GEREKİYOR.
+//
+// 2026-08-15'te açıldı ve panel ANINDA kilitlendi: reCAPTCHA v3 anahtarı
+// yalnız `alljob1.web.app`, `alljob1.firebaseapp.com` ve `localhost` için
+// kayıtlıydı; panel ise ÖZEL ALAN ADINDAN (`admin.ilandahizmet.com`)
+// açılıyor. Kayıtlı olmayan alanda jeton üretilemez → her admin çağrısı
+// `unauthenticated` döner ve yönetici paneli tamamen erişilemez olur.
+//
+// AÇMA SIRASI (bu sırayla, atlanırsa panel yine kilitlenir):
+//   1. https://www.google.com/recaptcha/admin → mevcut v3 anahtarına
+//      `admin.ilandahizmet.com` alan adını EKLE
+//   2. Firebase Console → App Check → web uygulaması kaydını doğrula
+//   3. Panelden birkaç işlem yap; App Check metriklerinde "doğrulanmış"
+//      istek göründüğünü teyit et (MONITOR modunda)
+//   4. Ancak o zaman burayı `enforceAppCheck: true` yap ve deploy et
+//
+// Yetki kaybı YOK: `assertCap` / `assertSuperadmin` kapıları yerinde
+// duruyor. App Check ek bir katmandır (çalınmış oturumun panel dışından
+// kullanılmasını zorlaştırır), tek başına yetki sınırı değildir.
+const ADMIN_CALL_OPTS = {region: REGION};
 
 // Tek taraf "işi tamamladım" dedikten sonra karşı tarafın yanıt süresi (gün).
 // Mock paritesi: mock_job_repository.confirmDone aynı sayıyı kullanır.

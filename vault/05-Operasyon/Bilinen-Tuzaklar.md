@@ -293,6 +293,39 @@ modül tepesinde require EDİLMİYOR".
 
 ---
 
+## 🔴 App Check web'de ALAN ADINA bağlıdır — panel kilitlenir
+
+**Yaşanan (2026-08-15):** Admin callable'larına `enforceAppCheck: true`
+eklendi, deploy edildi, panel **anında erişilemez** oldu:
+
+```
+Yönetici erişimi etkinleştirilemedi (unauthenticated).
+```
+
+**Sebep:** reCAPTCHA v3 anahtarı yalnız `alljob1.web.app`,
+`alljob1.firebaseapp.com` ve `localhost` için kayıtlıydı. Panel ise **özel
+alan adından** (`admin.ilandahizmet.com`) açılıyor. Kayıtlı olmayan alanda
+reCAPTCHA jeton üretmez → App Check jetonu yok → her çağrı `unauthenticated`.
+
+> [!danger] Kod tek başına yetmez
+> `enforceAppCheck: true` yazmak kolay; asıl iş **reCAPTCHA yönetim
+> panelinde alan adını kaydetmektir**. Kayıt yoksa kod doğru olsa da panel
+> kilitlenir ve geri almak için yeniden deploy gerekir.
+
+**Açma sırası:**
+1. `google.com/recaptcha/admin` → v3 anahtarına `admin.ilandahizmet.com` ekle
+2. Firebase Console → App Check → web kaydını doğrula
+3. Panelden işlem yap, metriklerde "doğrulanmış" istek gör (MONITOR modu)
+4. **Ancak o zaman** `ADMIN_CALL_OPTS`'a `enforceAppCheck: true` ekle
+
+Yetki kaybı yoktur: `assertCap` / `assertSuperadmin` kapıları zaten
+çalışıyor. App Check ek katmandır, tek başına yetki sınırı değildir.
+
+Sözleşme testi: `test/yayin_hazirlik_denetimi_test.dart` → admin
+callable'ları tek sabitten beslenmeli (açma anında biri atlanmasın).
+
+---
+
 ## 🔴 Kural motoru transaction yapamaz — sayaç limitleri yarışır
 
 `firestore.rules` içindeki `openJobQuotaOk()` "aynı anda 5 açık ilan"

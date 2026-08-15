@@ -241,16 +241,41 @@ void main() {
           reason: 'Lint deploy öncesi otomatik çalışmıyor — kapı unutulur.');
     });
 
-    test('admin callable\'ları App Check zorluyor', () {
+    test('admin callable\'ları TEK yerden yapılandırılıyor', () {
+      // 2026-08-15: App Check admin tarafında AÇILDI ve panel anında
+      // kilitlendi — reCAPTCHA anahtarı `admin.ilandahizmet.com` alan adı
+      // için kayıtlı değildi, jeton üretilemedi, her çağrı
+      // `unauthenticated` döndü. Geri alındı.
+      //
+      // Test artık "zorlama açık mı" demiyor (açmak alan adı kaydına
+      // bağlı, kod tek başına yetmiyor); TEK KAYNAK olmasını kilitliyor:
+      // 30 admin fonksiyonu tek sabitten beslenmeli ki açma/kapama
+      // tek satırda ve eksiksiz yapılabilsin.
       final cf = read('functions/index.js');
-      expect(cf.contains('ADMIN_CALL_OPTS'), isTrue);
-      // Zorlamasız kalan admin fonksiyonu olmamalı.
-      final bare = RegExp(r'onCall\(\s*\n?\s*\{region: REGION\}')
-          .allMatches(cf)
-          .length;
-      expect(bare, 0,
-          reason: 'App Check zorlamayan callable kalmış — çalınmış admin '
-              'oturumu panel dışından kullanılabilir.');
+      expect(cf.contains('const ADMIN_CALL_OPTS'), isTrue);
+
+      // Sabiti kullanmayan, elle `{region: REGION}` yazan admin callable
+      // kalmamalı — açma anında atlanır ve yarım koruma doğurur.
+      final adminCallables = RegExp(r'exports\.(admin\w+|claimAdminAccess)\s*=\s*onCall\(\s*\n?\s*([^,\n]+)')
+          .allMatches(cf);
+      expect(adminCallables.length, greaterThan(20),
+          reason: 'Admin callable sayısı beklenenden az — regex bozulmuş '
+              'olabilir.');
+      for (final m in adminCallables) {
+        final opts = m.group(2)!.trim();
+        expect(opts.contains('ADMIN_CALL_OPTS'), isTrue,
+            reason: '${m.group(1)} ortak sabiti kullanmıyor ($opts) — '
+                'App Check açılırken atlanır.');
+      }
+    });
+
+    test('App Check açılmadan önce alan adı uyarısı kodda duruyor', () {
+      // Bu yorum silinirse bir sonraki kişi aynı tuzağa düşer: kodu
+      // `true` yapar, deploy eder, paneli kilitler.
+      final cf = read('functions/index.js');
+      expect(cf.contains('admin.ilandahizmet.com'), isTrue,
+          reason: 'reCAPTCHA alan adı kaydı uyarısı kaldırılmış — App Check '
+              'yeniden açıldığında panel tekrar kilitlenir.');
     });
 
     test('ağır paketler modül tepesinde require EDİLMİYOR', () {
