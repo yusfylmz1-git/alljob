@@ -39,6 +39,9 @@ const {
 const {getAuth} = require("firebase-admin/auth");
 const {getStorage} = require("firebase-admin/storage");
 const {getMessaging} = require("firebase-admin/messaging");
+// Node yerleşiği — ucuz, tembel yüklemeye gerek yok. Kullanan iki yer var:
+// premium token hash'i ve moderatör hesabının geçici şifresi.
+const crypto = require("crypto");
 
 initializeApp();
 const db = getFirestore();
@@ -2206,6 +2209,69 @@ exports.adminCreateInvite = onCall(
       const now = new Date();
       const expiresAt = new Date(
           now.getTime() + expDays * 24 * 60 * 60 * 1000).toISOString();
+
+      // AUTH HESABI + ŞİFRE BELİRLEME BAĞLANTISI (2026-08-15).
+      //
+      // Eskiden davet YALNIZ bir Firestore kaydıydı: "bu e-posta gelirse
+      // moderatör yap". Ama o e-postanın Auth hesabını kimse açmıyordu ve
+      // panelde kayıt ekranı da yok → davet edilen kişi GİRİŞ YAPAMIYORDU.
+      // Tek çare superadmin'in Firebase Console'dan elle hesap açıp şifreyi
+      // WhatsApp'tan göndermesiydi (şifre yazılı kanalda dolaşıyor).
+      //
+      // Artık hesap burada açılır ve ŞİFRE BELİRLEME bağlantısı üretilir.
+      // Şifreyi kimse bilmez — davet edilen kişi kendisi belirler.
+      //
+      // ⚠️ Bağlantı GÖNDERİLMEZ, superadmin'e döndürülür. Projede e-posta
+      // gönderim altyapısı yok (SendGrid/Extension kurulu değil); yeni bir
+      // dış servis bağımlılığı eklemek yerine superadmin bağlantıyı kendi
+      // güvendiği kanaldan iletir. Bağlantı tek kullanımlıktır ve Firebase
+      // tarafında süresi dolar — şifrenin kendisinden çok daha güvenlidir.
+      let resetLink = null;
+      let authUid = null;
+      let accountCreated = false;
+      try {
+        let userRec = null;
+        try {
+          userRec = await getAuth().getUserByEmail(email);
+        } catch (e) {
+          if (e && e.code === "auth/user-not-found") {
+            // Rastgele geçici şifre: hiçbir yerde saklanmaz/gösterilmez.
+            // Kullanıcı zaten şifresini bağlantıdan belirleyecek.
+            userRec = await getAuth().createUser({
+              email,
+              emailVerified: true, // bkz. aşağıdaki not
+              password: crypto.randomBytes(24).toString("hex"),
+            });
+            accountCreated = true;
+          } else {
+            throw e;
+          }
+        }
+        authUid = userRec.uid;
+
+        // E-POSTA DOĞRULAMASI: `adminAcceptInvite` doğrulanmış e-posta ister.
+        // Daveti superadmin oluşturuyor ve adresi kendisi giriyor; ayrıca
+        // şifre belirleme bağlantısı ancak o adrese ulaşan kişinin eline
+        // geçer — yani adrese erişim zaten kanıtlanmış olur. Mevcut hesap
+        // doğrulanmamışsa da doğrulanmış sayılır, aksi hâlde kabul adımı
+        // sebebi anlaşılmayan bir hatayla düşerdi.
+        if (!userRec.emailVerified) {
+          await getAuth().updateUser(userRec.uid, {emailVerified: true});
+        }
+
+        resetLink = await getAuth().generatePasswordResetLink(email);
+      } catch (e) {
+        // Hesap açılamadıysa daveti de OLUŞTURMA: yarım kalan davet,
+        // superadmin'in "davet ettim ama giremiyor" sorunuyla baş başa
+        // kalmasına yol açar — asıl düzeltmeye çalıştığımız durum bu.
+        logger.error(`adminCreateInvite auth hesabi acilamadi (${email})`, e);
+        throw new HttpsError(
+            "internal",
+            "Yönetici hesabı oluşturulamadı. E-postayı kontrol edip " +
+            "tekrar deneyin.",
+        );
+      }
+
       const ref = db.collection("adminInvites").doc();
       batch.set(ref, {
         email,
@@ -2217,16 +2283,29 @@ exports.adminCreateInvite = onCall(
         createdAt: now.toISOString(),
         expiresAt,
         acceptedByUid: null,
+        // Hesap bilgisi: kimin için açıldığı ve yeni mi açıldığı.
+        // ŞİFRE veya BAĞLANTI SAKLANMAZ — bağlantı yalnız bu çağrının
+        // yanıtında döner. Firestore'a yazılsaydı okuma yetkisi olan
+        // herkes hesabı ele geçirebilirdi.
+        authUid,
+        accountCreated,
       });
       await writeAuditLog({
         actorUid: auth.uid,
         action: "invite_create",
         targetType: "invite",
         targetId: ref.id,
-        after: {email, capabilities: caps, expiresAt},
+        after: {email, capabilities: caps, expiresAt, accountCreated},
       }, batch);
       await batch.commit();
-      return {inviteId: ref.id, email, expiresAt};
+      return {
+        inviteId: ref.id,
+        email,
+        expiresAt,
+        accountCreated,
+        // Superadmin bu bağlantıyı davet edilen kişiye iletir.
+        passwordSetupLink: resetLink,
+      };
     },
 );
 
@@ -4344,7 +4423,6 @@ exports.adminLogExport = onCall(
 // önbelleğe alınır (aynı örnek ikinci kez yüklemez).
 // → vault/05-Operasyon/Bilinen-Tuzaklar.md
 let _androidPublisher = null;
-const crypto = require("crypto");
 
 const PLAY_PACKAGE_NAME = "com.sepettehizmet.app";
 const ALLOWED_PRODUCT_IDS = new Set([

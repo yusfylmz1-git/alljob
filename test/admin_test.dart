@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sepette_hizmet/data/models/app_user.dart';
 import 'package:sepette_hizmet/data/models/job.dart';
@@ -752,11 +754,89 @@ void main() {
     test('create pending + aynı email önceki pending revoke', () async {
       final repo = MockAdminInviteRepository();
       addTearDown(repo.dispose);
-      final id1 = await repo.create(email: 'A@B.com');
-      final id2 = await repo.create(email: 'a@b.com');
+      final r1 = await repo.create(email: 'A@B.com');
+      final r2 = await repo.create(email: 'a@b.com');
       final pending = await repo.watchPending().first;
-      expect(pending.map((i) => i.id), [id2]);
-      expect(id1, isNot(id2));
+      expect(pending.map((i) => i.id), [r2.inviteId]);
+      expect(r1.inviteId, isNot(r2.inviteId));
+    });
+
+    // 2026-08-15: davet artık Auth hesabını da AÇAR ve şifre belirleme
+    // bağlantısı döndürür. Eskiden davet yalnız bir Firestore kaydıydı;
+    // davet edilen kişinin hesabı hiç açılmadığı için GİRİŞ YAPAMIYORDU
+    // (panelde kayıt ekranı da yok). Tek çare superadmin'in Console'dan
+    // elle hesap açıp şifreyi bir kanaldan göndermesiydi.
+    test('davet şifre belirleme bağlantısı döndürür', () async {
+      final repo = MockAdminInviteRepository();
+      addTearDown(repo.dispose);
+      final r = await repo.create(email: 'yeni@ornek.com');
+      expect(r.passwordSetupLink, isNotNull,
+          reason: 'Bağlantı yoksa davet edilen kişi şifresini belirleyemez '
+              've panele hiç giremez.');
+      expect(r.passwordSetupLink, isNotEmpty);
+      expect(r.email, 'yeni@ornek.com');
+    });
+  });
+
+  group('Moderatör hesabı · sunucu sözleşmesi', () {
+    late String cf;
+    setUpAll(() => cf = File('functions/index.js').readAsStringSync());
+
+    String inviteGovdesi() {
+      final i = cf.indexOf('exports.adminCreateInvite');
+      final j = cf.indexOf('\nexports.', i + 1);
+      return cf.substring(i, j == -1 ? cf.length : j);
+    }
+
+    test('davet Auth hesabını açar ve şifre bağlantısı üretir', () {
+      final g = inviteGovdesi();
+      expect(g.contains('createUser'), isTrue,
+          reason: 'Hesap açılmıyor — davet edilen kişi giriş yapamaz.');
+      expect(g.contains('generatePasswordResetLink'), isTrue,
+          reason: 'Şifre belirleme bağlantısı üretilmiyor.');
+      expect(g.contains('passwordSetupLink'), isTrue,
+          reason: 'Bağlantı çağırana döndürülmüyor.');
+    });
+
+    test('bağlantı ve şifre Firestore\'a YAZILMAZ', () {
+      final g = inviteGovdesi();
+      // Davet dokümanına yazılan alanlar arasında bağlantı olmamalı:
+      // adminInvites'i okuyabilen her yönetici hesabı ele geçirebilirdi.
+      final batchSet = g.indexOf('batch.set(ref, {');
+      expect(batchSet, greaterThan(-1));
+      final kayit = g.substring(batchSet, g.indexOf('});', batchSet));
+      expect(kayit.contains('passwordSetupLink'), isFalse,
+          reason: 'Şifre bağlantısı Firestore\'a yazılıyor — okuma yetkisi '
+              'olan herkes hesabı ele geçirebilir.');
+      expect(kayit.contains('password'), isFalse,
+          reason: 'Şifre Firestore\'a yazılıyor.');
+    });
+
+    test('hesap açılamazsa davet de OLUŞTURULMAZ', () {
+      // Yarım kalan davet: superadmin "davet ettim ama giremiyor" derdiyle
+      // baş başa kalır — düzeltmeye çalıştığımız durumun aynısı.
+      final g = inviteGovdesi();
+      final hataDali = g.indexOf('adminCreateInvite auth hesabi acilamadi');
+      expect(hataDali, greaterThan(-1),
+          reason: 'Hesap açma hatası yakalanmıyor.');
+      final batchSet = g.indexOf('batch.set(ref, {');
+      expect(hataDali, lessThan(batchSet),
+          reason: 'Davet kaydı hesap açılmadan ÖNCE yazılıyor.');
+    });
+
+    test('kabul için e-posta doğrulaması korunuyor', () {
+      // `adminAcceptInvite` doğrulanmış e-posta ister. Davetle açılan hesap
+      // bu yüzden emailVerified: true ile oluşturulur — aksi hâlde kabul
+      // adımı sebebi anlaşılmayan bir hatayla düşerdi.
+      final g = inviteGovdesi();
+      expect(g.contains('emailVerified: true'), isTrue,
+          reason: 'Davetle açılan hesap doğrulanmış sayılmıyor — '
+              '"Daveti kabul et" adımı hata verir.');
+      final i = cf.indexOf('exports.adminAcceptInvite');
+      final j = cf.indexOf('\nexports.', i + 1);
+      final kabul = cf.substring(i, j == -1 ? cf.length : j);
+      expect(kabul.contains('email_verified'), isTrue,
+          reason: 'Kabul adımındaki doğrulama kapısı kaldırılmış.');
     });
   });
 

@@ -19,6 +19,43 @@ Kod: `lib/features/admin/` — 36 dosya (projenin en büyük modülü).
 
 Claim'leri yalnız CF `adminSetRole` yazar. → [[Guvenlik-Kurallari]]
 
+### Moderatör nasıl eklenir? (davet akışı)
+
+Panel girişi **e-posta + şifre**'dir (Google girişi YOK) ve panelde **kayıt
+ekranı yoktur**. Bu yüzden hesabı davet akışı açar:
+
+1. Süperadmin → **Kadro** → e-posta + yetkiler → "Davet"
+2. `adminCreateInvite` sırayla: Auth hesabını **açar** (rastgele geçici şifre,
+   hiçbir yerde saklanmaz) → `emailVerified: true` yapar →
+   `generatePasswordResetLink` ile **şifre belirleme bağlantısı** üretir
+3. Bağlantı **yalnız çağrının yanıtında** döner; panel bir kez gösterir,
+   süperadmin kişiye iletir
+4. Kişi şifresini belirler → panele girer → **"Daveti kabul et"** →
+   `adminAcceptInvite` claim + yetenekleri yükler
+
+> [!danger] Bağlantı Firestore'a YAZILMAZ
+> `adminInvites` dokümanına yazılsaydı, koleksiyonu okuyabilen her yönetici
+> başkasının hesabını ele geçirebilirdi. Bu yüzden bağlantı tek seferlik
+> gösterilir; kaybolursa yeni davet oluşturulur.
+
+> [!warning] `emailVerified: true` neden zorunlu
+> `adminAcceptInvite` doğrulanmış e-posta ister. Hesap doğrulanmamış açılsaydı
+> kabul adımı sebebi anlaşılmayan bir hatayla düşerdi. Adresi süperadmin girer
+> ve bağlantı ancak o adrese ulaşan kişinin eline geçer — erişim zaten
+> kanıtlanmıştır.
+
+**E-posta gönderimi YOK.** Projede SendGrid/Extension kurulu değil; bağlantıyı
+süperadmin kendi kanalından iletir. Gönderim eklenirse bu adım otomatikleşir.
+
+**Hesap açılamazsa davet de oluşturulmaz** — yarım kalan davet, "davet ettim
+ama giremiyor" durumunu yaratırdı.
+
+2026-08-15 öncesi davet **yalnız bir Firestore kaydıydı**: Auth hesabını kimse
+açmıyordu, davet edilen kişi hiç giriş yapamıyordu. Tek çare Console'dan elle
+hesap açıp şifreyi bir kanaldan göndermekti.
+
+Regresyon: `test/admin_test.dart` → "Moderatör hesabı · sunucu sözleşmesi".
+
 ### 2. Yetenek (capability) — ince ayar
 `AdminCapabilities` (`admin/data/admin_capabilities.dart`). Moderatörün ne
 yapabileceği yetenek dizesi kümesiyle belirlenir:
@@ -90,6 +127,7 @@ Kullanıcı / İçerik / Şikayet / Kadro / Sistem.
 | Admin kadrosu | `admin_roster_screen.dart` |
 | Denetim kaydı | `admin_audit_screen.dart` + `admin_audit_repository.dart` |
 | Platform / ayarlar | `admin_platform_screen.dart`, `admin_settings_screen.dart` |
+| **Mağaza ürün kategorileri** | Sistem ayarları içinde `admin_product_categories_section.dart` — `adminConfig/productCategories` + CF `adminUpdateProductCategories` (`config.manage`) |
 | Toplu plan (ücretsiz dönem bitişi) | `admin_bulk_plan_screen.dart` — yalnız superadmin |
 
 Sayfalama: `paged_footer.dart` ortak bileşen.

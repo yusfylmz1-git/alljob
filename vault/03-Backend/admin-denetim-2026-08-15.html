@@ -1,0 +1,425 @@
+<title>Admin Paneli Denetimi</title>
+<style>
+  :root {
+    --ground:      #F8F7F4;
+    --surface:     #FFFFFF;
+    --sunk:        #EEEBE4;
+    --ink:         #16150F;
+    --ink-soft:    #443F36;
+    --ink-mute:    #797264;
+    --rule:        #E1DCD1;
+    --rule-soft:   #EDE9E1;
+
+    /* Aksan: mürekkep mavisi — denetim/rapor kaydı */
+    --accent:      #2B4C7E;
+    --accent-wash: #E3E9F3;
+
+    --gap:         #A32C1C;
+    --gap-wash:    #F8E3DF;
+    --partial:     #8A5A0B;
+    --partial-wash:#F8EEDA;
+    --ok:          #2F6B4F;
+    --ok-wash:     #E2EFE7;
+
+    --shadow: 0 1px 2px rgba(22,21,15,.05), 0 12px 30px -22px rgba(22,21,15,.32);
+    --measure: 66ch;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground:      #121211;
+      --surface:     #1B1B19;
+      --sunk:        #262521;
+      --ink:         #EFEDE7;
+      --ink-soft:    #C2BDB2;
+      --ink-mute:    #8B8478;
+      --rule:        #34332C;
+      --rule-soft:   #2A2923;
+      --accent:      #8FB0DE;
+      --accent-wash: #1A2331;
+      --gap:         #F0907B;
+      --gap-wash:    #331F1C;
+      --partial:     #E3B65F;
+      --partial-wash:#2F2716;
+      --ok:          #7EC69D;
+      --ok-wash:     #1B2A22;
+      --shadow: 0 1px 2px rgba(0,0,0,.5), 0 12px 30px -22px rgba(0,0,0,.85);
+    }
+  }
+  :root[data-theme="dark"] {
+    --ground:      #121211; --surface: #1B1B19; --sunk: #262521;
+    --ink: #EFEDE7; --ink-soft: #C2BDB2; --ink-mute: #8B8478;
+    --rule: #34332C; --rule-soft: #2A2923;
+    --accent: #8FB0DE; --accent-wash: #1A2331;
+    --gap: #F0907B; --gap-wash: #331F1C;
+    --partial: #E3B65F; --partial-wash: #2F2716;
+    --ok: #7EC69D; --ok-wash: #1B2A22;
+    --shadow: 0 1px 2px rgba(0,0,0,.5), 0 12px 30px -22px rgba(0,0,0,.85);
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin:0; background: var(--ground); color: var(--ink);
+    font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+    font-size:1rem; line-height:1.62; -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 62rem; margin:0 auto; padding: 0 clamp(1rem,4vw,2.5rem); }
+
+  header.mast { padding: clamp(2.2rem,5vw,3.6rem) 0 1.4rem;
+    border-bottom:3px solid var(--accent); margin-bottom:1.6rem; }
+  .kicker { font-size:.72rem; letter-spacing:.15em; text-transform:uppercase;
+    color: var(--accent); font-weight:700; margin:0 0 .7rem; }
+  h1 { font-size: clamp(1.9rem,5vw,2.7rem); line-height:1.08;
+    letter-spacing:-.02em; font-weight:750; margin:0 0 .8rem; text-wrap:balance; }
+  .sub { max-width: var(--measure); color: var(--ink-soft); font-size:1.05rem; margin:0; }
+
+  .scores { display:grid; grid-template-columns:repeat(auto-fit,minmax(8.5rem,1fr));
+    gap:.75rem; margin:1.8rem 0 2.5rem; }
+  .sc { background: var(--surface); border:1px solid var(--rule);
+    border-radius:10px; padding:.85rem 1rem; box-shadow: var(--shadow); }
+  .sc b { display:block; font-size:1.5rem; font-weight:750; line-height:1.15;
+    letter-spacing:-.02em; font-variant-numeric: tabular-nums; }
+  .sc span { display:block; font-size:.71rem; letter-spacing:.06em;
+    text-transform:uppercase; color: var(--ink-mute); margin-top:.2rem; }
+  .sc.g b { color: var(--gap); } .sc.p b { color: var(--partial); }
+  .sc.o b { color: var(--ok); }
+
+  h2 { font-size:1.45rem; font-weight:720; letter-spacing:-.015em;
+    margin:3rem 0 .3rem; padding-bottom:.5rem; border-bottom:1px solid var(--rule);
+    text-wrap:balance; }
+  .lede { color: var(--ink-soft); max-width: var(--measure); margin:.9rem 0 1.5rem; }
+  h3 { font-size:1.05rem; font-weight:700; margin:1.8rem 0 .5rem; }
+  p { max-width: var(--measure); margin:0 0 .9rem; }
+  ul,ol { max-width: var(--measure); padding-left:1.25rem; }
+  li { margin-bottom:.42rem; }
+  code { font-family: ui-monospace,"Cascadia Mono",Consolas,monospace;
+    font-size:.86em; background: var(--sunk); padding:.13em .38em;
+    border-radius:4px; word-break:break-word; }
+  pre { background: var(--sunk); border:1px solid var(--rule-soft);
+    border-radius:8px; padding:.9rem 1.1rem; overflow-x:auto;
+    font-size:.83rem; line-height:1.5; margin:.8rem 0; }
+  pre code { background:none; padding:0; }
+
+  .find { background: var(--surface); border:1px solid var(--rule);
+    border-left:4px solid var(--rule); border-radius:8px;
+    padding:1.25rem 1.45rem; margin-bottom:1.1rem; box-shadow: var(--shadow); }
+  .find.gap { border-left-color: var(--gap); }
+  .find.partial { border-left-color: var(--partial); }
+  .find.ok { border-left-color: var(--ok); }
+  .find > :last-child { margin-bottom:0; }
+  .fh { display:flex; flex-wrap:wrap; align-items:center; gap:.55rem; margin-bottom:.7rem; }
+  .pill { font-size:.66rem; font-weight:750; letter-spacing:.08em;
+    text-transform:uppercase; padding:.22rem .5rem; border-radius:4px; flex:none; }
+  .pill.gap { background: var(--gap-wash); color: var(--gap); }
+  .pill.partial { background: var(--partial-wash); color: var(--partial); }
+  .pill.ok { background: var(--ok-wash); color: var(--ok); }
+  .ft { font-size:1.08rem; font-weight:700; margin:0; flex:1 1 14rem; text-wrap:balance; }
+  .loc { font-family: ui-monospace,Consolas,monospace; font-size:.76rem;
+    color: var(--ink-mute); margin:0 0 .8rem; max-width:none; word-break:break-all; }
+
+  .why { background: var(--sunk); border-radius:6px; padding:.8rem 1rem;
+    margin-top:.9rem; max-width:none; }
+  .why .lbl { display:block; font-size:.66rem; letter-spacing:.1em;
+    text-transform:uppercase; color: var(--ink-mute); margin-bottom:.3rem; }
+  .why p { margin:0; max-width:none; font-size:.94rem; color: var(--ink-soft); }
+
+  .tscroll { overflow-x:auto; margin:1rem 0; }
+  table { border-collapse:collapse; width:100%; font-size:.9rem; min-width:30rem; }
+  th,td { text-align:left; padding:.55rem .75rem;
+    border-bottom:1px solid var(--rule-soft); vertical-align:top; }
+  th { font-size:.7rem; letter-spacing:.07em; text-transform:uppercase;
+    color: var(--ink-mute); border-bottom:1px solid var(--rule); }
+  td.n { font-variant-numeric: tabular-nums; font-family: ui-monospace,Consolas,monospace; }
+  .yes { color: var(--ok); font-weight:700; }
+  .no  { color: var(--gap); font-weight:700; }
+  .half{ color: var(--partial); font-weight:700; }
+
+  footer { border-top:1px solid var(--rule); padding:1.4rem 0 4rem;
+    color: var(--ink-mute); font-size:.85rem; max-width:none; }
+</style>
+
+<div class="wrap">
+
+<header class="mast">
+  <p class="kicker">İlanda Hizmet · 15 Ağustos 2026</p>
+  <h1>Admin Paneli Denetimi</h1>
+  <p class="sub">
+    14.525 satır, 43 dosya, 30 yönetici fonksiyonu incelendi. Panel
+    beklediğimden olgun — moderasyon, yetki ve denetim izi eksiksiz. Asıl
+    boşluk istatistik tarafında: <b>veri toplanıyor ama gösterilmiyor.</b>
+  </p>
+</header>
+
+<div class="scores">
+  <div class="sc o"><b>18</b><span>Hazır</span></div>
+  <div class="sc p"><b>4</b><span>Yarım</span></div>
+  <div class="sc g"><b>5</b><span>Eksik</span></div>
+  <div class="sc o"><b>30</b><span>Admin CF</span></div>
+  <div class="sc o"><b>18</b><span>Yetki türü</span></div>
+</div>
+
+<h2>Önce sorunuzun cevabı: moderatör hesabı</h2>
+
+<div class="find ok">
+  <div class="fh"><span class="pill ok">Var</span>
+    <h3 class="ft" style="margin:0">Kullanıcı adı/parola tanımlama ekranı YOK — çünkü olmamalı</h3></div>
+  <p class="loc">admin_roster_screen.dart · adminCreateInvite · adminAcceptInvite</p>
+  <p>
+    Panelde "moderatöre şifre belirle" ekranı aramanız doğal, ama sistem
+    bilinçli olarak <b>davet modeliyle</b> çalışıyor ve bu daha güvenli:
+  </p>
+  <ol>
+    <li>Süper yönetici <b>Kadro</b> sekmesinden moderatörün e-postasını girip
+      davet oluşturur (yetkileri de burada seçer).</li>
+    <li>Moderatör admin paneline <b>kendi Google hesabıyla</b> girer.</li>
+    <li>"Daveti kabul et" der; sunucu yetkilerini yükler.</li>
+  </ol>
+  <div class="why">
+    <span class="lbl">Neden şifre tanımlamak istemezsiniz</span>
+    <p>
+      Şifre tanımlasaydınız: şifreyi bir kanaldan iletmeniz (sızma riski),
+      saklamanız, sıfırlama akışı yazmanız ve kaybolanı kurtarmanız gerekirdi.
+      Davet modelinde kimlik doğrulamayı Google yapar — iki adımlı doğrulama
+      dâhil. Ayrıca kimin kabul ettiği <code>acceptedByUid</code> ile kayda
+      geçer.
+    </p>
+  </div>
+  <p style="margin-top:.9rem"><b>Yani bu bir eksik değil.</b> Ancak keşfedilebilirliği
+    zayıf — aşağıda P2 olarak not düştüm.</p>
+</div>
+
+<h2>Asıl bulgu: istatistikler</h2>
+<p class="lede">
+  Sorduğunuz "ilan sayısı, talep sayısı, usta sayısı, hangi şehirden" verilerinin
+  <b>çoğu zaten toplanıyor.</b> Sorun, bir kısmının hiç gösterilmemesi ve
+  zaman boyutunun bulunmaması.
+</p>
+
+<div class="find gap">
+  <div class="fh"><span class="pill gap">P0 · Eksik</span>
+    <h3 class="ft" style="margin:0">Günlük veri her gün yazılıyor ama panelde HİÇ okunmuyor</h3></div>
+  <p class="loc">functions/index.js:288 <code>bumpDaily()</code> → <code>adminStats/daily/days/{YYYY-MM-DD}</code></p>
+  <p>
+    Bu denetimin en değerli bulgusu. Cloud Functions her gün şu sayaçları
+    <b>zaten</b> biriktiriyor:
+  </p>
+  <div class="tscroll"><table>
+    <thead><tr><th>Alan</th><th>Ne sayıyor</th><th>Panelde görünüyor mu?</th></tr></thead>
+    <tbody>
+      <tr><td><code>jobsCreated</code></td><td>Günlük açılan ilan</td><td class="no">Hayır</td></tr>
+      <tr><td><code>usersCreated</code></td><td>Günlük yeni kullanıcı</td><td class="no">Hayır</td></tr>
+      <tr><td><code>artisansCreated</code></td><td>Günlük yeni usta</td><td class="no">Hayır</td></tr>
+      <tr><td><code>productsActivated</code></td><td>Günlük yayınlanan ürün</td><td class="no">Hayır</td></tr>
+      <tr><td><code>reportsCreated</code></td><td>Günlük şikayet</td><td class="no">Hayır</td></tr>
+    </tbody>
+  </table></div>
+  <p>
+    Firestore kuralları bu koleksiyonu yöneticiye <b>okumaya açıyor</b>
+    (<code>firestore.rules:942</code>), yani veri hazır ve erişilebilir —
+    yalnızca okuyan bir repository ve grafik çizen bir ekran yok.
+  </p>
+  <div class="why">
+    <span class="lbl">Bunun anlamı</span>
+    <p>
+      "Bu hafta geçen haftaya göre kaç ilan arttı?" sorusunu bugün
+      yanıtlayamıyorsunuz. Oysa cevabın verisi aylardır birikiyor. Bu, sıfırdan
+      veri toplamaya kıyasla <b>çok daha küçük</b> bir iş: bir repository +
+      bir grafik bileşeni.
+    </p>
+  </div>
+</div>
+
+<div class="find gap">
+  <div class="fh"><span class="pill gap">P0 · Eksik</span>
+    <h3 class="ft" style="margin:0">Ürün talebi sayısı ayrı ölçülmüyor</h3></div>
+  <p class="loc">admin_insights_repository.dart · jobCategories</p>
+  <p>
+    Ürün talepleri <code>jobs</code> koleksiyonunda, ayırt edici alan
+    <code>category == 'product_request'</code>. İçgörülerde bunlar diğer
+    ilanlarla birlikte sayılıyor; ayrı bir "talep" metriği yok.
+  </p>
+  <p>
+    Siz raporda özellikle <b>"ilan sayısı, talep sayısı"</b> diye ikisini ayrı
+    saydınız — panel bu ayrımı yapmıyor. Mağaza modülünün işleyip işlemediğini
+    ölçmek için gerekli.
+  </p>
+</div>
+
+<div class="find partial">
+  <div class="fh"><span class="pill partial">P1 · Yarım</span>
+    <h3 class="ft" style="margin:0">Şehir dağılımı var ama yalnız örneklemden</h3></div>
+  <p class="loc">admin_insights_repository.dart:249 <code>fetchInsights(sampleSize: 400)</code></p>
+  <p>
+    İyi haber: <b>şehir bazlı ilan dağılımı zaten var</b> ve panelde çubuk
+    olarak gösteriliyor (<code>jobProvinces</code>, ilk 10 il). Usta meslek
+    dağılımı ve ürün kategorisi dağılımı da öyle.
+  </p>
+  <p>
+    Sınır: bu <b>son 400 kayıtlık örneklem</b>, tam sayım değil. Etiketlerde
+    bu açıkça yazıyor, yani yanıltıcı değil — ama platform büyüdükçe "İstanbul
+    %30" gibi bir oran gerçeği yansıtmayabilir.
+  </p>
+  <div class="why">
+    <span class="lbl">Neden örneklem seçilmiş</span>
+    <p>
+      Tam tarama her açılışta binlerce doküman okur — Firestore faturası
+      okuma başınadır. Bilinçli bir maliyet kararı. Tam sayım isteniyorsa
+      doğru yol istemcide taramak değil, CF'in günlük olarak
+      <b>il bazlı sayaç</b> yazmasıdır (aşağıdaki öneri).
+    </p>
+  </div>
+</div>
+
+<div class="find partial">
+  <div class="fh"><span class="pill partial">P1 · Yarım</span>
+    <h3 class="ft" style="margin:0">Grafik yok — yalnız yatay çubuk</h3></div>
+  <p class="loc">admin_dashboard_screen.dart:627 <code>_RankBar</code></p>
+  <p>
+    Dağılımlar <code>LinearProgressIndicator</code> tabanlı basit çubuklarla
+    çiziliyor. Bu sıralama için yeterli ("hangi il önde?") ama <b>zaman
+    içindeki değişimi</b> gösteremiyor. Projede grafik kütüphanesi yok
+    (<code>fl_chart</code> vb. bağımlılık bulunmuyor).
+  </p>
+  <div class="why">
+    <span class="lbl">Önerim: kütüphane eklemeyin</span>
+    <p>
+      İhtiyacınız olan üç grafik türü (çizgi, çubuk, halka) Flutter'ın kendi
+      <code>CustomPaint</code>'iyle 200–300 satırda çizilir. Yeni bağımlılık
+      paket boyutunu artırır ve R8 keep kuralı gerektirir — az önce
+      sertleştirdiğimiz yapıya ek yüzey açar.
+    </p>
+  </div>
+</div>
+
+<div class="find gap">
+  <div class="fh"><span class="pill gap">P1 · Eksik</span>
+    <h3 class="ft" style="margin:0">Şehir dağılımı yalnız ilanlarda — usta ve mağazada yok</h3></div>
+  <p class="loc">admin_insights_repository.dart · artisanProfessions</p>
+  <p>
+    Ustalar için <b>meslek</b> dağılımı toplanıyor ama <b>il</b> dağılımı
+    toplanmıyor. Oysa "hangi şehirde kaç usta var?" arz-talep dengesini
+    gösteren en kritik sorudur: ilanın çok, ustanın az olduğu il, büyüme
+    yapılacak yerdir.
+  </p>
+  <p>
+    Usta profilinde <code>serviceAreas</code> (il/ilçe listesi) zaten var —
+    yalnızca sayılmıyor.
+  </p>
+</div>
+
+<div class="find gap">
+  <div class="fh"><span class="pill gap">P2 · Eksik</span>
+    <h3 class="ft" style="margin:0">İstatistikleri dışa aktarma yok</h3></div>
+  <p class="loc">admin_export_util.dart · adminLogExport</p>
+  <p>
+    Dışa aktarma altyapısı <b>var</b> ama yalnız denetim kayıtları için
+    (<code>export.run</code> yetkisi + CF loglaması). İstatistik ekranından
+    CSV alınamıyor — yatırımcı sunumu veya vergi/muhasebe için dışarı veri
+    çıkarmak gerektiğinde elle kopyalamak gerekir.
+  </p>
+</div>
+
+<h2>Sağlam bulunanlar</h2>
+<p class="lede">
+  Panelin çekirdeği beklediğimden iyi durumda. Bunları değiştirmeye gerek yok.
+</p>
+
+<div class="tscroll"><table>
+  <thead><tr><th>Alan</th><th>Durum</th><th>Not</th></tr></thead>
+  <tbody>
+    <tr><td>Yetki modeli</td><td class="yes">Tam</td><td>3 katman: rol (claim) + 18 yetenek + <code>enforceMode</code>. Yetenekler CF ve istemcide paritede.</td></tr>
+    <tr><td>Moderatör daveti</td><td class="yes">Tam</td><td>Süresi dolan davet, iptal, kabul kaydı, denetim izi</td></tr>
+    <tr><td>Denetim kaydı</td><td class="yes">Tam</td><td>Her yönetici eylemi <code>adminAuditLogs</code>'a; yazımı yalnız CF yapar</td></tr>
+    <tr><td>Kişi hub</td><td class="yes">Tam</td><td>360° görünüm: kimlik, aktivite, not, askı, premium, belge</td></tr>
+    <tr><td>Şikayet kuyruğu</td><td class="yes">Tam</td><td>Atama, çözme, mesaj moderasyonu, sohbet dökümü</td></tr>
+    <tr><td>İçerik moderasyonu</td><td class="yes">Tam</td><td>İlan, ürün, usta vitrini, değerlendirme</td></tr>
+    <tr><td>Kill-switch'ler</td><td class="yes">Tam</td><td>Bakım modu, zorunlu güncelleme, ürün modülü, premium beta</td></tr>
+    <tr><td>Toplu işlem</td><td class="yes">Tam</td><td>Toplu askı, toplu plan değişimi (yalnız superadmin)</td></tr>
+    <tr><td>Duyuru / push</td><td class="yes">Tam</td><td>Anlık ve zamanlanmış kampanya</td></tr>
+    <tr><td>Destek talepleri</td><td class="yes">Tam</td><td>Kuyruk + durum yönetimi</td></tr>
+    <tr><td>Ürün kategorileri</td><td class="yes">Tam</td><td>Yayın yapmadan düzenlenebilir</td></tr>
+    <tr><td>KPI sayaçları</td><td class="yes">Tam</td><td>Olay bazlı, yeniden inşa edilebilir (<code>adminRebuildStats</code>)</td></tr>
+    <tr><td>Güvenlik</td><td class="yes">Tam</td><td>30 CF'in hepsinde yetki kapısı + App Check (bugün eklendi)</td></tr>
+  </tbody>
+</table></div>
+
+<h2>Ne yapılmalı — sıralı plan</h2>
+
+<h3>1. Günlük trend grafiği <span style="color:var(--ink-mute);font-weight:400">(en yüksek getiri)</span></h3>
+<p>
+  Veri <b>zaten birikmiş.</b> Yapılacak iş: <code>adminStats/daily/days</code>
+  koleksiyonunu okuyan bir repository, son 30/90 günü çizen bir çizgi grafik
+  ve dashboard'a bir bölüm.
+</p>
+<p>Ölçebileceğiniz sorular: günlük yeni kullanıcı, yeni ilan, yayınlanan ürün,
+  yeni usta, şikayet — hepsi zaman içinde.</p>
+
+<h3>2. Ürün talebini ayrı sayma</h3>
+<p>
+  <code>category == 'product_request'</code> olan ilanları ayrı bir metrik
+  yapmak. Hem içgörülerde hem günlük sayaçta (<code>bumpDaily</code>'ye tek
+  satır). Mağaza modülünün gerçekten kullanılıp kullanılmadığını ancak böyle
+  görürsünüz.
+</p>
+
+<h3>3. Usta/mağaza il dağılımı</h3>
+<p>
+  Ustaların <code>serviceAreas</code> alanından il sayımı. İlan il dağılımıyla
+  yan yana konduğunda <b>arz–talep haritası</b> çıkar: nerede ilan çok usta az?
+</p>
+
+<h3>4. Grafik bileşenleri</h3>
+<p>
+  <code>CustomPaint</code> ile üç bileşen: çizgi (zaman serisi), çubuk
+  (karşılaştırma), halka (oran). Yeni paket bağımlılığı önermiyorum —
+  gerekçesi yukarıda.
+</p>
+
+<h3>5. CSV dışa aktarma</h3>
+<p>
+  Mevcut <code>admin_export_util.dart</code> deseni izlenerek istatistik
+  ekranına indirme düğmesi. <code>export.run</code> yetkisi ve denetim
+  loglaması zaten var.
+</p>
+
+<h3>6. Kadro sekmesine açıklama <span style="color:var(--ink-mute);font-weight:400">(küçük)</span></h3>
+<p>
+  "Moderatör nasıl eklenir?" sorusunun cevabı ekranda yazmıyor. Üç adımlık
+  kısa bir açıklama metni, yeni bir süper yöneticinin kafasının karışmasını
+  önler.
+</p>
+
+<h2>Kapsam kararı sizin</h2>
+<p>
+  Yukarıdaki altı madde tek oturumda yapılabilir ama <b>Play yayınını
+  geciktirir.</b> İki yol var:
+</p>
+<div class="tscroll"><table>
+  <thead><tr><th>Yol</th><th>İçerik</th><th>Sonuç</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><b>A · Önce yayın</b></td>
+      <td>Play'e çıkın; admin geliştirmesi sonra</td>
+      <td>Panel bugünkü hâliyle <b>yönetilebilir</b> — moderasyon, askı,
+        şikayet, kill-switch hepsi çalışıyor. İstatistik eksikliği kullanıcıyı
+        etkilemez.</td>
+    </tr>
+    <tr>
+      <td><b>B · Önce panel</b></td>
+      <td>1–6 arası maddeler, sonra yayın</td>
+      <td>Yayın günü elinizde tam ölçüm olur. İlk günlerin verisi kritikse
+        mantıklı — çünkü geçmiş veri sonradan üretilemez.</td>
+    </tr>
+  </tbody>
+</table></div>
+<p>
+  <b>Önerim A.</b> Günlük sayaçlar <b>şu anda da yazılıyor</b>; paneli
+  sonra yapsanız da o günlerin verisi kaybolmaz. Yani beklemenin veri
+  maliyeti yok.
+</p>
+
+<footer>
+  Denetim 15 Ağustos 2026 · <code>lib/features/admin/</code> 43 dosya ·
+  14.525 satır · 30 yönetici Cloud Function · 18 yetenek türü
+</footer>
+
+</div>

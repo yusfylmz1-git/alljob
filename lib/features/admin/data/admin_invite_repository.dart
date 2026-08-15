@@ -44,9 +44,35 @@ class AdminInvite {
   );
 }
 
+/// Davet oluşturmanın sonucu.
+///
+/// [passwordSetupLink] davet edilen kişinin ŞİFRESİNİ BELİRLEYECEĞİ tek
+/// kullanımlık bağlantıdır. Sunucu bunu yalnız çağrının yanıtında döndürür;
+/// Firestore'a YAZILMAZ — yazılsaydı koleksiyonu okuyabilen herkes hesabı
+/// ele geçirebilirdi. Bu yüzden ekranda bir kez gösterilir ve süperadmin
+/// tarafından iletilir.
+class AdminInviteResult {
+  const AdminInviteResult({
+    required this.inviteId,
+    required this.email,
+    this.passwordSetupLink,
+    this.accountCreated = false,
+  });
+
+  final String inviteId;
+  final String email;
+
+  /// Şifre belirleme bağlantısı (yalnız bu yanıtta gelir).
+  final String? passwordSetupLink;
+
+  /// true: Auth hesabı bu davetle YENİ açıldı. false: e-posta zaten kayıtlıydı
+  /// (ör. uygulamayı kullanan biri moderatör yapılıyor).
+  final bool accountCreated;
+}
+
 abstract interface class AdminInviteRepository {
   Stream<List<AdminInvite>> watchPending();
-  Future<String> create({
+  Future<AdminInviteResult> create({
     required String email,
     List<String>? capabilities,
     int expiresInDays = 7,
@@ -82,7 +108,7 @@ class FirebaseAdminInviteRepository implements AdminInviteRepository {
   }
 
   @override
-  Future<String> create({
+  Future<AdminInviteResult> create({
     required String email,
     List<String>? capabilities,
     int expiresInDays = 7,
@@ -97,9 +123,14 @@ class FirebaseAdminInviteRepository implements AdminInviteRepository {
         .call<Object?>(payload);
     final data = res.data;
     if (data is Map && data['inviteId'] != null) {
-      return data['inviteId'].toString();
+      return AdminInviteResult(
+        inviteId: data['inviteId'].toString(),
+        email: (data['email'] ?? email.trim()).toString(),
+        passwordSetupLink: data['passwordSetupLink']?.toString(),
+        accountCreated: data['accountCreated'] == true,
+      );
     }
-    return '';
+    return AdminInviteResult(inviteId: '', email: email.trim());
   }
 
   @override
@@ -133,7 +164,7 @@ class MockAdminInviteRepository implements AdminInviteRepository {
         ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
 
   @override
-  Future<String> create({
+  Future<AdminInviteResult> create({
     required String email,
     List<String>? capabilities,
     int expiresInDays = 7,
@@ -162,7 +193,15 @@ class MockAdminInviteRepository implements AdminInviteRepository {
       createdBy: 'sa',
     );
     if (!_changes.isClosed) _changes.add(null);
-    return id;
+    // Mock paritesi: canlıda sunucu şifre belirleme bağlantısı döndürür.
+    // Gerçek bağlantı üretilemez, ama alanın DOLU gelmesi ekranın "bağlantı
+    // yok" dalına düşmemesini sağlar — testler gerçek akışı görür.
+    return AdminInviteResult(
+      inviteId: id,
+      email: e,
+      passwordSetupLink: 'https://example.invalid/sifre-belirle?mock=$id',
+      accountCreated: true,
+    );
   }
 
   @override

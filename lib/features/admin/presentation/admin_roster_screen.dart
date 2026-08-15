@@ -39,18 +39,121 @@ class _AdminRosterScreenState extends ConsumerState<AdminRosterScreen> {
     }
     setState(() => _inviting = true);
     try {
-      await ref.read(adminInviteRepositoryProvider).create(email: email);
+      final sonuc = await ref
+          .read(adminInviteRepositoryProvider)
+          .create(email: email);
       if (!mounted) return;
       _inviteEmail.clear();
-      context.showSuccess(
-        'Davet oluşturuldu. Kullanıcı admin paneline giriş yapıp '
-        '“Daveti kabul et” demeli.',
-      );
+      // Bağlantı YALNIZ bu yanıtta gelir (sunucu saklamaz). Kaçırılırsa
+      // yeniden üretilemez — bu yüzden snackbar değil, kapatılana kadar
+      // duran bir pencerede gösterilir.
+      await _sifreBaglantisiPenceresi(sonuc);
     } catch (_) {
       if (mounted) context.showError('Davet oluşturulamadı.');
     } finally {
       if (mounted) setState(() => _inviting = false);
     }
+  }
+
+  /// Şifre belirleme bağlantısını gösterir ve kopyalatır.
+  ///
+  /// Neden pencere: bağlantı tek kullanımlıktır ve sunucuda saklanmaz.
+  /// Süperadmin onu davet edilen kişiye kendi güvendiği kanaldan iletir.
+  /// Şifreyi kimse bilmez — kişi kendisi belirler.
+  Future<void> _sifreBaglantisiPenceresi(AdminInviteResult sonuc) async {
+    final link = sonuc.passwordSetupLink;
+    if (link == null || link.isEmpty) {
+      // Hesap zaten vardı ve bağlantı üretilemedi: kişi mevcut şifresiyle
+      // girer, gerekirse giriş ekranından "şifremi unuttum" kullanır.
+      context.showSuccess(
+        'Davet oluşturuldu. ${sonuc.email} kendi hesabıyla giriş yapıp '
+        '"Daveti kabul et" demeli.',
+      );
+      return;
+    }
+    if (!mounted) return;
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) {
+        final palette = ctx.palette;
+        return AlertDialog(
+          title: const Text('Davet hazır'),
+          content: SizedBox(
+            width: 520,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  sonuc.accountCreated
+                      ? '${sonuc.email} için yönetici hesabı açıldı.'
+                      : '${sonuc.email} zaten kayıtlıydı; yetki daveti '
+                            'oluşturuldu.',
+                  style: const TextStyle(fontWeight: FontWeight.w700),
+                ),
+                const SizedBox(height: 12),
+                const Text(
+                  'Aşağıdaki bağlantıyı bu kişiye iletin. Bağlantıyı açıp '
+                  'kendi şifresini belirleyecek — şifreyi siz de bilmezsiniz.',
+                ),
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: palette.surfaceMuted,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: palette.border),
+                  ),
+                  child: SelectableText(
+                    link,
+                    style: const TextStyle(fontSize: 12, height: 1.4),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: palette.warningSurface,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    'Bu bağlantı bir daha gösterilmez. Şimdi kopyalayın — '
+                    'kaybolursa yeni davet oluşturmanız gerekir.',
+                    style: TextStyle(fontSize: 12, color: palette.ink),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  'Kişi şifresini belirledikten sonra panele girip '
+                  '"Daveti kabul et" demelidir — yetkiler ancak o zaman '
+                  'yüklenir.',
+                  style: TextStyle(fontSize: 12, color: palette.inkMuted),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Kapat'),
+            ),
+            FilledButton.icon(
+              onPressed: () async {
+                await Clipboard.setData(ClipboardData(text: link));
+                if (ctx.mounted) {
+                  ScaffoldMessenger.of(ctx).showSnackBar(
+                    const SnackBar(content: Text('Bağlantı kopyalandı')),
+                  );
+                }
+              },
+              icon: const Icon(Icons.copy_rounded, size: 18),
+              label: const Text('Bağlantıyı kopyala'),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   Future<void> _editCaps(AdminRosterEntry entry) async {
@@ -167,12 +270,53 @@ class _AdminRosterScreenState extends ConsumerState<AdminRosterScreen> {
                   ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800),
                 ),
                 const SizedBox(height: 6),
-                Text(
-                  'Şifre üretilmez. Kişi admin paneline kendi hesabıyla girer '
-                  've daveti kabul eder. Superadmin davet edilemez.',
-                  style: TextStyle(color: palette.inkMuted, fontSize: 12),
+                // Akış ekranda YAZILI olmalı: yeni bir süperadmin
+                // "şifreyi nereden vereceğim?" diye takılıyordu.
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: palette.infoSurface,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Nasıl çalışır?',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w800,
+                          fontSize: 12,
+                          color: palette.ink,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        '1. E-postayı girip "Davet" deyin — hesap açılır ve '
+                        'size bir şifre belirleme bağlantısı verilir.\n'
+                        '2. Bağlantıyı kişiye iletin; kendi şifresini '
+                        'belirler (siz de bilmezsiniz).\n'
+                        '3. Panele girip "Daveti kabul et" der — yetkiler '
+                        'o zaman yüklenir.',
+                        style: TextStyle(
+                          color: palette.inkMuted,
+                          fontSize: 12,
+                          height: 1.5,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        'Süper yönetici davet edilemez; yetki yükseltme '
+                        'yalnız Kadro listesinden yapılır.',
+                        style: TextStyle(
+                          color: palette.inkMuted,
+                          fontSize: 11,
+                          fontStyle: FontStyle.italic,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-                const SizedBox(height: 10),
+                const SizedBox(height: 12),
                 Row(
                   children: [
                     Expanded(
