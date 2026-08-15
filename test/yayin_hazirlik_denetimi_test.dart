@@ -253,6 +253,29 @@ void main() {
               'oturumu panel dışından kullanılabilir.');
     });
 
+    test('ağır paketler modül tepesinde require EDİLMİYOR', () {
+      // BELİRTİ: deploy sırasında
+      //   "Cannot determine backend specification. Timeout after 10000."
+      // SEBEP: Firebase CLI fonksiyon listesini çıkarmak için index.js'i
+      // çalıştırır ve bu adımın 10 sn'lik SABİT bütçesi vardır. `googleapis`
+      // 110 MB'tır, yüklenmesi ~1 sn sürer ve bütçeyi yer. Aynı maliyet TÜM
+      // fonksiyonların soğuk başlangıcına da biner — oysa pakete yalnız
+      // satın alma doğrulaması ihtiyaç duyar.
+      final cf = read('functions/index.js');
+
+      // Tembel require fonksiyon GÖVDESİNDE olmalı, modül tepesinde değil.
+      final tepe = cf.substring(0, cf.indexOf('exports.'));
+      expect(tepe.contains('require("googleapis")'), isFalse,
+          reason: 'googleapis modül tepesinde yükleniyor — deploy '
+              '"backend specification" adımında zaman aşımına uğrar.');
+
+      // Yine de KULLANILIYOR olmalı (yanlışlıkla silinmemiş).
+      expect(cf.contains('require("googleapis")'), isTrue,
+          reason: 'Play doğrulaması googleapis olmadan çalışamaz.');
+      // Sonuç önbelleğe alınmalı: her çağrıda 1 sn ödenmesin.
+      expect(cf.contains('_androidPublisher'), isTrue);
+    });
+
     test('eşzamanlı açık ilan limiti sunucuda atomik', () {
       // Kural motoru transaction yapamaz: sayaç tazelenmeden gelen istekler
       // aynı eski değeri okur ve hepsi limitten geçerdi (TOCTOU).

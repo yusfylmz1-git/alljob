@@ -212,6 +212,56 @@ token'ı tekrar kullanılamaz".
 
 ---
 
+## 🔴 "Cannot determine backend specification. Timeout after 10000"
+
+**Belirti:** `firebase deploy --only functions` şu hatayla düşer:
+
+```
+Error: User code failed to load. Cannot determine backend specification.
+Timeout after 10000.
+```
+
+**Sebep:** Firebase CLI, hangi fonksiyonların var olduğunu öğrenmek için
+`index.js`'i **çalıştırır**. Bu adımın **10 saniyelik sabit** bütçesi vardır
+ve modül tepesindeki her `require` bu bütçeden yer.
+
+Suçlu genelde tek bir ağır paket olur. 2026-08-15'te `googleapis`
+(**110 MB**, ~1 sn) modül tepesinde yükleniyordu — üstelik ona yalnız
+`verifyMembershipPurchase` ihtiyaç duyuyordu. Aynı maliyet **tüm**
+fonksiyonların soğuk başlangıcına da biniyordu.
+
+**Çözüm — tembel (lazy) require + önbellek:**
+
+```javascript
+let _androidPublisher = null;              // modül tepesinde YALNIZ değişken
+async function getAndroidPublisherClient() {
+  if (_androidPublisher) return _androidPublisher;
+  const {google} = require("googleapis");  // ← ilk çağrıda yüklenir
+  ...
+}
+```
+
+Ölçüm: modül yüklemesi **1551 ms → 566 ms**.
+
+> [!tip] Önce ölç, sonra suçlu ara
+> ```bash
+> cd functions
+> node -e "const t=Date.now(); require('./index.js'); console.log(Date.now()-t)"
+> ```
+> Hata veren kod değil, **yavaş** koddur. Yükleme yerelde 1 sn sürüyorsa
+> soğuk deploy makinesinde 10 sn'yi bulabilir.
+
+Başka olası sebepler (bu sırayla bak):
+1. Modül tepesinde ağır `require` (yukarıdaki) — en sık.
+2. Modül tepesinde `await`/ağ çağrısı (Firestore okuması, secret çekme).
+3. `node_modules` eksik/bozuk → `npm ci --prefix functions`.
+4. `engines.node` ile yerel Node sürümü uyuşmazlığı.
+
+Sözleşme testi: `test/yayin_hazirlik_denetimi_test.dart` → "ağır paketler
+modül tepesinde require EDİLMİYOR".
+
+---
+
 ## 🔴 Kural motoru transaction yapamaz — sayaç limitleri yarışır
 
 `firestore.rules` içindeki `openJobQuotaOk()` "aynı anda 5 açık ilan"

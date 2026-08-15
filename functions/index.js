@@ -4328,7 +4328,22 @@ exports.adminLogExport = onCall(
 //
 // googleapis, Application Default Credentials (CF runtime SA) kullanır.
 
-const {google} = require("googleapis");
+// ⚠️ `googleapis` MODÜL TEPESİNDE require EDİLMEZ — TEMBEL yüklenir.
+//
+// Paket 110 MB'tır ve yüklenmesi ~1 sn sürer. Deploy sırasında Firebase CLI
+// `index.js`'i çalıştırıp fonksiyon listesini çıkarır ("backend specification")
+// ve bu adımın **10 saniyelik** sabit bir bütçesi vardır. Soğuk bir deploy
+// makinesinde bu yükleme bütçenin büyük bölümünü yer ve şu hata düşer:
+//
+//   Cannot determine backend specification. Timeout after 10000.
+//
+// Aynı maliyet TÜM fonksiyonların soğuk başlangıcına da biner — oysa
+// `googleapis`'e yalnız `verifyMembershipPurchase` ihtiyaç duyar.
+//
+// Tembel yükleme ile modül yalnız satın alma doğrulanırken okunur; sonuç
+// önbelleğe alınır (aynı örnek ikinci kez yüklemez).
+// → vault/05-Operasyon/Bilinen-Tuzaklar.md
+let _androidPublisher = null;
 const crypto = require("crypto");
 
 const PLAY_PACKAGE_NAME = "com.sepettehizmet.app";
@@ -4348,10 +4363,14 @@ const GRANT_SUB_STATES = new Set([
  * @return {Promise<import("googleapis").androidpublisher_v3.Androidpublisher>}
  */
 async function getAndroidPublisherClient() {
+  // Tembel require: bkz. yukarıdaki not (deploy discovery 10 sn bütçesi).
+  if (_androidPublisher) return _androidPublisher;
+  const {google} = require("googleapis");
   const auth = new google.auth.GoogleAuth({
     scopes: ["https://www.googleapis.com/auth/androidpublisher"],
   });
-  return google.androidpublisher({version: "v3", auth});
+  _androidPublisher = google.androidpublisher({version: "v3", auth});
+  return _androidPublisher;
 }
 
 /**
