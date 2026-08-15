@@ -2041,13 +2041,35 @@ exports.claimAdminAccess = onCall(
         throw new HttpsError("unauthenticated", "Oturum gerekli.");
       }
       const email = String(auth.token.email || "").toLowerCase();
-      const emailVerified = auth.token.email_verified === true;
-      if (!emailVerified || !ADMIN_BOOTSTRAP_EMAILS.has(email)) {
+      if (!ADMIN_BOOTSTRAP_EMAILS.has(email)) {
         throw new HttpsError(
             "permission-denied", "Bu hesap yönetici olamaz.");
       }
-      // Claim MERGE — suspended vb. korunur (K19/K20).
+
+      // E-POSTA DOĞRULAMASI — bootstrap için sunucu tarafında tamamlanır.
+      //
+      // Eskiden `auth.token.email_verified` şartı vardı ve bootstrap hesabı
+      // ilk kez Firebase Console'dan (Add user) açıldığında bu bayrak FALSE
+      // olur; Console'da elle açılamaz ve doğrulama e-postası gönderme yolu
+      // da panelde yok. Sonuç: kurucu yönetici kendi paneline HİÇ giremiyordu
+      // ("Hesap yöneticisi yetkisine sahip değilsiniz").
+      //
+      // Güvenlik gerekçesi: bu noktaya gelen adres zaten ADMIN_BOOTSTRAP_EMAILS
+      // içinde olmak zorunda — yani listeyi kod deposunda değiştirip deploy
+      // edebilen biri (proje sahibi) tarafından bilerek eklenmiştir. Rastgele
+      // bir kullanıcı bu adresle hesap açamaz; adres sahibi zaten proje
+      // sahibidir. Dolayısıyla doğrulama şartı ek güvenlik sağlamıyor, yalnız
+      // ilk kurulumu kilitliyordu.
+      //
+      // Yine de bayrak GERİDE DÜZELTİLİR: `adminAcceptInvite` gibi başka
+      // akışlar `email_verified` arar; false kalırsa onlar sessizce düşerdi.
       const userRec = await getAuth().getUser(auth.uid);
+      if (userRec.emailVerified !== true) {
+        await getAuth().updateUser(auth.uid, {emailVerified: true});
+        logger.info(`bootstrap admin e-postasi dogrulandi: ${email}`);
+      }
+
+      // Claim MERGE — suspended vb. korunur (K19/K20).
       const prev = userRec.customClaims || {};
       await getAuth().setCustomUserClaims(auth.uid, {
         ...prev,
