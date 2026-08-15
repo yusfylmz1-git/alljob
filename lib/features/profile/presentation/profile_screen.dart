@@ -1,15 +1,21 @@
-import 'dart:async' show unawaited;
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:image_picker/image_picker.dart';
 
+import '../../../core/constants/app_constants.dart';
 import '../../../core/router/route_paths.dart';
 import '../../../core/theme/app_palette.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/phone_format.dart';
+import '../../../core/utils/photo_picker.dart';
 import '../../../core/utils/snackbar_helper.dart';
+import '../../../core/widgets/app_image.dart';
 import '../../../core/widgets/app_menu_drawer.dart';
+import '../../../core/widgets/collapsible_chips.dart';
+import '../../../core/widgets/photo_gallery_page.dart';
 import '../../../core/widgets/gradient_app_bar.dart';
 import '../../../core/widgets/notification_bell.dart';
 import '../../../core/widgets/profile_header.dart';
@@ -17,20 +23,23 @@ import '../../../core/widgets/responsive_center.dart';
 import '../../../core/widgets/role_bottom_bar.dart';
 import '../../../data/local/mock_database.dart';
 import '../../../data/models/app_user.dart';
-import '../../../data/models/user_role.dart';
+import '../../../data/models/product.dart';
 import '../../artisan/application/my_profile_controller.dart';
 import '../../auth/application/auth_controller.dart';
+import '../../auth/application/provider_phone_gate.dart';
 import '../../auth/data/auth_repository.dart';
 import '../../auth/presentation/phone_verification_sheet.dart';
-import '../../chat/data/chat_providers.dart';
 import '../../membership/membership_access.dart';
 import '../../membership/membership_package.dart';
+import '../../products/data/product_category_providers.dart';
+import '../../products/data/product_providers.dart';
+import '../../storage/storage_repository.dart';
+import 'widgets/account_deletion_sheet.dart';
 
-/// Profil (alt bar) — TEK profil, açılıp kapanan usta modülleri.
+/// Profil (alt bar) — TEK profil; Usta | Mağaza sekmeleri.
 ///
-/// Rol ayrımı YOK: herkes aynı profili görür. "Usta modu" anahtarı açıkken
-/// dükkân modülleri (müsaitlik, vitrin, ürünler) üstüne biner; kapalıyken
-/// sade kalır. Instagram'ın "profesyonel hesap" anahtarı gibi.
+/// Aktif "usta modu" switch'i YOK. Yetenek [AppUser.hasArtisanProfile] /
+/// [AppUser.hasShopProfile] ile; müsaitlik ayrı anahtar.
 ///
 /// Profil yalnız İÇERİK gösterir. Hesap ayarları (doğrulama, üyelik, çıkış)
 /// `/profile/account`'ta, kişisel araçlar (Ajanda) yan menüde.
@@ -126,59 +135,70 @@ class AccountSettingsScreen extends ConsumerWidget {
   }
 }
 
-class _Body extends ConsumerWidget {
+class _Body extends ConsumerStatefulWidget {
   const _Body({required this.user});
   final AppUser user;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final artisanMode = user.isArtisan;
-    // Usta profili verisi yalnızca usta modunda gerekir (gereksiz okuma yok).
-    final draft = artisanMode
+  ConsumerState<_Body> createState() => _BodyState();
+}
+
+class _BodyState extends ConsumerState<_Body>
+    with SingleTickerProviderStateMixin {
+  late final TabController _tabs = TabController(length: 2, vsync: this);
+
+  @override
+  void dispose() {
+    _tabs.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final user = widget.user;
+    // Usta profili (müsaitlik + iş foto) için taslak — usta veya mağaza
+    // müsait anahtarı için de yüklenir.
+    final needDraft = user.hasArtisanProfile || user.hasShopProfile;
+    final draft = needDraft
         ? ref.watch(myProfileControllerProvider).valueOrNull
         : null;
 
     return ListView(
-      // B-08: Alt bar (`MainBottomBar`) YÜZEN bir çubuk — gövdenin üstünü
-      // kapatır. `EdgeInsets.zero` ile son öğeler (Kaydet vb.) barın altında
-      // kalıyordu; bazı telefonlarda hiç erişilemiyordu. Bar yüksekliği
-      // 68 + dikey padding 16 = ~84; güvenli pay bırakılır.
       padding: const EdgeInsets.only(bottom: 96),
       children: [
-        _Hero(user: user, draft: draft, artisanMode: artisanMode),
+        _Hero(
+          user: user,
+          draft: draft,
+          showAvailability: user.hasArtisanProfile || user.hasShopProfile,
+        ),
         ResponsiveCenter(
           maxWidth: 720,
-          // IG: başlık ile içerik arası dar; aksiyon düğmelerinin hemen
-          // altında usta anahtarı gelir.
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // TEK PROFİL, ek modüller. Eskiden `artisanMode` iki AYRI
-              // gövdeye ayırıyordu (_ArtisanHome / _CustomerHome) — kullanıcı
-              // "iki farklı ekran" hissediyordu. Artık herkes aynı profili
-              // görür; usta anahtarı açıkken ÜSTÜNE modül eklenir.
-              if (user.hasArtisanProfile) ...[
-                _ArtisanModeSwitch(user: user),
-                const SizedBox(height: 14),
-              ],
-
-              // Usta modülleri (yalnız anahtar açıkken)
-              if (artisanMode) ...[
-                const SizedBox(height: 8),
-              ],
-
-              // Herkeste ortak: ilanlarım (+ usta değilse dönüşüm çağrısı)
-              _CustomerHome(user: user),
-              // ARAÇLAR bölümü de KALDIRILDI: "Ajanda" yan menüye taşındı
-              // (kişisel araç, profil içeriği değil). "Ürünlerim" usta
-              // dükkânı bölümünde zaten var.
-              //
-              // HESABIM (doğrulama, üyelik, çıkış, hesap silme) → Hesap
-              // Ayarları (`/profile/account`), yan menüden.
-              //
-              // Profil artık YALNIZ İÇERİK gösterir: ilanlarım · işlerim ·
-              // takip. Ayarlar ve araçlar menüde.
+              // Usta | Mağaza sekmeleri (sürekli switch yok).
+              Material(
+                color: context.palette.surfaceMuted,
+                borderRadius: BorderRadius.circular(12),
+                child: TabBar(
+                  controller: _tabs,
+                  tabs: const [
+                    Tab(text: 'Usta'),
+                    Tab(text: 'Mağaza'),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 14),
+              AnimatedBuilder(
+                animation: _tabs,
+                builder: (context, _) {
+                  if (_tabs.index == 0) {
+                    return _UstaTabPanel(user: user, draft: draft);
+                  }
+                  return _MagazaTabPanel(user: user);
+                },
+              ),
             ],
           ),
         ),
@@ -191,22 +211,22 @@ class _Body extends ConsumerWidget {
 // Hero — kimlik: avatar + ad (+ mavi tik); e-posta hesap bölümünde
 // ---------------------------------------------------------------------------
 
-class _Hero extends StatelessWidget {
+class _Hero extends ConsumerWidget {
   const _Hero({
     required this.user,
     required this.draft,
-    required this.artisanMode,
+    required this.showAvailability,
   });
   final AppUser user;
   final MyProfileDraft? draft;
-  final bool artisanMode;
+  final bool showAvailability;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final name = user.displayName.trim();
     final photo = draft?.profilePhotoUrl ?? user.profilePhotoUrl;
-    final profession = artisanMode && draft != null
+    final profession = user.hasArtisanProfile && draft != null
         ? kProfessionNames[draft!.profile.profession]
         : null;
     // "Hakkımda" HER İKİ MODDA da görünür (2026-08-08): ortak alan artık
@@ -255,28 +275,12 @@ class _Hero extends StatelessWidget {
               professionOverride: profession,
               onAvatarTap: () => context.push(RoutePaths.profileEdit),
               avatarBadge: const _AvatarPlusBadge(),
-              extra: artisanMode ? _AvailabilitySwitch(draft: draft) : null,
-              actions: Row(
-                children: [
-                  Expanded(
-                    child: ProfileActionButton(
-                      label: 'Profili düzenle',
-                      onTap: () => context.push(RoutePaths.profileEdit),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  // "Profilime bak" YERİNE "İlanlarım" (2026-08-09):
-                  // kullanıcı zaten kendi profilindeyken onu bir kez daha
-                  // açan düğmenin karşılığı yoktu; kendi ilanlarına ise
-                  // buradan erişemiyordu. Herkese açık görünüm merak
-                  // edilirse avatardan/paylaş bağlantısından ulaşılıyor.
-                  Expanded(
-                    child: ProfileActionButton(
-                      label: 'İlanlarım',
-                      onTap: () => context.push(RoutePaths.myJobs),
-                    ),
-                  ),
-                ],
+              extra: showAvailability
+                  ? _AvailabilitySwitch(user: user, draft: draft)
+                  : null,
+              actions: ProfileActionButton(
+                label: 'Profili düzenle',
+                onTap: () => context.push(RoutePaths.profileEdit),
               ),
             ),
           ],
@@ -310,203 +314,23 @@ class _AvatarPlusBadge extends StatelessWidget {
 }
 
 // ---------------------------------------------------------------------------
-// Mod anahtarı — Müşteri hesabı | Usta dükkânı
+// Usta | Mağaza sekmeleri
 // ---------------------------------------------------------------------------
 
-/// Usta modu anahtarı — TEK profil, açılıp kapanan ek modüller.
-///
-/// Eskiden iki seçenekli `SegmentedButton`'dı ("Müşteri | Usta dükkânı") ve
-/// iki AYRI hesap yüzeyi varmış izlenimi veriyordu. Instagram'da "profesyonel
-/// hesap" nasıl tek anahtarla açılıyorsa burada da öyle: kapalıyken sade
-/// profil, açıkken üstüne dükkân modülleri biner.
-class _ArtisanModeSwitch extends ConsumerWidget {
-  const _ArtisanModeSwitch({required this.user});
+class _UstaTabPanel extends ConsumerWidget {
+  const _UstaTabPanel({required this.user, required this.draft});
   final AppUser user;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final palette = context.palette;
-    final theme = Theme.of(context);
-    final on = user.isArtisan;
-    // Karşı modda bekleyen okunmamış mesaj sayısı. Bu rozet eskiden yan
-    // menüdeki "Usta/Müşteri Moduna Geç" satırındaydı; o satırlar kalkınca
-    // buraya taşındı — yoksa kullanıcı diğer taraftaki mesajı fark etmez.
-    final crossUnread = ref.watch(otherModeUnreadProvider);
-
-    Future<void> toggle(bool next) async {
-      final ok = await ref
-          .read(authControllerProvider.notifier)
-          .setActiveMode(next ? UserRole.artisan : UserRole.customer);
-      if (!context.mounted) return;
-      if (!ok) context.showError('Mod değiştirilemedi, tekrar deneyin.');
-      // Sayfadan ayrılmayız: içerik kendini yeniler, kullanıcı değişimi görür.
-    }
-
-    return Material(
-      color: on ? palette.primaryContainer : palette.card,
-      borderRadius: BorderRadius.circular(14),
-      child: Container(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(
-            color: on ? palette.primary : palette.border,
-            width: on ? 1.4 : 1,
-          ),
-        ),
-        padding: const EdgeInsets.fromLTRB(14, 6, 8, 6),
-        child: Row(
-          children: [
-            Icon(
-              on ? Icons.storefront_rounded : Icons.storefront_outlined,
-              size: 20,
-              color: on ? palette.primary : palette.inkMuted,
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    'Usta modu',
-                    style: theme.textTheme.titleSmall?.copyWith(
-                      fontWeight: FontWeight.w800,
-                      color: on ? palette.primary : null,
-                    ),
-                  ),
-                  Text(
-                    crossUnread > 0
-                        ? (on
-                            ? 'Müşteri tarafında $crossUnread okunmamış mesaj'
-                            : 'Usta tarafında $crossUnread okunmamış mesaj')
-                        : (on
-                            ? 'Açık — iş alabilir, vitrinini yönetebilirsin'
-                            : 'Kapalı — yalnız hizmet alıyorsun'),
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: crossUnread > 0
-                          ? palette.danger
-                          : palette.inkMuted,
-                      fontWeight:
-                          crossUnread > 0 ? FontWeight.w700 : null,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            // Karşı modda bekleyen mesaj varsa anahtarın yanında kırmızı sayı.
-            if (crossUnread > 0)
-              Padding(
-                padding: const EdgeInsets.only(right: 4),
-                child: Badge(
-                  label: Text('$crossUnread'),
-                  backgroundColor: palette.danger,
-                ),
-              ),
-            Switch(value: on, onChanged: toggle),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Usta dükkânı — müsaitlik, vitrin, işler (müşteri menüsü yok)
-// ---------------------------------------------------------------------------
-
-// Usta moduna özel profil bölümü KALDIRILDI (2026-08-08).
-//
-// İçindeki iki şey de başka yere taşındı:
-//   - "Vitrinim" kartı (Görüntüle | Düzenle) → başlıktaki "Profili düzenle"
-//     ve "Profilime bak" düğmeleri zaten aynı yerlere gidiyordu; kart
-//     mükerrerdi. Vitrin ayarları da artık Profili Düzenle içinde.
-//   - Müsaitlik satırı → başlığa taşındı ([_AvailabilitySwitch]), sade
-//     anahtar hâlinde.
-//
-// Geriye çizilecek bir şey kalmadığı için `_ArtisanHome` widget'ı da silindi.
-
-/// Müsaitlik anahtarı — SADE (2026-08-08).
-///
-/// Yalnız switch + "Müsait" yazısı. Kapalıyken yazı sönükleşir; ayrı bir
-/// uyarı metni ya da ikon YOK — durum anahtarın kendisinden okunuyor.
-///
-/// Eskiden ikon + başlık ("Şu an kapalısın") + iki satır açıklama taşıyan
-/// bir menü satırıydı ve profil sayfasında gereksiz yer kaplıyordu.
-class _AvailabilitySwitch extends ConsumerWidget {
-  const _AvailabilitySwitch({required this.draft});
   final MyProfileDraft? draft;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final theme = Theme.of(context);
-    final palette = context.palette;
-    final profile = draft?.profile;
-    final available = profile?.isAvailable ?? false;
-
-    Future<void> onChanged(bool value) async {
-      if (profile == null) return;
-      // Faz 2: plan (ücretsiz) veya ödeme kilidi.
-      if (value && !ref.read(artisanProAccessProvider)) {
-        context.push(RoutePaths.panelPremium);
-        return;
-      }
-      final ok = await ref
-          .read(myProfileControllerProvider.notifier)
-          .setAvailable(value);
-      if (!context.mounted) return;
-      if (ok) {
-        context.showInfo(
-          value
-              ? 'Artık müsait görünüyorsunuz.'
-              : 'Müsait değilsiniz. Aramada görünmezsiniz.',
-        );
-      } else {
-        context.showError('İşlem başarısız, tekrar deneyin.');
-      }
-    }
-
-    return Row(
-      children: [
-        // Kompakt: varsayılan Switch 48px dokunma alanı satırı şişiriyor.
-        SizedBox(
-          height: 28,
-          child: Switch(
-            value: available,
-            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            onChanged: profile == null ? null : onChanged,
-          ),
-        ),
-        const SizedBox(width: 8),
-        Text(
-          'Müsait',
-          style: theme.textTheme.bodyMedium?.copyWith(
-            fontWeight: FontWeight.w700,
-            // Kapalıyken PASİF görünür (kullanıcı isteği): renk sönükleşir.
-            color: available ? palette.ink : palette.inkMuted,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Müşteri hesabı — ilan / takip (iş seçimi / dükkân yok)
-// ---------------------------------------------------------------------------
-
-class _CustomerHome extends ConsumerWidget {
-  const _CustomerHome({required this.user});
-  final AppUser user;
 
   Future<void> _becomeArtisan(BuildContext context, WidgetRef ref) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Hizmet Vermeye Başla'),
+        title: const Text('Hizmet vermeye başla'),
         content: const Text(
-          'Hesabınıza bir usta dükkânı eklenecek. Meslek ve hizmet '
-          'bölgenizi belirledikten sonra müşteriler sizi bulabilir. '
-          'İstediğiniz zaman Müşteri hesabına dönebilirsiniz.',
+          'Meslek ve hizmet bölgenizi belirledikten sonra müşteriler sizi '
+          'Keşfet’te bulabilir. Mağaza profiliniz varsa o da açık kalır — '
+          'ikisini birden kullanabilirsiniz.',
         ),
         actions: [
           TextButton(
@@ -522,13 +346,30 @@ class _CustomerHome extends ConsumerWidget {
     );
     if (confirmed != true || !context.mounted) return;
 
+    // TELEFON KAPISI — ÜÇÜNCÜ GİRİŞ (2026-08-15 cihaz bulgusu).
+    //
+    // `becomeArtisan()` doğrudan `hasArtisanProfile: true` yazar ve
+    // `firestore.rules` → `providerFlagOk()` bunun için Auth jetonunda
+    // `phone_number` claim'i arar. Kapı çağrılmazsa yazım `permission-denied`
+    // alır; hata `AsyncValue.guard` içinde yutulduğu için kullanıcı yalnızca
+    // "Bir hata oluştu, lütfen tekrar deneyin" görür — sebebi anlaşılmaz.
+    //
+    // Kapı usta profili DÜZENLEME ve mağaza kurulumunda vardı; sağlayıcı
+    // olmanın bu üçüncü girişinde eksikti.
+    final telefonOk = await ensureVerifiedPhoneForProvider(
+      context,
+      ref,
+      isShop: false,
+    );
+    if (!telefonOk || !context.mounted) return;
+
     final ok = await ref.read(authControllerProvider.notifier).becomeArtisan();
     if (!context.mounted) return;
     if (ok) {
       context.showSuccess(
-        'Usta dükkânınız açıldı. Şimdi meslek ve bölgenizi belirleyin.',
+        'Usta profili açıldı. Meslek ve bölgenizi kaydedin.',
       );
-      context.go(RoutePaths.panelEdit);
+      context.push(RoutePaths.panelEdit);
     } else {
       final error = ref.read(authControllerProvider).error;
       context.showError(
@@ -539,112 +380,676 @@ class _CustomerHome extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // İlan/favori listelerini yalnızca rozet için dinleme — ilgili ekranlar
-    // açılınca stream orada başlar (profil menüsü ucuz kalsın).
+    final palette = context.palette;
+    final theme = Theme.of(context);
+
+    if (!user.hasArtisanProfile) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            'Hizmet verin',
+            style: theme.textTheme.titleSmall?.copyWith(
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Meslek ve bölge ekleyerek ustalar listesinde görünün, '
+            'ilanlara mesaj atın.',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: palette.inkMuted,
+              height: 1.35,
+            ),
+          ),
+          const SizedBox(height: 14),
+          FilledButton.icon(
+            onPressed: () => _becomeArtisan(context, ref),
+            icon: const Icon(Icons.handyman_outlined, size: 18),
+            label: const Text('Hizmet vermeye başla'),
+          ),
+        ],
+      );
+    }
+
+    final available = draft?.profile.isAvailable ?? user.available;
+    final workPhotos = draft?.profile.workPhotos ?? const <String>[];
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // "İlanlarım" PROFİLDEN KALKTI → yan menüde (usta modunda görünür).
-        // Alt bardaki "İlanlar" sekmesiyle de mükerrerdi.
-        // "Takip ettiklerim" ise başlıktaki sayaçtan açılıyor.
-        //
-        // Usta modu yoksa tek çağrı: dükkân aç. Bu bir "içerik" değil ama
-        // ürünün ana dönüşüm adımı — profilde kalması bilinçli.
-        if (!user.hasArtisanProfile) ...[
-          _Group(
-            children: [
-              _MenuRow(
-                icon: Icons.handyman_outlined,
-                iconColor: context.palette.onSecondaryContainer,
-                iconSurface: context.palette.secondaryContainer,
-                title: 'Usta olarak devam et',
-                subtitle: 'Meslek ve bölge ekle, iş almaya başla',
-                onTap: () => _becomeArtisan(context, ref),
+        FilledButton.tonalIcon(
+          onPressed: () => context.push(RoutePaths.myJobs),
+          icon: const Icon(Icons.assignment_outlined, size: 18),
+          label: const Text('İlanlarım'),
+        ),
+        const SizedBox(height: 12),
+        if (!available)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: Material(
+              color: palette.warningSurface,
+              borderRadius: BorderRadius.circular(12),
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Text(
+                  'Müsait değilsiniz: ustalar listesinde görünmezsiniz ve '
+                  'ilan sahiplerine mesaj atamazsınız. Bildirim almaya devam '
+                  'edebilirsiniz. Üstteki “Müsait” anahtarını açın.',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: palette.inkMuted,
+                    height: 1.35,
+                  ),
+                ),
               ),
-            ],
+            ),
           ),
-        ],
+        _WorkPhotoShareBlock(photos: workPhotos),
       ],
     );
   }
 }
 
-/// Hesap silme akışı: açık onay → engelleyici ilerleme → sonuç.
-/// Silme kalıcıdır (sunucudaki `deleteAccount` CF'i veriyi temizler);
-/// başarıda oturum kapanır ve ana sayfaya dönülür.
-Future<void> _deleteAccountFlow(BuildContext context, WidgetRef ref) async {
-  // Async adımlar sonrasında bu ekran kapanmış olabilir; kalıcı bağlamları
-  // (router + kök navigator) önce yakala (drawer'daki kalıp).
-  final router = GoRouter.of(context);
-  final nav = Navigator.of(context, rootNavigator: true);
+/// İş fotoğrafı ekle — doğrudan yükler, profil düzenlemeye gitmez.
+class _WorkPhotoShareBlock extends ConsumerStatefulWidget {
+  const _WorkPhotoShareBlock({required this.photos});
+  final List<String> photos;
 
-  final confirmed = await showDialog<bool>(
-    context: context,
-    builder: (ctx) => AlertDialog(
-      title: const Text('Hesabınız silinsin mi?'),
-      content: const Text(
-        'Bu işlem geri alınamaz. Profiliniz, ilanlarınız, fotoğraflarınız, '
-        'bildirimleriniz ve hesabınız kalıcı olarak silinir; sohbetlerde '
-        'adınız "Silinmiş Kullanıcı" olarak görünür.\n\n'
-        'Devam etmek istiyor musunuz?',
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(ctx, false),
-          child: const Text('Vazgeç'),
-        ),
-        FilledButton(
-          style: FilledButton.styleFrom(
-            backgroundColor: ctx.palette.danger,
-            foregroundColor: Colors.white,
+  @override
+  ConsumerState<_WorkPhotoShareBlock> createState() =>
+      _WorkPhotoShareBlockState();
+}
+
+class _WorkPhotoShareBlockState extends ConsumerState<_WorkPhotoShareBlock> {
+  bool _uploading = false;
+
+  Future<void> _addPhotos() async {
+    if (_uploading) return;
+    final uid = ref.read(currentUserProvider)?.uid;
+    if (uid == null) return;
+
+    final source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      showDragHandle: true,
+      builder: (ctx) {
+        final palette = context.palette;
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: Icon(Icons.photo_camera_outlined,
+                    color: palette.primary),
+                title: const Text('Kamera ile çek'),
+                onTap: () => Navigator.pop(ctx, ImageSource.camera),
+              ),
+              ListTile(
+                leading: Icon(Icons.photo_library_outlined,
+                    color: palette.primary),
+                title: const Text('Galeriden seç'),
+                onTap: () => Navigator.pop(ctx, ImageSource.gallery),
+              ),
+            ],
           ),
-          onPressed: () => Navigator.pop(ctx, true),
-          child: const Text('Kalıcı Olarak Sil'),
+        );
+      },
+    );
+    if (source == null || !mounted) return;
+
+    // Vitrin ızgarası 4:5; kırpma olmadan dikey fotoğrafın altı kesiliyordu.
+    final List<Uint8List> files;
+    try {
+      final draftNow = ref.read(myProfileControllerProvider).valueOrNull;
+      final kalan = AppConstants.maxWorkPhotos -
+          (draftNow?.profile.workPhotos.length ?? 0);
+      files = await PhotoPicker.pickMultiPhoto(
+        context,
+        source: source,
+        limit: kalan,
+        title: 'Vitrin fotoğrafı',
+      );
+    } catch (_) {
+      if (mounted) context.showError('Görsel seçilemedi.');
+      return;
+    }
+    if (files.isEmpty || !mounted) return;
+
+    setState(() => _uploading = true);
+    final ctrl = ref.read(myProfileControllerProvider.notifier);
+    final storage = ref.read(storageRepositoryProvider);
+    try {
+      for (final bytes in files) {
+        if (bytes.length > AppConstants.maxPhotoSizeBytes) {
+          if (mounted) {
+            context.showError('Bir görsel 5 MB\'dan büyük; atlandı.');
+          }
+          continue;
+        }
+        final draft = ref.read(myProfileControllerProvider).valueOrNull;
+        if (draft != null &&
+            draft.profile.workPhotos.length >= AppConstants.maxWorkPhotos) {
+          if (mounted) {
+            context.showInfo(
+              'En fazla ${AppConstants.maxWorkPhotos} iş fotoğrafı '
+              'ekleyebilirsiniz.',
+            );
+          }
+          break;
+        }
+        final handle = await storage.uploadImage(
+          pathHint: 'work/$uid',
+          bytes: Uint8List.fromList(bytes),
+        );
+        if (!ctrl.addWorkPhoto(handle)) {
+          if (mounted) {
+            context.showInfo(
+              'En fazla ${AppConstants.maxWorkPhotos} iş fotoğrafı '
+              'ekleyebilirsiniz.',
+            );
+          }
+          break;
+        }
+      }
+      final ok = await ctrl.save();
+      if (!mounted) return;
+      if (ok) {
+        context.showSuccess('İş fotoğrafları kaydedildi.');
+      } else {
+        context.showError('Kayıt başarısız, tekrar deneyin.');
+      }
+    } catch (_) {
+      if (mounted) {
+        context.showError('Yükleme başarısız. Bağlantınızı kontrol edin.');
+      }
+    } finally {
+      if (mounted) setState(() => _uploading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    final photos = widget.photos;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        OutlinedButton.icon(
+          onPressed: _uploading ? null : _addPhotos,
+          icon: _uploading
+              ? const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Icon(Icons.add_a_photo_outlined, size: 18),
+          label: Text(_uploading ? 'Yükleniyor…' : 'İş fotoğrafı paylaşın'),
+        ),
+        if (photos.isNotEmpty) ...[
+          const SizedBox(height: 10),
+          SizedBox(
+            height: 88,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              itemCount: photos.length,
+              separatorBuilder: (_, _) => const SizedBox(width: 8),
+              itemBuilder: (_, i) => Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(10),
+                  onTap: () => PhotoGalleryPage.open(
+                    context,
+                    handles: photos,
+                    initialIndex: i,
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(10),
+                    child: SizedBox(
+                      width: 88,
+                      height: 88,
+                      child: AppImage(handle: photos[i], fit: BoxFit.cover),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ] else
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: Text(
+              'Yaptığınız işlerin fotoğraflarını ekleyin; profilinizde görünür.',
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                    color: palette.inkFaint,
+                  ),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _MagazaTabPanel extends ConsumerWidget {
+  const _MagazaTabPanel({required this.user});
+  final AppUser user;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final palette = context.palette;
+    final theme = Theme.of(context);
+    final live = ref.watch(productsLiveProvider);
+
+    if (!live) {
+      return Text(
+        'Mağaza şu an platform genelinde kapalı.',
+        style: theme.textTheme.bodyMedium?.copyWith(color: palette.inkMuted),
+      );
+    }
+
+    if (!user.hasShopProfile) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            'Satış yapın',
+            style: theme.textTheme.titleSmall?.copyWith(
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Ürün kategorilerinizi seçin, vitrininizi açın. Usta profiliniz '
+            'varsa ikisini birlikte kullanabilirsiniz.',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: palette.inkMuted,
+              height: 1.35,
+            ),
+          ),
+          const SizedBox(height: 14),
+          FilledButton.icon(
+            onPressed: () => context.push(RoutePaths.shopSetup),
+            icon: const Icon(Icons.storefront_outlined, size: 18),
+            label: const Text('Satış yapmaya başla'),
+          ),
+        ],
+      );
+    }
+
+    final productsAsync = ref.watch(myProductsProvider(user.uid));
+    final catalog = catalogOf(ref);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (!user.available)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: Material(
+              color: palette.warningSurface,
+              borderRadius: BorderRadius.circular(12),
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Text(
+                  'Müsait değilsiniz: ürünleriniz vitrinde öne çıkmaz ve '
+                  'ürün taleplerine mesaj atamazsınız. Üstteki “Müsait” '
+                  'anahtarını açın.',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: palette.inkMuted,
+                    height: 1.35,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                'Satış kategorileri',
+                style: theme.textTheme.labelMedium?.copyWith(
+                  fontWeight: FontWeight.w700,
+                  color: palette.inkMuted,
+                ),
+              ),
+            ),
+            TextButton(
+              onPressed: () => context.push(RoutePaths.shopEdit),
+              child: const Text('Düzenle'),
+            ),
+          ],
+        ),
+        if (user.shopCategories.isEmpty)
+          Text(
+            'Henüz kategori seçilmedi. Düzenle ile ekleyin — talepler '
+            'bu kategorilere gider.',
+            style: theme.textTheme.bodySmall?.copyWith(color: palette.warning),
+          )
+        else
+          // Çok kategori seçen mağaza profili şişirmesin: ilki görünür,
+          // kalanı "+N daha" arkasında (new.md madde 4).
+          CollapsibleChips(
+            labels: [
+              for (final code in user.shopCategories) catalog.label(code),
+            ],
+          ),
+        const SizedBox(height: 10),
+        Text(
+          'Mağaza bölgeleri',
+          style: theme.textTheme.labelMedium?.copyWith(
+            fontWeight: FontWeight.w700,
+            color: palette.inkMuted,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          'Müşteriler mağazanızın yerini burada görür.',
+          style: theme.textTheme.labelSmall?.copyWith(color: palette.inkFaint),
+        ),
+        const SizedBox(height: 6),
+        if (user.shopServiceAreas.isEmpty)
+          Text(
+            'Bölge yok. Düzenle ile il/ilçe ekleyin, yoksa talepler '
+            'size ulaşmayabilir.',
+            style: theme.textTheme.bodySmall?.copyWith(color: palette.warning),
+          )
+        else
+          // Bölge listesi de uzayabilir (il+ilçe çiftleri) — aynı daraltma.
+          CollapsibleChips(
+            labels: [for (final a in user.shopServiceAreas) a.labelTR],
+            avatarBuilder: (_) =>
+                Icon(Icons.place_outlined, size: 14, color: palette.inkMuted),
+          ),
+        const SizedBox(height: 14),
+        Row(
+          children: [
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: () => context.push(RoutePaths.myProducts),
+                icon: const Icon(Icons.inventory_2_outlined, size: 18),
+                label: const Text('Ürünlerim'),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: () => context.push(RoutePaths.myProductRequests),
+                icon: const Icon(Icons.campaign_outlined, size: 18),
+                label: const Text('Taleplerim'),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        OutlinedButton.icon(
+          onPressed: () => context.push(RoutePaths.productNew),
+          // Düğme ürün EKLEME formunu açar (başlık, fiyat, kategori…),
+          // yalnız fotoğraf paylaşmıyor — eski metin yanıltıcıydı.
+          icon: const Icon(Icons.add_business_outlined, size: 18),
+          label: const Text('Yeni ürün paylaşın'),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          'Ürün fotoğrafına basınca detay ekranı açılır.',
+          style: theme.textTheme.labelSmall?.copyWith(color: palette.inkFaint),
+        ),
+        const SizedBox(height: 14),
+        Text(
+          'Ürünlerim',
+          style: theme.textTheme.titleSmall?.copyWith(
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        const SizedBox(height: 8),
+        productsAsync.when(
+          loading: () => const Padding(
+            padding: EdgeInsets.symmetric(vertical: 24),
+            child: Center(child: CircularProgressIndicator()),
+          ),
+          error: (_, _) => Text(
+            'Ürünler yüklenemedi.',
+            style: theme.textTheme.bodySmall?.copyWith(color: palette.danger),
+          ),
+          data: (list) {
+            if (list.isEmpty) {
+              return Text(
+                'Henüz ürün yok. Yukarıdan fotoğraf ekleyerek başlayın.',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: palette.inkMuted,
+                ),
+              );
+            }
+            return Column(
+              children: [
+                for (var i = 0; i < list.length; i++) ...[
+                  if (i > 0) const SizedBox(height: 10),
+                  _ProfileProductRow(product: list[i]),
+                ],
+              ],
+            );
+          },
         ),
       ],
-    ),
-  );
-  if (confirmed != true || !context.mounted) return;
+    );
+  }
+}
 
-  // Engelleyici ilerleme diyaloğu — silme sırasında geri tuşu/dokunma yutulur.
-  unawaited(
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      useRootNavigator: true,
-      builder: (_) => const PopScope(
-        canPop: false,
-        child: AlertDialog(
-          content: Row(
+/// Mağaza sekmesinde satır: tıkla → ürün detay (önizleme / keşfet görünümü).
+class _ProfileProductRow extends StatelessWidget {
+  const _ProfileProductRow({required this.product});
+  final Product product;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    final p = product;
+    return Material(
+      color: palette.card,
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: () => context.push(RoutePaths.productDetail(p.id)),
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Row(
             children: [
-              SizedBox(
-                width: 24,
-                height: 24,
-                child: CircularProgressIndicator(strokeWidth: 2.5),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: SizedBox(
+                  width: 72,
+                  height: 72,
+                  child: p.coverPhoto == null
+                      ? ColoredBox(
+                          color: palette.surfaceMuted,
+                          child: Icon(
+                            Icons.image_outlined,
+                            color: palette.inkMuted,
+                          ),
+                        )
+                      : AppImage(
+                          handle: p.coverPhoto,
+                          fit: BoxFit.cover,
+                        ),
+                ),
               ),
-              SizedBox(width: 16),
-              Expanded(child: Text('Hesabınız siliniyor…')),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      p.title.isEmpty ? 'İsimsiz taslak' : p.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      '${p.status.labelTR} · ${p.priceLabel}',
+                      style: TextStyle(
+                        color: palette.inkMuted,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(Icons.chevron_right, color: palette.inkFaint),
             ],
           ),
         ),
       ),
-    ),
-  );
-
-  final ok = await ref.read(authControllerProvider.notifier).deleteAccount();
-
-  if (nav.mounted) nav.pop(); // ilerleme diyaloğunu kapat
-  if (ok) {
-    router.go(RoutePaths.home);
-    if (nav.mounted) nav.context.showInfo('Hesabınız silindi.');
-  } else if (nav.mounted) {
-    final err = ref.read(authControllerProvider).error;
-    nav.context.showError(
-      err is AuthException
-          ? err.message
-          : 'Hesap silinemedi. Bağlantınızı kontrol edip tekrar deneyin.',
     );
   }
+}
+
+/// Müsaitlik — usta veya mağaza profili açılınca hep görünür.
+///
+/// Durumlu (2026-08-14): her değişim 3 Firestore yazması ve o satıcıyı
+/// izleyen her istemciye 1 okuma üretir. İşlem sürerken anahtar kilitlenir;
+/// hızlı aç-kapa-aç yazma fırtınası oluşturamaz.
+class _AvailabilitySwitch extends ConsumerStatefulWidget {
+  const _AvailabilitySwitch({required this.user, required this.draft});
+  final AppUser user;
+  final MyProfileDraft? draft;
+
+  @override
+  ConsumerState<_AvailabilitySwitch> createState() =>
+      _AvailabilitySwitchState();
+}
+
+class _AvailabilitySwitchState extends ConsumerState<_AvailabilitySwitch> {
+  bool _busy = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final user = widget.user;
+    final draft = widget.draft;
+    final theme = Theme.of(context);
+    final palette = context.palette;
+    final profile = draft?.profile;
+    // Usta profili varsa vitrin müsaitliği; yoksa users.available (mağaza).
+    final available = user.hasArtisanProfile
+        ? (profile?.isAvailable ?? user.available)
+        : user.available;
+
+    Future<void> onChanged(bool value) async {
+      if (user.hasArtisanProfile) {
+        if (value && !ref.read(artisanProAccessProvider)) {
+          context.push(RoutePaths.panelPremium);
+          return;
+        }
+        // Her zaman usta profili + users.available birlikte.
+        // Eskiden taslak yokken yalnız users.available yazılıyordu; ilan
+        // detayı profile.isAvailable görünce müsait sanıp mesaj açıyordu.
+        if (profile == null) {
+          try {
+            await ref
+                .read(authRepositoryProvider)
+                .updateUserProfile(available: value);
+          } catch (_) {
+            if (context.mounted) {
+              context.showError('İşlem başarısız, tekrar deneyin.');
+            }
+            return;
+          }
+          // Taslak yüklenince vitrin alanını da hizala.
+          final ok = await ref
+              .read(myProfileControllerProvider.notifier)
+              .setAvailable(value);
+          if (!context.mounted) return;
+          if (!ok) {
+            // users.available yazıldı; vitrin sonra yüklenebilir.
+            context.showInfo(
+              value
+                  ? 'Müsaitlik güncellendi.'
+                  : 'Müsaitlik kapatıldı. Profil yenilenince tam senkron olur.',
+            );
+            return;
+          }
+        } else {
+          final ok = await ref
+              .read(myProfileControllerProvider.notifier)
+              .setAvailable(value);
+          if (!context.mounted) return;
+          if (!ok) {
+            context.showError('İşlem başarısız, tekrar deneyin.');
+            return;
+          }
+        }
+      } else {
+        try {
+          await ref
+              .read(authRepositoryProvider)
+              .updateUserProfile(available: value);
+        } catch (_) {
+          if (context.mounted) {
+            context.showError('İşlem başarısız, tekrar deneyin.');
+          }
+          return;
+        }
+      }
+      if (!context.mounted) return;
+      context.showInfo(
+        value
+            ? 'Artık müsait görünüyorsunuz.'
+            : 'Müsait değilsiniz. Usta listesi / mağaza vitrini etkilenir.',
+      );
+    }
+
+    return Row(
+      children: [
+        SizedBox(
+          height: 28,
+          child: Switch(
+            value: available,
+            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            // YAZMA KORUMASI: işlem sürerken anahtar kilitlenir.
+            //
+            // Her değişim 3 Firestore yazması (artisanProfiles + users) ve
+            // o satıcıyı izleyen HER istemciye 1 okuma üretir. Koruma
+            // olmadan hızlı aç-kapa-aç bunu katlar; ölçekte hem fatura hem
+            // gereksiz ağ yükü demek.
+            onChanged: _busy ? null : _guardedChange(onChanged),
+          ),
+        ),
+        const SizedBox(width: 8),
+        if (_busy)
+          const SizedBox(
+            width: 14,
+            height: 14,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          )
+        else
+          Text(
+            'Müsait',
+            style: theme.textTheme.bodyMedium?.copyWith(
+              fontWeight: FontWeight.w700,
+              color: available ? palette.ink : palette.inkMuted,
+            ),
+          ),
+      ],
+    );
+  }
+
+  /// [onChanged]'i meşguliyet bayrağıyla sarar: işlem bitmeden ikinci
+  /// dokunuş yutulur.
+  ValueChanged<bool> _guardedChange(Future<void> Function(bool) inner) {
+    return (v) async {
+      if (_busy) return;
+      setState(() => _busy = true);
+      try {
+        await inner(v);
+      } finally {
+        if (mounted) setState(() => _busy = false);
+      }
+    };
+  }
+}
+
+/// Hesap silme akışı: Apple App Store, Google Play Store ve KVKK/GDPR uyumlu
+/// çok adımlı kaza önleme kalkanına sahip [AccountDeletionSheet] modalını açar.
+Future<void> _deleteAccountFlow(BuildContext context, WidgetRef ref) async {
+  await AccountDeletionSheet.show(context);
 }
 
 // ---------------------------------------------------------------------------
@@ -787,7 +1192,7 @@ class _AccountGroup extends ConsumerWidget {
         ref.watch(selectedMembershipPackageProvider) ?? MembershipPackage.free;
     final proOpen = ref.watch(artisanProAccessProvider);
     final paidPremium =
-        user.isArtisan &&
+        user.hasArtisanProfile &&
         (ref
                 .watch(myProfileControllerProvider)
                 .valueOrNull
@@ -839,9 +1244,8 @@ class _AccountGroup extends ConsumerWidget {
               child: const Text('Değiştir'),
             ),
           ),
-        // Usta + doğrulanmış telefon: numarayı vitrinde göster/gizle. Açıkken
-        // profilde telefon + "Ara" düğmesi görünür (müşteri direkt arayabilir).
-        if (user.isArtisan && user.phoneVerified)
+        // Usta profili + doğrulanmış telefon: vitrinde göster/gizle.
+        if (user.hasArtisanProfile && user.phoneVerified)
           _PhoneVisibilityRow(phoneNumber: user.phoneNumber),
         if (!user.phoneVerified)
           _MenuRow(
@@ -993,8 +1397,19 @@ class _PhoneVisibilityRow extends ConsumerWidget {
 
     Future<void> onChanged(bool value) async {
       // Açarken doğrulanmış numara şart (numara yoksa gösterecek bir şey yok).
+      //
+      // NUMARA KAYNAĞI (2026-08-14): `AppUser.phoneNumber` artık Firebase
+      // Auth'tan geliyor. Hassas alan kural gereği `users` dokümanında
+      // tutulamıyor; eskiden yalnız doğrulama anında bellekte doluyordu ve
+      // uygulama yeniden açılınca boş kalıp bu hatayı veriyordu.
+      //
+      // Yine de boşsa: kullanıcıyı çıkmaza sokmadan ne yapması gerektiğini
+      // söyle (numarayı yeniden doğrulaması gerekir).
       if (value && (phoneNumber == null || phoneNumber!.trim().isEmpty)) {
-        context.showError('Telefon numarası bulunamadı.');
+        context.showError(
+          'Doğrulanmış numara okunamadı. Çıkış yapıp tekrar girin; '
+          'sorun sürerse numaranızı yeniden doğrulayın.',
+        );
         return;
       }
       final ok = await ref

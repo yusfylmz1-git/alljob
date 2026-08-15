@@ -417,11 +417,28 @@ class FirebaseAuthRepository implements AuthRepository {
       hasArtisanProfile: true,
       activeMode: UserRole.artisan,
     );
-    await _userDoc(user.uid).set({
-      'hasArtisanProfile': true,
-      'activeMode': UserRole.artisan.apiValue,
-      'role': UserRole.artisan.apiValue,
-    }, SetOptions(merge: true));
+    try {
+      await _userDoc(user.uid).set({
+        'hasArtisanProfile': true,
+        'activeMode': UserRole.artisan.apiValue,
+        'role': UserRole.artisan.apiValue,
+      }, SetOptions(merge: true));
+    } on FirebaseException catch (e) {
+      // SAĞLAYICI BAYRAĞI DOĞRULANMIŞ TELEFON İSTER (`providerFlagOk`).
+      //
+      // Çağıran ekran `ensureVerifiedPhoneForProvider()` kapısını atlarsa
+      // yazım burada reddedilir. Ham hatayı yukarı bırakmak kullanıcıya
+      // "Bir hata oluştu, lütfen tekrar deneyin" olarak dönüyordu — sebebi
+      // anlaşılmayan, tekrar denemenin de çözmediği bir mesaj.
+      if (e.code == 'permission-denied') {
+        AppLog.d('[auth] becomeArtisan reddedildi: ${e.code} ${e.message}');
+        throw AuthException(
+          'Usta profili açmak için telefon numaranızı doğrulamanız '
+          'gerekiyor. Profil > Hesap Ayarları üzerinden doğrulayabilirsiniz.',
+        );
+      }
+      rethrow;
+    }
     // E-posta zaten doğruluysa Keşfet tooltip aynasını yaz.
     if (user.emailVerified || (_auth.currentUser?.emailVerified ?? false)) {
       try {
@@ -714,6 +731,9 @@ class FirebaseAuthRepository implements AuthRepository {
     final fbUser = _auth.currentUser;
     if (fbUser == null) throw AuthException.notSignedIn;
     try {
+      // 1) Oturum jetonunu zorla tazele (Callable'ın güncel auth token alması için).
+      await fbUser.getIdToken(true);
+
       // Sunucu tarafı temizlik: Firestore + Storage + Auth kaydı
       // (functions/index.js `deleteAccount`; bölge CF'lerle aynı).
       await FirebaseFunctions.instanceFor(region: 'europe-west1')
@@ -722,6 +742,8 @@ class FirebaseAuthRepository implements AuthRepository {
             options: HttpsCallableOptions(timeout: const Duration(minutes: 3)),
           )
           .call<Map<String, dynamic>>();
+    } on fb.FirebaseAuthException catch (e) {
+      throw _map(e);
     } on FirebaseFunctionsException catch (e) {
       // Ham hata konsola: App Check reddi sahada "sebepsiz silinmiyor" gibi
       // görünüyordu; kod/mesaj/detay olmadan teşhis edilemiyor.
@@ -730,19 +752,26 @@ class FirebaseAuthRepository implements AuthRepository {
         '${e.details}',
       );
       throw AuthException(_deleteErrorMessage(e));
+    } catch (e) {
+      AppLog.d('deleteAccount beklenmeyen hata: $e');
+      if (e is AuthException) rethrow;
+      throw AuthException('Hesap silinemedi: $e');
     }
     // Auth kaydı sunucuda silindi; yerel oturum verisini temizle.
-    await _auth.signOut();
+    try {
+      await _auth.signOut();
+    } catch (_) {}
   }
 
   /// CF hata kodunu kullanıcının anlayacağı TR mesaja çevirir. `deleteAccount`
   /// App Check zorunlu bir callable'dır: cihaz kaydı yoksa SDK isteği daha
   /// handler'a varmadan reddeder ve kullanıcı sebepsiz bir hata görür.
   static String _deleteErrorMessage(FirebaseFunctionsException e) {
-    switch (e.code) {
+    final code = e.code.replaceAll('I', 'i').replaceAll('ı', 'i').toLowerCase();
+    switch (code) {
       case 'unauthenticated':
-        return 'Oturum doğrulanamadı. Çıkış yapıp yeniden giriş yapın; '
-            'sorun sürerse uygulamayı güncelleyin.';
+        return 'Oturum doğrulanamadı veya süresi doldu. Lütfen çıkış yapıp '
+            'tekrar giriş yaparak yeniden deneyin.';
       case 'internal':
       case 'permission-denied':
         // DEBUG'da bu kod neredeyse HER ZAMAN App Check demektir: debug

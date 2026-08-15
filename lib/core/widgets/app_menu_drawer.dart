@@ -5,6 +5,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../data/models/app_user.dart';
 import '../../features/auth/application/auth_controller.dart';
+import '../../features/auth/application/provider_phone_gate.dart';
 import '../../features/auth/data/auth_repository.dart';
 import '../../features/chat/data/chat_providers.dart';
 import '../constants/app_constants.dart';
@@ -122,7 +123,18 @@ class AppMenuDrawer extends ConsumerWidget {
         ],
       ),
     );
-    if (confirmed != true) return;
+    if (confirmed != true || !context.mounted) return;
+
+    // TELEFON KAPISI — sağlayıcı olmanın DÖRDÜNCÜ girişi (2026-08-15).
+    // Gerekçe: profile_screen.dart → _becomeArtisan. Kural
+    // (`providerFlagOk`) doğrulanmış telefon ister; kapı çağrılmazsa yazım
+    // sessizce reddedilir ve kullanıcı yalnızca "Bir hata oluştu" görür.
+    final telefonOk = await ensureVerifiedPhoneForProvider(
+      context,
+      ref,
+      isShop: false,
+    );
+    if (!telefonOk) return;
 
     final ok = await ref.read(authControllerProvider.notifier).becomeArtisan();
     if (ok) {

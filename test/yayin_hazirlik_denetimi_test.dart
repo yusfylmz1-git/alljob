@@ -311,6 +311,51 @@ void main() {
     });
   });
 
+  group('Sağlayıcı kaydı · telefon kapısı HER girişte', () {
+    // CİHAZ BULGUSU (2026-08-15): "Hizmet vermeye başla" → kırmızı şerit
+    // "Bir hata oluştu, lütfen tekrar deneyin".
+    //
+    // SEBEP: `becomeArtisan()` doğrudan `hasArtisanProfile: true` yazıyor;
+    // `firestore.rules` → `providerFlagOk()` bunun için Auth jetonunda
+    // `phone_number` claim'i arıyor. Kapı (`ensureVerifiedPhoneForProvider`)
+    // usta profili DÜZENLEME ve mağaza kurulumunda vardı, ama sağlayıcı
+    // olmanın diğer İKİ girişinde (profil sekmesi + yan menü) yoktu.
+    //
+    // Kapı sunucuda zaten duruyordu — istemci onu çağırmayınca kullanıcı
+    // sebebi anlaşılmayan bir hata görüyordu.
+    test('becomeArtisan çağıran her ekran kapıyı önce çağırıyor', () {
+      const girisler = [
+        'lib/features/profile/presentation/profile_screen.dart',
+        'lib/core/widgets/app_menu_drawer.dart',
+      ];
+      for (final yol in girisler) {
+        final src = read(yol);
+        final kapi = src.indexOf('ensureVerifiedPhoneForProvider');
+        final cagri = src.indexOf('.becomeArtisan()');
+        expect(kapi, greaterThan(-1),
+            reason: '$yol telefon kapısını çağırmıyor — sağlayıcı bayrağı '
+                'kuralda reddedilir ve kullanıcı sebebi anlaşılmayan bir '
+                'hata görür.');
+        expect(kapi, lessThan(cagri),
+            reason: '$yol kapıyı becomeArtisan\'dan SONRA çağırıyor.');
+      }
+    });
+
+    test('reddedilen yazım anlamlı Türkçe hataya çevriliyor', () {
+      // Ham `permission-denied` yukarı çıkarsa UI onu "bilinmeyen hata"ya
+      // düşürür; kullanıcı ne yapacağını bilemez ve tekrar denemek çözmez.
+      final repo = read('lib/features/auth/data/firebase_auth_repository.dart');
+      final i = repo.indexOf('Future<AppUser> becomeArtisan()');
+      expect(i, greaterThan(-1));
+      final govde = repo.substring(i, i + 1800);
+      expect(govde.contains('permission-denied'), isTrue,
+          reason: 'Kural reddi yakalanmıyor — kullanıcı "Bir hata oluştu" '
+              'görür, sebebini asla öğrenemez.');
+      expect(govde.contains('telefon'), isTrue,
+          reason: 'Hata mesajı kullanıcıya ne yapacağını söylemiyor.');
+    });
+  });
+
   group('Gizlilik · release günlüğü', () {
     // `debugPrint` adına rağmen RELEASE derlemede de yazar (yalnız profile
     // modunda susar). Satırlar uid, chatId ve FCM token öneki taşıyordu;
