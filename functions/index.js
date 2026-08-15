@@ -1538,7 +1538,7 @@ const STORAGE_FOLDERS = [
  *    adım yarıda kalırsa kullanıcı tekrar deneyebilir.
  */
 exports.deleteAccount = onCall(
-    {...CONSUMER_CALL_OPTS, timeoutSeconds: 300},
+    {region: REGION, enforceAppCheck: false, timeoutSeconds: 300},
     async (request) => {
       const uid = request.auth && request.auth.uid;
       if (!uid) {
@@ -4770,6 +4770,38 @@ exports.publishProduct = onCall(
               "Sabit/baslangic fiyati gerekli.",
           );
         }
+      }
+
+      // KATEGORİ, MAĞAZANIN KATEGORİLERİYLE SINIRLI (2026-08-15).
+      //
+      // Satıcı yalnız mağazasını açarken seçtiği kategorilerde ürün
+      // yayınlayabilir. İstemci seçiciyi zaten süzüyor
+      // (`_UrunKategoriSecici`) ama istemci kısıtı ATLATILABİLİR — taslak
+      // doğrudan SDK ile yazılıp buraya gönderilebilir.
+      //
+      // Mağaza kategorisi boşsa (eski kayıt) kısıt UYGULANMAZ: kullanıcıyı
+      // ürün yayınlayamaz hâle düşürmek yerine serbest bırakılır.
+      //
+      // ⚠️ Ürün TALEPLERİ buna tabi değildir — müşteri istediği kategoride
+      // talep açar (`jobs` koleksiyonu, PRODUCT_REQUEST_CATEGORY).
+      try {
+        const ownerSnap = await db.collection("users").doc(auth.uid).get();
+        const shopCats = ownerSnap.exists ?
+          (ownerSnap.data() || {}).shopCategories : null;
+        if (Array.isArray(shopCats) && shopCats.length > 0 &&
+            !shopCats.includes(categoryCode)) {
+          throw new HttpsError(
+              "failed-precondition",
+              "Bu kategoride ürün yayınlayamazsınız. Mağaza " +
+              "kategorilerinizi Profil > Mağaza > Düzenle'den " +
+              "güncelleyebilirsiniz.",
+          );
+        }
+      } catch (e) {
+        // Kendi attığımız kural hatası yukarı çıkmalı; yalnız OKUMA
+        // arızası yutulur (kullanıcı sunucu hatası yüzünden engellenmesin).
+        if (e instanceof HttpsError) throw e;
+        logger.warn(`publishProduct shopCategories okunamadi (${auth.uid})`, e);
       }
 
       // Rate limit: 10 / Istanbul day + 30s burst

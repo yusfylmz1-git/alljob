@@ -145,8 +145,9 @@ void main() {
     test('Keşfet paneli misafire de ürünleri gösterir', () {
       final panel = read(
           'lib/features/products/presentation/widgets/products_explore_panel.dart');
-      expect(panel.contains('canSell'), isTrue,
-          reason: 'Satış girişi oturuma bağlı olmalı, usta moduna değil.');
+      // "Ürünlerim" düğmesi Keşfet'ten kalktı — ekleme Profil → Mağaza.
+      expect(panel.contains("Text('Ürünlerim')"), isFalse,
+          reason: 'Ürünlerim+ Keşfet Mağaza ürünlerinden kaldırılmalı.');
       expect(panel.contains('Ustaların vitrin ürünleri'), isFalse,
           reason: 'Metin artık ustaya özel değil.');
     });
@@ -268,6 +269,16 @@ void main() {
     late String cf;
     setUpAll(() => cf = read('functions/index.js'));
 
+    test('product_request ekranda ham kod olarak görünmez', () {
+      expect(
+        Job.labelForCategory(kProductRequestCategory),
+        kProductRequestName,
+        reason: 'Meslek haritasında yok; yoksa İlanlarım/detay '
+            '"product_request" yazar — hata gibi durur.',
+      );
+      expect(Job.labelForCategory(kQuickSupportCategory), kQuickSupportName);
+    });
+
     test('ürün talebi USTA feed’ine düşmez', () {
       // Alıcı kitlesi satıcılar. Bu eşleşme sessizce de tutmazdı
       // ('product_request' bir meslek kodu değil) ama açık kapı şart:
@@ -328,15 +339,52 @@ void main() {
       );
     });
 
-    test('anlık fan-out talebi ATLAR', () {
+    test('anlık fan-out talebi ustalara gitmez, satıcılara gider', () {
       expect(cf.contains('PRODUCT_REQUEST_CATEGORY'), isTrue);
+      expect(cf.contains('notifyProductRequestSellers'), isTrue);
+      expect(cf.contains('collectProductRequestSellerUids'), isTrue);
       final fanout = cf.substring(
         cf.indexOf('exports.onJobCreated'),
         cf.indexOf('exports.onJobWritten'),
       );
-      expect(fanout.contains('=== PRODUCT_REQUEST_CATEGORY'), isTrue,
-          reason: 'onJobCreated ürün talebinde erken dönmeli — yoksa '
-              'talepler ustalara ANLIK push olarak giderdi.');
+      expect(fanout.contains('notifyProductRequestSellers'), isTrue,
+          reason: 'Ürün talebi ustalara düşmemeli; satıcı anlığına sapmalı.');
+      expect(fanout.contains('return;'), isTrue);
+      // Usta meslek sorgusu ürün talebi dalından SONRA kalmalı.
+      expect(
+        fanout.indexOf('notifyProductRequestSellers'),
+        lessThan(fanout.indexOf('array-contains')),
+      );
+    });
+
+    test('anlık alıcı il + ürün kategorisi ister', () {
+      final start = cf.indexOf('async function collectProductRequestSellerUids');
+      final end = cf.indexOf('async function notifyProductRequestSellers');
+      expect(start, greaterThan(-1));
+      expect(end, greaterThan(start));
+      final fn = cf.substring(start, end);
+      expect(fn.contains('p.categoryCode'), isTrue,
+          reason: 'Yayındaki ürünün kategorisi taleple eşleşmeli.');
+      expect(fn.contains('shopCategories'), isTrue,
+          reason: 'Mağaza kategorisi seçmiş, henüz ürünü olmayan da almalı.');
+      expect(fn.contains('shopServiceAreas'), isTrue);
+      expect(fn.contains('ownerProvinces'), isTrue,
+          reason: 'Mağaza bölgesi boşsa il, yayındaki üründen türümeli.');
+      expect(fn.contains('artisanProfiles'), isTrue,
+          reason: 'Bölge hiç yoksa usta hizmet bölgesine düşülmeli.');
+      expect(fn.contains('excludeUid'), isTrue);
+    });
+
+    test('anlık tercih productDigest ile kesilir', () {
+      expect(cf.contains('data.kind === "productRequest"'), isTrue,
+          reason: 'pushCategoryFromData anlığı özet tercihine bağlamalı.');
+      final anlik = cf.substring(
+        cf.indexOf('async function notifyProductRequestSellers'),
+        cf.indexOf('exports.onJobCreated'),
+      );
+      expect(anlik.contains('"productDigest"'), isTrue);
+      expect(anlik.contains('productRequestInstantDay'), isTrue,
+          reason: 'Akşam özeti aynı kişiye ikinci kez gitmemeli.');
     });
 
     test('özet CF günde bir kez çalışır', () {
@@ -373,7 +421,16 @@ void main() {
 
     test('özet kendi talebini açana geri gitmez', () {
       final ozet = cf.substring(cf.indexOf('exports.sendProductRequestDigest'));
-      expect(ozet.contains('alicilar.delete(j.customerId)'), isTrue);
+      expect(ozet.contains('alicilar.delete(t.customerId)'), isTrue);
+    });
+
+    test('özet de kategoriye bakır, anlık almışı atlar', () {
+      final ozet = cf.substring(cf.indexOf('exports.sendProductRequestDigest'));
+      expect(ozet.contains('collectProductRequestSellerUids'), isTrue,
+          reason: 'Özet anlıkla AYNI alıcı fonksiyonunu kullanmalı.');
+      expect(ozet.contains('productRequestInstantDay'), isTrue,
+          reason: 'Bugün anlık alan kişiye akşam ikinci push gitmemeli.');
+      expect(ozet.contains('productCategoryCode'), isTrue);
     });
 
     test('özet AYRI tercihe bağlı — üç katman da tanımalı', () {
@@ -453,8 +510,55 @@ void main() {
           form.contains('kProductRequestCategory => JobDuration.day7'), isTrue,
           reason: 'Süre sunucuda değil formda zorlanıyor; kullanıcı '
               'kategoriyi sonradan değiştirse bile 7 gün olmalı.');
-      expect(form.contains('kProductRequestCategory: '), isTrue,
-          reason: 'Kategori seçicide görünmeli.');
+      expect(form.contains('Ürün Talebi Oluştur'), isTrue,
+          reason: 'Ürün talebi formu mağaza diline geçmeli.');
+      expect(
+        form.contains('Aynı kategorideki satıcılar'),
+        isTrue,
+        reason: 'Başarı metni usta fan-out\'u ima etmemeli.',
+      );
+      expect(form.contains('Ürünü Tanımlayın'), isTrue);
+      expect(
+          form.contains('catalog.sirali') ||
+              form.contains('ProductCategory.sirali') ||
+              form.contains('productCategoryCatalogProvider'),
+          isTrue,
+          reason: 'Kategoriler mağaza kataloğu olmalı (canlı veya yedek).');
+    });
+
+    test('profil Mağaza sekmesinde Taleplerim + Ürünlerim + düzenle var', () {
+      final p = read('lib/features/profile/presentation/profile_screen.dart');
+      expect(p.contains("Text('Taleplerim')"), isTrue);
+      expect(p.contains("Text('Ürünlerim')"), isTrue);
+      expect(p.contains('RoutePaths.shopEdit'), isTrue);
+      expect(p.contains('RoutePaths.myProductRequests'), isTrue);
+      expect(p.contains('RoutePaths.myProducts'), isTrue);
+    });
+
+    test('mağaza sonradan düzenlenebilir (kategori + bölge)', () {
+      expect(router.contains('ShopSetupScreen('), isTrue);
+      expect(router.contains("queryParameters['edit'] == '1'"), isTrue);
+      final setup = read(
+          'lib/features/products/presentation/shop_setup_screen.dart');
+      expect(setup.contains('this.editing'), isTrue);
+      expect(setup.contains('shopCategories'), isTrue);
+      expect(setup.contains('shopServiceAreas'), isTrue);
+      expect(setup.contains('Mağazayı düzenle'), isTrue);
+    });
+
+    test('dükkân müşteriye mağaza bölgesini gösterir', () {
+      final d = read(
+          'lib/features/products/presentation/widgets/dukkan_bolumu.dart');
+      expect(d.contains('shopServiceAreas'), isTrue);
+      expect(d.contains('a.labelTR'), isTrue);
+    });
+
+    test('Taleplerim yalnızca ürün taleplerini listeler', () {
+      expect(router.contains('onlyProductRequests:'), isTrue);
+      final mine =
+          read('lib/features/jobs/presentation/my_jobs_screen.dart');
+      expect(mine.contains('onlyProductRequests'), isTrue);
+      expect(mine.contains('isProductRequest'), isTrue);
     });
 
     test('talep listesi ayrı sorgu açmaz', () {
@@ -492,6 +596,37 @@ void main() {
       expect(form.contains('show kProfessionNames'), isFalse);
     });
 
+    test('kategori listesi MAĞAZA kategorileriyle sınırlı', () {
+      // Yapı malzemesi satan biri kozmetik yayınlayabiliyordu; hem vitrin
+      // hem Keşfet süzmesi anlamsızlaşıyordu. Satıcı yalnız mağazasını
+      // açarken seçtiği kategorilerde ürün paylaşabilir.
+      expect(form.contains('shopCategories'), isTrue,
+          reason: 'Ürün kategorisi mağaza kategorileriyle süzülmüyor.');
+      // Kısıt kullanıcıya AÇIKLANMALI, yoksa "kategorim yok" sanılır.
+      expect(form.contains('Profil > Mağaza > Düzenle'), isTrue,
+          reason: 'Liste neden kısa, kullanıcı nereden genişletir?');
+    });
+
+    test('mağaza kategorisi YOKSA liste tam kalır', () {
+      // Eski kayıtlar / henüz seçmemiş kullanıcılar ürün ekleyemez hâle
+      // düşmemeli — kısıt yalnız kategori seçilmişse uygulanır.
+      expect(form.contains('magazaKodlari.isEmpty'), isTrue);
+    });
+
+    test('kısıt SUNUCUDA da uygulanıyor (istemci atlatılabilir)', () {
+      // Taslak doğrudan SDK ile yazılıp publishProduct çağrılabilir.
+      final cf = read('functions/index.js');
+      final i = cf.indexOf('exports.publishProduct');
+      final j = cf.indexOf('\nexports.', i + 1);
+      final govde = cf.substring(i, j == -1 ? cf.length : j);
+      expect(govde.contains('shopCategories'), isTrue,
+          reason: 'Sunucu kategoriyi doğrulamıyor — istemci kısıtı tek '
+              'başına güvenlik sınırı değildir.');
+      // Okuma arızası kullanıcıyı ENGELLEMEMELİ (yalnız kural hatası çıkar).
+      expect(govde.contains('e instanceof HttpsError'), isTrue,
+          reason: 'Okuma hatası yutulmazsa geçici arıza yayını durdurur.');
+    });
+
     test('kullanıcının MESLEĞİ kategori olarak ön-seçilmez', () {
       // Form açılışta profildeki ilk meslek kodunu categoryCode yapıyordu.
       // Artık ayrı listeler; ayrıca "herkes satabilir" olduğu için
@@ -503,7 +638,21 @@ void main() {
       // Modül kaldırılmadan önceki ürünler MESLEK koduyla kaydedilmişti.
       // O kod listede yoksa alan boş görünür ve kullanıcı farkında olmadan
       // kategoriyi değiştirmiş olurdu.
-      expect(form.contains('ProductCategory.tanidik'), isTrue);
+      //
+      // 2026-08-15: liste artık mağaza kategorileriyle süzülüyor
+      // (`izinli`), o yüzden kontrol de süzülmüş liste üzerinden yapılır.
+      // Bu ayrıca mağaza kategorisi SONRADAN daraltılan ürünleri korur:
+      // mevcut ürün düzenlenebilir kalır, yalnız yeni seçim kısıtlanır.
+      expect(
+          form.contains('ProductCategory.tanidik') ||
+              form.contains('catalog.sirali.contains') ||
+              form.contains('izinli.contains') ||
+              form.contains('catalog.tanidik'),
+          isTrue);
+      // Mevcut değer her hâlükârda listeye eklenmeli.
+      expect(form.contains('value!'), isTrue,
+          reason: 'Kayıtlı kategori listeye eklenmiyor — alan boşalır ve '
+              'kullanıcı farkında olmadan kategoriyi değiştirir.');
     });
 
     test('ürünün görüldüğü yerler de ürün kategorisi gösterir', () {
@@ -513,7 +662,11 @@ void main() {
         'lib/features/products/presentation/widgets/products_explore_panel.dart',
       ]) {
         final s = read(f);
-        expect(s.contains('ProductCategory.label'), isTrue,
+        expect(
+            s.contains('ProductCategory.label') ||
+                s.contains('catalog.label') ||
+                s.contains('catalogOf(ref).label'),
+            isTrue,
             reason: '$f hâlâ meslek adı gösteriyor.');
         expect(s.contains('kProfessionNames['), isFalse, reason: f);
       }

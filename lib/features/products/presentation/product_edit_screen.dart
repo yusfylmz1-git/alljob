@@ -969,6 +969,17 @@ class _ProductEditScreenState extends ConsumerState<ProductEditScreen> {
 ///
 /// Artık [ProductCategory]: ürünün KENDİSİNİ tarif eden 14 kategori.
 /// Canlı ürün kategorisi listesi (adminConfig/productCategories).
+///
+/// MAĞAZA KATEGORİLERİYLE SINIRLI (2026-08-15): satıcı yalnız mağazasını
+/// açarken seçtiği kategorilerde ürün paylaşabilir. Yapı malzemesi satan
+/// birinin kozmetik yayınlaması hem vitrini hem Keşfet süzmesini bozardı.
+///
+/// ⚠️ TALEPLER BUNA TABİ DEĞİL: müşteri istediği kategoride ürün talebi
+/// açabilir (`create_job_screen`, `kind=product`). Kısıt yalnız SATIŞ
+/// tarafındadır.
+///
+/// Mağaza kategorisi yoksa (eski kayıt / henüz seçmemiş) liste tam kalır —
+/// kullanıcıyı ürün ekleyemez hâle düşürmek yerine serbest bırakılır.
 class _UrunKategoriSecici extends ConsumerWidget {
   const _UrunKategoriSecici({required this.value, required this.onChanged});
 
@@ -978,16 +989,25 @@ class _UrunKategoriSecici extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final catalog = catalogOf(ref);
-    // Eski / pasif kod listede yoksa alan boşalmasın — eklenir.
+    final magazaKodlari = ref.watch(currentUserProvider)?.shopCategories ??
+        const <String>[];
+
+    // Mağaza kategorileri katalogdaki SIRAYA göre süzülür (kullanıcının
+    // seçim sırası değil — liste her yerde aynı düzende görünsün).
+    final izinli = magazaKodlari.isEmpty
+        ? catalog.sirali
+        : catalog.sirali.where(magazaKodlari.contains).toList();
+
+    // Eski / pasif kod listede yoksa alan boşalmasın — eklenir. Bu, mağaza
+    // kategorisi sonradan daraltılmış ürünler için de geçerlidir: mevcut
+    // ürün düzenlenebilir kalır, yalnız YENİ seçim kısıtlanır.
     final kodlar = [
-      ...catalog.sirali,
-      if (value != null &&
-          value!.isNotEmpty &&
-          !catalog.sirali.contains(value!))
+      ...izinli,
+      if (value != null && value!.isNotEmpty && !izinli.contains(value!))
         value!,
     ];
 
-    return SearchableSelectField<String>(
+    final alan = SearchableSelectField<String>(
       label: 'Kategori',
       value: value,
       items: kodlar,
@@ -996,6 +1016,28 @@ class _UrunKategoriSecici extends ConsumerWidget {
       searchHint: 'Kategori ara (örn. hırdavat, mobilya…)',
       prefixIcon: Icons.category_outlined,
       onSelected: onChanged,
+    );
+
+    // Kısıt GÖRÜNÜR olmalı: liste neden kısa, kullanıcı anlasın ve nereden
+    // genişleteceğini bilsin. Açıklamasız kısıt "eksik kategori" hatası
+    // olarak algılanır.
+    if (magazaKodlari.isEmpty) return alan;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        alan,
+        Padding(
+          padding: const EdgeInsets.fromLTRB(12, 6, 12, 0),
+          child: Text(
+            'Yalnız mağaza kategorileriniz listelenir. '
+            'Değiştirmek için: Profil > Mağaza > Düzenle.',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: context.palette.inkMuted,
+                  height: 1.3,
+                ),
+          ),
+        ),
+      ],
     );
   }
 }
