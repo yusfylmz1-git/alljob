@@ -1,0 +1,588 @@
+<title>Play Yayın Rehberi</title>
+<style>
+  :root {
+    --ground:       #FBFAF7;
+    --surface:      #FFFFFF;
+    --sunk:         #F0EDE6;
+    --ink:          #191713;
+    --ink-soft:     #45403A;
+    --ink-mute:     #786F63;
+    --rule:         #E2DDD3;
+    --rule-soft:    #EDE9E1;
+
+    /* Aksan: derin yeşil — "geçti / hazır" kaydı, uyarı kırmızısıyla çakışmaz */
+    --accent:       #2F6B4F;
+    --accent-wash:  #E2EFE7;
+
+    --done:         #2F6B4F;
+    --done-wash:    #E2EFE7;
+    --todo:         #8A5A0B;
+    --todo-wash:    #F8EDD8;
+    --stop:         #A32C1C;
+    --stop-wash:    #F8E2DE;
+
+    --shadow: 0 1px 2px rgba(25,23,19,.05), 0 10px 28px -20px rgba(25,23,19,.3);
+    --measure: 66ch;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground:      #131310;
+      --surface:     #1C1C18;
+      --sunk:        #262620;
+      --ink:         #EFEDE5;
+      --ink-soft:    #C2BCB0;
+      --ink-mute:    #8B8377;
+      --rule:        #34332B;
+      --rule-soft:   #292921;
+
+      --accent:      #7CC49B;
+      --accent-wash: #1B2A22;
+
+      --done:        #7CC49B;
+      --done-wash:   #1B2A22;
+      --todo:        #E2B45F;
+      --todo-wash:   #2E2616;
+      --stop:        #EF8A75;
+      --stop-wash:   #33201C;
+
+      --shadow: 0 1px 2px rgba(0,0,0,.5), 0 10px 28px -20px rgba(0,0,0,.8);
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --ground:      #131310;
+    --surface:     #1C1C18;
+    --sunk:        #262620;
+    --ink:         #EFEDE5;
+    --ink-soft:    #C2BCB0;
+    --ink-mute:    #8B8377;
+    --rule:        #34332B;
+    --rule-soft:   #292921;
+
+    --accent:      #7CC49B;
+    --accent-wash: #1B2A22;
+
+    --done:        #7CC49B;
+    --done-wash:   #1B2A22;
+    --todo:        #E2B45F;
+    --todo-wash:   #2E2616;
+    --stop:        #EF8A75;
+    --stop-wash:   #33201C;
+
+    --shadow: 0 1px 2px rgba(0,0,0,.5), 0 10px 28px -20px rgba(0,0,0,.8);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--ground);
+    color: var(--ink);
+    font-family: "Segoe UI", system-ui, -apple-system, "Helvetica Neue", sans-serif;
+    font-size: 1rem;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 60rem; margin: 0 auto; padding: 0 clamp(1rem, 4vw, 2.5rem); }
+
+  header.mast {
+    padding: clamp(2.5rem, 6vw, 4rem) 0 1.5rem;
+    border-bottom: 3px solid var(--accent);
+    margin-bottom: 2rem;
+  }
+  .kicker {
+    font-size: .72rem; letter-spacing: .16em; text-transform: uppercase;
+    color: var(--accent); font-weight: 700; margin: 0 0 .8rem;
+  }
+  h1 {
+    font-size: clamp(1.9rem, 5vw, 2.8rem);
+    line-height: 1.08; letter-spacing: -.02em; font-weight: 750;
+    margin: 0 0 .9rem; text-wrap: balance;
+  }
+  .sub { max-width: var(--measure); color: var(--ink-soft); font-size: 1.08rem; margin: 0; }
+
+  .scoreboard {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(8rem,1fr));
+    gap: .8rem; margin: 2rem 0 3rem;
+  }
+  .score {
+    background: var(--surface); border: 1px solid var(--rule);
+    border-radius: 10px; padding: .9rem 1rem; box-shadow: var(--shadow);
+  }
+  .score b {
+    display: block; font-size: 1.5rem; font-weight: 750;
+    letter-spacing: -.02em; font-variant-numeric: tabular-nums; line-height: 1.15;
+  }
+  .score span {
+    display: block; font-size: .72rem; letter-spacing: .06em;
+    text-transform: uppercase; color: var(--ink-mute); margin-top: .2rem;
+  }
+  .score.ok b { color: var(--done); }
+  .score.wait b { color: var(--todo); }
+
+  section { margin-bottom: 3.25rem; }
+  h2 {
+    font-size: 1.5rem; letter-spacing: -.015em; font-weight: 700;
+    margin: 0 0 .3rem; padding-bottom: .5rem;
+    border-bottom: 1px solid var(--rule); text-wrap: balance;
+  }
+  .lede { color: var(--ink-soft); max-width: var(--measure); margin: .8rem 0 1.5rem; }
+  h3 { font-size: 1.08rem; font-weight: 700; margin: 1.8rem 0 .5rem; }
+  p { max-width: var(--measure); margin: 0 0 .9rem; }
+  ul { max-width: var(--measure); padding-left: 1.15rem; }
+  li { margin-bottom: .4rem; }
+  code {
+    font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+    font-size: .86em; background: var(--sunk);
+    padding: .12em .38em; border-radius: 4px; word-break: break-word;
+  }
+  pre {
+    background: var(--sunk); border: 1px solid var(--rule-soft);
+    border-radius: 8px; padding: .9rem 1.1rem; overflow-x: auto;
+    font-size: .84rem; line-height: 1.5; margin: .8rem 0;
+  }
+  pre code { background: none; padding: 0; }
+  a { color: var(--accent); text-underline-offset: 2px; }
+  a:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 3px; }
+
+  /* Yapılanlar listesi */
+  .did { list-style: none; padding: 0; max-width: none; }
+  .did li {
+    display: grid; grid-template-columns: 1.6rem 1fr; gap: .1rem .7rem;
+    padding: .7rem 0; border-bottom: 1px solid var(--rule-soft);
+    margin: 0; align-items: start;
+  }
+  .did .tick {
+    color: var(--done); font-weight: 800; font-size: 1rem; line-height: 1.5;
+  }
+  .did .what { font-weight: 650; }
+  .did .why {
+    grid-column: 2; color: var(--ink-mute); font-size: .9rem; line-height: 1.5;
+  }
+
+  /* Adım kartları */
+  .step {
+    background: var(--surface); border: 1px solid var(--rule);
+    border-radius: 12px; padding: 1.3rem 1.5rem; margin-bottom: 1rem;
+    box-shadow: var(--shadow); position: relative;
+  }
+  .step.critical { border-left: 5px solid var(--stop); }
+  .step.normal   { border-left: 5px solid var(--todo); }
+  .stephead { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem; margin-bottom: .5rem; }
+  .stepno {
+    background: var(--accent); color: var(--ground);
+    width: 1.7rem; height: 1.7rem; border-radius: 50%;
+    display: grid; place-items: center; flex: none;
+    font-size: .82rem; font-weight: 750;
+    font-variant-numeric: tabular-nums;
+  }
+  :root[data-theme="dark"] .stepno,
+  :root:not([data-theme="light"]) .stepno { color: #131310; }
+  .steptitle { font-size: 1.1rem; font-weight: 700; margin: 0; flex: 1 1 14rem; text-wrap: balance; }
+  .tag {
+    font-size: .66rem; letter-spacing: .08em; text-transform: uppercase;
+    font-weight: 750; padding: .22rem .5rem; border-radius: 4px; flex: none;
+  }
+  .tag.stop { background: var(--stop-wash); color: var(--stop); }
+  .tag.soft { background: var(--todo-wash); color: var(--todo); }
+  .step p:last-child { margin-bottom: 0; }
+  .path {
+    font-size: .88rem; color: var(--ink-mute);
+    background: var(--sunk); border-radius: 6px;
+    padding: .5rem .75rem; margin: .5rem 0 .9rem; max-width: none;
+  }
+  .warnbox {
+    background: var(--stop-wash); border-radius: 8px;
+    padding: .8rem 1rem; margin-top: .9rem; max-width: none;
+  }
+  .warnbox p { margin: 0; font-size: .93rem; color: var(--ink-soft); max-width: none; }
+  .warnbox strong { color: var(--stop); }
+
+  .tscroll { overflow-x: auto; margin: 1rem 0; }
+  table { border-collapse: collapse; width: 100%; font-size: .9rem; min-width: 30rem; }
+  th, td { text-align: left; padding: .6rem .75rem; border-bottom: 1px solid var(--rule-soft); vertical-align: top; }
+  th {
+    font-size: .7rem; letter-spacing: .07em; text-transform: uppercase;
+    color: var(--ink-mute); border-bottom: 1px solid var(--rule);
+  }
+  .fp {
+    font-family: ui-monospace, Consolas, monospace; font-size: .78rem;
+    background: var(--sunk); padding: .7rem .9rem; border-radius: 6px;
+    word-break: break-all; margin: .6rem 0; max-width: none;
+  }
+  footer {
+    border-top: 1px solid var(--rule); padding: 1.5rem 0 4rem;
+    color: var(--ink-mute); font-size: .85rem; max-width: none;
+  }
+</style>
+
+<div class="wrap">
+
+<header class="mast">
+  <p class="kicker">İlanda Hizmet · 15 Ağustos 2026</p>
+  <h1>Play Yayın Rehberi</h1>
+  <p class="sub">
+    Koddaki tüm denetim maddeleri kapatıldı. Bu sayfa neyin yapıldığını ve
+    geriye kalan yedi Play Console adımını sırayla anlatır — hepsi tarayıcıdan,
+    kod bilgisi gerektirmeden yapılır.
+  </p>
+</header>
+
+<div class="scoreboard">
+  <div class="score ok"><b>2</b><span>P0 kapatıldı</span></div>
+  <div class="score ok"><b>5</b><span>P1 kapatıldı</span></div>
+  <div class="score ok"><b>4</b><span>P2 kapatıldı</span></div>
+  <div class="score ok"><b>814</b><span>test geçiyor</span></div>
+  <div class="score wait"><b>7</b><span>Console adımı</span></div>
+</div>
+
+<section>
+  <h2>Bölüm 1 · Kodda tamamlananlar</h2>
+  <p class="lede">
+    Hepsi commit'lendi (<code>1b8d46f</code>, <code>c3e6fde</code>) ve geri
+    gitmemeleri için sözleşme testine bağlandı. Yayın sonrasına iş bırakılmadı.
+  </p>
+
+  <h3>Kritik (P0)</h3>
+  <ul class="did">
+    <li>
+      <span class="tick">✓</span>
+      <span class="what">Play satın alma token'ı artık tekrar kullanılamaz</span>
+      <span class="why">
+        Bir abonelik satın alıp token'ı paylaşan herkes premium olabiliyordu.
+        Token sahibi <code>membershipTokens/{hash}</code> içinde tutuluyor,
+        yazım yarıştırılamaz bir transaction ile yapılıyor, hesap silmede
+        temizleniyor.
+      </span>
+    </li>
+    <li>
+      <span class="tick">✓</span>
+      <span class="what">Harici bağlantılar açılıyor</span>
+      <span class="why">
+        Android 11+ paket görünürlüğü nedeniyle menüdeki site bağlantısı,
+        WhatsApp düğmesi ve sosyal medya bağlantıları <em>sessizce</em>
+        çalışmıyordu. Manifest'e <code>&lt;queries&gt;</code> beyanı eklendi.
+      </span>
+    </li>
+  </ul>
+
+  <h3>Yapısal (P1)</h3>
+  <ul class="did">
+    <li>
+      <span class="tick">✓</span>
+      <span class="what">Eşzamanlı ilan limiti sunucuda atomik</span>
+      <span class="why">
+        Aynı anda gönderilen ilanlar 5 sınırını aşabiliyordu. Rezervasyon
+        sayacı ilan oluşturma transaction'ına alındı.
+      </span>
+    </li>
+    <li>
+      <span class="tick">✓</span>
+      <span class="what">30 admin fonksiyonu App Check zorluyor</span>
+      <span class="why">
+        Çalınmış bir admin oturumunun panel dışından kullanılmasını
+        zorlaştırır. Web reCAPTCHA anahtarı zaten tanımlıydı.
+      </span>
+    </li>
+    <li>
+      <span class="tick">✓</span>
+      <span class="what">R8 açıldı — paket 60,2 MB → 55,4 MB</span>
+      <span class="why">
+        Kod küçültme ve karartma. Yansımayla çağrılan her şey (Firebase,
+        Play Billing, fotoğraf kırpma, bildirimler) koruma kurallarında;
+        gerçek release derlemesiyle doğrulandı.
+      </span>
+    </li>
+    <li>
+      <span class="tick">✓</span>
+      <span class="what">Cloud Functions ilk kez denetleniyor</span>
+      <span class="why">
+        Hiç lint yapılandırması yoktu. İlk çalıştırmada 5 ölü tanım ve 2
+        hatalı regex kaçışı buldu; deploy öncesi otomatik çalışacak şekilde
+        bağlandı.
+      </span>
+    </li>
+    <li>
+      <span class="tick">✓</span>
+      <span class="what">Sürüm 1.0.0+1 → 1.0.1+2</span>
+      <span class="why">
+        Play aynı sürüm kodunu ikinci kez kabul etmez. Test bunu artık
+        kilitliyor.
+      </span>
+    </li>
+  </ul>
+
+  <h3>Temizlik (P2)</h3>
+  <ul class="did">
+    <li>
+      <span class="tick">✓</span>
+      <span class="what">Günlük satırları release'te susturuldu</span>
+      <span class="why">
+        <code>debugPrint</code> adına rağmen release'te de yazar; satırlar
+        kullanıcı kimliği, sohbet kimliği ve bildirim jetonu öneki taşıyordu.
+        40 çağrı <code>AppLog.d</code>'ye taşındı.
+      </span>
+    </li>
+    <li>
+      <span class="tick">✓</span>
+      <span class="what">4,85 MB'lık kullanılmayan görsel silindi</span>
+      <span class="why">
+        <code>yan_logo.png</code> denenip vazgeçilmiş ama pakette kalmıştı —
+        tüm varlıkların yarısıydı.
+      </span>
+    </li>
+    <li>
+      <span class="tick">✓</span>
+      <span class="what">Site adresi tek sabitte</span>
+      <span class="why">
+        Yasal metin adresleri bilerek ayrı tutuldu — onların kanonik kaynağı
+        <code>legal_docs.dart</code>; ikinci bir kopya biri değişince
+        diğerini eskitirdi.
+      </span>
+    </li>
+    <li>
+      <span class="tick">✓</span>
+      <span class="what">Kasa ve ilerleme defteri güncellendi</span>
+      <span class="why">
+        Bu oturumda öğrenilen dört yeni tuzak yazıldı, eskiyen iOS maddesi
+        düzeltildi.
+      </span>
+    </li>
+  </ul>
+</section>
+
+<section>
+  <h2>Bölüm 2 · Sizin yapacaklarınız</h2>
+  <p class="lede">
+    Sırayla ilerleyin. İlk üçü <strong>yayından önce</strong> yapılmazsa
+    uygulama ya reddedilir ya da çalışır görünüp temel işlevi bozuk olur.
+  </p>
+
+  <div class="step critical">
+    <div class="stephead">
+      <span class="stepno">1</span>
+      <h3 class="steptitle">Kuralları ve fonksiyonları canlıya al</h3>
+      <span class="tag stop">Önce bu</span>
+    </div>
+    <p>
+      Bütün güvenlik düzeltmeleri şu an yalnızca bilgisayarınızda. Canlıya
+      çıkmadan hiçbiri koruma sağlamaz. Terminalde proje klasöründe:
+    </p>
+<pre><code>firebase deploy --only firestore:rules,functions --project alljob1</code></pre>
+    <p>
+      Deploy öncesi lint otomatik çalışır. Ağ hatası alırsanız kasadaki
+      <em>IPv4/IPv6</em> maddesine bakın — uç noktaya göre değişir.
+    </p>
+    <div class="warnbox">
+      <p>
+        <strong>Sıra önemli:</strong> Fonksiyonlar yeni <code>membershipTokens</code>
+        koleksiyonuna yazıyor; kurallar da onu istemciye kapatıyor. İkisini
+        birlikte gönderin.
+      </p>
+    </div>
+  </div>
+
+  <div class="step critical">
+    <div class="stephead">
+      <span class="stepno">2</span>
+      <h3 class="steptitle">Release SHA-256'yı Firebase'e ekleyin</h3>
+      <span class="tag stop">Atlanırsa kayıt çöker</span>
+    </div>
+    <p>
+      Telefon doğrulaması bu parmak izine bağlı. Eksikse uygulama açılır,
+      gezinir, hatta ilan listeler — <strong>ama hiç kimse usta veya mağaza
+      olamaz</strong>, çünkü sağlayıcı olmak doğrulanmış telefon ister.
+      Yayından sonra fark edilmesi en pahalı arıza budur.
+    </p>
+    <p>Keystore'unuzdan okudum, girmeniz gereken değer:</p>
+    <div class="fp">
+      SHA-256<br>
+      39:FC:9D:97:37:FE:52:55:17:84:25:C9:31:4D:8E:27:7B:75:4B:F9:FC:48:35:94:57:33:10:B8:0B:FD:03:A6
+    </div>
+    <div class="fp">
+      SHA-1 (bazı hizmetler ister)<br>
+      99:7A:CB:23:5F:5F:0C:78:84:E1:A7:03:B1:3C:55:21:A5:00:58:87
+    </div>
+    <p class="path">
+      Firebase Console → Project settings → Your apps → Android
+      (<code>com.sepettehizmet.app</code>) → <em>Add fingerprint</em>
+    </p>
+    <div class="warnbox">
+      <p>
+        <strong>Play App Signing kullanıyorsanız</strong> (varsayılan ve
+        önerilen), Play yüklemeden sonra <em>kendi</em> imza anahtarını
+        üretir. Play Console → Setup → App integrity ekranındaki
+        <em>App signing key certificate</em> SHA-256'sını da aynı yere
+        ekleyin. Yukarıdaki yükleme anahtarıdır; ikisi farklıdır ve
+        <strong>ikisi de gereklidir</strong>.
+      </p>
+    </div>
+  </div>
+
+  <div class="step critical">
+    <div class="stephead">
+      <span class="stepno">3</span>
+      <h3 class="steptitle">Gerçek cihazda release derlemesini deneyin</h3>
+      <span class="tag stop">R8 için şart</span>
+    </div>
+    <p>
+      Bu oturumda iki değişiklik <em>yalnız</em> release derlemede görünür:
+      R8 kod küçültme ve manifest bağlantı beyanı. Debug derlemede ikisi de
+      test edilemez.
+    </p>
+<pre><code>flutter build appbundle --release
+# veya doğrudan cihaza:
+flutter run --release</code></pre>
+    <p>Şu beş akışı elle deneyin:</p>
+    <ul>
+      <li>Menü → <strong>ilandahizmet.com</strong> bağlantısı tarayıcıda açılmalı</li>
+      <li>Sohbette <strong>WhatsApp</strong> düğmesi</li>
+      <li><strong>Fotoğraf seçme + kırpma</strong> (uCrop, R8'in silebileceği bir yer)</li>
+      <li><strong>Bildirim</strong> gelmesi</li>
+      <li><strong>Premium satın alma</strong> akışı (test hesabıyla)</li>
+    </ul>
+  </div>
+
+  <div class="step normal">
+    <div class="stephead">
+      <span class="stepno">4</span>
+      <h3 class="steptitle">Veri güvenliği formunu doldurun</h3>
+      <span class="tag soft">Console</span>
+    </div>
+    <p class="path">Play Console → Policy → App content → Data safety</p>
+    <p>
+      Uygulamanın gerçekte topladığı veriler — koddan çıkarıldı, olduğu gibi
+      işaretleyebilirsiniz:
+    </p>
+    <div class="tscroll">
+      <table>
+        <thead>
+          <tr><th>Veri türü</th><th>Toplanıyor</th><th>Amaç</th><th>Paylaşım</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Ad-soyad</td><td>Evet</td><td>Hesap yönetimi, uygulama işlevi</td><td>Hayır</td></tr>
+          <tr><td>E-posta adresi</td><td>Evet</td><td>Hesap yönetimi</td><td>Hayır</td></tr>
+          <tr><td>Telefon numarası</td><td>Evet</td><td>Hesap doğrulama (SMS)</td><td>Hayır</td></tr>
+          <tr><td>Fotoğraflar</td><td>Evet</td><td>Profil, ilan ve ürün görselleri</td><td>Hayır</td></tr>
+          <tr><td>Konum (yaklaşık)</td><td>Evet</td><td>İl/ilçe eşleştirme — GPS değil, kullanıcı seçer</td><td>Hayır</td></tr>
+          <tr><td>Mesajlar</td><td>Evet</td><td>Uygulama içi sohbet</td><td>Hayır</td></tr>
+          <tr><td>Uygulama etkileşimi</td><td>Evet</td><td>Analiz (Firebase Analytics)</td><td>Hayır</td></tr>
+          <tr><td>Çökme kayıtları</td><td>Evet</td><td>Tanılama (Crashlytics)</td><td>Hayır</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>
+      Şifreleme sorusuna <strong>evet</strong> (Firebase tüm trafiği TLS ile
+      taşır). Silme talebi sorusuna <strong>evet</strong> — hem uygulama
+      içinden hem web adresinden mümkün.
+    </p>
+    <div class="warnbox">
+      <p>
+        <strong>Konum maddesine dikkat:</strong> Uygulama GPS izni istemiyor;
+        kullanıcı il/ilçeyi listeden seçiyor. Formda <em>approximate
+        location</em> olarak işaretleyin, precise değil — yanlış beyan
+        inceleme gecikmesi yaratır.
+      </p>
+    </div>
+  </div>
+
+  <div class="step normal">
+    <div class="stephead">
+      <span class="stepno">5</span>
+      <h3 class="steptitle">Yasal adresleri girin</h3>
+      <span class="tag soft">Console</span>
+    </div>
+    <p>Sayfalar hazır ve yayında; Console'a yazılması gereken adresler:</p>
+    <div class="tscroll">
+      <table>
+        <thead><tr><th>Alan</th><th>Adres</th></tr></thead>
+        <tbody>
+          <tr>
+            <td>Gizlilik politikası<br><span style="color:var(--ink-mute);font-size:.85em">App content → Privacy policy</span></td>
+            <td><code>https://www.ilandahizmet.com/gizlilik-politikasi.html</code></td>
+          </tr>
+          <tr>
+            <td>Hesap silme<br><span style="color:var(--ink-mute);font-size:.85em">Data safety → Account deletion</span></td>
+            <td><code>https://www.ilandahizmet.com/hesap-silme.html</code></td>
+          </tr>
+          <tr>
+            <td>Kullanım koşulları</td>
+            <td><code>https://www.ilandahizmet.com/kullanim-kosullari.html</code></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <p>
+      Play, hesap silme için uygulama içi yolun yanında <strong>web
+      adresini de</strong> ister — uygulamayı silmiş bir kullanıcı da talep
+      edebilmelidir. İkisi de mevcut.
+    </p>
+  </div>
+
+  <div class="step normal">
+    <div class="stephead">
+      <span class="stepno">6</span>
+      <h3 class="steptitle">Abonelik ürününü etkinleştirin</h3>
+      <span class="tag soft">Console</span>
+    </div>
+    <p class="path">Play Console → Monetize → Subscriptions</p>
+    <p>
+      Ürün kimliği <code>sepette_hizmet_pro_monthly</code> olmalı ve durumu
+      <strong>Active</strong> yapılmalıdır. Sunucu doğrulaması yalnız bu
+      kimliği kabul eder.
+    </p>
+    <div class="warnbox">
+      <p>
+        <strong>Bu kimlik bir daha değişmez.</strong> Ürün oluşturulduktan
+        sonra yeniden adlandırılamaz; değiştirmeye kalkışmak mevcut
+        aboneleri kaybettirir. Marka "İlanda Hizmet" olsa da kimlik
+        <code>sepette_hizmet</code> kalır — bu bilinçlidir.
+      </p>
+    </div>
+  </div>
+
+  <div class="step normal">
+    <div class="stephead">
+      <span class="stepno">7</span>
+      <h3 class="steptitle">Kapalı teste yükleyin</h3>
+      <span class="tag soft">Console</span>
+    </div>
+    <p class="path">Play Console → Testing → Closed testing → Create release</p>
+    <p>
+      Yükleyeceğiniz dosya:
+      <code>build/app/outputs/bundle/release/app-release.aab</code> (55,4 MB).
+    </p>
+    <p>
+      Doğrudan üretime çıkmak yerine önce kapalı test önerilir: telefon
+      doğrulama ve satın alma akışları ancak Play üzerinden dağıtılan bir
+      derlemede gerçekçi biçimde denenebilir.
+    </p>
+    <div class="warnbox">
+      <p>
+        <strong>Kaydedin:</strong>
+        <code>build/app/outputs/mapping/release/mapping.txt</code> — R8 açık
+        olduğu için çökme raporları bu dosya olmadan okunamaz. Her sürüm için
+        ayrı saklayın (Play yüklemede otomatik almıyorsa elle ekleyin).
+      </p>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2>Sonrası: App Check'i izleyin</h2>
+  <p>
+    Admin paneli artık App Check zorluyor. Firebase Console → App Check
+    ekranında admin web uygulamasını <strong>bir süre Monitor modunda</strong>
+    tutun; metriklerde "doğrulanmış" isteklerin geldiğini gördükten sonra
+    Enforce'a alın. Ters sırada yapılırsa panele erişiminizi kaybedersiniz.
+  </p>
+</section>
+
+<footer>
+  İlanda Hizmet · <code>hemen-lazim</code> dalı · commit <code>c3e6fde</code> ·
+  flutter analyze temiz · 814 test · npm run lint 0 hata ·
+  release AAB 55,4 MB
+</footer>
+
+</div>
