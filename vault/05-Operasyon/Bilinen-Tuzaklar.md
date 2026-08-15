@@ -80,6 +80,37 @@ jetonunda `phone_number` claim'i ister (`firestore.rules` →
 > alanlarını güncelleme serbest olmalı; aksi hâlde telefonu doğrulanmamış
 > mevcut ustalar profillerini hiç düzenleyemez.
 
+### 🔴 Kapının DÖRT girişi var — biri unutulursa "Bir hata oluştu"
+
+2026-08-15 cihaz bulgusu: *"Hizmet vermeye başla"* → kırmızı şerit
+**"Bir hata oluştu, lütfen tekrar deneyin"**. Tekrar denemek çözmüyor,
+sebep de görünmüyor.
+
+Sağlayıcı bayrağını açan **dört** giriş vardır:
+
+| Giriş | Dosya |
+|---|---|
+| Usta profili düzenleme | `artisan_profile_edit_screen.dart` |
+| Mağaza kurulumu | `shop_setup_screen.dart` |
+| Profil > Usta sekmesi | `profile_screen.dart` → `_becomeArtisan` |
+| Yan menü | `app_menu_drawer.dart` → `_becomeArtisan` |
+
+İlk ikisinde kapı vardı, **son ikisinde yoktu**. `becomeArtisan()` doğrudan
+`hasArtisanProfile: true` yazıyor, kural reddediyor, hata
+`AsyncValue.guard` içinde yutulup "bilinmeyen hata"ya düşüyordu.
+
+> [!warning] Sunucu kuralını deploy etmeden önce İSTEMCİ kapılarını say
+> Kural çalışma ağacında commit'lenmemiş bekliyordu; deploy edilince düğme
+> ilk kez kurala çarptı. **Yeni bir sunucu kısıtı canlıya alınırken, o
+> kısıta çarpan tüm istemci yollarının kapısı olduğu doğrulanmalıdır.**
+
+İki koruma eklendi: kapı dört girişte de var **ve**
+`becomeArtisan` `permission-denied`'i ne yapılacağını söyleyen Türkçe
+mesaja çeviriyor (ham hata bir daha "bilinmeyen"e düşmesin).
+
+Regresyon: `test/yayin_hazirlik_denetimi_test.dart` → "Sağlayıcı kaydı ·
+telefon kapısı HER girişte".
+
 ⚠️ Bu kapı kayıt yolunun üstünde: **telefon doğrulama bozuksa hiç kimse
 usta/mağaza olamaz.** Firebase Console'da Phone sağlayıcısı, SMS region
 policy (+90) ve release SHA-256 doğru olmalı.
