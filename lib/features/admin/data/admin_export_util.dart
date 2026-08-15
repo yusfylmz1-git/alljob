@@ -1,6 +1,7 @@
 import '../../../data/models/app_user.dart';
 import '../../../data/models/job.dart';
 import '../../../data/models/artisan_profile.dart';
+import 'admin_daily_stats_repository.dart';
 
 /// Client-side CSV helpers (MVP — yüklü sayfa; telefon yok).
 String csvEscape(String? value) {
@@ -25,6 +26,32 @@ String buildUsersCsv(List<AppUser> users) {
         u.suspended ? 'true' : 'false',
         u.hasArtisanProfile ? 'true' : 'false',
         csvEscape(u.createdAt.toUtc().toIso8601String()),
+      ].join(','),
+    );
+  }
+  return buf.toString();
+}
+
+/// Günlük istatistik CSV'si — muhasebe / sunum / dış analiz için.
+///
+/// `jobsCreated` ürün taleplerini DE içerir; karışıklık olmasın diye hizmet
+/// ilanı ayrı bir sütun olarak türetilir (`serviceJobsCreated`).
+String buildDailyStatsCsv(List<AdminDailyStat> rows) {
+  final buf = StringBuffer(
+    'gun,yeniKullanici,toplamIlan,hizmetIlani,urunTalebi,'
+    'yeniUsta,yayinlananUrun,sikayet\n',
+  );
+  for (final r in rows) {
+    buf.writeln(
+      [
+        csvEscape(r.day),
+        '${r.usersCreated}',
+        '${r.jobsCreated}',
+        '${r.serviceJobsCreated}',
+        '${r.productRequestsCreated}',
+        '${r.artisansCreated}',
+        '${r.productsActivated}',
+        '${r.reportsCreated}',
       ].join(','),
     );
   }

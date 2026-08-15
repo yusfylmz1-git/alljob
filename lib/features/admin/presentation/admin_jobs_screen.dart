@@ -189,7 +189,8 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
                               j.province,
                               j.district,
                               j.category,
-                              kProfessionNames[j.category],
+                              kProfessionNames[j.category] ??
+                                  j.categoryLabelTR,
                               j.customerId,
                               j.customerName,
                             ],
@@ -341,7 +342,7 @@ class _JobCard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final palette = context.palette;
     final theme = Theme.of(context);
-    final cat = kProfessionNames[job.category] ?? job.category;
+    final cat = kProfessionNames[job.category] ?? job.categoryLabelTR;
     return Material(
       color: palette.card,
       borderRadius: BorderRadius.circular(14),

@@ -4,6 +4,7 @@ import '../../../core/config/backend_config.dart';
 import '../../../data/models/app_user.dart';
 import '../../../data/models/job.dart';
 import '../../../data/models/product.dart';
+import '../../../data/models/product_category.dart';
 import '../../auth/application/auth_controller.dart';
 import 'admin_artisan_repository.dart';
 import 'admin_audit_repository.dart';
@@ -15,6 +16,7 @@ import 'admin_report.dart';
 import 'admin_report_repository.dart';
 import 'admin_review_repository.dart';
 import 'admin_runtime_config_repository.dart';
+import 'admin_daily_stats_repository.dart';
 import 'admin_insights_repository.dart';
 import 'admin_stats_repository.dart';
 import 'admin_support_repository.dart';
@@ -291,6 +293,25 @@ final adminInsightsProvider = FutureProvider.autoDispose<AdminInsights?>((ref) a
   return ref.watch(adminInsightsRepositoryProvider).fetchInsights();
 });
 
+final adminDailyStatsRepositoryProvider =
+    Provider<AdminDailyStatsRepository>((ref) {
+  if (useFirebaseBackend) return FirebaseAdminDailyStatsRepository();
+  return MockAdminDailyStatsRepository();
+});
+
+/// Günlük eğilim (son 30 gün) — `adminStats/daily/days`.
+///
+/// `stats.read` yeteneği olan her yönetici görür (içgörülerin aksine
+/// superadmin'e kapalı değil): 30 doküman okur, ucuzdur ve moderatörün
+/// "bugün yoğunluk nasıl?" sorusunu yanıtlar.
+final adminDailyStatsProvider =
+    FutureProvider.autoDispose<List<AdminDailyStat>>((ref) async {
+  if (!ref.watch(adminCapabilitiesProvider).allows('stats.read')) {
+    return const <AdminDailyStat>[];
+  }
+  return ref.watch(adminDailyStatsRepositoryProvider).fetchRecent(dayCount: 30);
+});
+
 final adminAuditRepositoryProvider = Provider<AdminAuditRepository>((ref) {
   if (useFirebaseBackend) return FirebaseAdminAuditRepository();
   return MockAdminAuditRepository();
@@ -310,6 +331,17 @@ final adminRuntimeConfigProvider = StreamProvider<AdminRuntimeConfig>((ref) {
     return Stream.value(const AdminRuntimeConfig());
   }
   return ref.watch(adminRuntimeConfigRepositoryProvider).watchRuntime();
+});
+
+/// Mağaza ürün kategorileri (adminConfig/productCategories).
+final adminProductCategoriesProvider =
+    StreamProvider<ProductCategoryCatalog>((ref) {
+  if (!ref.watch(isAdminProvider)) {
+    return Stream.value(ProductCategoryCatalog.defaults);
+  }
+  return ref
+      .watch(adminRuntimeConfigRepositoryProvider)
+      .watchProductCategories();
 });
 
 final adminBroadcastRepositoryProvider = Provider<AdminBroadcastRepository>((

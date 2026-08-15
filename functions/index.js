@@ -1470,7 +1470,21 @@ exports.onJobWritten = onDocumentWritten(
       // adminStats: durum bucket'i (silme dahil).
       try {
         await applyStatsDelta(jobStatsDelta(before || null, after || null));
-        if (!before && after) await bumpDaily("jobsCreated", 1);
+        if (!before && after) {
+          await bumpDaily("jobsCreated", 1);
+          // ÜRÜN TALEBİ AYRI SAYILIR (2026-08-15).
+          //
+          // Talepler de `jobs` koleksiyonunda yaşar, yani `jobsCreated`
+          // ikisini birden sayar. Ayrı ölçülmezse "kaç ilan açıldı?" sorusu
+          // mağaza talepleriyle şişer ve mağaza modülünün gerçekten
+          // kullanılıp kullanılmadığı görülemez.
+          //
+          // Panel hizmet ilanını `jobsCreated - productRequestsCreated`
+          // olarak türetir (bkz. AdminDailyStat.serviceJobsCreated).
+          if (after.category === PRODUCT_REQUEST_CATEGORY) {
+            await bumpDaily("productRequestsCreated", 1);
+          }
+        }
       } catch (e) {
         logger.warn(`adminStats job ${event.params.jobId}: ${e}`);
       }

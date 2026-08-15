@@ -112,7 +112,9 @@ Kullanıcı / İçerik / Şikayet / Kadro / Sistem.
 | Ekran | Dosya |
 |---|---|
 | Kabuk + yönlendirme | `admin_app.dart`, `admin_chrome.dart` |
-| Gösterge paneli | `admin_dashboard_screen.dart` — kuyruklar + KPI + **dağılım içgörüleri** |
+| Gösterge paneli | `admin_dashboard_screen.dart` — kuyruklar + KPI + **günlük eğilim** + **dağılım içgörüleri** |
+| **Günlük eğilim** | `admin_daily_stats_repository.dart` — `adminStats/daily/days` (gerçek sayım) |
+| **Grafikler** | `admin_charts.dart` — `CustomPaint` (paket bağımlılığı YOK) |
 | İçgörü toplama | `admin_insights_repository.dart` — son ~400 job/usta/ürün/user örneklemi |
 | **Kullanıcılar** (ana dizin) | `admin_users_screen.dart` + **`admin_person_hub.dart`** |
 | 360° özet + notlar | `admin_user_overview.dart` (hub içine gömülü) |
@@ -131,6 +133,48 @@ Kullanıcı / İçerik / Şikayet / Kadro / Sistem.
 | Toplu plan (ücretsiz dönem bitişi) | `admin_bulk_plan_screen.dart` — yalnız superadmin |
 
 Sayfalama: `paged_footer.dart` ortak bileşen.
+
+## İki ayrı istatistik kaynağı — karıştırma
+
+| Kaynak | Ne | Kapsam | Kim görür |
+|---|---|---|---|
+| `adminStats/global` | Anlık toplam sayaçlar | Tam (CF increment) | `stats.read` |
+| **`adminStats/daily/days/{gün}`** | **Günlük olay sayacı** | **Tam, 30 gün geçmiş** | `stats.read` |
+| `AdminInsights` | Dağılım (il/meslek/kategori) | **Son ~400 kayıt örneklemi** | superadmin |
+
+> [!warning] Günlük sayaç ÖRNEKLEM DEĞİL
+> `bumpDaily()` her olayda +1 yazar; tam sayımdır. İçgörüler ise maliyet
+> nedeniyle örneklemdir ve etiketlerinde bu açıkça yazar. İkisini aynı
+> cümlede kullanırken hangisinin ne olduğunu belirt.
+
+**Gün anahtarı İstanbul saatine göredir** (`istanbulDayKey`) — sunucu UTC'de
+çalışır, aksi hâlde gece yarısı civarı kayıtlar yanlış güne düşerdi.
+
+### Ürün talebi ayrı sayılır
+
+`jobsCreated` **hem** hizmet ilanını **hem** ürün talebini sayar (talep de
+`jobs` koleksiyonunda yaşar). Panel hizmet ilanını
+`jobsCreated - productRequestsCreated` olarak türetir
+(`AdminDailyStat.serviceJobsCreated`).
+
+> Ayrı sayılmasaydı "kaç ilan açıldı?" mağaza talepleriyle şişerdi ve mağaza
+> modülünün gerçekten kullanılıp kullanılmadığı görülemezdi.
+
+`productRequestsCreated` **2026-08-15'te eklendi**; öncesindeki günlerde 0'dır
+ve `serviceJobsCreated` o günlerde toplam ilana eşit olur (negatife düşmez).
+
+### Eksik gün doldurma
+
+Firestore yalnız **olay olan** günlerde doküman yazar. `fillMissingDays()`
+eksikleri 0 ile doldurur — yoksa grafik iki nokta arasını düz çizgiyle bağlar
+ve "o gün de aktivite vardı" izlenimi verir.
+
+### Arz–talep haritası
+
+`arzTalepSatirlari()` ilan ili (talep) ile usta ili (arz) dağılımlarının
+**birleşimini** alır. Yalnız ilan listesi baz alınsaydı "ustası var ama ilanı
+yok" olan il görünmezdi. Usta ili `serviceProvinces` alanından okunur (kurallar
+için zaten denormalize); yoksa `serviceAreas` içinden çıkarılır.
 
 ## Repository deseni
 

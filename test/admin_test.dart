@@ -12,7 +12,9 @@ import 'package:sepette_hizmet/features/admin/data/admin_artisan_repository.dart
 import 'package:sepette_hizmet/features/admin/data/admin_capabilities.dart';
 import 'package:sepette_hizmet/features/admin/data/admin_invite_repository.dart';
 import 'package:sepette_hizmet/features/admin/data/admin_job_repository.dart';
+import 'package:sepette_hizmet/features/admin/data/admin_daily_stats_repository.dart';
 import 'package:sepette_hizmet/features/admin/data/admin_export_util.dart';
+import 'package:sepette_hizmet/features/admin/data/admin_insights_repository.dart';
 import 'package:sepette_hizmet/features/admin/data/admin_runtime_config_repository.dart';
 import 'package:sepette_hizmet/features/admin/data/admin_stats_repository.dart';
 import 'package:sepette_hizmet/features/admin/data/admin_user_repository.dart';
@@ -775,6 +777,119 @@ void main() {
               've panele hiç giremez.');
       expect(r.passwordSetupLink, isNotEmpty);
       expect(r.email, 'yeni@ornek.com');
+    });
+  });
+
+  group('Günlük istatistik (adminStats/daily)', () {
+    AdminDailyStat g(String day, {int jobs = 0, int talep = 0, int users = 0}) =>
+        AdminDailyStat(
+          day: day,
+          jobsCreated: jobs,
+          productRequestsCreated: talep,
+          usersCreated: users,
+        );
+
+    test('hizmet ilanı = toplam ilan − ürün talebi', () {
+      // `jobsCreated` İKİSİNİ de sayar (talep de jobs koleksiyonunda).
+      expect(g('2026-08-10', jobs: 10, talep: 3).serviceJobsCreated, 7);
+    });
+
+    test('eski günlerde talep sayacı yok — negatife düşmez', () {
+      // productRequestsCreated 2026-08-15'te eklendi; öncesi 0'dır.
+      expect(g('2026-01-01', jobs: 5).serviceJobsCreated, 5);
+      // Bozuk veri (talep > toplam) sıfıra sıkışır, negatif gösterilmez.
+      expect(g('2026-01-02', jobs: 2, talep: 9).serviceJobsCreated, 0);
+    });
+
+    test('eksik günler 0 ile doldurulur', () {
+      // Firestore yalnız OLAY OLAN günlerde doküman yazar. Eksik gün
+      // doldurulmazsa grafik iki nokta arasını düz çizgiyle bağlar ve
+      // "o gün de aktivite vardı" izlenimi verir.
+      final dolu = fillMissingDays(
+        [g('2026-08-15', jobs: 4), g('2026-08-13', jobs: 2)],
+        endDay: DateTime.utc(2026, 8, 15),
+        dayCount: 5,
+      );
+      expect(dolu.length, 5);
+      expect(dolu.map((e) => e.day).toList(), [
+        '2026-08-11',
+        '2026-08-12',
+        '2026-08-13',
+        '2026-08-14',
+        '2026-08-15',
+      ]);
+      expect(dolu.map((e) => e.jobsCreated).toList(), [0, 0, 2, 0, 4]);
+    });
+
+    test('seri toplamı ve haftalık karşılaştırma', () {
+      final rows = [
+        for (var i = 0; i < 14; i++)
+          g('2026-08-${(i + 1).toString().padLeft(2, '0')}',
+              // İlk 7 gün 1'er, son 7 gün 2'şer → %100 artış.
+              jobs: i < 7 ? 1 : 2),
+      ];
+      final s = seriesOf(rows, (r) => r.jobsCreated, label: 'İlan');
+      expect(s.total, 21);
+      expect(s.lastDays(7), 14);
+      expect(s.weekOverWeekPercent, 100);
+    });
+
+    test('önceki dönem sıfırsa yüzde HESAPLANMAZ', () {
+      // Sıfıra bölme değil: "sonsuz artış" ifadesi anlamsız olurdu, UI
+      // bunu "yeni" olarak gösterir.
+      final rows = [
+        for (var i = 0; i < 14; i++)
+          g('2026-08-${(i + 1).toString().padLeft(2, '0')}',
+              jobs: i < 7 ? 0 : 5),
+      ];
+      final s = seriesOf(rows, (r) => r.jobsCreated, label: 'İlan');
+      expect(s.weekOverWeekPercent, isNull);
+    });
+
+    test('CSV hizmet ilanını ayrı sütunda verir', () {
+      final csv = buildDailyStatsCsv([g('2026-08-10', jobs: 10, talep: 3)]);
+      expect(csv, contains('hizmetIlani'));
+      expect(csv, contains('urunTalebi'));
+      expect(csv, contains('2026-08-10,0,10,7,3,0,0,0'));
+    });
+
+    test('ürün talebi CF tarafında ayrı sayılıyor', () {
+      final cf = File('functions/index.js').readAsStringSync();
+      expect(cf.contains('productRequestsCreated'), isTrue,
+          reason: 'Talep ayrı sayılmazsa "ilan sayısı" mağaza talepleriyle '
+              'şişer ve mağaza modülünün kullanımı ölçülemez.');
+    });
+  });
+
+  group('Arz–talep (il bazında ilan ↔ usta)', () {
+    NamedCount n(String label, int c) =>
+        NamedCount(key: label, label: label, count: c);
+
+    test('iki dağılımın BİRLEŞİMİ alınır', () {
+      // Yalnız ilan listesi baz alınsaydı "ustası var ama ilanı yok" olan il
+      // görünmezdi — oysa o il de karar için anlamlıdır.
+      final rows = arzTalepSatirlari(
+        [n('Bursa', 10), n('İzmir', 4)],
+        [n('Bursa', 2), n('Ankara', 7)],
+      );
+      final iller = rows.map((r) => r.$1).toList();
+      expect(iller, containsAll(['Bursa', 'İzmir', 'Ankara']));
+      expect(rows.first, ('Bursa', 10, 2));
+      // Ankara ilan tarafında yok → 0 ilan, 7 usta.
+      expect(rows.firstWhere((r) => r.$1 == 'Ankara'), ('Ankara', 0, 7));
+    });
+
+    test('ilan sayısına göre sıralanır (talep önce)', () {
+      final rows = arzTalepSatirlari(
+        [n('A', 3), n('B', 9)],
+        [n('A', 100), n('B', 1)],
+      );
+      expect(rows.map((r) => r.$1).toList(), ['B', 'A']);
+    });
+
+    test('boş etiketler elenir', () {
+      final rows = arzTalepSatirlari([n('', 5), n('Bursa', 2)], const []);
+      expect(rows.map((r) => r.$1).toList(), ['Bursa']);
     });
   });
 

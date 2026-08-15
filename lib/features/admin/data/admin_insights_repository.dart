@@ -30,6 +30,7 @@ class AdminInsights {
     this.jobsLast7d = 0,
     this.jobsOpenInSample = 0,
     this.artisanProfessions = const [],
+    this.artisanProvinces = const [],
     this.artisansVerified = 0,
     this.artisansAdminVerified = 0,
     this.artisansFeatured = 0,
@@ -61,6 +62,14 @@ class AdminInsights {
   final int jobsOpenInSample;
 
   final List<NamedCount> artisanProfessions;
+
+  /// Ustaların HİZMET VERDİĞİ iller (`serviceProvinces`).
+  ///
+  /// İlan il dağılımıyla (`jobProvinces`) yan yana konduğunda arz–talep
+  /// haritası çıkar: ilanın çok, ustanın az olduğu il büyüme hedefidir.
+  /// Bir usta birden çok ilde hizmet verebilir; her il ayrı sayılır.
+  final List<NamedCount> artisanProvinces;
+
   final int artisansVerified;
   final int artisansAdminVerified;
   final int artisansFeatured;
@@ -115,6 +124,36 @@ void bump(Map<String, int> m, String? key) {
   m[k] = (m[k] ?? 0) + 1;
 }
 
+/// Arz–talep satırları: (il, ilan sayısı, usta sayısı).
+///
+/// İki dağılımın BİRLEŞİMİ alınır — yalnız ilan listesindeki iller alınsaydı
+/// "ustası olan ama hiç ilan gelmeyen il" görünmezdi; tersi de aynı şekilde
+/// kaybolurdu. Sıralama ilan sayısına göre (talep önce), eşitlikte usta
+/// sayısına göre.
+///
+/// Saf fonksiyon: UI'dan bağımsız test edilir.
+List<(String, int, int)> arzTalepSatirlari(
+  List<NamedCount> ilanIlleri,
+  List<NamedCount> ustaIlleri, {
+  int top = 8,
+}) {
+  final ilan = {for (final r in ilanIlleri) r.label: r.count};
+  final usta = {for (final r in ustaIlleri) r.label: r.count};
+  final tumIller = <String>{...ilan.keys, ...usta.keys}
+      .where((k) => k.trim().isNotEmpty)
+      .toList();
+  tumIller.sort((a, b) {
+    final c = (ilan[b] ?? 0).compareTo(ilan[a] ?? 0);
+    if (c != 0) return c;
+    final d = (usta[b] ?? 0).compareTo(usta[a] ?? 0);
+    if (d != 0) return d;
+    return a.compareTo(b);
+  });
+  return [
+    for (final il in tumIller.take(top)) (il, ilan[il] ?? 0, usta[il] ?? 0),
+  ];
+}
+
 /// Ham döküman haritalarından [AdminInsights] üretir (repo + test ortak).
 AdminInsights buildInsightsFromSamples({
   required List<Map<String, dynamic>> jobs,
@@ -146,6 +185,7 @@ AdminInsights buildInsightsFromSamples({
   }
 
   final artProf = <String, int>{};
+  final artProv = <String, int>{};
   var artVer = 0;
   var artAdmin = 0;
   var artFeat = 0;
@@ -164,6 +204,30 @@ AdminInsights buildInsightsFromSamples({
     } else {
       for (final p in list) {
         bump(artProf, p);
+      }
+    }
+    // Hizmet verilen iller. `serviceProvinces` denormalize + tekilleştirilmiş
+    // (kurallar için yazılıyor); yoksa `serviceAreas` içinden çıkarılır —
+    // eski kayıtlarda o alan olmayabilir.
+    final provList = (m['serviceProvinces'] as List?)
+        ?.map((e) => e.toString())
+        .where((s) => s.isNotEmpty)
+        .toList();
+    if (provList != null && provList.isNotEmpty) {
+      for (final p in provList) {
+        bump(artProv, p);
+      }
+    } else {
+      final areas = (m['serviceAreas'] as List?) ?? const [];
+      final tekil = <String>{};
+      for (final a in areas) {
+        if (a is Map && a['province'] != null) {
+          final p = a['province'].toString().trim();
+          if (p.isNotEmpty) tekil.add(p);
+        }
+      }
+      for (final p in tekil) {
+        bump(artProv, p);
       }
     }
     if (m['isVerified'] == true) artVer++;
@@ -212,6 +276,7 @@ AdminInsights buildInsightsFromSamples({
     jobsLast7d: jobs7,
     jobsOpenInSample: jobsOpen,
     artisanProfessions: rankCounts(artProf, labelOf: professionLabel, top: 10),
+    artisanProvinces: rankCounts(artProv, labelOf: (k) => k, top: 10),
     artisansVerified: artVer,
     artisansAdminVerified: artAdmin,
     artisansFeatured: artFeat,

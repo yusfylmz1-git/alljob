@@ -1,12 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/theme/app_palette.dart';
 import '../../../core/utils/snackbar_helper.dart';
 import '../../../core/widgets/responsive_center.dart';
+import '../data/admin_daily_stats_repository.dart';
+import '../data/admin_export_util.dart';
 import '../data/admin_insights_repository.dart';
 import '../data/admin_providers.dart';
 import '../data/admin_stats_repository.dart';
+import 'admin_charts.dart';
 import 'admin_chrome.dart';
 
 /// Admin Özet: KPI + superadmin dağılım içgörüleri (bölge / meslek / ürün).
@@ -23,11 +27,35 @@ class AdminDashboardScreen extends ConsumerStatefulWidget {
 class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
   bool _rebuilding = false;
 
+  /// Günlük sayaçları CSV olarak panoya kopyalar.
+  ///
+  /// İndirme yerine PANO: admin paneli web'de çalışır ve mevcut dışa aktarma
+  /// deseni (kullanıcılar, ilanlar) da böyledir — tarayıcı indirme izni,
+  /// dosya adı ve mobil uyumu derdi olmadan yapıştırılabilir.
+  Future<void> _exportDaily(List<AdminDailyStat> rows) async {
+    final caps = ref.read(adminCapabilitiesProvider);
+    if (!caps.allows('export.run')) {
+      context.showError('export.run yetkisi yok.');
+      return;
+    }
+    if (rows.isEmpty) {
+      context.showError('Dışa aktarılacak veri yok.');
+      return;
+    }
+    await Clipboard.setData(ClipboardData(text: buildDailyStatsCsv(rows)));
+    if (!mounted) return;
+    context.showSuccess(
+      '${rows.length} günlük satır panoya kopyalandı. '
+      'Excel/Sheets içine yapıştırabilirsiniz.',
+    );
+  }
+
   Future<void> _rebuild() async {
     setState(() => _rebuilding = true);
     try {
       await ref.read(adminStatsRepositoryProvider).rebuild();
       ref.invalidate(adminInsightsProvider);
+      ref.invalidate(adminDailyStatsProvider);
       if (mounted) context.showSuccess('Sayaçlar yeniden kuruldu.');
     } catch (_) {
       if (mounted) {
@@ -47,6 +75,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
     final isSuper = ref.watch(isSuperAdminProvider);
     final statsAsync = ref.watch(adminStatsProvider);
     final insightsAsync = ref.watch(adminInsightsProvider);
+    final dailyAsync = ref.watch(adminDailyStatsProvider);
     final openReportsApprox = ref.watch(openReportCountProvider);
     final reportWindow = ref.watch(adminReportsProvider).valueOrNull?.length;
 
@@ -223,6 +252,54 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                 subtitle: 'Profil açmış oran',
               ),
             ]),
+
+            // ── Günlük eğilim (gerçek sayım, örneklem DEĞİL) ─────
+            //
+            // Kaynak `adminStats/daily/days`: CF her olayda +1 yazar.
+            // İçgörülerin aksine superadmin'e kapalı değil — 30 doküman
+            // okur, ucuzdur ve moderatörün de işine yarar.
+            const SizedBox(height: 28),
+            Row(
+              children: [
+                Expanded(
+                  child: _SectionTitle(
+                    title: 'Günlük eğilim (son 30 gün)',
+                    subtitle: 'Olay bazlı gerçek sayım. Ürün talebi, hizmet '
+                        'ilanından ayrı gösterilir.',
+                  ),
+                ),
+                if (dailyAsync.valueOrNull?.isNotEmpty ?? false)
+                  TextButton.icon(
+                    onPressed: () => _exportDaily(dailyAsync.value!),
+                    icon: const Icon(Icons.download_outlined, size: 18),
+                    label: const Text('CSV'),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            dailyAsync.when(
+              loading: () => const Padding(
+                padding: EdgeInsets.symmetric(vertical: 24),
+                child: Center(child: CircularProgressIndicator()),
+              ),
+              error: (e, _) => Card(
+                color: palette.dangerSurface,
+                elevation: 0,
+                child: ListTile(
+                  leading: Icon(Icons.error_outline, color: palette.danger),
+                  title: const Text('Eğilim yüklenemedi'),
+                  subtitle: Text(
+                    '$e',
+                    style: TextStyle(fontSize: 12, color: palette.inkMuted),
+                  ),
+                  trailing: TextButton(
+                    onPressed: () => ref.invalidate(adminDailyStatsProvider),
+                    child: const Text('Tekrar'),
+                  ),
+                ),
+              ),
+              data: (rows) => _DailyTrendBody(rows: rows),
+            ),
 
             // ── Superadmin dağılım içgörüleri ────────────────────
             if (isSuper) ...[
@@ -462,6 +539,68 @@ class _InsightsBody extends StatelessWidget {
         ]),
 
         const SizedBox(height: 20),
+
+        // ARZ–TALEP HARİTASI: ilan ili (talep) ↔ usta ili (arz).
+        //
+        // Tek başına "en çok ilan gelen il" listesi büyüme kararı için
+        // yetmez; asıl soru "ilanın çok ama ustanın az olduğu il hangisi?"
+        // İki dağılım AYNI ölçekte yan yana çizilir.
+        Card(
+          elevation: 0,
+          color: palette.card,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+            side: BorderSide(color: palette.border),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(Icons.balance_outlined,
+                        size: 18, color: palette.primary),
+                    const SizedBox(width: 8),
+                    const Expanded(
+                      child: Text(
+                        'Arz–talep: il bazında ilan ve usta',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w800,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'İlanı çok, ustası az olan il büyüme hedefidir. '
+                  'Örneklem: ${i.jobsSampled} ilan · ${i.artisansSampled} usta.',
+                  style: TextStyle(fontSize: 11, color: palette.inkMuted),
+                ),
+                const SizedBox(height: 12),
+                AdminCompareBars(
+                  rows: arzTalepSatirlari(i.jobProvinces, i.artisanProvinces),
+                  leftLabel: 'İlan (talep)',
+                  rightLabel: 'Usta (arz)',
+                  leftColor: palette.primary,
+                  rightColor: palette.success,
+                  emptyText: 'İl verisi yok.',
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        _RankCard(
+          title: 'En çok usta bulunan iller',
+          icon: Icons.handyman_outlined,
+          rows: i.artisanProvinces,
+          empty: 'Usta örnekleminde il yok.',
+          caption: 'Son ${i.artisansSampled} usta · çoklu bölge her ilde sayılır',
+        ),
+        const SizedBox(height: 12),
         _RankCard(
           title: 'En çok ilan gelen iller',
           icon: Icons.map_outlined,
@@ -538,6 +677,168 @@ class _InsightsBody extends StatelessWidget {
           children: [for (final card in cards) SizedBox(width: w, child: card)],
         );
       },
+    );
+  }
+}
+
+/// Günlük eğilim gövdesi: beş metrik, her biri çizgi grafik + haftalık özet.
+class _DailyTrendBody extends StatelessWidget {
+  const _DailyTrendBody({required this.rows});
+
+  final List<AdminDailyStat> rows;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    if (rows.isEmpty) {
+      return Text(
+        'Henüz günlük veri yok.',
+        style: TextStyle(color: palette.inkMuted),
+      );
+    }
+
+    final seriler = <DailySeries>[
+      seriesOf(rows, (r) => r.usersCreated, label: 'Yeni kullanıcı'),
+      // Hizmet ilanı ve ürün talebi AYRI: `jobsCreated` ikisini de sayar.
+      seriesOf(rows, (r) => r.serviceJobsCreated, label: 'Hizmet ilanı'),
+      seriesOf(rows, (r) => r.productRequestsCreated, label: 'Ürün talebi'),
+      seriesOf(rows, (r) => r.artisansCreated, label: 'Yeni usta'),
+      seriesOf(rows, (r) => r.productsActivated, label: 'Yayınlanan ürün'),
+      seriesOf(rows, (r) => r.reportsCreated, label: 'Şikayet'),
+    ];
+    final renkler = <Color>[
+      palette.info,
+      palette.primary,
+      palette.secondary,
+      palette.success,
+      palette.premium,
+      palette.danger,
+    ];
+
+    return LayoutBuilder(
+      builder: (context, c) {
+        final cols = c.maxWidth >= 960 ? 3 : (c.maxWidth >= 560 ? 2 : 1);
+        const gap = 12.0;
+        final w = (c.maxWidth - gap * (cols - 1)) / cols;
+        return Wrap(
+          spacing: gap,
+          runSpacing: gap,
+          children: [
+            for (var i = 0; i < seriler.length; i++)
+              SizedBox(
+                width: w,
+                child: _TrendCard(series: seriler[i], color: renkler[i]),
+              ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _TrendCard extends StatelessWidget {
+  const _TrendCard({required this.series, required this.color});
+
+  final DailySeries series;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    final son7 = series.lastDays(7);
+    final degisim = series.weekOverWeekPercent;
+
+    return Card(
+      elevation: 0,
+      color: palette.card,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: palette.border),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(14, 12, 14, 10),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    series.label,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w800,
+                      fontSize: 13,
+                    ),
+                  ),
+                ),
+                if (degisim != null)
+                  _DegisimRozeti(percent: degisim)
+                else
+                  Text(
+                    'yeni',
+                    style: TextStyle(fontSize: 11, color: palette.inkFaint),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 2),
+            Text(
+              '$son7',
+              style: TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.w800,
+                height: 1.1,
+                color: color,
+                fontFeatures: const [FontFeature.tabularFigures()],
+              ),
+            ),
+            Text(
+              'son 7 gün · 30 günde ${series.total}',
+              style: TextStyle(fontSize: 11, color: palette.inkMuted),
+            ),
+            const SizedBox(height: 6),
+            AdminLineChart(
+              values: series.values,
+              days: series.days,
+              color: color,
+              height: 90,
+              semanticLabel: '${series.label}: son 7 günde $son7, '
+                  '30 günde ${series.total}',
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Haftalık değişim rozeti. Şikayet gibi metriklerde artış İYİ değildir;
+/// bu yüzden renk "yön"e göre değil, nötr okunacak şekilde verilir —
+/// yorumu operatör yapar.
+class _DegisimRozeti extends StatelessWidget {
+  const _DegisimRozeti({required this.percent});
+
+  final double percent;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    final artis = percent >= 0;
+    final renk = artis ? palette.success : palette.danger;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: renk.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Text(
+        '${artis ? '+' : ''}${percent.toStringAsFixed(0)}%',
+        style: TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w800,
+          color: renk,
+          fontFeatures: const [FontFeature.tabularFigures()],
+        ),
+      ),
     );
   }
 }

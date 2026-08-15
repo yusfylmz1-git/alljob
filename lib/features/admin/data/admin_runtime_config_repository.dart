@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
+
+import '../../../data/models/product_category.dart';
 // ScheduledCampaign + AdminBroadcastRepository aşağıda.
 
 /// `adminConfig/runtime` — bayraklar + platform içeriği (marka, duyuru, destek).
@@ -96,6 +98,10 @@ class AdminRuntimeConfig {
 abstract interface class AdminRuntimeConfigRepository {
   Stream<AdminRuntimeConfig> watchRuntime();
   Future<void> update(Map<String, dynamic> patch);
+
+  /// Mağaza ürün kategorileri (`adminConfig/productCategories`).
+  Stream<ProductCategoryCatalog> watchProductCategories();
+  Future<void> saveProductCategories(List<ProductCategoryItem> items);
 }
 
 class FirebaseAdminRuntimeConfigRepository
@@ -113,6 +119,9 @@ class FirebaseAdminRuntimeConfigRepository
   DocumentReference<Map<String, dynamic>> get _ref =>
       _db.collection('adminConfig').doc('runtime');
 
+  DocumentReference<Map<String, dynamic>> get _categoriesRef =>
+      _db.collection('adminConfig').doc('productCategories');
+
   @override
   Stream<AdminRuntimeConfig> watchRuntime() {
     return _ref.snapshots().map((snap) {
@@ -128,15 +137,32 @@ class FirebaseAdminRuntimeConfigRepository
     if (patch.isEmpty) return;
     await _functions.httpsCallable('adminUpdateConfig').call<Object?>(patch);
   }
+
+  @override
+  Stream<ProductCategoryCatalog> watchProductCategories() {
+    return _categoriesRef.snapshots().map(
+          (snap) => ProductCategoryCatalog.fromRemote(snap.data()),
+        );
+  }
+
+  @override
+  Future<void> saveProductCategories(List<ProductCategoryItem> items) async {
+    await _functions.httpsCallable('adminUpdateProductCategories').call({
+      'items': items.map((e) => e.toMap()).toList(),
+    });
+  }
 }
 
 /// Bellek-içi (test / mock backend).
 class MockAdminRuntimeConfigRepository implements AdminRuntimeConfigRepository {
   MockAdminRuntimeConfigRepository([AdminRuntimeConfig? seed])
-    : _config = seed ?? const AdminRuntimeConfig();
+    : _config = seed ?? const AdminRuntimeConfig(),
+      _categories = ProductCategoryCatalog.defaults;
 
   AdminRuntimeConfig _config;
+  ProductCategoryCatalog _categories;
   final _changes = StreamController<AdminRuntimeConfig>.broadcast();
+  final _catChanges = StreamController<ProductCategoryCatalog>.broadcast();
 
   @override
   Stream<AdminRuntimeConfig> watchRuntime() async* {
@@ -176,7 +202,22 @@ class MockAdminRuntimeConfigRepository implements AdminRuntimeConfigRepository {
     if (!_changes.isClosed) _changes.add(_config);
   }
 
-  void dispose() => _changes.close();
+  @override
+  Stream<ProductCategoryCatalog> watchProductCategories() async* {
+    yield _categories;
+    yield* _catChanges.stream;
+  }
+
+  @override
+  Future<void> saveProductCategories(List<ProductCategoryItem> items) async {
+    _categories = ProductCategoryCatalog(List.of(items));
+    if (!_catChanges.isClosed) _catChanges.add(_categories);
+  }
+
+  void dispose() {
+    _changes.close();
+    _catChanges.close();
+  }
 }
 
 /// Toplu bildirim + zamanlanmış kampanya.

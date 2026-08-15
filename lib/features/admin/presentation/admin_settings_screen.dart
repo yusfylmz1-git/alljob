@@ -10,6 +10,7 @@ import '../../legal/legal_docs.dart';
 import '../data/admin_providers.dart';
 import '../data/admin_runtime_config_repository.dart';
 import 'admin_chrome.dart';
+import 'admin_product_categories_section.dart';
 
 /// Sistem bayrakları: beta premium, bakım, min sürüm + yasal linkler.
 class AdminSettingsScreen extends ConsumerStatefulWidget {
@@ -180,7 +181,9 @@ class _AdminSettingsScreenState extends ConsumerState<AdminSettingsScreen> {
                       ? null
                       : (v) => _patch({'productsForceReview': v}),
                 ),
-                const SizedBox(height: 8),
+                const Divider(height: 28),
+                const AdminProductCategoriesSection(),
+                const SizedBox(height: 16),
                 TextField(
                   controller: _minVersion,
                   enabled: canManage && !_busy,
