@@ -8,7 +8,11 @@
 /// Yani buraya bir e-posta eklemek tek başına kimseyi yönetici YAPMAZ —
 /// `functions/index.js`'teki ADMIN_BOOTSTRAP_EMAILS ile eşleşmeli ve
 /// kullanıcı bootstrap akışını çalıştırmalıdır.
-const Set<String> kBootstrapAdminEmails = {'nflx.tr.avs1@gmail.com'};
+const Set<String> kBootstrapAdminEmails = {
+  'nflx.tr.avs1@gmail.com',
+  // Marka adresi — kurucu ikinci yönetici hesabı (2026-08-15).
+  'ilandahizmet@gmail.com',
+};
 
 /// Verilen e-posta bootstrap listesinde mi? (Küçük harfe indirger.)
 bool isBootstrapAdminEmail(String? email) =>

@@ -420,6 +420,33 @@ void main() {
   });
 
   group('Yönetici erişimi (claimAdminAccess)', () {
+    test('bootstrap listesi istemci ↔ sunucu PARİTEDE', () {
+      // İki ayrı yerde tanımlı: admin_config.dart (UI görünürlüğü) ve
+      // functions/index.js → ADMIN_BOOTSTRAP_EMAILS (asıl yetki kararı).
+      //
+      // Ayrışırlarsa hata SESSİZ olur: panel "Yönetici erişimini etkinleştir"
+      // düğmesini gösterir ama CF reddeder — ya da tersi, düğme hiç
+      // görünmediği için kişi yönetici olamaz.
+      final cf = File('functions/index.js').readAsStringSync();
+      final i = cf.indexOf('const ADMIN_BOOTSTRAP_EMAILS');
+      expect(i, greaterThan(-1), reason: 'Sunucu listesi bulunamadı.');
+      final blok = cf.substring(i, cf.indexOf(']);', i));
+
+      for (final email in kBootstrapAdminEmails) {
+        expect(blok.contains(email), isTrue,
+            reason: '$email istemcide var ama functions/index.js '
+                'ADMIN_BOOTSTRAP_EMAILS içinde YOK — kişi panelde düğmeyi '
+                'görür ama sunucu reddeder.');
+      }
+      // Ters yön: sunucuda olup istemcide olmayan adres.
+      for (final m in RegExp(r'"([^"]+@[^"]+)"').allMatches(blok)) {
+        final email = m.group(1)!;
+        expect(kBootstrapAdminEmails.contains(email), isTrue,
+            reason: '$email sunucuda var ama admin_config.dart içinde YOK — '
+                'kişi yönetici olabilir ama panelde düğmeyi göremez.');
+      }
+    });
+
     test('izinli e-posta yönetici olur; akışa yansır', () async {
       final repo = MockAuthRepository();
       addTearDown(repo.dispose);

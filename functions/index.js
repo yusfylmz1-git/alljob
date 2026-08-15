@@ -114,6 +114,11 @@ const POSITIVE_REVIEW_TAGS = new Set([
 // İstemci paritesi: lib/features/admin/data/admin_config.dart.
 const ADMIN_BOOTSTRAP_EMAILS = new Set([
   "nflx.tr.avs1@gmail.com",
+  // Marka adresi — kurucu ikinci yönetici hesabı (2026-08-15).
+  // Bu liste yalnız BOOTSTRAP içindir: adres burada olsa bile kişi
+  // `claimAdminAccess` akışını çalıştırmadan yönetici OLMAZ, ayrıca
+  // e-postasının Auth tarafında doğrulanmış olması gerekir.
+  "ilandahizmet@gmail.com",
 ]);
 
 // Varsayılan moderatör yetkileri (istemci AdminCapabilities.defaultModerator
