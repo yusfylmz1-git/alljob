@@ -14,7 +14,7 @@ const kLegalContactEmail = 'ilandahizmet@gmail.com';
 const kAppBrandName = 'İlanda Hizmet';
 
 /// Metinlerin "Son güncelleme" etiketi — içerik değişince güncelle.
-const kLegalUpdated = '10 Ağustos 2026';
+const kLegalUpdated = '15 Ağustos 2026';
 
 /// Store girişlerine verilecek canlı URL'ler (kanonik tanıtım domaini).
 /// Eski `alljob1.web.app` hâlâ yönlendirebilir; store formunda bunu kullanın.
@@ -75,7 +75,7 @@ const legalTerms = LegalDoc(
     LegalSection(
       heading: '1. Hizmetin Tanımı',
       body:
-          'İlanda Hizmet; tamirat, tadilat ve benzeri hizmetlere ihtiyaç duyan kullanıcılar ("Müşteri") ile bu hizmetleri sunan kullanıcıları ("Usta") buluşturan bir ARACI platformdur.\n\nİlanda Hizmet, platform üzerinden ilan edilen veya anlaşılan işlerin TARAFI DEĞİLDİR. İşin yapılması, kalitesi, zamanlaması, bedeli ve ödemesi tamamen Müşteri ile Usta arasındadır. Uygulama üzerinden ödeme alınmaz ve ödemeye aracılık edilmez.',
+          'İlanda Hizmet; tamirat, tadilat ve benzeri hizmetlere ihtiyaç duyan kullanıcılar ("Müşteri") ile bu hizmetleri sunan kullanıcıları ("Usta") buluşturan; ayrıca ürün satmak isteyen kullanıcıların ("Satıcı") ürünlerini vitrinde sergilemesine imkân veren bir ARACI platformdur.\n\nİlanda Hizmet; platform üzerinden ilan edilen, anlaşılan veya satışa sunulan hiçbir iş ya da ürünün TARAFI, satıcısı veya sağlayıcısı DEĞİLDİR. İşin yapılması, ürünün teslimi, kalitesi, zamanlaması, bedeli ve ödemesi tamamen kullanıcılar arasındadır. Uygulama üzerinden ödeme alınmaz, ödemeye aracılık edilmez ve kargo/teslimat hizmeti sunulmaz.',
     ),
     LegalSection(
       heading: '2. Hesap ve Güvenlik',
@@ -93,39 +93,49 @@ const legalTerms = LegalDoc(
           'İlan, mesaj, fotoğraf ve değerlendirme gibi içerikler bunları oluşturan kullanıcının sorumluluğundadır. İçeriklerinizin hizmetin sunulması amacıyla barındırılmasına ve diğer kullanıcılara gösterilmesine izin vermiş sayılırsınız.\n\nUygunsuz içerik veya davranışları uygulama içindeki "Şikayet Et" seçenekleriyle bildirebilir, dilediğiniz kullanıcıyı engelleyebilirsiniz. Şikayetler ekibimizce incelenir; gerekli görülürse içerik kaldırılır ve ilgili hesaba yaptırım uygulanır.',
     ),
     LegalSection(
-      heading: '5. Değerlendirmeler',
+      heading: '5. Mağaza, Ürün İlanları ve Satıcı Yükümlülükleri',
       body:
-          'Değerlendirmeler yalnızca gerçekten alınan hizmete dayanmalıdır. Puanların anlaşmalı veya sahte işlemlerle manipüle edilmesi yasaktır; tespiti hâlinde ilgili kayıtlar silinebilir ve hesaplara yaptırım uygulanabilir.',
+          'Mağaza açan kullanıcı ("Satıcı") ürünlerini vitrinde sergileyebilir; alıcılar Satıcıya mesajla ulaşır. Satış ilişkisi doğrudan Satıcı ile alıcı arasında kurulur.\n\nSATICININ YÜKÜMLÜLÜKLERİ:\n• Ürünü doğru, eksiksiz ve yanıltıcı olmayacak şekilde tanıtmak; gerçek fotoğrafını kullanmak,\n• Fiyat, durum (sıfır/ikinci el) ve teslim koşullarını açıkça belirtmek,\n• Ticari faaliyet yürütüyorsa vergi, fatura, tüketici hakları ve mesafeli satış mevzuatına UYMAK; gerekli izin ve kayıtları tamamlamak,\n• Satışı yasak veya izne tabi ürünleri (silah, ilaç, reçeteli ürünler, alkol/tütün, taklit/kaçak mal, canlı hayvan, çalıntı eşya vb.) yayınlamamak,\n• Ürünün ayıbından, tesliminden ve satış sonrası yükümlülüklerden doğrudan sorumlu olmak.\n\nİlanda Hizmet ürünleri satın almaz, satmaz, stoklamaz, kalitesini denetlemez ve garanti etmez. Satıcının mevzuata uygunluğu kendi sorumluluğundadır. Kurallara aykırı ürün ilanları kaldırılır; tekrarı hâlinde mağaza ve hesap kapatılabilir.\n\nALICININ DİKKATİNE: Ödeme ve teslimat platform dışında gerçekleşir. Peşin ödeme yapmadan önce satıcıyı ve ürünü doğrulamanız, mümkünse yüz yüze görüşmeniz önerilir.',
     ),
     LegalSection(
-      heading: '6. Ücretlendirme',
+      heading: '6. Değerlendirmeler',
       body:
-          'Uygulama şu an ücretsizdir; premium özellikler beta süresince tüm kullanıcılara ücretsiz sunulmaktadır. İleride ücretli özellikler sunulması hâlinde kapsam ve fiyatlar satın alma öncesinde açıkça duyurulur.',
+          'Değerlendirmeler yalnızca gerçekten alınan hizmete veya gerçekleşen alışverişe dayanmalıdır. Puanların anlaşmalı veya sahte işlemlerle manipüle edilmesi yasaktır; tespiti hâlinde ilgili kayıtlar silinebilir ve hesaplara yaptırım uygulanabilir.',
     ),
     LegalSection(
-      heading: '7. Fikri Mülkiyet',
+      heading: '7. Ücretlendirme, Abonelik ve Cayma Hakkı',
+      body:
+          'Uygulamanın temel kullanımı ücretsizdir. Ustalara yönelik "Pro" özellikleri, beta süresince tüm kullanıcılara ücretsiz sunulmaktadır.\n\nPro üyelik, uygulama içinden Google Play üzerinden satın alınabilen AYLIK YENİLENEN bir aboneliktir. Satın alma, ödeme, yenileme ve iade işlemleri Google Play tarafından yürütülür; İlanda Hizmet ödeme bilgilerinizi (kart vb.) görmez ve saklamaz.\n\n• Abonelik, iptal edilmediği sürece dönem sonunda otomatik yenilenir.\n• Aboneliğinizi dilediğiniz an Google Play > Abonelikler bölümünden iptal edebilirsiniz; iptal, ödenmiş dönemin sonunda geçerli olur.\n• İade talepleri Google Play iade politikasına tabidir ve Google üzerinden yapılır.\n• Dijital içerik/hizmetin ifasına anında başlandığından, mevzuatın öngördüğü hâller saklı kalmak kaydıyla cayma hakkı sınırlı olabilir.\n\nFiyat ve kapsam değişiklikleri satın alma öncesinde uygulama içinde açıkça gösterilir.',
+    ),
+    LegalSection(
+      heading: '8. Fikri Mülkiyet',
       body:
           'Uygulamanın yazılımı, tasarımı, logosu ve "İlanda Hizmet" markası Uygulama geliştiricisine aittir; izinsiz kopyalanamaz ve kullanılamaz. Kullanıcı içeriklerinin mülkiyeti kullanıcıya aittir.',
     ),
     LegalSection(
-      heading: '8. Sorumluluğun Sınırlandırılması',
+      heading: '9. Sorumluluğun Sınırlandırılması',
       body:
-          'Uygulama "olduğu gibi" sunulur; kesintisiz veya hatasız çalışacağı garanti edilmez. İlanda Hizmet; kullanıcılar arasındaki iş, ödeme ve iletişimden doğan uyuşmazlıkların tarafı veya garantörü değildir. Mevzuatın izin verdiği azami ölçüde, dolaylı zararlardan sorumluluk kabul edilmez.',
+          'Uygulama "olduğu gibi" sunulur; kesintisiz veya hatasız çalışacağı garanti edilmez. İlanda Hizmet; kullanıcılar arasındaki iş, ÜRÜN SATIŞI, ödeme, teslimat ve iletişimden doğan uyuşmazlıkların tarafı veya garantörü değildir. Kullanıcıların kimliği, yetkinliği, ruhsatı, ürünlerinin ayıpsızlığı ve mevzuata uygunluğu Uygulama tarafından garanti edilmez. Mevzuatın izin verdiği azami ölçüde, dolaylı zararlardan sorumluluk kabul edilmez.',
     ),
     LegalSection(
-      heading: '9. Hesabın Silinmesi',
+      heading: '10. Hesabın Silinmesi',
       body:
           'Hesabınızı dilediğiniz an yan menü → Hesap Ayarları → Hesabı Sil adımlarıyla kalıcı olarak silebilirsiniz. Nelerin silindiği ve nelerin anonimleştirildiği Gizlilik Politikasında ve Hesap Silme Talimatında açıklanmıştır.',
     ),
     LegalSection(
-      heading: '10. Değişiklikler',
+      heading: '11. Değişiklikler',
       body:
           'Koşullar güncellenebilir; güncel sürüm her zaman bu sayfada yayımlanır. Önemli değişiklikler uygulama içinde duyurulur. Değişiklik sonrasında Uygulamayı kullanmaya devam etmeniz güncel Koşulları kabul ettiğiniz anlamına gelir.',
     ),
     LegalSection(
-      heading: '11. Uygulanacak Hukuk ve İletişim',
+      heading: '12. Uygulanacak Hukuk ve Uyuşmazlıkların Çözümü',
       body:
-          'Bu Koşullar Türkiye Cumhuriyeti hukukuna tabidir.\n\nSoru ve talepleriniz için: $kLegalContactEmail',
+          'Bu Koşullar Türkiye Cumhuriyeti hukukuna tabidir.\n\nUygulamanın kullanımından doğan uyuşmazlıklarda Türkiye Cumhuriyeti mahkemeleri ve icra daireleri yetkilidir. Tüketici sıfatını haiz kullanıcılar, parasal sınırlar dâhilinde kendi yerleşim yerlerindeki Tüketici Hakem Heyetlerine ve Tüketici Mahkemelerine başvurabilir; bu Koşullardaki hiçbir hüküm tüketicinin kanundan doğan haklarını sınırlandırmaz.\n\nKullanıcılar arasındaki iş, ürün, ödeme ve teslimat uyuşmazlıklarının tarafı İlanda Hizmet DEĞİLDİR; bu uyuşmazlıklar ilgili kullanıcılar arasında çözülür.',
+    ),
+    LegalSection(
+      heading: '13. İletişim',
+      body:
+          'Soru, talep ve bildirimleriniz için: $kLegalContactEmail',
     ),
   ],
 );
@@ -146,22 +156,22 @@ const legalPrivacy = LegalDoc(
     LegalSection(
       heading: '1. Topladığımız Veriler',
       body:
-          "• Hesap bilgileri: ad soyad, e-posta adresi ve şifreniz. Şifreniz Google Firebase Authentication altyapısında güvenli biçimde saklanır; tarafımıza açık hâlde ulaşmaz.\n• Telefon numarası: yalnızca isteğe bağlı telefon doğrulama özelliğini kullanırsanız.\n• Profil bilgileri (usta profili açarsanız): profil fotoğrafı, meslek, hizmet bölgesi, tanıtım yazısı, iş fotoğrafları ve sertifikalar.\n• Konum: yalnızca sizin listeden seçtiğiniz il/ilçe bilgisi. GPS veya hassas konum verisi TOPLANMAZ.\n• Oluşturduğunuz içerikler: ilanlar, teklifler, mesajlar, değerlendirmeler ve şikayet kayıtları.\n• Teknik veriler: bildirim token'ı (Firebase Cloud Messaging), çökme ve hata kayıtları (Firebase Crashlytics), cihaz bütünlük doğrulaması (Firebase App Check / Play Integrity).",
+          "• Hesap bilgileri: ad soyad, e-posta adresi ve şifreniz. Şifreniz Google Firebase Authentication altyapısında güvenli biçimde saklanır; tarafımıza açık hâlde ulaşmaz.\n• Telefon numarası: usta veya mağaza profili açarken SMS ile doğrulanması zorunludur. Numaranız yalnızca size özel alanda saklanır; profilinizde göstermeyi siz seçmediğiniz sürece diğer kullanıcılara açılmaz.\n• Profil bilgileri (usta profili açarsanız): profil fotoğrafı, meslek, hizmet bölgesi, tanıtım yazısı, iş fotoğrafları ve sertifikalar.\n• Mağaza bilgileri (mağaza açarsanız): satış kategorileri, hizmet bölgeleri ve ürün ilanlarınız (başlık, açıklama, fiyat, durum, fotoğraflar).\n• Konum: yalnızca sizin listeden seçtiğiniz il/ilçe bilgisi. GPS veya hassas konum verisi TOPLANMAZ.\n• Oluşturduğunuz içerikler: ilanlar, ürünler, ürün talepleri, teklifler, mesajlar, değerlendirmeler ve şikayet kayıtları.\n• Kullanım istatistikleri: hangi ekranların açıldığı, giriş/kayıt, ilan oluşturma gibi uygulama içi olaylar (Firebase Analytics). Bu veriler kimliğinizle ilişkilendirilmiş pazarlama profili oluşturmak için KULLANILMAZ; hizmetin nasıl kullanıldığını toplu olarak anlamaya yarar.\n• Teknik veriler: bildirim token'ı (Firebase Cloud Messaging), çökme ve hata kayıtları (Firebase Crashlytics), cihaz bütünlük doğrulaması (Firebase App Check / Play Integrity).\n• Abonelik bilgisi: Pro üyelik satın alırsanız Google Play'den dönen satın alma doğrulama kaydı. Kart ve ödeme bilgileriniz tarafımıza ULAŞMAZ; ödeme tamamen Google Play üzerinden yürür.",
     ),
     LegalSection(
       heading: '2. Verileri Nasıl Kullanıyoruz',
       body:
-          '• Hizmetin sunulması: müşteri-usta eşleştirme, ilan ve tekliflerin gösterilmesi, mesajlaşma ve bildirimler,\n• Güvenlik: dolandırıcılık ve kötüye kullanımın önlenmesi, şikayetlerin incelenmesi,\n• İyileştirme: hataların tespiti ve giderilmesi,\n• Yasal yükümlülüklerin yerine getirilmesi.\n\nVerileriniz reklam amacıyla satılmaz ve üçüncü kişilerle paylaşılmaz.',
+          '• Hizmetin sunulması: müşteri-usta eşleştirme, ilan ve tekliflerin gösterilmesi, mesajlaşma ve bildirimler,\n• Güvenlik: dolandırıcılık ve kötüye kullanımın önlenmesi, şikayetlerin incelenmesi,\n• İyileştirme: hataların tespiti ve giderilmesi, hangi bölümlerin kullanıldığının toplu olarak ölçülmesi,\n• Abonelik işlemlerinin doğrulanması,\n• Yasal yükümlülüklerin yerine getirilmesi.\n\nVerileriniz SATILMAZ ve pazarlama amacıyla üçüncü kişilere devredilmez. Uygulamada üçüncü taraf reklam ağı bulunmamaktadır. Yukarıda sayılan altyapı hizmetleri (Google Firebase / Google Play) dışında veri paylaşımı yapılmaz; ileride reklam veya benzeri bir kullanım söz konusu olursa bu politika önceden güncellenir ve uygulama içinde duyurulur.',
     ),
     LegalSection(
       heading: '3. Verilerin Görünürlüğü',
       body:
-          '• Usta profilleri (ad, fotoğraf, meslek, bölge, değerlendirmeler) uygulamadaki herkese açıktır.\n• İlanlar, ilgili bölgedeki ustalara gösterilir.\n• Mesajlar yalnızca sohbetin iki tarafınca görülebilir.',
+          '• Usta profilleri (ad, fotoğraf, meslek, bölge, değerlendirmeler) uygulamadaki herkese açıktır.\n• Mağaza vitrini ve ürün ilanları (başlık, fiyat, fotoğraf, il/ilçe) herkese açıktır.\n• İlanlar, ilgili bölgedeki ustalara gösterilir.\n• Ürün talepleri, mağaza sahibi satıcılara gösterilir.\n• Telefon numaranız VARSAYILAN OLARAK GİZLİDİR; yalnızca "profilimde görünsün" seçeneğini açarsanız yayınlanır ve dilediğiniz an kapatabilirsiniz.\n• Mesajlar yalnızca sohbetin iki tarafınca görülebilir.',
     ),
     LegalSection(
       heading: '4. Üçüncü Taraf Hizmetler',
       body:
-          "Verileriniz Google Firebase altyapısında (Google LLC) işlenir ve saklanır: kimlik doğrulama, veritabanı, dosya depolama, bildirim ve çökme raporlama hizmetleri için. Google'ın gizlilik uygulamaları: https://policies.google.com/privacy",
+          "Verileriniz Google Firebase altyapısında (Google LLC) işlenir ve saklanır: kimlik doğrulama, veritabanı, dosya depolama, bildirim, kullanım istatistiği (Analytics) ve çökme raporlama hizmetleri için. Pro üyelik satın alımları Google Play (Google LLC) üzerinden yürütülür.\n\nBunların dışında herhangi bir üçüncü tarafa (reklam ağı, veri simsarı, pazarlama sağlayıcısı vb.) veri aktarımı YAPILMAZ. Google'ın gizlilik uygulamaları: https://policies.google.com/privacy",
     ),
     LegalSection(
       heading: '5. Saklama ve Silme',
@@ -212,12 +222,12 @@ const legalKvkk = LegalDoc(
     LegalSection(
       heading: '2. İşlenen Kişisel Veri Kategorileri',
       body:
-          "• Kimlik: ad soyad,\n• İletişim: e-posta adresi, telefon numarası (doğrulama özelliğini kullanırsanız),\n• Görsel kayıtlar: profil ve iş fotoğrafları, sertifikalar,\n• Konum: seçtiğiniz il/ilçe bilgisi (GPS verisi işlenmez),\n• Müşteri işlem: ilanlar, teklifler, mesajlar, değerlendirmeler, şikayetler,\n• İşlem güvenliği: bildirim token'ı, çökme/hata kayıtları, cihaz bütünlük doğrulaması.",
+          "• Kimlik: ad soyad,\n• İletişim: e-posta adresi, telefon numarası (usta veya mağaza profili açarken SMS doğrulaması zorunludur; numaranız profilinizde göstermeyi seçmediğiniz sürece gizli kalır),\n• Görsel kayıtlar: profil, iş ve ürün fotoğrafları, sertifikalar,\n• Konum: seçtiğiniz il/ilçe bilgisi (GPS verisi işlenmez),\n• Müşteri işlem: ilanlar, ürün ilanları ve talepleri, teklifler, mesajlar, değerlendirmeler, şikayetler, Pro üyelik satın alma doğrulama kaydı (ödeme/kart bilgisi işlenmez),\n• İşlem güvenliği: bildirim token'ı, çökme/hata kayıtları, cihaz bütünlük doğrulaması,\n• Pazarlama/analiz: uygulama içi kullanım olayları (hangi ekran açıldı, ilan oluşturuldu vb. — toplu istatistik amaçlı).",
     ),
     LegalSection(
       heading: '3. İşleme Amaçları',
       body:
-          '• Üyelik ve hesabın yönetimi,\n• Müşteri ile usta arasında eşleştirmenin, iletişimin ve bildirimlerin sağlanması,\n• Platform güvenliğinin sağlanması, kötüye kullanımın ve dolandırıcılığın önlenmesi,\n• Hataların tespiti ve hizmetin iyileştirilmesi,\n• Yasal yükümlülüklerin yerine getirilmesi.',
+          '• Üyelik ve hesabın yönetimi,\n• Müşteri ile usta, alıcı ile satıcı arasında eşleştirmenin, iletişimin ve bildirimlerin sağlanması,\n• Usta/mağaza profillerinde kimlik güvenilirliğinin artırılması (telefon doğrulaması),\n• Platform güvenliğinin sağlanması, kötüye kullanımın ve dolandırıcılığın önlenmesi,\n• Pro üyelik satın alımlarının doğrulanması ve abonelik hakkının tanımlanması,\n• Hataların tespiti, kullanımın toplu olarak ölçülmesi ve hizmetin iyileştirilmesi,\n• Yasal yükümlülüklerin yerine getirilmesi.',
     ),
     LegalSection(
       heading: '4. Hukuki Sebepler',
@@ -227,7 +237,7 @@ const legalKvkk = LegalDoc(
     LegalSection(
       heading: '5. Aktarım',
       body:
-          'Verileriniz, barındırma ve altyapı hizmeti alınan Google LLC (Firebase) sunucularında saklanır; sunucuların yurt dışında bulunması nedeniyle bu saklama KVKK m.9 kapsamında kayıt sırasında verdiğiniz açık rızaya dayanır. Ayrıca yasal zorunluluk hâlinde yetkili kurum ve kuruluşlara aktarım yapılabilir. Verileriniz bunlar dışında üçüncü kişilere aktarılmaz, reklam amacıyla paylaşılmaz.',
+          'Verileriniz, barındırma ve altyapı hizmeti alınan Google LLC (Firebase; kimlik doğrulama, veritabanı, depolama, bildirim, kullanım istatistiği ve çökme raporlama) sunucularında saklanır. Pro üyelik satın alımlarında ödeme ve doğrulama süreci Google Play (Google LLC) üzerinden yürür. Sunucuların yurt dışında bulunması nedeniyle bu saklama ve aktarım, KVKK m.9 kapsamında kayıt sırasında verdiğiniz açık rızaya dayanır.\n\nYasal zorunluluk hâlinde yetkili kurum ve kuruluşlara aktarım yapılabilir. Verileriniz bunlar dışında üçüncü kişilere aktarılmaz; satılmaz ve pazarlama amacıyla devredilmez. Uygulamada üçüncü taraf reklam ağı bulunmamaktadır.',
     ),
     LegalSection(
       heading: '6. Toplama Yöntemi',

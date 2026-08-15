@@ -1,0 +1,421 @@
+<title>Reklam Entegrasyon Planı</title>
+<style>
+  :root {
+    --ground:      #F9F8F5;
+    --surface:     #FFFFFF;
+    --sunk:        #EFECE5;
+    --ink:         #17150F;
+    --ink-soft:    #453F36;
+    --ink-mute:    #786F62;
+    --rule:        #E2DDD2;
+    --rule-soft:   #EDE9E1;
+
+    /* Aksan: para yeşili değil — kasıtlı olarak mürekkep moru (karar belgesi) */
+    --accent:      #5B3E8C;
+    --accent-wash: #EBE5F5;
+
+    --risk:        #A32C1C;
+    --risk-wash:   #F9E3DF;
+    --watch:       #8A5A0B;
+    --watch-wash:  #F9EEDA;
+    --good:        #2F6B4F;
+    --good-wash:   #E3F0E8;
+
+    --shadow: 0 1px 2px rgba(23,21,15,.05), 0 12px 30px -22px rgba(23,21,15,.32);
+    --measure: 66ch;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground: #131210; --surface: #1C1B18; --sunk: #262520;
+      --ink: #EFEDE6; --ink-soft: #C2BDB1; --ink-mute: #8B8477;
+      --rule: #35332C; --rule-soft: #2A2922;
+      --accent: #B9A0E0; --accent-wash: #241C33;
+      --risk: #F0907B; --risk-wash: #331F1C;
+      --watch: #E3B65F; --watch-wash: #2F2716;
+      --good: #7EC69D; --good-wash: #1B2A22;
+      --shadow: 0 1px 2px rgba(0,0,0,.5), 0 12px 30px -22px rgba(0,0,0,.85);
+    }
+  }
+  :root[data-theme="dark"] {
+    --ground: #131210; --surface: #1C1B18; --sunk: #262520;
+    --ink: #EFEDE6; --ink-soft: #C2BDB1; --ink-mute: #8B8477;
+    --rule: #35332C; --rule-soft: #2A2922;
+    --accent: #B9A0E0; --accent-wash: #241C33;
+    --risk: #F0907B; --risk-wash: #331F1C;
+    --watch: #E3B65F; --watch-wash: #2F2716;
+    --good: #7EC69D; --good-wash: #1B2A22;
+    --shadow: 0 1px 2px rgba(0,0,0,.5), 0 12px 30px -22px rgba(0,0,0,.85);
+  }
+
+  * { box-sizing: border-box; }
+  body { margin:0; background: var(--ground); color: var(--ink);
+    font-family:"Segoe UI",system-ui,-apple-system,sans-serif;
+    font-size:1rem; line-height:1.62; -webkit-font-smoothing:antialiased; }
+  .wrap { max-width:62rem; margin:0 auto; padding:0 clamp(1rem,4vw,2.5rem); }
+
+  header.mast { padding: clamp(2.2rem,5vw,3.6rem) 0 1.4rem;
+    border-bottom:3px solid var(--accent); margin-bottom:1.6rem; }
+  .kicker { font-size:.72rem; letter-spacing:.15em; text-transform:uppercase;
+    color: var(--accent); font-weight:700; margin:0 0 .7rem; }
+  h1 { font-size:clamp(1.9rem,5vw,2.7rem); line-height:1.08;
+    letter-spacing:-.02em; font-weight:750; margin:0 0 .8rem; text-wrap:balance; }
+  .sub { max-width: var(--measure); color: var(--ink-soft); font-size:1.05rem; margin:0; }
+
+  .verdict { background: var(--accent-wash); border-radius:12px;
+    padding:1.1rem 1.3rem; margin:1.6rem 0 2.4rem; max-width:none; }
+  .verdict p { margin:0; max-width:none; }
+  .verdict p + p { margin-top:.6rem; }
+
+  h2 { font-size:1.45rem; font-weight:720; letter-spacing:-.015em;
+    margin:2.8rem 0 .3rem; padding-bottom:.5rem;
+    border-bottom:1px solid var(--rule); text-wrap:balance; }
+  h3 { font-size:1.05rem; font-weight:700; margin:1.7rem 0 .5rem; }
+  .lede { color: var(--ink-soft); max-width: var(--measure); margin:.9rem 0 1.4rem; }
+  p { max-width: var(--measure); margin:0 0 .9rem; }
+  ul,ol { max-width: var(--measure); padding-left:1.25rem; }
+  li { margin-bottom:.45rem; }
+  code { font-family:ui-monospace,"Cascadia Mono",Consolas,monospace;
+    font-size:.86em; background: var(--sunk); padding:.13em .38em;
+    border-radius:4px; word-break:break-word; }
+  pre { background: var(--sunk); border:1px solid var(--rule-soft);
+    border-radius:8px; padding:.9rem 1.1rem; overflow-x:auto;
+    font-size:.83rem; line-height:1.5; margin:.8rem 0; }
+  pre code { background:none; padding:0; }
+
+  .box { border-radius:10px; padding:1rem 1.2rem; margin:1.2rem 0; max-width:none; }
+  .box p { max-width:none; margin:0; }
+  .box p + p { margin-top:.55rem; }
+  .box.risk { background: var(--risk-wash); }
+  .box.watch { background: var(--watch-wash); }
+  .box.good { background: var(--good-wash); }
+  .box .lbl { display:block; font-size:.68rem; letter-spacing:.1em;
+    text-transform:uppercase; font-weight:750; margin-bottom:.4rem; }
+  .box.risk .lbl { color: var(--risk); }
+  .box.watch .lbl { color: var(--watch); }
+  .box.good .lbl { color: var(--good); }
+
+  .phase { background: var(--surface); border:1px solid var(--rule);
+    border-left:4px solid var(--accent); border-radius:10px;
+    padding:1.2rem 1.4rem; margin-bottom:1rem; box-shadow: var(--shadow); }
+  .phase > :last-child { margin-bottom:0; }
+  .ph { display:flex; flex-wrap:wrap; align-items:baseline; gap:.6rem; margin-bottom:.7rem; }
+  .pn { font-size:.7rem; font-weight:750; letter-spacing:.08em;
+    text-transform:uppercase; color: var(--accent);
+    background: var(--accent-wash); padding:.2rem .5rem; border-radius:4px; }
+  .pt { font-size:1.1rem; font-weight:700; margin:0; flex:1 1 12rem; }
+  .pe { font-size:.75rem; color: var(--ink-mute); }
+
+  .tscroll { overflow-x:auto; margin:1rem 0; }
+  table { border-collapse:collapse; width:100%; font-size:.9rem; min-width:30rem; }
+  th,td { text-align:left; padding:.55rem .75rem;
+    border-bottom:1px solid var(--rule-soft); vertical-align:top; }
+  th { font-size:.7rem; letter-spacing:.07em; text-transform:uppercase;
+    color: var(--ink-mute); border-bottom:1px solid var(--rule); }
+  td.n { font-variant-numeric:tabular-nums; font-family:ui-monospace,Consolas,monospace; }
+
+  .mock { background: var(--sunk); border-radius:10px; padding:1rem;
+    margin:1rem 0; max-width:none; font-family:ui-monospace,Consolas,monospace;
+    font-size:.76rem; line-height:1.7; white-space:pre; overflow-x:auto; }
+
+  footer { border-top:1px solid var(--rule); padding:1.4rem 0 4rem;
+    color: var(--ink-mute); font-size:.85rem; max-width:none; }
+</style>
+
+<div class="wrap">
+
+<header class="mast">
+  <p class="kicker">İlanda Hizmet · Karar belgesi</p>
+  <h1>Reklam Entegrasyon Planı</h1>
+  <p class="sub">
+    AdMob native reklam fikri sağlam ve uygulanabilir. Ama önce çözülmesi
+    gereken bir çelişki var: <b>yayınlanmış gizlilik metinleriniz reklam
+    yapmayacağınızı söylüyor.</b> Bu belge planı, riskleri ve önerilen sırayı
+    ortaya koyar — kod yazılmadan önce karar vermeniz için.
+  </p>
+</header>
+
+<div class="verdict">
+  <p><b>Özet öneri:</b> Reklamı ekleyin, ama <b>Play'e ilk çıkıştan sonra</b>,
+  ayrı bir sürümde. Şimdi eklemek yayını 1–2 hafta geciktirir ve inceleme
+  riskini artırır.</p>
+  <p>Teknik iş yaklaşık <b>1 gün</b>. Asıl maliyet hukuki metinler, Play
+  beyanları ve AdMob hesap onayı — bunlar sizin tarafınızda ve paralel
+  yürütülebilir.</p>
+</div>
+
+<h2>Önce: çözülmesi gereken çelişki</h2>
+
+<div class="box risk">
+  <span class="lbl">Engel</span>
+  <p>Yayındaki gizlilik politikanız ve KVKK metniniz şunu diyor:</p>
+  <p style="font-style:italic">"Verileriniz reklam amacıyla satılmaz ve üçüncü
+    kişilerle paylaşılmaz."</p>
+  <p>Kaynak: <code>hosting/gizlilik-politikasi.html:128</code> ·
+    <code>legal_docs.dart:159</code> ve <code>:235</code></p>
+</div>
+
+<p>
+  AdMob reklamı gösterdiğiniz anda bu cümle <b>yanlış</b> hâle gelir: Google,
+  reklam kişiselleştirmesi için cihaz tanımlayıcısı ve uygulama kullanım
+  sinyallerini işler. Bu üçüncü tarafa veri aktarımıdır.
+</p>
+
+<p>Üç sonucu var:</p>
+<ul>
+  <li><b>Play politikası:</b> Veri güvenliği formu ile gizlilik politikası
+    çelişirse uygulama reddedilir veya kaldırılır.</li>
+  <li><b>KVKK:</b> Reklam amaçlı işleme için ayrı bir hukuki dayanak ve
+    aydınlatma gerekir.</li>
+  <li><b>Güven:</b> Kullanıcıya "reklam için paylaşmıyoruz" deyip reklam
+    göstermek, marka güvenini teknik cezadan daha çok zedeler.</li>
+</ul>
+
+<div class="box good">
+  <span class="lbl">Çözülebilir</span>
+  <p>Bu bir engel, çıkmaz değil. Metinleri güncellemek, Play formunu düzeltmek
+    ve kullanıcıya reklam iznini sormak (UMP) standart bir süreçtir — sadece
+    <b>koddan önce</b> yapılmalıdır.</p>
+</div>
+
+<h2>Neden "şimdi değil, yayından sonra"</h2>
+
+<div class="tscroll"><table>
+  <thead><tr><th>Konu</th><th>Şimdi eklersek</th><th>Sonra eklersek</th></tr></thead>
+  <tbody>
+    <tr>
+      <td>Play incelemesi</td>
+      <td>İlk inceleme zaten en titiz olanı; reklam + veri beyanı değişikliği
+        ek risk</td>
+      <td>Güncelleme incelemesi daha hızlı ve daha az riskli</td>
+    </tr>
+    <tr>
+      <td>Yasal metinler</td>
+      <td>Yayın beklerken metin yazımı/onayı yayını bloke eder</td>
+      <td>Paralel hazırlanır, hazır olunca çıkılır</td>
+    </tr>
+    <tr>
+      <td>AdMob hesabı</td>
+      <td>Onay <b>birkaç gün</b>, ödeme doğrulaması daha uzun sürebilir</td>
+      <td>Uygulama yayındayken onay alınır</td>
+    </tr>
+    <tr>
+      <td>Gelir</td>
+      <td>Kullanıcı yok → gelir zaten <b>sıfıra yakın</b></td>
+      <td>Kullanıcı varken açılır, gerçek gelir başlar</td>
+    </tr>
+    <tr>
+      <td>Ölçüm</td>
+      <td>Reklamsız temel (baseline) veriniz hiç olmaz</td>
+      <td>Reklamın elde tutmayı düşürüp düşürmediğini <b>ölçebilirsiniz</b></td>
+    </tr>
+  </tbody>
+</table></div>
+
+<p>
+  Son satır özellikle önemli: dün eklediğimiz <b>günlük eğilim paneli</b>
+  reklamsız dönemin verisini biriktirecek. Reklam açıldığında yeni kullanıcı
+  ve ilan sayılarının nasıl değiştiğini karşılaştırabilirsiniz. Aynı anda
+  başlarsanız bu karşılaştırma imkânsız olur.
+</p>
+
+<h2>Tasarım: nereye, ne sıklıkta</h2>
+
+<p class="lede">
+  Native reklam fikriniz doğru — banner'dan hem daha yüksek gelirli hem daha
+  az rahatsız edici. Ama "liste kartıyla birebir aynı" hedefine dikkat etmek
+  gerekiyor.
+</p>
+
+<div class="box watch">
+  <span class="lbl">Sınır</span>
+  <p><b>Reklam, ilandan ayırt edilebilir olmalı.</b> AdMob politikası reklamın
+    içerikle karıştırılmasını yasaklar. "Sponsorlu" etiketi yeterli değilse
+    ceza hesap kapatmaya kadar gider.</p>
+  <p>Önerim: aynı kart <b>iskeleti</b>, ama farklı zemin tonu + belirgin
+    "Sponsorlu" rozeti. Kullanıcı yanlışlıkla tıklamamalı — yanlış tıklama
+    kısa vadede gelir, uzun vadede AdMob cezası demektir.</p>
+</div>
+
+<h3>Yerleşim</h3>
+<div class="mock">Keşfet → İlanlar
+┌─────────────────────────┐
+│  İlan kartı             │  1
+├─────────────────────────┤
+│  İlan kartı             │  2
+├─────────────────────────┤
+│  İlan kartı             │  3
+├─────────────────────────┤
+│ ▞ Sponsorlu ─────────── │  ← ilk reklam: 4. sıra
+│   Native reklam         │
+├─────────────────────────┤
+│  İlan kartı             │  5
+│           ⋮             │
+├─────────────────────────┤
+│ ▞ Sponsorlu ─────────── │  ← sonraki: her 8 kartta bir
+└─────────────────────────┘</div>
+
+<div class="tscroll"><table>
+  <thead><tr><th>Kural</th><th>Değer</th><th>Gerekçe</th></tr></thead>
+  <tbody>
+    <tr><td>İlk reklam konumu</td><td class="n">4. sıra</td>
+      <td>İlk ekran reklamsız açılsın; ilk izlenim ürün olsun</td></tr>
+    <tr><td>Aralık</td><td class="n">8 kart</td>
+      <td>Daha sık olması "reklam uygulaması" hissi verir</td></tr>
+    <tr><td>Sayfa başına tavan</td><td class="n">3</td>
+      <td>Uzun kaydırmada reklam yığılmasın</td></tr>
+    <tr><td>Kısa listede</td><td class="n">yok</td>
+      <td>5'ten az ilan varsa hiç reklam gösterme</td></tr>
+  </tbody>
+</table></div>
+
+<h3>Nerede reklam OLMAYACAK</h3>
+<ul>
+  <li><b>Sohbet ekranı</b> — özel yazışma; reklam güven kırıcı</li>
+  <li><b>İlan verme / ürün ekleme formları</b> — dönüşüm yolunu kesmeyin</li>
+  <li><b>Ödeme ve premium ekranları</b> — para harcayacak kullanıcıyı dağıtmayın</li>
+  <li><b>Telefon doğrulama</b> — kayıt akışında sürtünme yaratmayın</li>
+  <li><b>Admin paneli</b> — açık</li>
+</ul>
+
+<div class="box good">
+  <span class="lbl">Premium ile bağlantı</span>
+  <p><b>Pro üyelere reklam gösterilmez.</b> Bu, aboneliğe somut bir değer
+    ekler ve mevcut altyapıyla tek satırda çözülür:
+    <code>artisanProAccessProvider</code> zaten premium erişiminin tek
+    kaynağı.</p>
+  <p>Yan fayda: "reklamsız kullan" premium için yeni bir satış argümanı olur.</p>
+</div>
+
+<h2>Uygulama planı</h2>
+
+<div class="phase">
+  <div class="ph"><span class="pn">Faz 0</span>
+    <h3 class="pt">Hukuki ve idari hazırlık</h3>
+    <span class="pe">koddan ÖNCE · sizin tarafınız</span></div>
+  <ul>
+    <li>AdMob hesabı açın, uygulamayı ekleyin, ödeme bilgisi girin
+      (onay birkaç gün sürer)</li>
+    <li>Gizlilik politikası + KVKK metnini güncelleyin: reklam ortağı olarak
+      Google AdMob, işlenen veri (cihaz tanımlayıcısı, yaklaşık konum,
+      uygulama etkileşimi), amaç ve tercih hakkı</li>
+    <li>Kullanım koşullarına reklam maddesi</li>
+    <li>Play Console → Data safety: <b>"Ads"</b> = Evet, veri paylaşımı
+      = Evet (Advertising or marketing)</li>
+    <li>Play Console → App content → Ads: <b>Evet</b></li>
+  </ul>
+  <div class="box risk" style="margin-bottom:0">
+    <span class="lbl">Atlanırsa</span>
+    <p>Beyanla uygulama çelişirse Play uygulamayı kaldırır. Bu adım
+      kozmetik değil, <b>ön koşuldur</b>.</p>
+  </div>
+</div>
+
+<div class="phase">
+  <div class="ph"><span class="pn">Faz 1</span>
+    <h3 class="pt">Altyapı ve kill-switch</h3>
+    <span class="pe">~3 saat · bende</span></div>
+  <ul>
+    <li><code>google_mobile_ads</code> paketi + Android/iOS yapılandırması</li>
+    <li>R8 keep kuralları (paket yansıma kullanır — release'te sessizce
+      çökebilir)</li>
+    <li><code>adsEnabled</code> runtime config anahtarı — mevcut
+      <code>productsEnabled</code> deseniyle aynı. <b>Sorun çıkarsa uygulama
+      güncellemeden reklamı kapatabilirsiniz.</b></li>
+    <li>Test reklam kimlikleriyle çalışma (gerçek kimlikler yalnız release)</li>
+  </ul>
+</div>
+
+<div class="phase">
+  <div class="ph"><span class="pn">Faz 2</span>
+    <h3 class="pt">İzin akışı (UMP)</h3>
+    <span class="pe">~2 saat · bende</span></div>
+  <p>
+    Google'ın <b>User Messaging Platform</b>'u, kişiselleştirilmiş reklam için
+    kullanıcı onayını toplar. Türkiye AB'de değil ama KVKK açık rıza istiyor;
+    ayrıca AB'den bağlanan kullanıcılar için zorunlu.
+  </p>
+  <p>
+    Onay verilmezse reklam <b>kişiselleştirilmez</b> ama gösterilmeye devam
+    eder (geliri düşer, sıfırlanmaz).
+  </p>
+</div>
+
+<div class="phase">
+  <div class="ph"><span class="pn">Faz 3</span>
+    <h3 class="pt">Native reklam kartı</h3>
+    <span class="pe">~3 saat · bende</span></div>
+  <ul>
+    <li>İlan kartıyla aynı iskelet, farklı zemin + "Sponsorlu" rozeti</li>
+    <li>Yükleme/başarısızlık durumunda <b>hiçbir şey gösterme</b> — boş kutu
+      veya iskelet bırakmak listeyi bozar</li>
+    <li>Liste araya ekleme mantığı (4. sıra, 8 aralık, 3 tavan)</li>
+    <li>Premium kullanıcıda tamamen atla</li>
+  </ul>
+</div>
+
+<div class="phase">
+  <div class="ph"><span class="pn">Faz 4</span>
+    <h3 class="pt">Ölçüm ve kademeli açılış</h3>
+    <span class="pe">~1 saat · bende</span></div>
+  <ul>
+    <li>Günlük panele reklam gösterim/tıklama sayacı</li>
+    <li>Önce <b>kapalı testte</b> aç, sonra üretimde</li>
+    <li>Elde tutma düşerse <code>adsEnabled</code> ile anında geri al</li>
+  </ul>
+</div>
+
+<h2>Gerçekçi gelir beklentisi</h2>
+
+<div class="box watch">
+  <span class="lbl">Beklenti yönetimi</span>
+  <p>Türkiye'de native reklam <b>eCPM</b>'i kabaca <b>0,5–2 USD</b>
+    (1000 gösterim başına). Kullanıcı başına günde ~3 gösterim varsayarsak:</p>
+</div>
+
+<div class="tscroll"><table>
+  <thead><tr><th>Günlük aktif kullanıcı</th><th>Aylık gösterim</th><th>Aylık gelir (kaba)</th></tr></thead>
+  <tbody>
+    <tr><td class="n">100</td><td class="n">~9.000</td><td class="n">5–18 USD</td></tr>
+    <tr><td class="n">1.000</td><td class="n">~90.000</td><td class="n">45–180 USD</td></tr>
+    <tr><td class="n">10.000</td><td class="n">~900.000</td><td class="n">450–1.800 USD</td></tr>
+  </tbody>
+</table></div>
+
+<p>
+  Yani reklam <b>ölçekle</b> anlamlı hale gelir. İlk aylarda premium abonelik
+  muhtemelen daha çok getirecektir — bu yüzden reklamı premium'un yerine değil,
+  <b>yanına</b> koymak ve premium'u "reklamsız" ile güçlendirmek mantıklı.
+</p>
+
+<h2>Karar vermeniz gerekenler</h2>
+
+<div class="tscroll"><table>
+  <thead><tr><th>#</th><th>Soru</th><th>Benim önerim</th></tr></thead>
+  <tbody>
+    <tr><td class="n">1</td><td>Ne zaman?</td>
+      <td><b>Play yayınından sonra</b>, ayrı sürüm</td></tr>
+    <tr><td class="n">2</td><td>Nerede gösterilsin?</td>
+      <td>Yalnız <b>Keşfet → İlanlar</b> ile başlayın; ürün listesi sonra</td></tr>
+    <tr><td class="n">3</td><td>Premium reklamsız mı?</td>
+      <td><b>Evet</b> — aboneliğe değer katar</td></tr>
+    <tr><td class="n">4</td><td>Yasal metinleri kim yazacak?</td>
+      <td>Taslağı ben hazırlarım; <b>hukukçu onayı</b> almanız iyi olur</td></tr>
+    <tr><td class="n">5</td><td>Sıklık</td>
+      <td>4. sıra + 8 aralık ile başlayın, veriye göre ayarlayın</td></tr>
+  </tbody>
+</table></div>
+
+<div class="box good">
+  <span class="lbl">Hazır olduğunuzda</span>
+  <p>"Başla" derseniz Faz 1–4'ü uygularım (yaklaşık 1 gün). Faz 0 sizin
+    tarafınızda ve paralel yürüyebilir — AdMob onayı beklerken kod hazır olur.</p>
+  <p>İsterseniz önce yalnız <b>yasal metin taslaklarını</b> hazırlayabilirim;
+    onları hukukçuya gösterip sonra koda geçeriz.</p>
+</div>
+
+<footer>
+  Plan · 15 Ağustos 2026 · uygulama sürümü 1.0.1+2 ·
+  reklam altyapısı henüz <b>yok</b> (paket eklenmedi, kod yazılmadı)
+</footer>
+
+</div>
