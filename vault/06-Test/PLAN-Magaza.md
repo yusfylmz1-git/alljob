@@ -167,8 +167,8 @@ Kolay İş'in (`quick_support`) birebir aynı deseni.
 |---|---|
 | Kategori sabiti + `isProductRequest` | `job.dart` |
 | Ustaya düşmeme kapısı | `Job.matchesArtisan` — erken `false` |
-| Anlık fan-out'tan çıkarma | `onJobCreated` — erken `return` |
-| **Günlük özet CF'i** | `sendProductRequestDigest` (export 47 → **48**) |
+| Anlık satıcı fan-out | `onJobCreated` → `notifyProductRequestSellers` (il + kategori) |
+| **Günlük özet CF'i** | `sendProductRequestDigest` — anlık almayanları tamamlar |
 | Ayrı push tercihi | `productDigest` — CF + model + ekran (3 katman) |
 
 Özet **her gün 19:00** (Europe/Istanbul) çalışır. Bildirim kimliği
@@ -189,39 +189,21 @@ bildirim çoğalmaz. Kendi talebini açan kişi alıcı listesinden düşer.
 
 ## Aşama 3 notları (uygulama ayrıntısı)
 
-### 🔑 Bildirim modeli: GÜNLÜK ÖZET (Yol 4) — anlık push YOK
+### 🔑 Bildirim modeli: ANLIK + kategori (2026-08-12)
 
-**Kullanıcı kararı.** Talep oluştuğunda push GİTMEZ. Günde bir kez
-zamanlanmış CF çalışır ve kişi başına **tek** bildirim gönderir:
+Talep oluşunca aynı **il + `productCategoryCode`** satıcılarına anlık
+gider. Akşam 19:00 özeti yalnız anlık almayanları tamamlar (çift push yok).
 
-> *"Bursa'da bugün 4 yeni ürün talebi var"*
+Alıcı birleşimi (`collectProductRequestSellerUids`):
+- o kategoride **`status == active` ürünü olanlar** (aynı il)
+- **veya** mağaza açmış, `shopCategories` içinde kodu seçmiş, hizmet
+  bölgesi o il olanlar (henüz ürünü olmayabilir)
+- kendi talebini açan düşer; tavan `JOB_FANOUT_RECIPIENT_CAP`
 
-**Neden bu seçildi:** talep sayısı ne olursa olsun kişi başına bildirim
-tavanı **günde 1**. Spam matematiksel olarak imkânsız — dolayısıyla ürün
-talebi, iş ilanı bildirimlerinin değerini yiyemez. Risk tablosundaki
-"bildirim yorgunluğu" maddesi bu kararla büyük ölçüde kapanır.
+Tercih `productDigest` ikisini birden keser.
 
-**Bedeli:** acil talepte geç kalır. Ürün talebi iş ilanı kadar acil
-olmadığı için kabul edilebilir.
-
-**Altyapı hazır:** `onSchedule` deseni canlıda çalışıyor —
-`processScheduledCampaigns` (`functions/index.js:3471`, `every 5 minutes`).
-Yeni CF aynı deseni kullanır, günlük periyotla.
-
-#### Alıcı listesi
-Anlık fan-out olmadığı için `onJobCreated` **kopyalanmaz**; onun yerine
-özet CF'i gün içinde biriken talepleri toplar. Alıcı seçimi yine
-**il + kategori**:
-
-- O kategoride **`status == active` ürünü olanlar** (davranıştan türer,
-  ekstra ayar gerekmez)
-- Kendi talebini sayma; uid tekilleştir (`Map` deseni `onJobCreated`'da hazır)
-- 500 alıcı tavanı korunur
-
-> **Ertelendi:** "tercih edenler" ikinci kaynağı (eski Yol 3) şimdilik YOK.
-> Varsayıma dayanıyor ("ürünü olmayan satıcı da bildirim ister") ve şu an
-> test edilemez. Modül canlıya çıkıp "talep var ama satıcı az" denirse
-> alıcı listesine ikinci kaynak eklenir — union yapısı buna hazır.
+> Eski metin "yalnız günlük özet, kategori yok" idi. Kullanıcı kararı
+> (2026-08-12): kategoriye göre anlık bağlandı.
 
 #### Kapatma
 Kullanıcı özet bildirimini kapatabilmeli: **Bildirim tercihleri ekranı**

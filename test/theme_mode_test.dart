@@ -48,25 +48,25 @@ void main() {
     expect(kAccentOptions.map((o) => o.id).toSet(), hasLength(6));
     expect(kAccentOptions.map((o) => o.id),
         containsAll(<String>['pink', 'teal']));
-    expect(accentById('yok-boyle').id, kDefaultCustomerAccentId);
-    expect(accentById(null, fallbackId: kDefaultArtisanAccentId).id,
-        kDefaultArtisanAccentId);
+    expect(accentById('yok-boyle').id, kDefaultAccentId);
+    expect(accentById(null, fallbackId: kDefaultAccentId).id, kDefaultAccentId);
   });
 
-  test('vurgu rengi kalıcı kayıt: müşteri/usta bağımsız roundtrip', () async {
+  test('vurgu rengi kalıcı kayıt: tek renk roundtrip + eski anahtar göçü',
+      () async {
     SharedPreferences.setMockInitialValues({});
-    // Kayıt yoksa varsayılanlar (müşteri mavi, usta yeşil).
-    expect(await readCustomerAccentId(), kDefaultCustomerAccentId);
-    expect(await readArtisanAccentId(), kDefaultArtisanAccentId);
+    expect(await readAccentId(), kDefaultAccentId);
 
-    await saveCustomerAccentId('violet');
-    await saveArtisanAccentId('orange');
-    expect(await readCustomerAccentId(), 'violet');
-    expect(await readArtisanAccentId(), 'orange');
+    await saveAccentId('violet');
+    expect(await readAccentId(), 'violet');
 
-    // Geçersiz id (kaldırılmış renk) varsayılana düşer.
-    SharedPreferences.setMockInitialValues({'accent_customer_v1': 'neon'});
-    expect(await readCustomerAccentId(), kDefaultCustomerAccentId);
+    // Geçersiz id varsayılana düşer.
+    SharedPreferences.setMockInitialValues({'accent_app_v1': 'neon'});
+    expect(await readAccentId(), kDefaultAccentId);
+
+    // Eski müşteri anahtarından göç.
+    SharedPreferences.setMockInitialValues({'accent_customer_v1': 'orange'});
+    expect(await readAccentId(), 'orange');
   });
 
   test('tema tercihi kalıcı kayıt: yaz → oku roundtrip', () async {

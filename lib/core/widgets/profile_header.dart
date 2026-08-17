@@ -11,6 +11,7 @@ import '../../features/review/data/review_repository.dart';
 import '../router/route_paths.dart';
 import '../utils/snackbar_helper.dart';
 import '../theme/app_palette.dart';
+import 'whatsapp_icon.dart';
 import 'app_image.dart';
 
 /// Instagram tarzı profil başlığı — KENDİ ve BAŞKASININ profilinde AYNI.
@@ -320,40 +321,52 @@ class ProfileBioDetails extends StatelessWidget {
     // açar. Model zaten doğru URL'yi üretiyor (instagramUrl, whatsappUrl…),
     // burada elle string kurmuyoruz.
     final telefon = user.publicPhone?.trim() ?? '';
-    final satirlar = <({IconData icon, String text, String? url})>[
+    // `leading`: satır kendi ikonunu WIDGET olarak verebilir. WhatsApp'ın
+    // Material'da karşılığı yok; marka logosu `IconData` ile çizilemiyor.
+    // null ise `icon` alanı kullanılır (diğer tüm satırlar).
+    final satirlar =
+        <({IconData icon, Widget? leading, String text, String? url})>[
       if (telefon.isNotEmpty)
         (
           icon: Icons.phone_outlined,
+          leading: null,
           text: telefon,
           url: 'tel:${telefon.replaceAll(RegExp(r'[^0-9+]'), '')}',
         ),
       if (s.websiteUrl != null)
         (
           icon: Icons.link_rounded,
+          leading: null,
           text: kisaUrl(s.website!),
           url: s.websiteUrl,
         ),
       if (s.instagramUrl != null)
         (
           icon: Icons.camera_alt_outlined,
+          leading: null,
           text: '@${s.instagram!.trim()}',
           url: s.instagramUrl,
         ),
       if (s.youtubeUrl != null)
         (
           icon: Icons.play_circle_outline,
+          leading: null,
           text: s.youtube!.trim(),
           url: s.youtubeUrl,
         ),
       if (s.tiktokUrl != null)
         (
           icon: Icons.music_note_outlined,
+          leading: null,
           text: '@${s.tiktok!.trim()}',
           url: s.tiktokUrl,
         ),
       if (s.whatsappUrl != null)
         (
-          icon: Icons.chat_outlined,
+          icon: Icons.chat_outlined, // yedek (leading kullanılır)
+          // Gerçek WhatsApp logosu — `Icons.chat_outlined` düz balondu ve
+          // marka tanınmıyordu (kullanıcı bulgusu 2026-08-14).
+          leading: const WhatsappIcon(size: 13),
           text: s.whatsapp!.trim(),
           url: s.whatsappUrl,
         ),
@@ -374,7 +387,8 @@ class ProfileBioDetails extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(vertical: 2),
                 child: Row(
                   children: [
-                    Icon(r.icon, size: 13, color: palette.inkMuted),
+                    r.leading ??
+                        Icon(r.icon, size: 13, color: palette.inkMuted),
                     const SizedBox(width: 5),
                     Flexible(
                       child: Text(

@@ -1,5 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+import '../../../core/constants/app_constants.dart';
+import '../../../core/utils/signout_safe_stream.dart';
 import '../../../data/models/favorite.dart';
 import 'favorite_repository.dart';
 
@@ -29,12 +31,13 @@ class FirebaseFavoriteRepository implements FavoriteRepository {
   Stream<List<Favorite>> watchFavorites(String customerUid) {
     return _favorites
         .where('customerUid', isEqualTo: customerUid)
+        .limit(AppConstants.favoritesFetchCap)
         .snapshots()
         .map((s) {
       final list = s.docs.map((d) => Favorite.fromMap(d.id, d.data())).toList()
         ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
       return list;
-    });
+    }).signOutSafe('favoriler', customerUid);
   }
 
   @override
@@ -43,6 +46,9 @@ class FirebaseFavoriteRepository implements FavoriteRepository {
     // yalnızca KENDİ takipçilerini okuyabilir).
     return _favorites
         .where('artisanUid', isEqualTo: artisanUid)
+        // Tavan ayrıca `asyncMap` içindeki users okumasını da sınırlar:
+        // her takipçi için bir döküman okunuyor (önbellekli ama ilk turda tam).
+        .limit(AppConstants.followersFetchCap)
         .snapshots()
         .asyncMap((s) async {
       final list = s.docs.map((d) => Favorite.fromMap(d.id, d.data())).toList()
@@ -67,7 +73,7 @@ class FirebaseFavoriteRepository implements FavoriteRepository {
           return f.copyWith(customerName: 'Kullanıcı');
         }
       }));
-    });
+    }).signOutSafe('takipçiler', artisanUid);
   }
 
   /// customerUid → (ad, foto) — takipçi listesi her snapshot'ta users'ı
@@ -92,6 +98,7 @@ class FirebaseFavoriteRepository implements FavoriteRepository {
     return _favorites
         .doc(Favorite.idFor(customerUid, artisanUid))
         .snapshots()
-        .map((s) => s.exists);
+        .map((s) => s.exists)
+        .signOutSafe('favori durumu', customerUid);
   }
 }

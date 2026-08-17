@@ -6,6 +6,7 @@ import '../../../../core/router/route_paths.dart';
 import '../../../../core/theme/app_palette.dart';
 import '../../../../core/widgets/app_image.dart';
 import '../../../../data/models/product.dart';
+import '../../../auth/application/auth_controller.dart';
 import '../../data/product_providers.dart';
 
 /// Profil ekranlarındaki "Dükkân" bölümü — bu kişinin satılık ürünleri.
@@ -43,32 +44,73 @@ class DukkanBolumu extends ConsumerWidget {
     // Admin "Mağaza kapalı" ise profilde dükkân göstermeyiz (ölü link olmasın).
     if (!ref.watch(productsLiveProvider)) return const SizedBox.shrink();
 
+    // Satıcı müsait değilse vitrin başkalarına görünmez.
+    final satici = ref.watch(publicUserProvider(saticiUid)).valueOrNull;
+    final me = ref.watch(currentUserProvider);
+    final isOwner = me?.uid == saticiUid;
+    if (!isOwner && satici != null && !satici.available) {
+      return const SizedBox.shrink();
+    }
+
     final urunler =
         ref.watch(publicProductsProvider(saticiUid)).valueOrNull ?? const [];
-    if (urunler.isEmpty) return const SizedBox.shrink();
+    final alanlar = satici?.shopServiceAreas ?? const [];
+    if (urunler.isEmpty && alanlar.isEmpty) return const SizedBox.shrink();
 
     final onizleme = urunler.take(6).toList();
+    final theme = Theme.of(context);
+    final palette = context.palette;
     return Padding(
       padding: const EdgeInsets.only(bottom: 14),
       child: bolumKurucu(
         icon: Icons.storefront_outlined,
-        title: 'Dükkân (${urunler.length})',
-        trailing: TextButton(
-          onPressed: () => context.push(
-            '${RoutePaths.artisanProducts(saticiUid)}'
-            '?ad=${Uri.encodeComponent(saticiAdi)}',
-          ),
-          child: const Text('Tümünü Gör →'),
-        ),
-        child: SizedBox(
-          height: 128,
-          child: ListView.separated(
-            scrollDirection: Axis.horizontal,
-            padding: EdgeInsets.zero,
-            itemCount: onizleme.length,
-            separatorBuilder: (_, _) => const SizedBox(width: 10),
-            itemBuilder: (_, i) => _DukkanKucukResim(urun: onizleme[i]),
-          ),
+        title: urunler.isEmpty ? 'Mağaza' : 'Dükkân (${urunler.length})',
+        trailing: urunler.isEmpty
+            ? null
+            : TextButton(
+                onPressed: () => context.push(
+                  '${RoutePaths.artisanProducts(saticiUid)}'
+                  '?ad=${Uri.encodeComponent(saticiAdi)}',
+                ),
+                child: const Text('Tümünü Gör →'),
+              ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (alanlar.isNotEmpty) ...[
+              Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: [
+                  for (final a in alanlar)
+                    Chip(
+                      visualDensity: VisualDensity.compact,
+                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      avatar: Icon(Icons.place_outlined,
+                          size: 14, color: palette.inkMuted),
+                      label: Text(
+                        a.labelTR,
+                        style: theme.textTheme.labelSmall?.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+              if (urunler.isNotEmpty) const SizedBox(height: 10),
+            ],
+            if (urunler.isNotEmpty)
+              SizedBox(
+                height: 128,
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  padding: EdgeInsets.zero,
+                  itemCount: onizleme.length,
+                  separatorBuilder: (_, _) => const SizedBox(width: 10),
+                  itemBuilder: (_, i) => _DukkanKucukResim(urun: onizleme[i]),
+                ),
+              ),
+          ],
         ),
       ),
     );

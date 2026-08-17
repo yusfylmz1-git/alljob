@@ -45,11 +45,11 @@ void main() {
     setUpAll(() => kesfet = read(
         'lib/features/customer/presentation/customer_dashboard_screen.dart'));
 
-    test('Keşfet üst barında var', () {
-      // Etiket yazıya çevrildi (tooltip dokunmatikte görünmüyordu); giriş
-      // hâlâ TEK ve aynı yerde.
+    test('İlanlar sekmesi sağ üstte var (hero\'dan taşındı)', () {
+      // 2026-08-10: hero barından İlanlar sekmesi altına taşındı.
       expect(kesfet.contains("Text('Yeni İlan')"), isTrue);
       expect(kesfet.contains('RoutePaths.newJob'), isTrue);
+      expect(kesfet.contains('class _JobsTab'), isTrue);
     });
 
     test('arama satırının altındaki ikinci düğme YOK', () {
@@ -81,8 +81,9 @@ void main() {
     test('profildeki ikinci düğme İlanlarım', () {
       final profil =
           read('lib/features/profile/presentation/profile_screen.dart');
-      expect(profil.contains("label: 'İlanlarım'"), isTrue);
-      expect(profil.contains("label: 'Profilime bak'"), isFalse);
+      // 2026-08-14: `label: const Text('İlanlarım')` biçimi.
+      expect(profil.contains('İlanlarım'), isTrue);
+      expect(profil.contains('Profilime bak'), isFalse);
     });
   });
 
@@ -138,10 +139,10 @@ void main() {
       final i = edit.indexOf("showSuccess('Profiliniz kaydedildi.')");
       expect(i, greaterThan(-1));
       final blok = edit.substring(i, i + 400);
-      expect(blok.contains('context.pop()') || blok.contains('context.go('),
-          isTrue,
+      expect(blok.contains('context.go(RoutePaths.profile)'), isTrue,
           reason: 'Kaydettikten sonra formda kalınıyor — kullanıcı '
-              '"kaydoldu mu?" diye tekrar basıyor.');
+              '"kaydoldu mu?" diye tekrar basıyor. PopScope canPop:false '
+              'pop() yutar; go ile profile dönülmeli.');
     });
 
     test('kurulum yapılmadan çıkılırsa usta modu geri alınır (madde 11)', () {

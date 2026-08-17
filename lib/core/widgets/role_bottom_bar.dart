@@ -92,10 +92,8 @@ class MainBottomBar extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final user = ref.watch(currentUserProvider);
     final unread = ref.watch(totalUnreadProvider);
-    final isArtisan = user?.isArtisan ?? false;
     // Alt bar HERKESTE AYNI: Ana Sayfa · Keşfet · Mesajlar · Profil.
-    // "İlanlar" sekmesi 2026-08-08'de KEŞFET'e taşındı (orada 2. sekme) —
-    // "usta ara" ve "iş ara" aynı keşif yüzeyinde toplandı.
+    // "İlanlar" Keşfet içinde. work rotası legacy; kendi ilanlarına gider.
     final palette = context.palette;
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
@@ -107,7 +105,7 @@ class MainBottomBar extends ConsumerWidget {
         case MainTab.explore:
           context.go(RoutePaths.explore);
         case MainTab.work:
-          context.go(isArtisan ? RoutePaths.panelJobs : RoutePaths.myJobs);
+          context.go(RoutePaths.myJobs);
         case MainTab.chats:
           context.go(RoutePaths.chats);
         case MainTab.profile:

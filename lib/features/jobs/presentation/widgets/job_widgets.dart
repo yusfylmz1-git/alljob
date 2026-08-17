@@ -37,6 +37,8 @@ String jobCategoryEmoji(String category) {
       return '🧽';
     case 'quick_support':
       return '⚡';
+    case 'product_request':
+      return '🛒';
     default:
       return '🔧';
   }

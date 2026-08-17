@@ -27,7 +27,7 @@ void main() {
     await tester.pumpWidget(
       UncontrolledProviderScope(
         container: container,
-        child: const UstaCepteApp(),
+        child: const SepetteHizmetApp(),
       ),
     );
 
@@ -65,7 +65,7 @@ void main() {
     await tester.pumpWidget(
       UncontrolledProviderScope(
         container: container,
-        child: const UstaCepteApp(),
+        child: const SepetteHizmetApp(),
       ),
     );
     await tester.pump();
@@ -89,7 +89,7 @@ void main() {
     await tester.pumpWidget(
       UncontrolledProviderScope(
         container: container,
-        child: const UstaCepteApp(),
+        child: const SepetteHizmetApp(),
       ),
     );
 

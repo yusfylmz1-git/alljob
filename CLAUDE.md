@@ -110,10 +110,11 @@ Deploy komutları ve tuzakları: `vault/05-Operasyon/Deploy-ve-Ortam.md`
 
 | Sabit | Dosya |
 |---|---|
-| `kProMonthlyProductId = 'usta_cepte_pro_monthly'` | `membership/billing_config.dart` |
+| `kProMonthlyProductId = 'sepette_hizmet_pro_monthly'` | `membership/billing_config.dart` |
 
-Marka iki kez değişti ("Usta Cepte" → "Sepette Hizmet" → "İlanda Hizmet"); bu kimlikler bilerek ilk
-adında. Değiştirmek kullanıcı verisi/satın alma kaybettirir.
+Görünen marka İlanda Hizmet; paket / IAP kimliği `sepettehizmet`. Play veya
+App Store'da ürün oluşturulduktan sonra bu kimlik değiştirilmez — satın alma
+kaybettirir.
 
 ## Dil
 

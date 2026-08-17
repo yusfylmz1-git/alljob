@@ -45,11 +45,12 @@ void main() {
       );
     });
 
-    test('SATIN ALMA kimliği DEĞİŞMEDİ (CLAUDE.md sabiti)', () {
-      // Marka değişse de product id sabit kalmalı: değişirse abonelik kaybı.
+    test('SATIN ALMA kimliği paket adıyla hizalı (CLAUDE.md sabiti)', () {
+      // Play/App Store kaydı yokken usta_cepte_* → sepette_hizmet_* çekildi.
+      // Console'da ürün açıldıktan sonra bu kimlik kilitlenir.
       expect(
         read('lib/features/membership/billing_config.dart')
-            .contains("kProMonthlyProductId = 'usta_cepte_pro_monthly'"),
+            .contains("kProMonthlyProductId = 'sepette_hizmet_pro_monthly'"),
         isTrue,
       );
     });
@@ -69,10 +70,12 @@ void main() {
       expect(quick, lessThan(discover));
     });
 
-    test('HomeFeatured içinde ustalar ilanlardan önce', () {
+    test('HomeFeatured içinde ustalar → ürünler → ilanlar', () {
       final s =
           read('lib/features/home/presentation/widgets/home_featured.dart');
       expect(s.indexOf("'Öne Çıkan Ustalar'"),
+          lessThan(s.indexOf("'Son Paylaşılan Ürünler'")));
+      expect(s.indexOf("'Son Paylaşılan Ürünler'"),
           lessThan(s.indexOf("'Son İş İlanları'")));
     });
   });
@@ -91,6 +94,14 @@ void main() {
       expect(s.contains('child: Row('), isTrue);
       // Başlık artık tek satır: elle satır kırma kalktı.
       expect(s.contains(r'İhtiyacın olan\nustayı bul.'), isFalse);
+    });
+
+    test('İş İlanı Ver altında ürün talebi var', () {
+      final ilan = s.indexOf("'İş İlanı Ver'");
+      final talep = s.indexOf("'Mağaza İçin Ürün Talebi Oluştur'");
+      expect(ilan, greaterThan(-1));
+      expect(talep, greaterThan(ilan));
+      expect(s.contains('newProductRequestJob'), isTrue);
     });
   });
 

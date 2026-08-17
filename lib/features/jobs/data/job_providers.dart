@@ -4,6 +4,7 @@ import '../../../core/config/backend_config.dart';
 import '../../../data/models/job.dart';
 import '../../artisan/application/my_profile_controller.dart';
 import '../../artisan/data/artisan_providers.dart' show mockDatabaseProvider;
+import '../../auth/application/auth_controller.dart';
 import 'firebase_job_repository.dart';
 import 'job_repository.dart';
 import 'mock_job_repository.dart';
@@ -78,7 +79,12 @@ final nearbyJobsProvider = StreamProvider<List<Job>>((ref) {
 });
 
 /// Ustanın şu an müsait olup olmadığı (feed/ekran mesajları için kısayol).
+/// `users.available` ile vitrin müsaitliğini birlikte okur.
 final artisanIsAvailableProvider = Provider<bool>((ref) {
+  final user = ref.watch(currentUserProvider);
+  if (user == null) return false;
+  if (!user.available) return false;
   final draft = ref.watch(myProfileControllerProvider).valueOrNull;
-  return draft?.profile.isAvailable ?? false;
+  if (draft != null && !draft.profile.isAvailable) return false;
+  return true;
 });

@@ -146,6 +146,25 @@ class FirebaseMyProfileRepository implements MyProfileRepository {
     required bool showOnProfile,
     String? publicPhone,
   }) async {
+    // İKİ DOKÜMANA DA YAZILIR (2026-08-14 cihaz bulgusu: "göster" işaretlense
+    // de numara profilde çıkmıyordu).
+    //
+    // Sebep: burası yalnız `artisanProfiles/{uid}` yazıyordu, ama profil
+    // başlığı numarayı `users/{uid}.publicPhone` alanından okuyor
+    // (`ProfileHeader` → `user.publicPhone`). İki alan aynı adı taşıyor ama
+    // AYRI dokümanlarda; yazılan yer okunan yer değildi.
+    //
+    // `users` yazımı ÖNCE ve KOŞULSUZ yapılır: mağaza sahibinin
+    // `artisanProfiles` dokümanı hiç olmayabilir — eski kod o durumda
+    // `if (!snap.exists) return` ile sessizce çıkıyor ve mağazacının
+    // numarası HİÇ yazılmıyordu.
+    await _db.collection('users').doc(uid).set({
+      // Boş dize DEĞİL null: `users` kuralı publicPhone için string|null
+      // kabul eder ve null "alanı temizle" anlamına gelir.
+      'publicPhone': showOnProfile ? publicPhone : null,
+    }, SetOptions(merge: true));
+
+    // Usta vitrini için profil dokümanı (varsa) da güncellenir.
     final snap = await _profileDoc(uid).get();
     if (!snap.exists) return;
     await _profileDoc(uid).set({

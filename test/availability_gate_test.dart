@@ -54,7 +54,7 @@ void main() {
 
     test('İlanlar sekmesi KEŞFET içinde, kapılı', () {
       // 2026-08-08: alt bardaki ayrı sekme kalktı, Keşfet'in 2. sekmesi oldu.
-      // Kapı orada: giriş → usta modu → müsaitlik.
+      // Kapı: giriş → usta PROFİLİ (mod switch değil).
       final bar = read('lib/core/widgets/role_bottom_bar.dart');
       expect(bar.contains('showWork'), isFalse,
           reason: 'Alt bardaki İlanlar sekmesi geri gelmiş.');
@@ -62,8 +62,8 @@ void main() {
       final exp = read(
           'lib/features/customer/presentation/customer_dashboard_screen.dart');
       expect(exp.contains('class _JobsTab'), isTrue);
-      expect(exp.contains('!user.isArtisan'), isTrue,
-          reason: 'Usta modu kapısı olmalı.');
+      expect(exp.contains('!user.hasArtisanProfile'), isTrue,
+          reason: 'Usta profili kapısı olmalı (aktif mod değil).');
       // Müsaitlik kapısı BURADAN KALKTI (2026-08-10) — mesaj kapısı yerinde.
       expect(exp.contains('!draft.profile.isAvailable'), isFalse,
           reason: 'Keşfet İlanlar sekmesindeki müsaitlik duvarı geri gelmiş.');
@@ -73,8 +73,24 @@ void main() {
   group('İlgi bildirme kapısı', () {
     test('müsait değilken ilgi bildirilemez', () {
       final s = read('lib/features/jobs/presentation/job_detail_screen.dart');
-      expect(s.contains('if (!profile.isAvailable)'), isTrue,
-          reason: 'Aramada görünmeyen usta ilan sahibine haber verememeli.');
+      expect(s.contains('artisanAvailabilityAllowsNewChat'), isTrue,
+          reason: 'Ortak müsaitlik kapısı çağrılmalı.');
+      expect(s.contains('providerIsUnavailableForNewChat'), isTrue,
+          reason: 'UI müsait değilken Mesaj Gönder gizlemeli.');
+    });
+
+    test('müsait değilken ekranda yönlendirme var (yanlış "başka müşteri" değil)',
+        () {
+      final s = read('lib/features/jobs/presentation/job_detail_screen.dart');
+      expect(s.contains('hasArtisanProfile'), isTrue,
+          reason: 'Teklif bölümü usta PROFİLİNE bakmalı, yalnız aktif moda değil.');
+      expect(s.contains('Müsait değilsiniz'), isTrue,
+          reason: 'Müsait değilken kullanıcıya açık mesaj gösterilmeli.');
+      expect(s.contains('Profilde müsaitliği aç'), isTrue,
+          reason: 'Profile yönlendirme düğmesi olmalı.');
+      // Yanlış mesaj: müsait kapısı isArtisan'a düşüp "başka müşteri" göstermemeli.
+      expect(s.contains('else if (isArtisan)'), isFalse,
+          reason: 'isArtisan (aktif mod) ile teklif bölümü kilitlenmemeli.');
     });
   });
 

@@ -3,24 +3,32 @@ import '../../../data/local/mock_database.dart' show kProfessionNames;
 import '../../../data/models/job.dart';
 
 /// Keşfet → İlanlar: istemci tarafı filtre (sunucu zaten açık ilanları verir).
-/// Detay: il / ilçe. Meslek dropdown yok (metin aramada kalır).
+/// Detay: kategori (meslek) / il / ilçe.
 class JobExploreFilter {
   const JobExploreFilter({
     this.query = '',
+    this.category,
     this.province,
     this.district,
   });
 
   final String query;
+
+  /// Meslek kodu (`Job.category` ile aynı alfabe — `kProfessionNames` anahtarı).
+  /// Etiket değil KOD tutulur: ekranda gösterilen ad çeviriyle değişebilir,
+  /// eşleşme ise veri değeriyle yapılmalıdır.
+  final String? category;
   final String? province;
   final String? district;
 
   bool get hasDetailFilters =>
+      (category != null && category!.isNotEmpty) ||
       (province != null && province!.isNotEmpty) ||
       (district != null && district!.isNotEmpty);
 
   int get activeDetailCount {
     var n = 0;
+    if (category != null && category!.isNotEmpty) n++;
     if (province != null && province!.isNotEmpty) n++;
     if (district != null && district!.isNotEmpty) n++;
     return n;
@@ -30,13 +38,16 @@ class JobExploreFilter {
 
   JobExploreFilter copyWith({
     String? query,
+    String? category,
     String? province,
     String? district,
+    bool clearCategory = false,
     bool clearProvince = false,
     bool clearDistrict = false,
   }) {
     return JobExploreFilter(
       query: query ?? this.query,
+      category: clearCategory ? null : (category ?? this.category),
       province: clearProvince ? null : (province ?? this.province),
       district: clearDistrict ? null : (district ?? this.district),
     );
@@ -45,7 +56,7 @@ class JobExploreFilter {
   static bool matchesQuery(Job job, String rawQuery) {
     final q = foldTrSearch(rawQuery.trim());
     if (q.isEmpty) return true;
-    final catLabel = kProfessionNames[job.category] ?? job.category;
+    final catLabel = kProfessionNames[job.category] ?? job.categoryLabelTR;
     final hay = foldTrSearch([
       job.title,
       job.description,
@@ -65,6 +76,13 @@ class JobExploreFilter {
 
   List<Job> apply(List<Job> jobs) {
     return jobs.where((j) {
+      // Kategori: KOD eşleşmesi (büyük/küçük harf duyarsız). Meslek kodları
+      // Firestore değeridir; etiketle kıyaslamak veri göçünde kırılırdı.
+      if (category != null &&
+          category!.isNotEmpty &&
+          j.category.toLowerCase() != category!.toLowerCase()) {
+        return false;
+      }
       if (province != null &&
           province!.isNotEmpty &&
           foldTrSearch(j.province) != foldTrSearch(province!)) {

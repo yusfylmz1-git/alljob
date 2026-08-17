@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/constants/app_constants.dart';
 import '../../../core/router/route_paths.dart';
 import '../../../core/widgets/responsive_center.dart';
 import '../../../core/widgets/role_bottom_bar.dart';
@@ -66,11 +67,13 @@ class ArtisanProductsScreen extends ConsumerWidget {
             maxWidth: 900,
             child: GridView.builder(
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
-              gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+              gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
                 maxCrossAxisExtent: 220,
                 mainAxisSpacing: 12,
                 crossAxisSpacing: 12,
-                childAspectRatio: 0.72,
+                // Görsel 4:5 dikeye geçti (2026-08-14) → hücre de uzadı;
+                // eski oranda kart içeriği taşıyordu.
+                childAspectRatio: AppConstants.photoCardAspectRatio,
               ),
               itemCount: products.length,
               itemBuilder: (_, i) {

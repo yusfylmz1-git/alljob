@@ -4,10 +4,27 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/theme/app_palette.dart';
 import '../../../core/widgets/searchable_select_field.dart';
 import '../../../data/local/local_data_service.dart';
+import '../../../data/local/mock_database.dart' show kProfessionNames;
 import '../../../data/models/geo_models.dart';
 import 'job_explore_filter.dart';
 
-/// Detaylı iş ilanı filtresi (il / ilçe).
+/// Filtre listesinde bir meslek: kod (Firestore değeri) + görünen ad.
+class _CategoryOption {
+  const _CategoryOption(this.code, this.label);
+  final String code;
+  final String label;
+}
+
+/// Meslek listesi — ada göre Türkçe sıralı (kod sırası kullanıcıya anlamsız).
+final List<_CategoryOption> _kCategoryOptions = () {
+  final list = kProfessionNames.entries
+      .map((e) => _CategoryOption(e.key, e.value))
+      .toList();
+  list.sort((a, b) => a.label.toLowerCase().compareTo(b.label.toLowerCase()));
+  return list;
+}();
+
+/// Detaylı iş ilanı filtresi (kategori / il / ilçe).
 Future<JobExploreFilter?> showJobFilterSheet(
   BuildContext context, {
   required JobExploreFilter initial,
@@ -33,6 +50,11 @@ class _JobFilterSheetState extends ConsumerState<_JobFilterSheet> {
   Province? _province;
   District? _district;
   bool _geoSeeded = false;
+
+  /// Seçili meslek kodu. Coğrafya gibi async değil — hemen tohumlanabilir.
+  late String? _category = (widget.initial.category ?? '').isEmpty
+      ? null
+      : widget.initial.category;
 
   Future<void> _seedGeo(List<Province> provinces) async {
     if (_geoSeeded) return;
@@ -64,6 +86,7 @@ class _JobFilterSheetState extends ConsumerState<_JobFilterSheet> {
 
   JobExploreFilter _buildResult() => JobExploreFilter(
         query: widget.initial.query,
+        category: _category,
         province: _province?.name,
         district: _district?.name,
       );
@@ -81,6 +104,24 @@ class _JobFilterSheetState extends ConsumerState<_JobFilterSheet> {
         }
       });
     }
+
+    final selectedCategory = _category == null
+        ? null
+        : _kCategoryOptions.where((c) => c.code == _category).firstOrNull;
+
+    final categoryField = SearchableSelectField<_CategoryOption>(
+      label: 'Kategori',
+      value: selectedCategory,
+      items: _kCategoryOptions,
+      itemLabel: (c) => c.label,
+      searchHint: 'Meslek ara…',
+      prefixIcon: Icons.handyman_outlined,
+      allowClear: true,
+      clearLabel: 'Tümü',
+      equals: (a, b) => a.code == b.code,
+      onSelected: (c) => setState(() => _category = c.code),
+      onClear: () => setState(() => _category = null),
+    );
 
     final provinceField = provincesAsync.when(
       loading: () => const _DropdownSkeleton(label: 'İl'),
@@ -158,6 +199,7 @@ class _JobFilterSheetState extends ConsumerState<_JobFilterSheet> {
               const Spacer(),
               TextButton.icon(
                 onPressed: () => setState(() {
+                  _category = null;
                   _province = null;
                   _district = null;
                 }),
@@ -168,10 +210,13 @@ class _JobFilterSheetState extends ConsumerState<_JobFilterSheet> {
           ),
           const SizedBox(height: 4),
           Text(
-            'İl ve ilçe isteğe bağlıdır. Boş bırakılanlar listeyi daraltmaz.',
+            'Kategori, il ve ilçe isteğe bağlıdır. Boş bırakılanlar listeyi '
+            'daraltmaz.',
             style: theme.textTheme.bodySmall?.copyWith(color: palette.inkMuted),
           ),
           const SizedBox(height: 16),
+          categoryField,
+          const SizedBox(height: 12),
           provinceField,
           const SizedBox(height: 12),
           districtField,

@@ -12,11 +12,11 @@ Güncelleme: 2026-07-14 — CF deploy + App Check enforce (kısmi) + billing UI 
 - Pro plan seçimi → Premium ekranı / Play IAP akışı
 
 ### Play Console — SİZDE (API ile abonelik ürünü açılamaz)
-Paket: `com.ustacepte.usta_cepte`
+Paket: `com.sepettehizmet.app`
 
 1. **Monetization → Subscriptions** → oluştur:
-   - Product ID: `usta_cepte_pro_monthly` (zorunlu, kodla birebir)
-   - İsteğe bağlı: `usta_cepte_pro_yearly`
+   - Product ID: `sepette_hizmet_pro_monthly` (zorunlu, kodla birebir)
+   - İsteğe bağlı: `sepette_hizmet_pro_yearly`
 2. İmzal AAB → **Internal testing** track
 3. **License testing** hesapları ekle
 4. **Users and permissions → Invite users**  
@@ -89,6 +89,8 @@ reCAPTCHA + debug token oturunca Identity Toolkit da ENFORCED yapılabilir.
 | CF hata alarmı (Monitoring) | Yok |
 | notifications TTL | Yok |
 | Haftalık Firestore export | Yok |
+| **Bütçe uyarısı + otomatik kesme** | CF yazıldı, Console adımları bekliyor → `OPS_MALIYET_DUVARI.md` |
+| SMS bölge kısıtı (+90) | Bekliyor → `OPS_MALIYET_DUVARI.md` §6 |
 
 ---
 

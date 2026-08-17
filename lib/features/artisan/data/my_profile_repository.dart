@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/config/backend_config.dart';
 import '../../../data/models/artisan_profile.dart';
+import '../../auth/application/auth_controller.dart' show authRepositoryProvider;
 import 'artisan_providers.dart';
 import 'firebase_my_profile_repository.dart';
 
@@ -90,8 +91,21 @@ class MockMyProfileRepository implements MyProfileRepository {
     String? publicPhone,
   }) async {
     await Future.delayed(const Duration(milliseconds: 150));
+
+    // FIREBASE PARİTESİ (kural 1): gerçek uygulama numarayı İKİ yere yazar —
+    // `users/{uid}.publicPhone` (profil başlığının OKUDUĞU yer) ve
+    // `artisanProfiles/{uid}` (usta vitrini). Mock'ta `users` karşılığı
+    // auth deposudur; oraya yazılmazsa profil başlığı numarayı göstermez ve
+    // 2026-08-14'te canlıda çıkan hata mock testlerinde görünmez.
+    await _ref.read(authRepositoryProvider).updateUserProfile(
+          // Boş dize = ALANI TEMİZLE (updateUserProfile sözleşmesi).
+          publicPhone: showOnProfile ? (publicPhone ?? '') : '',
+        );
+
     final db = _ref.read(mockDatabaseProvider);
     final existing = db.artisans[uid];
+    // Mağaza sahibinin usta profili olmayabilir: `users` yazımı yukarıda
+    // KOŞULSUZ yapıldı, burada yalnız vitrin alanları güncellenir.
     if (existing == null) return;
     db.upsertArtisan(
       uid: uid,

@@ -31,7 +31,7 @@
 
 | Fonksiyon | Doküman | Görevi |
 |---|---|---|
-| `onJobCreated` | `jobs/{jobId}` | Uygun ustalara yeni ilan push'u |
+| `onJobCreated` | `jobs/{jobId}` | Uygun ustalara yeni ilan push'u; ürün talebinde satıcılara anlık (`notifyProductRequestSellers`) |
 | `onJobWritten` | `jobs/{jobId}` | Açık ilan sayacını tazeler (tek işi) ↓ |
 | `onMessageCreated` | `chats/{chatId}/messages/{msgId}` | Alıcıya push + okunmamış sayacı |
 | `onReviewWritten` | `reviews/{reviewId}` | Ustanın ortalama puanı + yorum sayısı |
@@ -60,6 +60,7 @@ Durum değişiminde (ve silmede) `refreshOpenJobCount` → ilan limiti sayacı.
 |---|---|---|
 | `processScheduledCampaigns` | 5 dakika | Zamanlanmış duyuruları gönderir |
 | `purgeRemovedProducts` | 24 saat | Kaldırılan ürünleri temizler |
+| `sendProductRequestDigest` | her gün 19:00 TR | Ürün talebi özeti — anlık almayan, aynı il+kategori satıcıları |
 
 Saat dilimi: `Europe/Istanbul`.
 

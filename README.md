@@ -1,16 +1,15 @@
-# usta_cepte
+# İlanda Hizmet
 
-Ustasından - Hizmet pazaryeri
+Hizmet pazaryeri (`sepette_hizmet` Dart paketi · `com.sepettehizmet.app`).
 
-## Getting Started
+Kullanıcıya görünen ad **İlanda Hizmet**; mağaza ve paket kimliği bilinçli
+olarak `sepettehizmet` kalır.
 
-This project is a starting point for a Flutter application.
+## Geliştirme
 
-A few resources to get you started if this is your first Flutter project:
+```bash
+flutter analyze
+flutter test
+```
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
-
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+Flutter başlangıç notları: [docs.flutter.dev](https://docs.flutter.dev/).

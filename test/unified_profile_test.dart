@@ -41,9 +41,11 @@ void main() {
     // Kendi profilindeyken profili tekrar açan düğmenin karşılığı yoktu;
     // kullanıcı asıl kendi ilanlarına ulaşamıyordu.
     test('kendi profilimde: düzenle + İlanlarım', () {
-      expect(kendi.contains("label: 'Profili düzenle'"), isTrue);
-      expect(kendi.contains("label: 'İlanlarım'"), isTrue);
-      expect(kendi.contains("label: 'Profilime bak'"), isFalse);
+      // 2026-08-14: düğmeler `label: const Text('…')` biçimine geçti.
+      // Korunan şey yazım biçimi değil, hangi düğmelerin bulunduğu.
+      expect(kendi.contains('Profili düzenle'), isTrue);
+      expect(kendi.contains('İlanlarım'), isTrue);
+      expect(kendi.contains('Profilime bak'), isFalse);
     });
 
     test('usta profilinde: Mesaj + Takip', () {

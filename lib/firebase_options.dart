@@ -66,13 +66,10 @@ class DefaultFirebaseOptions {
 
   static const FirebaseOptions ios = FirebaseOptions(
     apiKey: 'AIzaSyC5fwP1a7cFYTCP5uEdngeoYtY7VPBLLhM',
-    appId: '1:839781526307:ios:a35b0070e8f483e59aba96',
+    appId: '1:839781526307:ios:af72f93e17f9bccc9aba96',
     messagingSenderId: '839781526307',
     projectId: 'alljob1',
     storageBucket: 'alljob1.firebasestorage.app',
-    // ⚠️ appId hâlâ ESKİ iOS kaydınındır (com.ustacepte.ustaCepte).
-    // Xcode projesi com.sepettehizmet.app'e taşındı; Console'da yeni iOS app
-    // kaydı açılıp GoogleService-Info.plist indirilince appId de yenilenmeli.
     iosBundleId: 'com.sepettehizmet.app',
   );
 }

@@ -75,7 +75,7 @@ async function main() {
 
   // Play subs (expect fail without Console product / SA link)
   const subRes = await fetch(
-    'https://androidpublisher.googleapis.com/androidpublisher/v3/applications/com.ustacepte.usta_cepte/subscriptions',
+    'https://androidpublisher.googleapis.com/androidpublisher/v3/applications/com.sepettehizmet.app/subscriptions',
     {headers: H},
   );
   lines.push(

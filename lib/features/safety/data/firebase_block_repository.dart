@@ -1,5 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+import '../../../core/constants/app_constants.dart';
+import '../../../core/utils/signout_safe_stream.dart';
 import '../../../data/models/blocked_user.dart';
 import 'block_repository.dart';
 
@@ -19,10 +21,12 @@ class FirebaseBlockRepository implements BlockRepository {
   Stream<List<BlockedUser>> watchBlocked(String uid) {
     return _col(uid)
         .orderBy('blockedAt', descending: true)
+        .limit(AppConstants.blockedFetchCap)
         .snapshots()
         .map((snap) => snap.docs
             .map((d) => BlockedUser.fromMap(d.id, d.data()))
-            .toList());
+            .toList())
+        .signOutSafe('engellenenler', uid);
   }
 
   @override

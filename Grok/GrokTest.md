@@ -60,7 +60,7 @@ bitince karşılıklı değerlendir. Yanında **Mağaza** (ürün sat / ürün t
 |---|---|
 | İstemci | Flutter 3.38 / Dart 3.10 · Riverpod · go_router |
 | Backend | Auth · Firestore · Storage · Cloud Functions · FCM · App Check · Crashlytics · Analytics |
-| Faturalama | Play IAP (`usta_cepte_pro_monthly` — **asla değiştirilmez**) |
+| Faturalama | Play IAP (`sepette_hizmet_pro_monthly` — mağazada açıldıktan sonra değişmez) |
 | Admin | Ayrı binary: `lib/main_admin.dart` → `alljob1-admin` |
 | Tanıtım | Statik site `hosting/` → `www.ilandahizmet.com` |
 

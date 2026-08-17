@@ -16,9 +16,7 @@ class RoutePaths {
   static const String explore = '/explore';
 
   /// Keşfet'i belirli bir sekmeyle açar (Ana Sayfa "Tümünü Gör" bağlantıları).
-  /// [tab]: artisans. Geçersiz/boş değer yok sayılır
-  /// (Keşfet role göre varsayılan sekmeye düşer). [prof] verilirse (yalnız
-  /// artisans sekmesi için anlamlı) Ustalar o meslek koduyla filtreli açılır.
+  /// [tab]: `artisans` · `jobs` · `shop`. Geçersiz/boş değer yok sayılır.
   static String exploreTab(String tab, {String? prof}) {
     final p = (prof == null || prof.isEmpty)
         ? ''
@@ -71,6 +69,9 @@ class RoutePaths {
 
   /// İlan formu "Hemen Lazım" kategorisi seçili açılır (ana sayfa kısayolu).
   static const String newQuickSupportJob = '/jobs/new?kind=quick';
+
+  /// Ürün talebi formu (Mağaza satıcılarına).
+  static const String newProductRequestJob = '/jobs/new?kind=product';
 
   static const String myJobs = '/jobs/mine';
 
@@ -141,6 +142,13 @@ class RoutePaths {
   static const String productsBase = '/products';
   static const String productNew = '/products/new';
   static const String myProducts = '/products/mine';
+  static const String shopSetup = '/products/shop-setup';
+
+  /// Mevcut mağazanın kategori + bölge düzenlemesi.
+  static const String shopEdit = '/products/shop-setup?edit=1';
+
+  /// Kendi ürün talepleri (İlanlarım, yalnız product_request).
+  static const String myProductRequests = '/jobs/mine?kind=product';
   static String productDetail(String id) => '/products/$id';
   static String productEdit(String id) => '/products/$id/edit';
 

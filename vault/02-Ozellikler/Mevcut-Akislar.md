@@ -51,9 +51,11 @@ Mağaza 2026-08-10'da eklendi. Kapısı bilerek yoktur: herkes satabildiği içi
 herkes bakabilmeli. Yazma yolları router'da oturum ister.
 
 **Talepler** = "şu ürüne ihtiyacım var" ilanları (`jobs` içinde
-`product_request` kategorisi). Bunlar **usta feed'ine düşmez**; bildirim
-anlık değil, günlük özet olarak ilgili satıcılara gider
-(`sendProductRequestDigest`, her gün 19:00).
+`product_request` kategorisi). Bunlar **usta feed'ine düşmez**. Bildirim
+aynı il + `productCategoryCode` satıcılarına **anlık** gider
+(`notifyProductRequestSellers`); akşam 19:00 özeti
+(`sendProductRequestDigest`) anlık kaçıranları tamamlar. Tercih:
+`productDigest`.
 
 ## Açılış kapıları — sırayla
 
@@ -171,8 +173,9 @@ eski `chatId` tabanlı kayıtları okumak için. → [[Degerlendirme-Sistemi]]
 
 ## Premium
 
-- Ürün kimliği `usta_cepte_pro_monthly` — **ASLA değişmez** (marka üç kez
-  değişti, kimlik ilk adında; değiştirmek satın alma kaybettirir)
+- Ürün kimliği `sepette_hizmet_pro_monthly` — Play/App Store kaydı yokken
+  `usta_cepte_*` buraya çekildi. Console'da ürün açıldıktan sonra **ASLA
+  değişmez** (değiştirmek satın alma kaybettirir). Görünen marka İlanda Hizmet.
 - `premiumFreeDuringBeta = true` → beta boyunca herkes Pro
 - `isPremium` / `premiumExpiresAt` **yalnız sunucu** yazar
 

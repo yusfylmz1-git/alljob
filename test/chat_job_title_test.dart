@@ -47,8 +47,11 @@ void main() {
   group('B-19 · isJobChat başlıktan bağımsızdır', () {
     test('jobId varsa başlık boş olsa da ilan sohbetidir', () {
       // Eski/iskelet dökümanlarda jobTitle eksik olabilir; sohbetin ilan
-      // bazlı OLDUĞU bilgisi kaybolmamalı — liste bu bayrağa göre etiket
-      // çizer ("İlan sohbeti" nötr metni).
+      // bazlı OLDUĞU bilgisi kaybolmamalı.
+      //
+      // NOT (2026-08-15): sohbet LİSTESİ artık ilan başlığı satırını
+      // çizmiyor (kullanıcı kararı). `isJobChat` yine de anlamlıdır —
+      // sohbet kimliği ilana bağlıdır ve AppBar başlığı bunu kullanır.
       final t = thread(jobId: 'job3');
 
       expect(t.isJobChat, isTrue);

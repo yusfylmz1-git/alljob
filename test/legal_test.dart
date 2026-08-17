@@ -20,7 +20,7 @@ void main() {
     await tester.pumpWidget(
       UncontrolledProviderScope(
         container: container,
-        child: const UstaCepteApp(),
+        child: const SepetteHizmetApp(),
       ),
     );
     // Splash çözülsün.

@@ -9,7 +9,7 @@ import 'package:sepette_hizmet/features/chat/data/chat_repository.dart';
 ///
 /// 1) İlanı veren kişinin profil resmi ilan kartında ve profiline gidebilsin.
 /// 2) Mesaj rozeti anlık güncellenmiyordu.
-/// 3) Keşfet'teki + ikonunun yanında "Yeni İlan" yazmalı.
+/// 3) "Yeni İlan" İlanlar sekmesi sağ üstte (hero'dan taşındı).
 void main() {
   String read(String p) => File(p).readAsStringSync();
 
@@ -173,12 +173,13 @@ void main() {
     });
   });
 
-  group('3 — Keşfet girişinde yazılı etiket', () {
+  group('3 — Yeni İlan İlanlar sekmesinde', () {
     test('"Yeni İlan" yazısı var', () {
       final kesfet = read(
           'lib/features/customer/presentation/customer_dashboard_screen.dart');
       expect(kesfet.contains("Text('Yeni İlan')"), isTrue);
       expect(kesfet.contains('RoutePaths.newJob'), isTrue);
+      expect(kesfet.contains('class _JobsTab'), isTrue);
     });
   });
 
@@ -286,7 +287,7 @@ void main() {
 
     test('MESAJ kapısı yerinde duruyor (asıl kısıt)', () {
       final s = read('lib/features/jobs/presentation/job_detail_screen.dart');
-      expect(s.contains('if (!profile.isAvailable)'), isTrue,
+      expect(s.contains('artisanAvailabilityAllowsNewChat'), isTrue,
           reason: 'Müsait olmayan usta mesaj ATAMAMALI.');
     });
 
@@ -313,16 +314,17 @@ void main() {
 
     test('ilan detayındaki kapı da duruyor (4. yol)', () {
       final s = read('lib/features/jobs/presentation/job_detail_screen.dart');
-      expect(s.contains('if (!profile.isAvailable)'), isTrue);
+      expect(s.contains('artisanAvailabilityAllowsNewChat'), isTrue);
     });
 
-    test('kapı YALNIZ usta modunu bağlar', () {
-      // Müşterinin müsaitlik kavramı yok; kapı onu engellememeli.
+    test('kapı usta/mağaza profiline bakar', () {
       final g = read('lib/features/artisan/application/availability_gate.dart');
-      expect(g.contains('!user.isArtisan) return true'), isTrue,
-          reason: 'Müşteri modu kapıdan muaf olmalı.');
-      // Profil yüklenmemişse engelleme (kapı kolaylıktır, güvenlik değil).
-      expect(g.contains('draft == null) return true'), isTrue);
+      expect(g.contains('hasArtisanProfile'), isTrue,
+          reason: 'Aktif usta modu değil, profil şart.');
+      expect(g.contains('!user.available'), isTrue,
+          reason: 'users.available kapıda olmalı.');
+      expect(g.contains('!user.isArtisan) return true'), isFalse,
+          reason: 'isArtisan muafiyeti müsaitlik deliği açıyordu.');
     });
 
     test('MEVCUT sohbet kısıtlanmıyor (fazlasını yapma)', () {
@@ -335,14 +337,32 @@ void main() {
           reason: 'Müsaitlik mevcut sohbete sızmış.');
     });
 
-    test('bildirim CF müsaitliğe bakmıyor (bildirim gelmeli)', () {
+    test('bildirim CF müsait olmayanı ELEMİYOR (bildirim gelmeli)', () {
+      // Ürün kararı: müsait olmayan usta ilanı GÖRÜR ve bildirim ALIR;
+      // yalnız yeni sohbet başlatamaz. Bildirimi de kesmek, ustayı
+      // platformdan tamamen kopartırdı.
       final cf = read('functions/index.js');
       final idx = cf.indexOf('exports.onJobCreated');
       final son = cf.indexOf('\nexports.', idx + 1);
       final govde = cf.substring(idx, son == -1 ? cf.length : son);
-      expect(govde.contains('isAvailable'), isFalse,
-          reason: 'Bildirim fan-out müsaitliğe göre elemez.');
-      expect(govde.contains('manualPause'), isFalse);
+
+      // Müsaitlik ELEME olarak kullanılmamalı: `return`/`continue` ile
+      // alıcı listesinden çıkarmak bildirimi keser.
+      final elemeDeseni = RegExp(
+        r'(isAvailable|manualPause)[^\n]*\)\s*return|'
+        r'if\s*\([^\n]*(isAvailable|manualPause)[^\n]*\)\s*(return|continue)',
+      );
+      expect(elemeDeseni.hasMatch(govde), isFalse,
+          reason: 'Müsaitlik alıcı listesinden ELEME için kullanılmış — '
+              'müsait olmayan usta ilanı hiç duymaz.');
+
+      // 2026-08-14: `manualPause` SIRALAMA (score) için kullanılıyor —
+      // aktif usta üste çıkar, müsait olmayan listede KALIR. Bu kabul
+      // edilebilir; eleme değil önceliklendirmedir.
+      if (govde.contains('manualPause')) {
+        expect(govde.contains('score'), isTrue,
+            reason: 'manualPause skorlama dışında kullanılmış — eleme riski.');
+      }
     });
   });
 }

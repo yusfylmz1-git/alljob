@@ -56,8 +56,10 @@ void main() {
     test('profil düğmesi: "Profilime bak" değil "İlanlarım"', () {
       final profile =
           read('lib/features/profile/presentation/profile_screen.dart');
-      expect(profile.contains("label: 'Profilime bak'"), isFalse);
-      expect(profile.contains("label: 'İlanlarım'"), isTrue);
+      expect(profile.contains('Profilime bak'), isFalse);
+      // Düğme `label: const Text('İlanlarım')` biçiminde (2026-08-14 yeniden
+      // yazımı). Korunan şey YAZIM BİÇİMİ değil, düğmenin varlığı ve hedefi.
+      expect(profile.contains('İlanlarım'), isTrue);
       expect(profile.contains('RoutePaths.myJobs'), isTrue);
     });
 
@@ -72,13 +74,21 @@ void main() {
       expect(drawer.contains('_switchMode('), isFalse);
     });
 
-    test('karşı mod okunmamış rozeti kaybolmadı', () {
-      // Rozet menüdeki mod satırındaydı; o satır kalkınca profildeki
-      // anahtara taşındı. Taşınmasaydı kullanıcı diğer taraftaki mesajı
-      // hiç fark etmezdi.
-      final profile =
-          read('lib/features/profile/presentation/profile_screen.dart');
-      expect(profile.contains('otherModeUnreadProvider'), isTrue);
+    // GÜNCELLENDİ 2026-08-14: "karşı mod" rozeti kavramı KALKTI.
+    //
+    // Mod switch'i kaldırılınca "diğer moddaki okunmamış" diye bir şey de
+    // kalmadı; `otherModeUnreadProvider` bilinçli olarak her zaman 0 döndürür
+    // (chat_providers.dart'taki not). Okunmamış mesaj sayısı artık TOPLAM
+    // olarak alt bardaki Mesajlar sekmesinde.
+    //
+    // Test ne KORUYOR: kullanıcı okunmamış mesajını bir yerde GÖRMELİ.
+    // Bu kaybolursa gelen mesaj fark edilmez.
+    test('okunmamış mesaj rozeti kaybolmadı (alt barda)', () {
+      final bar = read('lib/core/widgets/role_bottom_bar.dart');
+      expect(bar.contains('totalUnreadProvider'), isTrue,
+          reason: 'Okunmamış sayacı hiçbir yerde görünmüyor — kullanıcı '
+              'gelen mesajı fark etmez.');
+      expect(bar.contains('Badge('), isTrue);
     });
 
     test('Keşfet TEK LİSTE: rol ayrımı ve sekme çubuğu yok', () {
@@ -130,14 +140,21 @@ void main() {
     setUpAll(() =>
         profile = read('lib/features/profile/presentation/profile_screen.dart'));
 
-    test('mod göstergesi YAZILI ve anahtarlı (B-16)', () {
-      // Renk tek başına yetmiyordu; durum yazıyla görünmeli. Başlıktaki
-      // rozet kaldırıldı — anahtar aynı bilgiyi hem gösteriyor hem
-      // değiştirilebilir kılıyor (mükerrer metin kalmadı).
-      expect(profile.contains('class _ArtisanModeSwitch'), isTrue);
-      expect(profile.contains("'Usta modu'"), isTrue);
-      expect(profile.contains('Açık — iş alabilir'), isTrue);
-      expect(profile.contains('Kapalı — yalnız hizmet alıyorsun'), isTrue);
+    // GÜNCELLENDİ 2026-08-14: "Usta modu" anahtarı KALDIRILDI.
+    //
+    // Aktif usta/müşteri modu ayrımı bitti: yetenekler artık `hasArtisanProfile`
+    // / `hasShopProfile` ile açılıyor (mod switch'i değil). Yerine MÜSAİTLİK
+    // anahtarı geldi — "iş alıyor muyum?" sorusunun tek cevabı o.
+    //
+    // Test ne KORUYOR: profilde durumu YAZIYLA gösteren, değiştirilebilir bir
+    // anahtar bulunmalı. Renk tek başına yetmez (B-16'nın asıl derdi buydu).
+    test('durum göstergesi YAZILI ve anahtarlı (B-16)', () {
+      expect(profile.contains('class _AvailabilitySwitch'), isTrue,
+          reason: 'Müsaitlik anahtarı yok — kullanıcı iş alıp almadığını '
+              'profilden göremez/değiştiremez.');
+      expect(profile.contains('Müsait'), isTrue);
+      // Kapalıyken NE OLDUĞU yazıyla anlatılmalı (yalnız sönük renk değil).
+      expect(profile.contains('Müsait değilsiniz'), isTrue);
     });
 
     test('Instagram başlık düzeni: avatar solda, sayaçlar yanında', () {

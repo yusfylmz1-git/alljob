@@ -6,11 +6,11 @@ import '../../../core/router/route_paths.dart';
 import '../../../core/theme/app_palette.dart';
 import '../../../core/utils/snackbar_helper.dart';
 import '../../../core/widgets/app_image.dart';
+import '../../../core/widgets/disclaimer_note.dart';
 import '../../../core/widgets/gradient_app_bar.dart';
 import '../../../core/widgets/responsive_center.dart';
 import '../../../core/widgets/role_bottom_bar.dart';
 import '../../../core/widgets/status_views.dart';
-import '../../../data/models/product_category.dart';
 import '../../../data/models/product.dart';
 import '../../../data/models/report.dart';
 import '../../artisan/application/availability_gate.dart';
@@ -18,6 +18,7 @@ import '../../auth/application/auth_controller.dart';
 import '../../auth/presentation/email_verification_gate.dart';
 import '../../chat/data/chat_providers.dart';
 import '../../safety/presentation/report_sheet.dart';
+import '../data/product_category_providers.dart';
 import '../data/product_providers.dart';
 
 /// Ürün detay + sohbet CTA (K16: startChat + ilk mesaj şablonu).
@@ -40,11 +41,19 @@ class ProductDetailScreen extends ConsumerWidget {
       context.showInfo('Bu sizin ürününüz.');
       return;
     }
-    // MÜSAİTLİK KAPISI — ürün detayı BEŞİNCİ giriştir (2026-08-10 bulgusu).
-    // Kapı dört yola bağlanmıştı; ürün modülü o sırada üründe yoktu, geri
-    // gelince kapısız geldi. Müsait olmayan usta ilandan mesaj atamıyor ama
-    // Mağaza'dan aynı kişiye yazabiliyordu.
+    // Alıcı da usta/satıcı profiliyse ve müsait değilse yeni sohbet yok
+    // (kapı paritesi — Mağaza’dan atlama deliği).
     if (!artisanAvailabilityAllowsNewChat(context, ref)) return;
+
+    // Satıcı müsait olmalı (Mağaza kuralı).
+    final seller = await ref.read(publicUserProvider(p.ownerUid).future);
+    if (!context.mounted) return;
+    if (seller != null && !seller.available) {
+      context.showError(
+        'Satıcı şu an müsait değil; mesaj gönderilemiyor.',
+      );
+      return;
+    }
 
     final emailOk = await ensureEmailVerified(
       context,
@@ -111,7 +120,7 @@ class ProductDetailScreen extends ConsumerWidget {
               icon: Icons.inventory_2_outlined,
             );
           }
-          final cat = ProductCategory.label(p.categoryCode);
+          final cat = catalogOf(ref).label(p.categoryCode);
           final isMine = me?.uid == p.ownerUid;
 
           return ResponsiveCenter(
@@ -227,6 +236,10 @@ class ProductDetailScreen extends ConsumerWidget {
                     icon: const Icon(Icons.chat_bubble_outline),
                     label: const Text('Sohbet başlat'),
                   ),
+                  const SizedBox(height: 10),
+                  // Alıcıya özgü uyarı: ödeme/teslimat platform DIŞINDA.
+                  // En yüksek dolandırıcılık riski bu akışta.
+                  DisclaimerNote.forFlow(DisclaimerFlow.urunSatinAlma),
                   const SizedBox(height: 8),
                   TextButton.icon(
                     onPressed: me == null

@@ -123,8 +123,12 @@ void main() {
 
   group('Yardım güncel', () {
     test('"Eleman" sekmesi kalktı (modül projede yok)', () {
+      // Testin ASIL iddiası: silinen modülün sekmesi geri gelmemeli.
+      // Tam liste sabitlenmiyor — yeni modül (2026-08-14: Mağaza) eklenince
+      // bu test yanlış yere düşüyordu.
       expect(kFaqCategories.contains('Eleman'), isFalse);
-      expect(kFaqCategories, ['Genel', 'Müşteri', 'Usta']);
+      // Çekirdek sekmeler ve sıraları korunmalı.
+      expect(kFaqCategories.take(3).toList(), ['Genel', 'Müşteri', 'Usta']);
     });
 
     test('her sorunun kategorisi sekmelerde VAR (sessiz kayıp yok)', () {

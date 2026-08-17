@@ -43,6 +43,8 @@ void main() {
     expect(find.text('Giriş yap, sana özel öneriler'), findsOneWidget);
     // 3 ana aksiyon (misafir/müşteri: Usta Bul). Eleman kaldırıldı.
     expect(find.text('Usta Bul'), findsOneWidget);
+    expect(find.text('İş İlanı Ver'), findsOneWidget);
+    expect(find.text('Mağaza İçin Ürün Talebi Oluştur'), findsOneWidget);
     expect(find.text('Eleman'), findsNothing);
 
     // Toolkit kaldırıldı: araç bölümü ve kısayolları HİÇ görünmemeli.

@@ -17,7 +17,7 @@ class FaqItem {
   final String question;
   final String answer;
 
-  /// Genel | Müşteri | Usta
+  /// Genel | Müşteri | Usta | Mağaza
   ///
   /// DİKKAT: Buraya yazılan değer [kFaqCategories] içinde de OLMALIDIR —
   /// yardım ekranı sekmeleri o listeden üretilir ve listede olmayan bir
@@ -32,6 +32,8 @@ const kFaqCategories = [
   'Genel',
   'Müşteri',
   'Usta',
+  // 2026-08-14: mağaza modülü canlıydı ama Yardım'da hiç yoktu.
+  'Mağaza',
 ];
 
 const kFaqItems = <FaqItem>[
@@ -276,5 +278,74 @@ const kFaqItems = <FaqItem>[
     answer:
         'Puanlar herkese açıktır ve profilde ortalama olarak görünür. '
         'Yorumlarda adınız kısaltılmış gösterilir (örn. "A***").',
+  ),
+
+  // ──────────────────────── Mağaza ────────────────────────
+  // 2026-08-14: Mağaza modülü canlıydı ama Yardım'da hiç yoktu; kullanıcı
+  // satıcı tarafındaki her soruyu destek talebiyle soruyordu.
+  FaqItem(
+    category: 'Mağaza',
+    question: 'Mağaza nasıl açarım?',
+    answer:
+        'Profil → "Satış yapmaya başla". En az bir satış kategorisi ve bir '
+        'hizmet bölgesi seçin. Mağaza açmak için telefon numaranızın SMS '
+        'ile DOĞRULANMIŞ olması gerekir — doğrulanmamışsa kayıt sırasında '
+        'doğrulama ekranı açılır.',
+  ),
+  FaqItem(
+    category: 'Mağaza',
+    question: 'Ürünlerim neden Keşfet\'te görünmüyor?',
+    answer:
+        'En sık üç sebep:\n\n'
+        '• MÜSAİT DEĞİLSİNİZ: profildeki "Müsait" anahtarı kapalıyken '
+        'ürünleriniz vitrinde listelenmez. Alıcılar size mesaj da atamaz.\n'
+        '• Ürün taslakta kalmış: ürünü düzenleyip "Yayınla" demeniz gerekir.\n'
+        '• Moderasyon: kurallara aykırı bulunan ürün gizlenmiş olabilir; '
+        'bildirimlerinizi kontrol edin.',
+  ),
+  FaqItem(
+    category: 'Mağaza',
+    question: 'Satıştan komisyon alınıyor mu?',
+    answer:
+        'Hayır. İlanda Hizmet satıştan komisyon almaz, ödemeye aracılık '
+        'etmez. Ödeme ve teslimat doğrudan sizinle alıcı arasındadır; '
+        'uygulama üzerinden para geçmez.',
+  ),
+  FaqItem(
+    category: 'Mağaza',
+    question: 'Ürün satarken nelerden ben sorumluyum?',
+    answer:
+        'Ürünün doğru tanıtımından, tesliminden ve ayıbından siz '
+        'sorumlusunuz. Ticari faaliyet yürütüyorsanız vergi, fatura, '
+        'tüketici hakları ve mesafeli satış mevzuatına uymanız gerekir. '
+        'Satışı yasak ürünler (silah, ilaç, taklit/kaçak mal, canlı hayvan '
+        'vb.) yayınlanamaz. Ayrıntı: Yasal Metinler → Kullanım Koşulları.',
+  ),
+  FaqItem(
+    category: 'Mağaza',
+    question: 'Ürün talepleri nedir, neden hepsini göremiyorum?',
+    answer:
+        '"Aranan ürünler", alıcıların "şu ürüne ihtiyacım var" diye '
+        'açtığı taleplerdir. Tamamını görmek için MAĞAZANIZIN AÇIK ve '
+        'müsaitliğinizin AÇIK olması gerekir — talebe yalnız satıcılar '
+        'cevap verebildiği için liste sınırlı gösterilir.',
+  ),
+  FaqItem(
+    category: 'Mağaza',
+    question: 'Ürün fotoğrafı eklerken neden kırpma ekranı çıkıyor?',
+    answer:
+        'Vitrindeki tüm kartlar aynı oranda (4:5 dikey) görünsün diye. '
+        'Kırpma ekranında çerçeveyi kaydırıp yakınlaştırarak ürünün hangi '
+        'kısmının görüneceğini siz seçersiniz. Kırpmadan geçerseniz '
+        'fotoğraf olduğu gibi yüklenir.',
+  ),
+  FaqItem(
+    category: 'Mağaza',
+    question: 'Alıcıyla anlaşamazsak ne olur?',
+    answer:
+        'İlanda Hizmet satışın tarafı değildir; uyuşmazlıkta hakem veya '
+        'garantör olarak yer almaz. Dolandırıcılık veya kural ihlali '
+        'şüphesinde ürünü/kullanıcıyı "Şikayet Et" ile bildirin — '
+        'inceleyip gerekirse içeriği kaldırır, hesaba yaptırım uygularız.',
   ),
 ];

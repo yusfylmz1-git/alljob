@@ -3,6 +3,7 @@ import 'package:cloud_functions/cloud_functions.dart';
 
 import '../../../core/constants/app_constants.dart';
 import '../../../core/utils/search_fold.dart';
+import '../../../core/utils/signout_safe_stream.dart';
 import '../../../data/models/product.dart';
 import 'product_repository.dart';
 
@@ -125,7 +126,7 @@ class FirebaseProductRepository implements ProductRepository {
       } catch (_) {
         return const <Product>[];
       }
-    });
+    }).signOutSafe('ürünlerim', ownerUid);
   }
 
   @override

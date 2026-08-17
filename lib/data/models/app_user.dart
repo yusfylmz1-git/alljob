@@ -1,3 +1,4 @@
+import 'geo_models.dart';
 import 'social_links.dart';
 import 'user_role.dart';
 
@@ -28,6 +29,10 @@ class AppUser {
     this.socialLinks = SocialLinks.empty,
     this.aboutText = '',
     this.ortakAlanlarGocmus = false,
+    this.hasShopProfile = false,
+    this.shopCategories = const [],
+    this.shopServiceAreas = const [],
+    this.available = false,
   });
 
   final String uid;
@@ -125,13 +130,28 @@ class AppUser {
   /// kopyaya düşer ve silinen bağlantı geri gelirdi.
   final bool ortakAlanlarGocmus;
 
+  /// Mağaza (satıcı) profili açıldı mı? Usta profilinden bağımsız.
+  final bool hasShopProfile;
+
+  /// Satış kategorileri (`ProductCategory` kodları). Mağaza kurulumunda seçilir.
+  final List<String> shopCategories;
+
+  /// Mağaza hizmet bölgeleri (il/ilçe). Kurulumda seçilir; usta profili
+  /// varsa oradaki bölgeler başlangıç değeri olarak kopyalanabilir.
+  final List<ServiceArea> shopServiceAreas;
+
+  /// Genel müsaitlik (Mağaza vitrini / talep mesajı; usta tarafı da aynalar).
+  final bool available;
+
   /// Profilde gösterilecek herhangi bir ek bilgi var mı?
   bool get hasProfileDetails =>
       (publicPhone?.trim().isNotEmpty ?? false) ||
       aboutText.trim().isNotEmpty ||
       socialLinks.hasAny;
 
-  /// Arayüz şu an usta modunda mı? (UI kapıları bunu kullanır.)
+  /// Eski "aktif usta modu" (`activeMode`). Yetenek kapıları için KULLANMA —
+  /// [hasArtisanProfile] / [hasShopProfile] / [available] kullan.
+  /// Tema ve legacy setActiveMode hâlâ alan yazar; UI switch kaldırıldı.
   bool get isArtisan => activeMode == UserRole.artisan;
   bool get isCustomer => activeMode == UserRole.customer;
 
@@ -152,6 +172,10 @@ class AppUser {
     SocialLinks? socialLinks,
     String? aboutText,
     bool clearPublicPhone = false,
+    bool? hasShopProfile,
+    List<String>? shopCategories,
+    List<ServiceArea>? shopServiceAreas,
+    bool? available,
   }) {
     return AppUser(
       uid: uid,
@@ -181,6 +205,10 @@ class AppUser {
       // Sayaçlarla aynı tuzak: copyWith parametresi değil, ama taşınmazsa
       // her çağrıda false'a düşer ve silinen bağlantı geri gelirdi.
       ortakAlanlarGocmus: ortakAlanlarGocmus,
+      hasShopProfile: hasShopProfile ?? this.hasShopProfile,
+      shopCategories: shopCategories ?? this.shopCategories,
+      shopServiceAreas: shopServiceAreas ?? this.shopServiceAreas,
+      available: available ?? this.available,
     );
   }
 
@@ -209,6 +237,10 @@ class AppUser {
         socialLinks: socialLinks,
         aboutText: aboutText,
         ortakAlanlarGocmus: true,
+        hasShopProfile: hasShopProfile,
+        shopCategories: shopCategories,
+        shopServiceAreas: shopServiceAreas,
+        available: available,
       );
 
   /// Herkese açık `users/{uid}` alanları. E-posta, FCM token, telefon YOK (H2).
@@ -225,6 +257,11 @@ class AppUser {
         'publicPhone': publicPhone,
         'socialLinks': socialLinks.toMap(),
         'aboutText': aboutText,
+        'hasShopProfile': hasShopProfile,
+        'shopCategories': shopCategories,
+        'shopServiceAreas':
+            shopServiceAreas.map((e) => e.toMap()).toList(),
+        'available': available,
         // GÜVENLİK: phoneNumber / email / fcmTokens bu dökümana yazılmaz
         // (kural da engeller). Token: users/{uid}/private/push.
         //
@@ -261,6 +298,18 @@ class AppUser {
       ortakAlanlarGocmus: map.containsKey('socialLinks') ||
           map.containsKey('publicPhone') ||
           map.containsKey('aboutText'),
+      hasShopProfile: map['hasShopProfile'] == true,
+      shopCategories: (map['shopCategories'] as List?)
+              ?.map((e) => e.toString())
+              .where((s) => s.isNotEmpty)
+              .toList() ??
+          const [],
+      shopServiceAreas: ((map['shopServiceAreas'] as List?) ?? [])
+          .whereType<Map>()
+          .map((e) => ServiceArea.fromMap(e.cast<String, dynamic>()))
+          .where((a) => a.province.isNotEmpty && a.district.isNotEmpty)
+          .toList(),
+      available: map['available'] == true,
       // CF yazar; alan yoksa 0 (henüz iş bitirmemiş/değerlendirilmemiş).
       completedJobsAsCustomer:
           (map['completedJobsAsCustomer'] as num?)?.toInt() ?? 0,

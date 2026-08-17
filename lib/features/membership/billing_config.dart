@@ -2,8 +2,8 @@
 ///
 /// ## Canlıya alma checklist
 /// 1. Play Console → Monetization → Subscriptions:
-///    - `usta_cepte_pro_monthly` (ör. 199,99 TRY / ay)
-///    - isteğe bağlı `usta_cepte_pro_yearly`
+///    - `sepette_hizmet_pro_monthly` (ör. 199,99 TRY / ay)
+///    - isteğe bağlı `sepette_hizmet_pro_yearly`
 /// 2. Uygulama imzalı AAB → internal testing track
 /// 3. Lisans test hesapları ekle
 /// 4. Cloud Functions SA → Play Console Users and permissions
@@ -24,15 +24,13 @@ const bool kBillingEnabled = true;
 
 /// Aylık Pro abonelik product id (Play Console ile birebir aynı olmalı).
 ///
-/// ⚠️ Marka iki kez değişti (Usta Cepte → Sepette Hizmet → İlanda Hizmet)
-/// ama bu kimlik BİLEREK ilk adında bırakıldı: Play Console'da ürün kimliği
-/// oluşturulduktan sonra ASLA değiştirilemez ve kullanıcıya görünmez.
-/// Ürünler Console'da HENÜZ oluşturulmadıysa (checklist adım 1) burada
-/// yenilemek serbesttir — ama Console'daki adla birebir aynı olmalı.
-const String kProMonthlyProductId = 'usta_cepte_pro_monthly';
+/// Görünen marka İlanda Hizmet; mağaza / paket kimliği `sepettehizmet`.
+/// Play ve App Store kaydı yokken `usta_cepte_*` buraya çekildi.
+/// Console'da ürün oluşturulduktan sonra ASLA değiştirilmez.
+const String kProMonthlyProductId = 'sepette_hizmet_pro_monthly';
 
 /// Yıllık (Console'da yoksa query "not found" loglar; zarar vermez).
-const String kProYearlyProductId = 'usta_cepte_pro_yearly';
+const String kProYearlyProductId = 'sepette_hizmet_pro_yearly';
 
 Set<String> get kKnownSubscriptionIds => {
       kProMonthlyProductId,

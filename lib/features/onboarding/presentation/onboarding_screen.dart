@@ -7,10 +7,17 @@ import '../../../core/router/route_paths.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_palette.dart';
 import '../../../core/widgets/app_button.dart';
+import '../../../data/models/job.dart' show kQuickSupportName;
 import '../onboarding_state.dart';
 
-/// İlk açılışta gösterilen 3 sayfalık tanıtım akışı (yalnızca bir kez).
-/// Değer önerisini müşteri ve usta gözünden anlatır; "Atla" her an çıkar.
+/// İlk açılışta gösterilen tanıtım akışı (yalnızca bir kez).
+///
+/// Değer önerisini dört gözden anlatır: müşteri (usta bul / ilan ver),
+/// Kolay İş (küçük işler), usta (vitrin) ve satıcı (mağaza). "Atla" her an
+/// çıkar.
+///
+/// 2026-08-14: Kolay İş ve Mağaza sayfaları eklendi — iki modül de canlıydı
+/// ama yeni kullanıcı varlıklarından haberdar olmuyordu.
 class OnboardingScreen extends ConsumerStatefulWidget {
   const OnboardingScreen({super.key});
 
@@ -38,11 +45,25 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
           'iletişim uygulama içinde, güvenli ve net.',
     ),
     _PageData(
-      icon: Icons.storefront_rounded,
+      icon: Icons.bolt_rounded,
+      accentIcon: Icons.schedule_rounded,
+      title: '$kQuickSupportName: küçük işler için',
+      body: 'Musluk damlatıyor, priz takılacak, montaj var… Uzun ilan '
+          'yazmadan hızlıca paylaş; yakındaki ustalar hemen görsün.',
+    ),
+    _PageData(
+      icon: Icons.handyman_rounded,
       accentIcon: Icons.star_rounded,
       title: 'Usta mısın? Vitrinini aç',
       body: 'Profilini tamamla, müsait ol, yakındaki işleri gör. '
           'Beta’da Pro özellikler ücretsiz — iyi yorum = daha çok iş.',
+    ),
+    _PageData(
+      icon: Icons.storefront_rounded,
+      accentIcon: Icons.sell_rounded,
+      title: 'Mağazanı aç, ürünlerini sat',
+      body: 'İkinci el ya da sıfır — ürünlerini vitrine koy, ilindeki '
+          'alıcılar görsün. Ne aradıklarını da görüp teklif verebilirsin.',
     ),
   ];
 

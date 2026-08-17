@@ -55,10 +55,9 @@ release SHA-256: 39:FC:9D:97:37:FE:52:55:17:84:25:C9:31:4D:8E:27:7B:75:4B:F9:FC:
 
 ## 2) iOS app kaydı
 
-Add app → **iOS**, bundle ID: `com.sepettehizmet.app`
-→ `GoogleService-Info.plist` indir → `ios/Runner/` içine koy.
-
-(iOS build'i için macOS gerekir; kayıt şimdiden açılabilir.)
+✅ Açıldı (2026-08-13). Bundle ID: `com.sepettehizmet.app`
+App ID: `1:839781526307:ios:af72f93e17f9bccc9aba96`
+`ios/Runner/GoogleService-Info.plist` yerinde.
 
 ---
 

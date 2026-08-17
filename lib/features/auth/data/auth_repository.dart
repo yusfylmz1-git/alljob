@@ -1,4 +1,5 @@
 import '../../../data/models/app_user.dart';
+import '../../../data/models/geo_models.dart';
 import '../../../data/models/social_links.dart';
 import '../../../data/models/user_role.dart';
 
@@ -73,6 +74,10 @@ abstract interface class AuthRepository {
     String? publicPhone,
     SocialLinks? socialLinks,
     String? aboutText,
+    bool? hasShopProfile,
+    List<String>? shopCategories,
+    List<ServiceArea>? shopServiceAreas,
+    bool? available,
   });
 
   Future<void> signOut();
@@ -82,6 +87,16 @@ abstract interface class AuthRepository {
   /// gibi hassas alanlar bu dokümanda ZATEN yoktur (ADR-11).
   /// Kullanıcı yoksa null.
   Future<AppUser?> fetchPublicUser(String uid);
+
+  /// [fetchPublicUser]'ın CANLI sürümü — doküman değiştikçe yeni değer yayar.
+  ///
+  /// Neden gerekli (2026-08-14 cihaz bulgusu: "müsaitliği değiştirdim ama
+  /// ürünlerim başka telefonda görünmedi"): `fetchPublicUser` tek seferlik
+  /// `.get()` yapar ve sonuç provider'da önbelleğe alınır. Satıcı
+  /// müsaitliğini değiştirdiğinde diğer cihazlar eski değeri okumaya devam
+  /// eder; Keşfet filtresi (`availableDiscoverProductsProvider`) ürünü
+  /// gizlemeyi/göstermeyi hiç öğrenemez.
+  Stream<AppUser?> watchPublicUser(String uid);
 
   /// Yönetici erişimini etkinleştirir (yalnızca izinli e-postalar için).
   /// Sunucudaki `claimAdminAccess` CF, çağıranın e-postası izin listesinde ve

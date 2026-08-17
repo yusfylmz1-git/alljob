@@ -12,6 +12,7 @@ import '../../auth/application/auth_controller.dart';
 import '../../chat/data/chat_providers.dart';
 import '../../favorites/data/favorite_providers.dart';
 import '../../favorites/presentation/favorite_button.dart';
+import '../../products/data/product_providers.dart';
 import '../../products/presentation/widgets/dukkan_bolumu.dart';
 import '../../review/presentation/widgets/review_cta.dart';
 import '../../../core/utils/snackbar_helper.dart';
@@ -132,11 +133,21 @@ class _Body extends ConsumerWidget {
                           children: [
                             Expanded(
                               child: ProfileActionButton(
-                                label: 'Profili düzenle',
+                                label: 'Düzenle',
                                 onTap: () =>
                                     context.push(RoutePaths.profileEdit),
                               ),
                             ),
+                            if (ref.watch(productsLiveProvider)) ...[
+                              const SizedBox(width: 6),
+                              Expanded(
+                                child: ProfileActionButton(
+                                  label: 'Mağazam',
+                                  onTap: () =>
+                                      context.push(RoutePaths.myProducts),
+                                ),
+                              ),
+                            ],
                           ],
                         )
                       : Row(
@@ -148,10 +159,22 @@ class _Body extends ConsumerWidget {
                                 onTap: () => _openChat(context, ref, me, user),
                               ),
                             ),
-                            const SizedBox(width: 8),
+                            const SizedBox(width: 6),
                             Expanded(
                               child: _TakipDugmesi(user: user),
                             ),
+                            if (ref.watch(productsLiveProvider)) ...[
+                              const SizedBox(width: 6),
+                              Expanded(
+                                child: ProfileActionButton(
+                                  label: 'Mağaza',
+                                  onTap: () => context.push(
+                                    '${RoutePaths.artisanProducts(user.uid)}'
+                                    '?ad=${Uri.encodeComponent(user.displayName)}',
+                                  ),
+                                ),
+                              ),
+                            ],
                           ],
                         ),
                 ),

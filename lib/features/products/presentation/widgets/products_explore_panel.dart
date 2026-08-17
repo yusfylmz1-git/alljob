@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../../core/constants/app_constants.dart';
 import '../../../../core/router/route_paths.dart';
 import '../../../../core/theme/app_palette.dart';
 import '../../../../core/utils/search_fold.dart';
@@ -14,7 +15,7 @@ import '../../../../data/local/local_data_service.dart';
 import '../../../../data/models/geo_models.dart';
 import '../../../../data/models/product_category.dart';
 import '../../../../data/models/product.dart';
-import '../../../auth/application/auth_controller.dart';
+import '../../data/product_category_providers.dart';
 import '../../data/product_providers.dart';
 import 'product_card.dart';
 
@@ -67,7 +68,10 @@ class _ProductsExplorePanelState extends ConsumerState<ProductsExplorePanel> {
         await ref.read(discoverProductsProvider.future);
       });
 
-  List<Product> _applyFilters(List<Product> products) {
+  List<Product> _applyFilters(
+    List<Product> products,
+    ProductCategoryCatalog catalog,
+  ) {
     var list = products;
     if (_categoryCode != null) {
       list = list.where((p) => p.categoryCode == _categoryCode).toList();
@@ -78,7 +82,7 @@ class _ProductsExplorePanelState extends ConsumerState<ProductsExplorePanel> {
     final q = _query.trim();
     if (q.isNotEmpty) {
       list = list.where((p) {
-        final cat = ProductCategory.label(p.categoryCode);
+        final cat = catalog.label(p.categoryCode);
         return matchesTrSearch(p.title, q) ||
             matchesTrSearch(p.ownerName, q) ||
             matchesTrSearch(cat, q) ||
@@ -98,11 +102,7 @@ class _ProductsExplorePanelState extends ConsumerState<ProductsExplorePanel> {
     }
 
     final async = ref.watch(discoverProductsProvider);
-    final user = ref.watch(currentUserProvider);
-    // 2026-08-10: "Ürünlerim" girişi USTA MODUNA bağlıydı. Herkes satabildiği
-    // için kapı kalktı — ölçüt artık yalnızca oturum açmış olmak.
-    // Misafir ürünleri görür ama kendi vitrinine giremez.
-    final canSell = user != null;
+    final catalog = catalogOf(ref);
 
     return async.when(
       loading: () => const Padding(
@@ -126,8 +126,12 @@ class _ProductsExplorePanelState extends ConsumerState<ProductsExplorePanel> {
           onRetry: () => ref.invalidate(discoverProductsProvider),
         );
       },
-      data: (products) {
-        final filtered = _applyFilters(products);
+      data: (_) {
+        // Müsait olmayan satıcıların ürünleri elenmiş liste (2026-08-14).
+        // Ham `discoverProductsProvider` yerine bunu kullan: müsait olmayan
+        // satıcı mesaj alamıyor, ürünü vitrinde durursa ölü ilan olur.
+        final products = ref.watch(availableDiscoverProductsProvider);
+        final filtered = _applyFilters(products, catalog);
         return PullToRefresh(
           onRefresh: _refresh,
           child: CustomScrollView(
@@ -135,7 +139,7 @@ class _ProductsExplorePanelState extends ConsumerState<ProductsExplorePanel> {
             slivers: [
               SliverToBoxAdapter(
                 child: _Header(
-                  canSell: canSell,
+                  catalog: catalog,
                   searchCtrl: _searchCtrl,
                   onQueryChanged: _onQueryChanged,
                   categoryCode: _categoryCode,
@@ -150,12 +154,11 @@ class _ProductsExplorePanelState extends ConsumerState<ProductsExplorePanel> {
                 SliverFillRemaining(
                   hasScrollBody: false,
                   child: products.isEmpty
-                      ? ErrorView(
+                      ? const ErrorView(
                           title: 'Henüz ürün yok',
-                          message: canSell
-                              ? 'Keşfet’te görünecek ilk ürününüzü '
-                                  'Ürünlerim’den ekleyebilirsiniz.'
-                              : 'Ürünler paylaşıldıkça burada görünecek.',
+                          message:
+                              'Ürünler paylaşıldıkça burada görünecek. '
+                              'Satış için Profil → Mağaza’dan ürün ekleyin.',
                           icon: Icons.storefront_outlined,
                         )
                       : ErrorView(
@@ -172,12 +175,12 @@ class _ProductsExplorePanelState extends ConsumerState<ProductsExplorePanel> {
                 SliverPadding(
                   padding: const EdgeInsets.fromLTRB(12, 0, 12, 24),
                   sliver: SliverGrid(
-                    gridDelegate:
-                        const SliverGridDelegateWithMaxCrossAxisExtent(
+                    gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
                       maxCrossAxisExtent: 200,
                       mainAxisSpacing: 10,
                       crossAxisSpacing: 10,
-                      childAspectRatio: 0.68,
+                      // Görsel 4:5 dikeye geçti → hücre de uzadı.
+                      childAspectRatio: AppConstants.photoCardAspectRatio,
                     ),
                     delegate: SliverChildBuilderDelegate(
                       (context, i) {
@@ -202,7 +205,7 @@ class _ProductsExplorePanelState extends ConsumerState<ProductsExplorePanel> {
 
 class _Header extends ConsumerWidget {
   const _Header({
-    required this.canSell,
+    required this.catalog,
     required this.searchCtrl,
     required this.onQueryChanged,
     required this.categoryCode,
@@ -213,8 +216,7 @@ class _Header extends ConsumerWidget {
     required this.onClearFilters,
   });
 
-  /// Oturum açmış mı — "Ürünlerim" girişi buna bağlı. Usta olma şartı YOK.
-  final bool canSell;
+  final ProductCategoryCatalog catalog;
   final TextEditingController searchCtrl;
   final ValueChanged<String> onQueryChanged;
   final String? categoryCode;
@@ -225,13 +227,11 @@ class _Header extends ConsumerWidget {
   final VoidCallback onClearFilters;
 
   Future<void> _pickCategory(BuildContext context) async {
-    // Ürün kategorileri (meslek listesi DEĞİL) — tanımlı sırada.
     final picked = await _showFilterSheet(
       context,
       title: 'Kategori',
       options: [
-        for (final c in ProductCategory.sirali)
-          (value: c, label: ProductCategory.label(c)),
+        for (final c in catalog.sirali) (value: c, label: catalog.label(c)),
       ],
       selected: categoryCode,
     );
@@ -260,43 +260,25 @@ class _Header extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final palette = context.palette;
     final theme = Theme.of(context);
-    final catLabel = categoryCode == null
-        ? 'Kategori'
-        : ProductCategory.label(categoryCode!);
+    final catLabel =
+        categoryCode == null ? 'Kategori' : catalog.label(categoryCode!);
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Ürünler',
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                    Text(
-                      'Satılık ürünler — iletişim sohbet ile',
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: palette.inkMuted,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              if (canSell)
-                TextButton.icon(
-                  onPressed: () => context.push(RoutePaths.myProducts),
-                  icon: const Icon(Icons.add_box_outlined, size: 18),
-                  label: const Text('Ürünlerim'),
-                ),
-            ],
+          Text(
+            'Ürünler',
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          Text(
+            'Satılık ürünler — iletişim sohbet ile',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: palette.inkMuted,
+            ),
           ),
           const SizedBox(height: 8),
           TextField(

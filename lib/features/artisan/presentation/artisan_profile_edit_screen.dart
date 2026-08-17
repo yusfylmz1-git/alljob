@@ -7,6 +7,7 @@ import 'package:image_picker/image_picker.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/router/route_paths.dart';
 import '../../../core/theme/app_palette.dart';
+import '../../../core/utils/photo_picker.dart';
 import '../../../core/utils/search_fold.dart';
 import '../../../core/utils/snackbar_helper.dart';
 import '../../../core/utils/validators.dart';
@@ -32,10 +33,21 @@ import '../../../data/models/job.dart'
         kQuickSupportName;
 import '../../../data/models/social_links.dart';
 import '../../auth/application/auth_controller.dart';
+import '../../auth/application/provider_phone_gate.dart';
 import '../../auth/presentation/verification_tile.dart';
 import '../../jobs/presentation/quick_support_intro_sheet.dart';
 import '../../storage/storage_repository.dart';
 import '../application/my_profile_controller.dart';
+
+const _kEditAppBar = GradientAppBar(
+  title: 'Profili Düzenle',
+  icon: Icons.badge_outlined,
+  // GradientAppBar KOYU: zil beyaz kalmalı.
+  actions: [
+    NotificationBell(color: Colors.white),
+    SizedBox(width: 4),
+  ],
+);
 
 /// Ekran F — Usta Dashboard / Profil Düzenleme Paneli.
 ///
@@ -49,27 +61,22 @@ class ArtisanProfileEditScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final draftAsync = ref.watch(myProfileControllerProvider);
 
-    return Scaffold(
-      // Çıkış Yap butonu kaldırıldı — çıkış, birleşik profil sayfasında
-      // (düzenleme ekranında oturum kapatmak beklenmedik bir eylemdi).
-      appBar: const GradientAppBar(
-        title: 'Profili Düzenle',
-        icon: Icons.badge_outlined,
-        // GradientAppBar KOYU: zil beyaz kalmalı.
-        actions: [
-          NotificationBell(color: Colors.white),
-          SizedBox(width: 4),
-        ],
+    // Çıkış Yap butonu kaldırıldı — çıkış, birleşik profil sayfasında
+    // (düzenleme ekranında oturum kapatmak beklenmedik bir eylemdi).
+    return draftAsync.when(
+      loading: () => const Scaffold(
+        appBar: _kEditAppBar,
+        body: LoadingView(),
       ),
-      body: draftAsync.when(
-        loading: () => const LoadingView(),
-        error: (_, _) => const ErrorView(
+      error: (_, _) => const Scaffold(
+        appBar: _kEditAppBar,
+        body: ErrorView(
           message:
               'Profil yüklenemedi. Bağlantınızı kontrol edip '
               'tekrar deneyin.',
         ),
-        data: (_) => _EditForm(focusStep: focusStep),
       ),
+      data: (_) => _EditForm(focusStep: focusStep),
     );
   }
 }
@@ -98,7 +105,13 @@ class _EditFormState extends ConsumerState<_EditForm> {
   };
   bool _didScrollToFocus = false;
 
-  bool get _isSaving => ref.watch(myProfileControllerProvider).isLoading;
+  /// Telefon doğrulama kapısı açıkken true. Controller'ın `isLoading`'i bu
+  /// aşamayı görmez (kayıt henüz başlamadı) — bayrak olmadan kullanıcı
+  /// Kaydet'e ikinci kez basıp üst üste iki doğrulama sayfası açabilirdi.
+  bool _phoneGateBusy = false;
+
+  bool get _isSaving =>
+      _phoneGateBusy || ref.watch(myProfileControllerProvider).isLoading;
 
   MyProfileController get _controller =>
       ref.read(myProfileControllerProvider.notifier);
@@ -205,21 +218,22 @@ class _EditFormState extends ConsumerState<_EditForm> {
   Future<void> _pickImage({
     required String pathHint,
     required void Function(String handle) onHandle,
+    // Kırpma çerçevesi: profil 1:1 (avatar yuvarlak), vitrin 4:5 (kart
+    // ızgarasıyla aynı oran), sertifika serbest (metin kesilmesin).
+    PhotoShape shape = PhotoShape.portrait,
+    String cropTitle = 'Fotoğrafı ayarla',
   }) async {
     if (_uploading != null) return; // aynı anda tek yükleme
     final source = await _chooseImageSource();
     if (source == null || !mounted) return;
 
-    final XFile? file;
+    final Uint8List? bytes;
     try {
-      file = await ImagePicker().pickImage(
+      bytes = await PhotoPicker.pickPhoto(
+        context,
         source: source,
-        // Profil / selfie için ön kamera tercih (yalnız kamera kaynağında).
-        preferredCameraDevice: source == ImageSource.camera
-            ? CameraDevice.front
-            : CameraDevice.rear,
-        maxWidth: AppConstants.imagePickMaxWidth,
-        imageQuality: AppConstants.imagePickImageQuality,
+        shape: shape,
+        title: cropTitle,
       );
     } catch (_) {
       if (mounted) {
@@ -231,8 +245,7 @@ class _EditFormState extends ConsumerState<_EditForm> {
       }
       return;
     }
-    if (file == null) return;
-    final bytes = await file.readAsBytes();
+    if (bytes == null) return;
     if (bytes.length > AppConstants.maxPhotoSizeBytes) {
       if (mounted) context.showError('Görsel 5 MB\'dan küçük olmalı.');
       return;
@@ -290,13 +303,14 @@ class _EditFormState extends ConsumerState<_EditForm> {
   /// basması modunu KAPATMAMALI.
   Future<void> _cikistaModuGeriAl() async {
     final user = ref.read(currentUserProvider);
-    if (user == null || !user.isArtisan || !_kurulumBos) return;
+    // Aktif mod değil: kurulum yarıda kaldıysa müşteri rolüne dön.
+    if (user == null || !user.hasArtisanProfile || !_kurulumBos) return;
     await ref
         .read(authControllerProvider.notifier)
         .setActiveMode(UserRole.customer);
     if (!mounted) return;
     context.showInfo(
-      'Usta modu açılmadı — meslek ve hizmet bölgesi seçilmedi.',
+      'Usta profili tamamlanmadı — meslek ve hizmet bölgesi seçilmedi.',
     );
   }
 
@@ -327,8 +341,18 @@ class _EditFormState extends ConsumerState<_EditForm> {
       context.showError(aboutError);
       return;
     }
+    // USTA ALANLARI YALNIZ USTAYA ZORUNLU (2026-08-15 kullanıcı bulgusu).
+    //
+    // Bu ekran `/profile/edit` üzerinden MÜŞTERİYE de açıktır (ad, hakkımda,
+    // fotoğraf gibi ortak alanlar için). Meslek ve hizmet bölgesi seçicileri
+    // ise `showArtisanVitrin` ile yalnız ustaya gösterilir. Kontroller mod
+    // ayrımı yapmayınca müşteri, EKRANDA OLMAYAN bir alan yüzünden
+    // "En az bir meslek seçin" uyarısı alıp profilini hiç kaydedemiyordu —
+    // kullanıcının kendi başına çözemeyeceği bir çıkmaz.
+    final ustaMi = ref.read(currentUserProvider)?.hasArtisanProfile ?? false;
+
     // Hemen Lazım de geçerli bir hizmettir: yalnız onu açan usta da kaydeder.
-    if (draft.profile.professionCodes.isEmpty) {
+    if (ustaMi && draft.profile.professionCodes.isEmpty) {
       context.showError(
         'En az bir meslek seçin veya "$kQuickSupportName işleri al" '
         'anahtarını açın.',
@@ -356,24 +380,44 @@ class _EditFormState extends ConsumerState<_EditForm> {
     final bolgeler =
         ref.read(myProfileControllerProvider).valueOrNull?.profile.serviceAreas ??
             draft.profile.serviceAreas;
-    if (bolgeler.isEmpty) {
+    // Meslekte olduğu gibi: hizmet bölgesi seçicisi müşteriye gösterilmez,
+    // dolayısıyla ondan istenemez.
+    if (ustaMi && bolgeler.isEmpty) {
       context.showError('En az bir hizmet bölgesi ekleyin.');
       return;
+    }
+
+    // TELEFON DOĞRULAMASI ZORUNLU (new.md madde 1–2). En sonda sorulur:
+    // önce ucuz form doğrulamaları geçsin, kullanıcı SMS'e boşuna girmesin.
+    // Doğrulamazsa KAYIT YAPILMAZ; form açık kalır, veriler kaybolmaz.
+    //
+    // YALNIZ SAĞLAYICIYA: kapı `providerFlagOk()` kuralının karşılığıdır —
+    // usta/mağaza bayrağı doğrulanmış telefon ister. Müşterinin adını veya
+    // hakkımda metnini düzenlemesi bu kuralın kapsamında değildir; kapıyı
+    // ona da uygulamak SMS maliyeti üretir ve gereksiz sürtünmedir.
+    if (ustaMi) {
+      setState(() => _phoneGateBusy = true);
+      final bool telefonOk;
+      try {
+        telefonOk = await ensureVerifiedPhoneForProvider(
+          context,
+          ref,
+          isShop: false,
+        );
+      } finally {
+        if (mounted) setState(() => _phoneGateBusy = false);
+      }
+      if (!mounted || !telefonOk) return;
     }
 
     final ok = await _controller.save();
     if (!mounted) return;
     if (ok) {
       context.showSuccess('Profiliniz kaydedildi.');
-      // Kaydettikten sonra formda kalmak "kaydoldu mu?" sorusunu doğuruyordu
-      // (madde 6). Başarılıysa profile dön — kullanıcı değişikliğini
-      // yayınlanmış hâliyle görür. `_kurulumBos` artık false olduğundan
-      // aşağıdaki PopScope modu geri ALMAZ.
-      if (context.canPop()) {
-        context.pop();
-      } else {
-        context.go(RoutePaths.profile);
-      }
+      // PopScope canPop:false programatik pop'u yutar (kullanıcı formda
+      // kalırdı). go yığını sıfırlar — her zaman birleşik profile düşer.
+      // `_kurulumBos` artık false: geri alma kancası devreye girmez.
+      context.go(RoutePaths.profile);
     } else {
       // B-04: sabit metin yerine GERÇEK sebep — permission-denied mi, ağ mı?
       context.showError(_controller.saveErrorTR);
@@ -393,10 +437,9 @@ class _EditFormState extends ConsumerState<_EditForm> {
       WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToFocus());
     }
 
-    // Vitrin bölümü YALNIZ usta modunda çizilir. `hasArtisanProfile` değil
-    // `isArtisan` (aktif mod): usta profili olan biri müşteri moduna geçtiğinde
-    // de sade formu görmeli.
-    final isArtisanMode = ref.watch(currentUserProvider)?.isArtisan ?? false;
+    // Vitrin: usta PROFİLİ açılmışsa (aktif mod switch'i yok).
+    final showArtisanVitrin =
+        ref.watch(currentUserProvider)?.hasArtisanProfile ?? false;
 
     return PopScope(
       // Kurulum yapılmadan çıkılırsa usta modu geri alınır (madde 11).
@@ -413,11 +456,40 @@ class _EditFormState extends ConsumerState<_EditForm> {
           router.go(RoutePaths.profile);
         }
       },
-      child: ResponsiveCenter(
-        maxWidth: 760,
-        child: ListView(
-          padding: const EdgeInsets.all(20),
-          children: [
+      child: Scaffold(
+        appBar: _kEditAppBar,
+        // Kaydet ListView'un son satırı olursa sistem gezinme çubuğunun
+        // (ve varsa yüzen alt barın) altına düşer. İlan/ürün düzenleme
+        // ile aynı sabit bar: her zaman görünür, SafeArea üstünde.
+        bottomNavigationBar: Container(
+          decoration: BoxDecoration(
+            color: context.palette.card,
+            border: Border(top: BorderSide(color: context.palette.hairline)),
+          ),
+          padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+          child: SafeArea(
+            top: false,
+            // Align/ResponsiveCenter burada TÜM ekranı kaplar, gövdeye
+            // 0 yükseklik kalır (create_job_screen notu). heightFactor:1.
+            child: Center(
+              heightFactor: 1,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 760),
+                child: AppButton(
+                  label: 'Kaydet',
+                  icon: Icons.save_outlined,
+                  isLoading: _isSaving,
+                  onPressed: _save,
+                ),
+              ),
+            ),
+          ),
+        ),
+        body: ResponsiveCenter(
+          maxWidth: 760,
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
+            children: [
             // "Vitrini tamamla" bandı KALDIRILDI (2026-08-08): kullanıcı zaten
             // formun içinde — hangi alanın boş olduğunu doğrudan görüyor.
             // Formun tepesinde ayrıca uyarı göstermek yer kaplıyordu.
@@ -481,6 +553,10 @@ class _EditFormState extends ConsumerState<_EditForm> {
                           customBorder: const CircleBorder(),
                           onTap: () => _pickImage(
                             pathHint: 'profile',
+                            // Avatar HER YERDE yuvarlak çizilir; kare
+                            // olmayan kaynak "yayık" görünüyordu.
+                            shape: PhotoShape.square,
+                            cropTitle: 'Profil fotoğrafı',
                             onHandle: _controller.setProfilePhoto,
                           ),
                           child: const Padding(
@@ -579,15 +655,10 @@ class _EditFormState extends ConsumerState<_EditForm> {
 
             // ══════════════ USTA VİTRİNİ ══════════════
             //
-            // Yalnız usta modunda görünür. Müşteri modundaki kullanıcı meslek,
-            // hizmet bölgesi, iş fotoğrafı gibi alanlarla uğraşmaz — yukarıdaki
-            // ortak alanlar ona yeter.
-            //
-            // Ayrı bir "Vitrini Düzenle" sayfası YOK (2026-08-08): kullanıcı
-            // "Profili Düzenle" dedi mi her şeyi tek sayfada, tek Kaydet
-            // düğmesiyle bulmalı.
-            if (!isArtisanMode) const SizedBox(height: 8),
-            if (isArtisanMode) ...[
+            // Usta PROFİLİ açılmışsa görünür (aktif mod switch'i yok).
+            // Ayrı "Vitrini Düzenle" sayfası YOK — tek form, tek Kaydet.
+            if (!showArtisanVitrin) const SizedBox(height: 8),
+            if (showArtisanVitrin) ...[
               const SizedBox(height: 28),
               Divider(color: context.palette.hairline),
               const SizedBox(height: 14),
@@ -744,15 +815,39 @@ class _EditFormState extends ConsumerState<_EditForm> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    _Label('İş Fotoğrafları'),
+                    _Label(
+                      'İş Fotoğrafları '
+                      '(${profile.workPhotos.length}/'
+                      '${AppConstants.maxWorkPhotos})',
+                    ),
                     const SizedBox(height: 8),
                     _WorkPhotos(
                       handles: profile.workPhotos,
                       uploading: _uploading == 'work',
-                      onAdd: () => _pickImage(
-                        pathHint: 'work',
-                        onHandle: _controller.addWorkPhoto,
-                      ),
+                      canAdd: profile.workPhotos.length <
+                          AppConstants.maxWorkPhotos,
+                      onAdd: () {
+                        if (profile.workPhotos.length >=
+                            AppConstants.maxWorkPhotos) {
+                          context.showInfo(
+                            'En fazla ${AppConstants.maxWorkPhotos} '
+                            'iş fotoğrafı ekleyebilirsiniz.',
+                          );
+                          return;
+                        }
+                        _pickImage(
+                          pathHint: 'work',
+                          cropTitle: 'Vitrin fotoğrafı',
+                          onHandle: (h) {
+                            if (!_controller.addWorkPhoto(h)) {
+                              context.showInfo(
+                                'En fazla ${AppConstants.maxWorkPhotos} '
+                                'iş fotoğrafı ekleyebilirsiniz.',
+                              );
+                            }
+                          },
+                        );
+                      },
                       onRemove: _controller.removeWorkPhoto,
                     ),
                   ],
@@ -761,10 +856,15 @@ class _EditFormState extends ConsumerState<_EditForm> {
               const SizedBox(height: 24),
 
               // --- Sertifikalar ve Belgeler ---
-              _Label('Sertifikalar ve Belgeler'),
+              _Label(
+                'Sertifikalar ve Belgeler '
+                '(${profile.certificates.length}/'
+                '${AppConstants.maxCertificates})',
+              ),
               const SizedBox(height: 4),
               Text(
                 'Ustalık belgesi, sertifika vb. görsellerini ekleyin. '
+                'En fazla ${AppConstants.maxCertificates} belge. '
                 'Belgeler yönetici onayından geçer.',
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
                   color: Theme.of(context).colorScheme.onSurfaceVariant,
@@ -774,10 +874,32 @@ class _EditFormState extends ConsumerState<_EditForm> {
               _WorkPhotos(
                 handles: profile.certificates,
                 uploading: _uploading == 'certificate',
-                onAdd: () => _pickImage(
-                  pathHint: 'certificate',
-                  onHandle: _controller.addCertificate,
-                ),
+                canAdd: profile.certificates.length <
+                    AppConstants.maxCertificates,
+                onAdd: () {
+                  if (profile.certificates.length >=
+                      AppConstants.maxCertificates) {
+                    context.showInfo(
+                      'En fazla ${AppConstants.maxCertificates} '
+                      'belge ekleyebilirsiniz.',
+                    );
+                    return;
+                  }
+                  _pickImage(
+                    pathHint: 'certificate',
+                    // Belge: zorunlu oran metni keser → serbest kırpma.
+                    shape: PhotoShape.free,
+                    cropTitle: 'Belgeyi ayarla',
+                    onHandle: (h) {
+                      if (!_controller.addCertificate(h)) {
+                        context.showInfo(
+                          'En fazla ${AppConstants.maxCertificates} '
+                          'belge ekleyebilirsiniz.',
+                        );
+                      }
+                    },
+                  );
+                },
                 onRemove: _controller.removeCertificate,
               ),
               if (profile.certificates.isNotEmpty) ...[
@@ -820,18 +942,11 @@ class _EditFormState extends ConsumerState<_EditForm> {
             ], // ══════════ USTA VİTRİNİ sonu ══════════
             // --- Doğrulama (mavi tik) — form alanlarının altında, kaydetmeden
             // bağımsız tek seferlik işlem olduğu için en sona alındı. ---
-            VerificationTile(artisanContext: isArtisanMode),
-            const SizedBox(height: 28),
-
-            AppButton(
-              label: 'Kaydet',
-              icon: Icons.save_outlined,
-              isLoading: _isSaving,
-              onPressed: _save,
-            ),
-            const SizedBox(height: 12),
+            VerificationTile(artisanContext: showArtisanVitrin),
+            const SizedBox(height: 8),
           ],
         ),
+      ),
       ),
     );
   }
@@ -1581,6 +1696,7 @@ class _WorkPhotos extends StatelessWidget {
     required this.onAdd,
     required this.onRemove,
     this.uploading = false,
+    this.canAdd = true,
   });
 
   final List<String> handles;
@@ -1590,6 +1706,9 @@ class _WorkPhotos extends StatelessWidget {
   /// true iken ekleme kutucuğu spinner gösterir ve tıklamayı yutar.
   final bool uploading;
 
+  /// false ise ekleme kutusu gizlenir (tavan doldu).
+  final bool canAdd;
+
   @override
   Widget build(BuildContext context) {
     return SizedBox(
@@ -1597,7 +1716,8 @@ class _WorkPhotos extends StatelessWidget {
       child: ListView(
         scrollDirection: Axis.horizontal,
         children: [
-          _AddTile(onTap: onAdd, loading: uploading),
+          if (canAdd || uploading)
+            _AddTile(onTap: onAdd, loading: uploading),
           for (final h in handles) ...[
             const SizedBox(width: 8),
             _PhotoTile(handle: h, onRemove: () => onRemove(h)),

@@ -33,8 +33,8 @@ void _openErrorReport(BuildContext context, String summary) {
   GoRouter.of(context).push('${RoutePaths.help}?konu=$konu&detay=$detay');
 }
 
-class UstaCepteApp extends ConsumerWidget {
-  const UstaCepteApp({super.key});
+class SepetteHizmetApp extends ConsumerWidget {
+  const SepetteHizmetApp({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -56,17 +56,9 @@ class UstaCepteApp extends ConsumerWidget {
       ref.read(pushServiceProvider).registerFor(initialUid);
     }
 
-    // Aktif moda göre KULLANICININ seçtiği vurgu rengi (Görünüm ayarı). Mod
-    // veya renk değişince tema yeniden kurulur ve renkler yumuşakça geçer.
-    final artisanMode =
-        ref.watch(currentUserProvider.select((u) => u?.isArtisan ?? false));
-    final accentId = artisanMode
-        ? ref.watch(artisanAccentIdProvider)
-        : ref.watch(customerAccentIdProvider);
-    final accent = accentById(accentId,
-        fallbackId: artisanMode
-            ? kDefaultArtisanAccentId
-            : kDefaultCustomerAccentId);
+    // Tek vurgu rengi (Görünüm → Renk); açık/koyu temadan bağımsız.
+    final accentId = ref.watch(accentIdProvider);
+    final accent = accentById(accentId, fallbackId: kDefaultAccentId);
 
     return MaterialApp.router(
       title: AppConstants.appName,

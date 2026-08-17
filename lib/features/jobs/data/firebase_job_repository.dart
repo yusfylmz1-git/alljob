@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../../../core/constants/app_constants.dart';
+import '../../../core/utils/signout_safe_stream.dart';
 import '../../../data/models/geo_models.dart';
 import '../../../data/models/job.dart';
 import 'job_repository.dart';
@@ -36,7 +37,7 @@ class FirebaseJobRepository implements JobRepository {
       final list = s.docs.map((d) => Job.fromMap(d.id, d.data())).toList()
         ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
       return list;
-    });
+    }).signOutSafe('ilanlarım', customerUid);
   }
 
   @override

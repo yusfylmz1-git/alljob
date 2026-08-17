@@ -38,6 +38,7 @@ import '../../features/products/presentation/artisan_products_screen.dart';
 import '../../features/products/presentation/my_products_screen.dart';
 import '../../features/products/presentation/product_detail_screen.dart';
 import '../../features/products/presentation/product_edit_screen.dart';
+import '../../features/products/presentation/shop_setup_screen.dart';
 import '../../features/profile/presentation/profile_screen.dart';
 import '../../features/review/presentation/review_screen.dart';
 import '../../features/help/presentation/help_screen.dart';
@@ -127,6 +128,7 @@ final routerProvider = Provider<GoRouter>((ref) {
           // kararı satıcı rolünü kaldırdı, ama oturumu kaldırmadı.
           loc == RoutePaths.productNew ||
           loc == RoutePaths.myProducts ||
+          loc == RoutePaths.shopSetup ||
           (loc.startsWith('${RoutePaths.productsBase}/') &&
               loc.endsWith('/edit'));
 
@@ -316,7 +318,9 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: RoutePaths.myJobs,
-        builder: (_, _) => const MyJobsScreen(),
+        builder: (_, state) => MyJobsScreen(
+          onlyProductRequests: state.uri.queryParameters['kind'] == 'product',
+        ),
       ),
       // DİKKAT: '/jobs/:jobId' deseninden ÖNCE gelmeli (yoksa "quick" bir
       // ilan kimliği olarak yakalanır).
@@ -341,6 +345,12 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: RoutePaths.myProducts,
         builder: (_, _) => const MyProductsScreen(),
+      ),
+      GoRoute(
+        path: RoutePaths.shopSetup,
+        builder: (_, state) => ShopSetupScreen(
+          editing: state.uri.queryParameters['edit'] == '1',
+        ),
       ),
       GoRoute(
         path: '/products/:productId/edit',

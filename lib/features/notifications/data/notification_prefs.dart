@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/config/backend_config.dart';
+import '../../../core/utils/signout_safe_stream.dart';
 import '../../auth/application/auth_controller.dart';
 
 /// Push bildirim tercihleri (YOL_HARITASI P1).
@@ -27,11 +28,11 @@ class NotificationPrefs {
   /// Yeni ilan eşleşmesi (usta — bölge/meslek).
   final bool nearbyJobs;
 
-  /// Ürün talebi günlük özeti (Mağaza). Günde EN FAZLA bir bildirim.
+  /// Ürün talepleri (aynı il + kategori): anlık ve akşam özeti.
+  /// Kapalıysa ikisi de kesilir.
   ///
-  /// Ayrı tercih olmasının sebebi: `jobUpdates`'e bağlansaydı özeti
-  /// susturmak isteyen kullanıcı iş bildirimlerini de kapatmak zorunda
-  /// kalırdı. CF paritesi: `pushCategoryFromData` → `productDigest`.
+  /// Ayrı tercih: `jobUpdates`'e bağlansaydı talebi susturmak iş
+  /// bildirimlerini de kapatırdı. CF: `productDigest` + `productRequest`.
   final bool productDigest;
 
   static const defaults = NotificationPrefs();
@@ -109,7 +110,7 @@ class FirebaseNotificationPrefsRepository implements NotificationPrefsRepository
         return NotificationPrefs.fromMap(Map<String, dynamic>.from(raw));
       }
       return NotificationPrefs.defaults;
-    });
+    }).signOutSafe('bildirim tercihleri', uid);
   }
 
   @override

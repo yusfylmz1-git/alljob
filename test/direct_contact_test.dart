@@ -66,8 +66,27 @@ void main() {
       // Sadeleştirme güvenliği gevşetmemeli.
       expect(jd.contains('ensureEmailVerified'), isTrue);
       expect(jd.contains('user.suspended'), isTrue);
-      expect(jd.contains('!profile.isAvailable'), isTrue);
       expect(jd.contains('job.matchesArtisan'), isTrue);
+
+      // MÜSAİTLİK KAPISI: satır içi `!profile.isAvailable` kontrolü ortak
+      // kapıya taşındı (`availability_gate.dart`). Sebep: sohbet başlatan
+      // DÖRT giriş vardı (ilan detayı, usta profili, kullanıcı profili,
+      // ürün detayı) ve kapı birinde unutulunca müsait olmayan kişi
+      // oradan yazabiliyordu.
+      //
+      // Kapı burada ÇAĞRILIYOR mu?
+      expect(jd.contains('artisanAvailabilityAllowsNewChat('), isTrue,
+          reason: 'Müsaitlik kapısı ilan detayında çağrılmıyor — müsait '
+              'olmayan usta buradan sohbet başlatabilir.');
+    });
+
+    test('ortak müsaitlik kapısı gerçekten müsaitliğe bakıyor', () {
+      // Yukarıdaki test yalnız ÇAĞRIyı doğruluyor; kapının içi boşaltılırsa
+      // çağrı durur ama koruma kaybolurdu.
+      final gate =
+          read('lib/features/artisan/application/availability_gate.dart');
+      expect(gate.contains('isAvailable'), isTrue);
+      expect(gate.contains('user.available'), isTrue);
     });
 
     test('ilan yönetimi (düzenle/iptal/sil) duruyor', () {

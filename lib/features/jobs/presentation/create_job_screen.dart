@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -8,10 +10,12 @@ import '../../../core/constants/app_constants.dart';
 import '../../../core/router/route_paths.dart';
 import '../../../core/theme/app_palette.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../core/utils/photo_picker.dart';
 import '../../../core/utils/snackbar_helper.dart';
 import '../../../core/utils/validators.dart';
 import '../../../core/widgets/app_button.dart';
 import '../../../core/widgets/app_image.dart';
+import '../../../core/widgets/disclaimer_note.dart';
 import '../../../core/widgets/gradient_app_bar.dart';
 import '../../../core/widgets/responsive_center.dart';
 import '../../../core/widgets/searchable_select_field.dart';
@@ -21,16 +25,18 @@ import '../../../data/models/job.dart';
 import '../../../data/models/profession.dart' show ProfessionCategory;
 import '../../auth/application/auth_controller.dart';
 import '../../auth/presentation/email_verification_gate.dart';
+import '../../products/data/product_category_providers.dart';
 import '../../storage/storage_repository.dart';
 import '../data/job_providers.dart';
 import '../data/quick_support.dart';
 
-/// Müşterinin yeni iş ilanı oluşturduğu ekran (İş İlanı Ver).
+/// Müşterinin yeni iş ilanı / ürün talebi oluşturduğu ekran.
 class CreateJobScreen extends ConsumerStatefulWidget {
   const CreateJobScreen({super.key, this.initialCategory});
 
   /// Form açılırken seçili gelecek kategori (örn. ana sayfadaki "Hemen Lazım"
   /// kısayolu). Kullanıcı yine değiştirebilir — kilitlenmez.
+  /// `product_request` ise form ürün talebi diline geçer.
   final String? initialCategory;
 
   @override
@@ -44,10 +50,21 @@ class _CreateJobScreenState extends ConsumerState<CreateJobScreen> {
 
   String? _category;
 
+  /// Ürün talebinde seçilen satış kategorisi (ProductCategory kodu).
+  String? _productCategoryCode;
+
+  /// Ürün talebi formu mu? (`?kind=product` veya kategori = product_request)
+  bool get _isProductRequest =>
+      widget.initialCategory == kProductRequestCategory ||
+      _category == kProductRequestCategory;
+
   @override
   void initState() {
     super.initState();
     _category = widget.initialCategory;
+    if (widget.initialCategory == kProductRequestCategory) {
+      _category = kProductRequestCategory;
+    }
   }
   Province? _province;
   District? _district;
@@ -73,19 +90,19 @@ class _CreateJobScreenState extends ConsumerState<CreateJobScreen> {
       );
       return;
     }
-    final XFile? file;
+    // Yüklemeden önce 4:5 kırpma: ilan detayındaki görsel şeridi bu oranda.
+    final Uint8List? bytes;
     try {
-      file = await ImagePicker().pickImage(
+      bytes = await PhotoPicker.pickPhoto(
+        context,
         source: ImageSource.gallery,
-        maxWidth: AppConstants.imagePickMaxWidth,
-        imageQuality: AppConstants.imagePickImageQuality,
+        title: 'İlan fotoğrafı',
       );
     } catch (_) {
       if (mounted) context.showError('Görsel seçilemedi.');
       return;
     }
-    if (file == null) return;
-    final bytes = await file.readAsBytes();
+    if (bytes == null) return;
     if (bytes.length > AppConstants.maxPhotoSizeBytes) {
       if (mounted) context.showError('Görsel 5 MB\'dan küçük olmalı.');
       return;
@@ -120,7 +137,12 @@ class _CreateJobScreenState extends ConsumerState<CreateJobScreen> {
       return;
     }
     if (!_formKey.currentState!.validate()) return;
-    if (_category == null) {
+    if (_isProductRequest) {
+      if (_productCategoryCode == null) {
+        context.showError('Lütfen bir ürün kategorisi seçin.');
+        return;
+      }
+    } else if (_category == null) {
       context.showError('Lütfen bir meslek/kategori seçin.');
       return;
     }
@@ -148,6 +170,8 @@ class _CreateJobScreenState extends ConsumerState<CreateJobScreen> {
     }
     final now = DateTime.now();
 
+    final category =
+        _isProductRequest ? kProductRequestCategory : _category!;
     final job = Job(
       jobId: '',
       customerId: user.uid,
@@ -155,7 +179,9 @@ class _CreateJobScreenState extends ConsumerState<CreateJobScreen> {
       customerPhotoUrl: user.profilePhotoUrl,
       title: Validators.sanitizeFreeText(_titleController.text),
       description: Validators.sanitizeFreeText(_descController.text),
-      category: _category!,
+      category: category,
+      productCategoryCode:
+          _isProductRequest ? _productCategoryCode : null,
       province: _province!.name,
       district: _district!.name,
       photos: List.of(_photos),
@@ -169,7 +195,7 @@ class _CreateJobScreenState extends ConsumerState<CreateJobScreen> {
       //
       // Ürün talebi de SABİT 7 gün (kullanıcı kararı): seçim sunulmaz.
       expiresAt: now.add(
-        switch (_category) {
+        switch (category) {
           kQuickSupportCategory => JobDuration.day1,
           kProductRequestCategory => JobDuration.day7,
           _ => _duration,
@@ -183,7 +209,10 @@ class _CreateJobScreenState extends ConsumerState<CreateJobScreen> {
       await AppAnalytics.createJob(category: job.category);
       if (!mounted) return;
       context.showSuccess(
-        'İlanınız yayında 🎉 Bölgenizdeki ustalar haberdar ediliyor.',
+        _isProductRequest
+            ? 'Talebiniz yayında. Aynı kategorideki satıcılar '
+                'haberdar ediliyor.'
+            : 'İlanınız yayında 🎉 Bölgenizdeki ustalar haberdar ediliyor.',
       );
       context.go(RoutePaths.myJobs);
     } catch (e) {
@@ -243,10 +272,14 @@ class _CreateJobScreenState extends ConsumerState<CreateJobScreen> {
         );
       },
       child: Scaffold(
-        appBar: const GradientAppBar(
-          title: 'İş İlanı Ver',
-          subtitle: 'Bölgenizdeki ustalara anında duyurulur',
-          icon: Icons.campaign_outlined,
+        appBar: GradientAppBar(
+          title: _isProductRequest ? 'Ürün Talebi Oluştur' : 'İş İlanı Ver',
+          subtitle: _isProductRequest
+              ? 'İlinizdeki satıcılara günlük özetle iletilir'
+              : 'Bölgenizdeki ustalara anında duyurulur',
+          icon: _isProductRequest
+              ? Icons.storefront_outlined
+              : Icons.campaign_outlined,
         ),
         // Yayınla butonu altta sabit: uzun formda kaydırmadan hep erişilir.
         bottomNavigationBar: Container(
@@ -266,8 +299,12 @@ class _CreateJobScreenState extends ConsumerState<CreateJobScreen> {
               child: ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 720),
                 child: AppButton(
-                  label: 'İlanı Yayınla',
-                  icon: Icons.campaign_outlined,
+                  label: _isProductRequest
+                      ? 'Talebi Yayınla'
+                      : 'İlanı Yayınla',
+                  icon: _isProductRequest
+                      ? Icons.storefront_outlined
+                      : Icons.campaign_outlined,
                   isLoading: _submitting,
                   onPressed: _submit,
                 ),
@@ -284,16 +321,24 @@ class _CreateJobScreenState extends ConsumerState<CreateJobScreen> {
               children: [
                 _SectionCard(
                   step: 1,
-                  title: 'İşi Tanımlayın',
-                  subtitle: 'Ne yaptırmak istiyorsunuz?',
+                  title: _isProductRequest
+                      ? 'Ürünü Tanımlayın'
+                      : 'İşi Tanımlayın',
+                  subtitle: _isProductRequest
+                      ? 'Ne arıyorsunuz?'
+                      : 'Ne yaptırmak istiyorsunuz?',
                   children: [
-                    _Label('İlan Başlığı'),
+                    _Label(_isProductRequest
+                        ? 'Talep Başlığı'
+                        : 'İlan Başlığı'),
                     TextFormField(
                       controller: _titleController,
                       maxLength: AppConstants.maxJobTitleLength,
                       textCapitalization: TextCapitalization.sentences,
-                      decoration: const InputDecoration(
-                        hintText: 'Örn. Banyo bataryası değişimi',
+                      decoration: InputDecoration(
+                        hintText: _isProductRequest
+                            ? 'Örn. 2. el banyo bataryası arıyorum'
+                            : 'Örn. Banyo bataryası değişimi',
                       ),
                       validator: (v) => Validators.freeText(
                         v,
@@ -304,11 +349,20 @@ class _CreateJobScreenState extends ConsumerState<CreateJobScreen> {
                       ),
                     ),
                     const SizedBox(height: 4),
-                    _Label('Kategori (Meslek)'),
-                    _CategoryDropdown(
-                      value: _category,
-                      onChanged: (c) => setState(() => _category = c),
-                    ),
+                    _Label(_isProductRequest
+                        ? 'Ürün Kategorisi'
+                        : 'Kategori (Meslek)'),
+                    if (_isProductRequest)
+                      _ProductCategoryDropdown(
+                        value: _productCategoryCode,
+                        onChanged: (c) =>
+                            setState(() => _productCategoryCode = c),
+                      )
+                    else
+                      _CategoryDropdown(
+                        value: _category,
+                        onChanged: (c) => setState(() => _category = c),
+                      ),
                     // B-10: Örnek çipleri KATEGORİNİN HEMEN ALTINDA durur.
                     // Eskiden araya uzun bilgi bloğu giriyordu ve çipler
                     // ekranın altında kalıyordu — oysa asıl eylem bunlar,
@@ -380,7 +434,9 @@ class _CreateJobScreenState extends ConsumerState<CreateJobScreen> {
                 _SectionCard(
                   step: 2,
                   title: 'Konum',
-                  subtitle: 'İlan yalnızca bu bölgedeki ustalara gösterilir',
+                  subtitle: _isProductRequest
+                      ? 'Talep bu bölgedeki satıcılara gösterilir'
+                      : 'İlan yalnızca bu bölgedeki ustalara gösterilir',
                   children: [
                     _LocationPicker(
                       province: _province,
@@ -406,8 +462,10 @@ class _CreateJobScreenState extends ConsumerState<CreateJobScreen> {
                       maxLines: 4,
                       maxLength: AppConstants.maxJobDescriptionLength,
                       textCapitalization: TextCapitalization.sentences,
-                      decoration: const InputDecoration(
-                        hintText: 'İsterseniz işi biraz daha anlatın.',
+                      decoration: InputDecoration(
+                        hintText: _isProductRequest
+                            ? 'Marka, model, bütçe gibi ayrıntılar…'
+                            : 'İsterseniz işi biraz daha anlatın.',
                         alignLabelWithHint: true,
                       ),
                       validator: (v) => Validators.freeText(
@@ -539,8 +597,12 @@ class _CreateJobScreenState extends ConsumerState<CreateJobScreen> {
                       const SizedBox(width: 10),
                       Expanded(
                         child: Text(
-                          'İlgilenen ustalar sizinle doğrudan iletişime geçecek; '
-                          'fiyatı ve ayrıntıları sohbette konuşabilirsiniz.',
+                          _isProductRequest
+                              ? 'İlinizdeki satıcılar talebinizi günlük özetle '
+                                  'görür; ilgilenenler sizinle sohbette yazışır.'
+                              : 'İlgilenen ustalar sizinle doğrudan iletişime '
+                                  'geçecek; fiyatı ve ayrıntıları sohbette '
+                                  'konuşabilirsiniz.',
                           style: Theme.of(context).textTheme.bodySmall
                               ?.copyWith(
                                 color: context.palette.info,
@@ -550,6 +612,14 @@ class _CreateJobScreenState extends ConsumerState<CreateJobScreen> {
                       ),
                     ],
                   ),
+                ),
+                const SizedBox(height: 8),
+                // Akışa özgü uyarı: ürün talebi ile iş ilanı farklı riskler
+                // taşır — genel bir cümle ikisini de karşılamıyordu.
+                DisclaimerNote.forFlow(
+                  _isProductRequest
+                      ? DisclaimerFlow.urunSatinAlma
+                      : DisclaimerFlow.ilanVerme,
                 ),
                 const SizedBox(height: 8),
               ],
@@ -653,17 +723,15 @@ class _CategoryDropdown extends ConsumerWidget {
       loading: () => const LinearProgressIndicator(),
       error: (_, _) => const Text('Meslek listesi yüklenemedi'),
       data: (professions) {
-        // Kolay İş ve Ürün Talebi en üstte; usta mesleği "other" ilan
-        // kategorisi değil.
+        // Kolay İş en üstte; ürün talebi ayrı formdan (?kind=product) açılır.
+        // Usta mesleği "other" ilan kategorisi değil.
         final labels = <String, String>{
           kQuickSupportCategory: '⚡ $kQuickSupportName',
-          kProductRequestCategory: '🛒 $kProductRequestName',
           for (final p in professions)
             if (p.code != kOtherProfession) p.code: p.nameTR,
         };
         final codes = [
           kQuickSupportCategory,
-          kProductRequestCategory,
           ...professions
               .where((p) => p.code != kOtherProfession)
               .map((p) => p.code),
@@ -683,13 +751,37 @@ class _CategoryDropdown extends ConsumerWidget {
           prefixIcon: Icons.handyman_outlined,
           groupLabel: (c) => switch (c) {
             kQuickSupportCategory => kQuickSupportName,
-            kProductRequestCategory => kProductRequestName,
             _ => ProfessionCategory.label(
                 kategoriler[c] ?? ProfessionCategory.diger),
           },
           onSelected: onChanged,
         );
       },
+    );
+  }
+}
+
+/// Mağaza ile aynı ürün kategorileri (canlı katalog).
+class _ProductCategoryDropdown extends ConsumerWidget {
+  const _ProductCategoryDropdown({
+    required this.value,
+    required this.onChanged,
+  });
+  final String? value;
+  final ValueChanged<String?> onChanged;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final catalog = catalogOf(ref);
+    return SearchableSelectField<String>(
+      label: 'Ürün kategorisi',
+      value: value,
+      items: catalog.sirali,
+      itemLabel: catalog.label,
+      hint: 'Kategori seçin',
+      searchHint: 'Kategori ara (örn. mobilya, hırdavat…)',
+      prefixIcon: Icons.category_outlined,
+      onSelected: onChanged,
     );
   }
 }

@@ -1,9 +1,11 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../core/analytics/app_analytics.dart';
 import '../../../core/config/backend_config.dart';
 import '../../../data/models/app_user.dart';
 import '../../../data/models/user_role.dart';
+import '../../membership/membership_package.dart';
 import '../../notifications/data/push_service.dart';
 import '../data/auth_repository.dart';
 import '../data/firebase_auth_repository.dart';
@@ -160,15 +162,33 @@ class AuthController extends AsyncNotifier<void> {
 
   /// Hesabı KALICI olarak siler (onayı UI alır). Başarılıysa true; oturum
   /// repo tarafında kapanır (auth akışı null yayınlar, router yönlendirir).
+  /// Tüm yerel kullanıcı önbellekleri ve push token'ları sıfırlanır.
   Future<bool> deleteAccount() async {
     state = const AsyncLoading();
     // Cihaz token'ını düşürmeyi dene — users dökümanı sunucuda zaten
     // silinecek, bu yalnızca cihaz tarafındaki token'ı geçersiz kılar.
     final uid = ref.read(currentUserProvider)?.uid;
     if (uid != null) {
-      await ref.read(pushServiceProvider).unregisterFor(uid);
+      try {
+        await ref.read(pushServiceProvider).unregisterFor(uid);
+      } catch (_) {}
     }
     state = await AsyncValue.guard(() => _repo.deleteAccount());
+
+    if (!state.hasError) {
+      // Yerel kullanıcı oturum verilerini ve önbelleklerini temizle.
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.remove('membership_package_seen_v1');
+        await prefs.remove('membership_package_id_v1');
+        await prefs.remove('quick_support_settings_v1');
+      } catch (_) {}
+
+      // Paket ve kullanıcı seçim provider'larını sıfırla.
+      ref.invalidate(selectedMembershipPackageProvider);
+      ref.invalidate(packageSelectionSeenProvider);
+    }
+
     return !state.hasError;
   }
 
@@ -189,7 +209,11 @@ final authControllerProvider = AsyncNotifierProvider<AuthController, void>(
 /// Genel kullanıcı profil ekranı (`/u/:uid`) bunu okur. Usta profili olanlar
 /// için `/artisan/:uid` daha zengin bir vitrin gösterir; bu provider sıradan
 /// kullanıcılar içindir.
+/// CANLI akış (2026-08-14): eskiden `FutureProvider` + tek seferlik `.get()`
+/// idi. Satıcı müsaitliğini değiştirdiğinde diğer cihazlar önbellekteki eski
+/// değeri okumaya devam ediyordu; Keşfet filtresi ürünü gizlemeyi/göstermeyi
+/// hiç öğrenmiyordu ("müsaitliği açtım ama ürünlerim görünmedi").
 final publicUserProvider =
-    FutureProvider.autoDispose.family<AppUser?, String>((ref, uid) {
-  return ref.watch(authRepositoryProvider).fetchPublicUser(uid);
+    StreamProvider.autoDispose.family<AppUser?, String>((ref, uid) {
+  return ref.watch(authRepositoryProvider).watchPublicUser(uid);
 });

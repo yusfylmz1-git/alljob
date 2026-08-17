@@ -4,9 +4,8 @@ import 'app_accent.dart';
 
 /// Kullanıcının Görünüm ayarından seçebildiği hazır VURGU rengi.
 ///
-/// Her seçenek açık ve koyu tema için tam bir [AppAccent] taşır. Müşteri ve
-/// usta modları BAĞIMSIZ birer seçenek saklar (aynı listeden seçilir), böylece
-/// "müşteriyken mavi, ustayken yeşil" gibi kişisel bir düzen kurulabilir.
+/// Her seçenek açık ve koyu tema için tam bir [AppAccent] taşır.
+/// Uygulama genelinde **tek** vurgu rengi seçilir (mod switch yok).
 class AccentOption {
   const AccentOption({
     required this.id,
@@ -199,12 +198,15 @@ const List<AccentOption> kAccentOptions = [
   _orange,
 ];
 
-/// Varsayılan seçimler: müşteri mavi, usta yeşil (mod-bazlı ilk düzen).
-const String kDefaultCustomerAccentId = 'blue';
-const String kDefaultArtisanAccentId = 'emerald';
+/// Varsayılan vurgu rengi.
+const String kDefaultAccentId = 'blue';
+
+/// Eski adlar (test / göç uyumu).
+const String kDefaultCustomerAccentId = kDefaultAccentId;
+const String kDefaultArtisanAccentId = kDefaultAccentId;
 
 /// [id]'ye karşılık gelen seçenek; bilinmeyen/null ise [fallbackId] (yoksa ilk).
-AccentOption accentById(String? id, {String fallbackId = kDefaultCustomerAccentId}) {
+AccentOption accentById(String? id, {String fallbackId = kDefaultAccentId}) {
   for (final o in kAccentOptions) {
     if (o.id == id) return o;
   }

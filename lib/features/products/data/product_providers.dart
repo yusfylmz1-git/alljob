@@ -5,6 +5,8 @@ import '../../../core/config/backend_config.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../data/models/product.dart';
 import '../../artisan/data/artisan_providers.dart' show mockDatabaseProvider;
+import '../../auth/application/auth_controller.dart'
+    show currentUserProvider, publicUserProvider;
 import 'firebase_product_repository.dart';
 import 'mock_product_repository.dart';
 import 'product_repository.dart';
@@ -30,6 +32,40 @@ final discoverProductsProvider = StreamProvider<List<Product>>((ref) {
   return ref.watch(productRepositoryProvider).watchDiscoverProducts(
         limit: AppConstants.productDiscoverFetchCap,
       );
+});
+
+/// Keşfet ürünleri, **müsait olmayan satıcılar elenmiş** hâli
+/// (2026-08-14 ürün kararı).
+///
+/// Neden gerekli: müsait olmayan satıcı ürün taleplerine mesaj atamıyor
+/// (`availability_gate.dart`) ve mağaza vitrini de profilinde gizleniyor
+/// (`dukkan_bolumu.dart`). Ürünleri Keşfet'te durmaya devam ederse müşteri
+/// ilgilenip yazamayan bir satıcıya düşer — ölü ilan etkisi.
+///
+/// **Maliyet:** ürün başına değil, **benzersiz satıcı** başına bir okuma.
+/// 48 ürün tipik olarak ~10 satıcıya aittir ve `publicUserProvider`
+/// önbelleklidir; aynı satıcı ikinci kez okunmaz.
+///
+/// Satıcı bilgisi henüz yüklenmediyse ürün **gösterilir** — yükleme
+/// sırasında vitrinin boşalıp dolması titreme yaratırdı. Gelen veri
+/// "müsait değil" derse ürün o an listeden düşer.
+final availableDiscoverProductsProvider = Provider<List<Product>>((ref) {
+  final products = ref.watch(discoverProductsProvider).valueOrNull;
+  if (products == null || products.isEmpty) return const [];
+
+  final me = ref.watch(currentUserProvider)?.uid;
+  final sonuc = <Product>[];
+  for (final p in products) {
+    // Sahibi kendi ürününü her zaman görür (kaybolduğunu sanmasın).
+    if (p.ownerUid == me) {
+      sonuc.add(p);
+      continue;
+    }
+    final satici = ref.watch(publicUserProvider(p.ownerUid)).valueOrNull;
+    // Henüz yüklenmedi → göster (titreme olmasın).
+    if (satici == null || satici.available) sonuc.add(p);
+  }
+  return sonuc;
 });
 
 /// Sahibin KENDİ ürünleri — taslak, duraklatılmış, satılmış dâhil.

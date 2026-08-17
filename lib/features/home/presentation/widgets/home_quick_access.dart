@@ -7,13 +7,11 @@ import '../../../../core/theme/app_palette.dart';
 import '../../../../core/widgets/tap_scale.dart';
 import '../../../../data/models/job.dart' show kQuickSupportName;
 
-/// Ana Sayfa üst aksiyon bloğu — üç iş, üç kart:
+/// Ana Sayfa üst aksiyon bloğu:
 ///   1. Usta Bul (gradyan davet kartı)
 ///   2. Kolay İş — kısa işler, 1 günlük
 ///   3. İş İlanı Ver — usta arayan ilan, 3/5/7 gün
-///
-/// Rol ayrımı YOK: herkes aynı üçlüyü görür. Alt barın yerine geçmez;
-/// ana sayfanın birincil giriş noktasıdır.
+///   4. Ürün Talebi — mağaza satıcılarına 7 günlük talep
 class HomeQuickAccess extends ConsumerWidget {
   const HomeQuickAccess({super.key});
 
@@ -49,6 +47,14 @@ class HomeQuickAccess extends ConsumerWidget {
           title: 'İş İlanı Ver',
           subtitle: 'Usta arayan ilan oluştur — 3, 5 veya 7 gün',
           onTap: () => context.push(RoutePaths.newJob),
+        ),
+        const SizedBox(height: 10),
+        _WideAction(
+          icon: Icons.storefront_outlined,
+          color: const Color(0xFF0D9488),
+          title: 'Mağaza İçin Ürün Talebi Oluştur',
+          subtitle: 'Aradığın ürünü satıcılara duyur — 7 gün',
+          onTap: () => context.push(RoutePaths.newProductRequestJob),
         ),
       ],
     );
@@ -111,7 +117,7 @@ class _WideAction extends StatelessWidget {
                     children: [
                       Text(
                         title,
-                        maxLines: 1,
+                        maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                         style: theme.textTheme.titleSmall
                             ?.copyWith(fontWeight: FontWeight.w800),

@@ -176,26 +176,41 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             ),
                           ),
                           const SizedBox(height: 20),
-                          FilledButton.icon(
-                            style: FilledButton.styleFrom(
-                              padding: const EdgeInsets.symmetric(vertical: 16),
-                              backgroundColor: Colors.white,
-                              foregroundColor: Colors.black87,
-                              side: BorderSide(
-                                color: theme.colorScheme.outlineVariant,
+                          // ONAY GÖRSEL OLARAK DA BAĞLI (2026-08-15).
+                          //
+                          // Kapı zaten `_google()` içinde vardı (onaysız
+                          // `signInWithGoogle` çağrılmıyor), ama buton
+                          // ETKİN görünüyordu: kullanıcı basıyor, ancak o
+                          // zaman uyarı çıkıyordu. Sönük buton, şartın
+                          // onay kutusu olduğunu basmadan önce anlatır.
+                          //
+                          // `onPressed` yine de null YAPILMIYOR — null
+                          // olursa dokunuş hiç ulaşmaz ve kullanıcı NEDEN
+                          // çalışmadığını açıklayan uyarıyı göremez.
+                          Opacity(
+                            opacity: _consent ? 1 : 0.55,
+                            child: FilledButton.icon(
+                              style: FilledButton.styleFrom(
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 16),
+                                backgroundColor: Colors.white,
+                                foregroundColor: Colors.black87,
+                                side: BorderSide(
+                                  color: theme.colorScheme.outlineVariant,
+                                ),
                               ),
-                            ),
-                            icon: const _GoogleLogo(),
-                            label: Text(
-                              isLoading
-                                  ? 'Giriş yapılıyor…'
-                                  : 'Google ile devam et',
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w700,
-                                fontSize: 15,
+                              icon: const _GoogleLogo(),
+                              label: Text(
+                                isLoading
+                                    ? 'Giriş yapılıyor…'
+                                    : 'Google ile devam et',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 15,
+                                ),
                               ),
+                              onPressed: isLoading ? null : _google,
                             ),
-                            onPressed: isLoading ? null : _google,
                           ),
                           const SizedBox(height: 16),
                           Row(
@@ -215,7 +230,17 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                               ),
                               const SizedBox(width: 6),
                               Expanded(
-                                child: Text.rich(
+                                // Metnin boş kısmına dokunmak da kutuyu
+                                // işaretler (28px kutuya nişan almak zor).
+                                // Bağlantı kelimeleri kendi `recognizer`ına
+                                // sahip; onlara dokunmak metni açar.
+                                child: GestureDetector(
+                                  onTap: isLoading
+                                      ? null
+                                      : () =>
+                                          setState(() => _consent = !_consent),
+                                  behavior: HitTestBehavior.opaque,
+                                  child: Text.rich(
                                   TextSpan(
                                     style: theme.textTheme.bodySmall?.copyWith(
                                       height: 1.35,
@@ -252,6 +277,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                         text: ' metinlerini kabul ediyorum.',
                                       ),
                                     ],
+                                  ),
                                   ),
                                 ),
                               ),

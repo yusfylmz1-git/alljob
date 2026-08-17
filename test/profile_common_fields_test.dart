@@ -150,11 +150,33 @@ void main() {
       expect(router.contains('const ArtisanProfileEditScreen()'), isTrue);
     });
 
-    test('vitrin bölümü yalnız USTA MODUNDA çiziliyor', () {
+    test('Kaydet sabit alt barda — ListView sonunda değil', () {
+      // Cihaz: düğme formun son satırı olunca sistem çubuğunun altına
+      // düşüyordu. İlan/ürün düzenleme ile aynı Scaffold.bottomNavigationBar.
       final form = read(
           'lib/features/artisan/presentation/artisan_profile_edit_screen.dart');
-      expect(form.contains('final isArtisanMode'), isTrue);
-      expect(form.contains('if (isArtisanMode) ...['), isTrue);
+      final bar = form.indexOf('bottomNavigationBar:');
+      final kaydet = form.indexOf("label: 'Kaydet'");
+      final liste = form.indexOf('ListView(');
+      expect(bar, greaterThan(-1),
+          reason: 'Kaydet Scaffold.bottomNavigationBar olmalı.');
+      expect(kaydet, greaterThan(bar),
+          reason: 'Kaydet düğmesi alt barın içinde tanımlanmalı.');
+      expect(form.contains('SafeArea('), isTrue,
+          reason: 'Sistem gezinme çubuğu için SafeArea şart.');
+      // ListView, bar bildiriminden SONRA gelmeli (gövde); düğme listede olmamalı.
+      expect(liste, greaterThan(bar));
+      final listeGovde = form.substring(liste, form.indexOf('USTA VİTRİNİ'));
+      expect(listeGovde.contains("label: 'Kaydet'"), isFalse,
+          reason: 'Kaydet hâlâ kaydırılan listenin içinde — tekrar alta iner.');
+    });
+
+    test('vitrin bölümü yalnız usta profili açılmışsa çiziliyor', () {
+      final form = read(
+          'lib/features/artisan/presentation/artisan_profile_edit_screen.dart');
+      expect(form.contains('final showArtisanVitrin'), isTrue);
+      expect(form.contains('hasArtisanProfile'), isTrue);
+      expect(form.contains('if (showArtisanVitrin) ...['), isTrue);
       expect(form.contains('USTA VİTRİNİ'), isTrue);
     });
 
@@ -208,8 +230,12 @@ void main() {
     });
 
     test('küçük font (labelSmall) kullanıyor', () {
+      // Sınıf sonuna kadar oku: sabit karakter penceresi sınıf büyüyünce
+      // (2026-08-14 WhatsApp ikonu eklendi) hedefin önünde kalıyordu.
       final i = profil.indexOf('class ProfileBioDetails');
-      final blok = profil.substring(i, i + 3000);
+      final sonraki = profil.indexOf('\nclass ', i + 1);
+      final blok =
+          profil.substring(i, sonraki == -1 ? profil.length : sonraki);
       expect(blok.contains('labelSmall'), isTrue);
     });
 
@@ -263,13 +289,31 @@ void main() {
     // (madde 2); sıralama beklentisi aynı: anahtar düğmelerin ÜSTÜNDE.
     test('müsaitlik SADE anahtar ve eylem düğmelerinin ÜSTÜNDE', () {
       expect(profil.contains('_AvailabilitySwitch'), isTrue);
-      expect(profil.indexOf('_AvailabilitySwitch(draft: draft)'),
-          lessThan(profil.indexOf("label: 'İlanlarım'")));
+      // İmza 2026-08-14'te `(user: user, draft: draft)` oldu; korunan şey
+      // parametre listesi değil, anahtarın düğmelerden ÖNCE gelmesi.
+      final anahtar = profil.indexOf('_AvailabilitySwitch(user:');
+      final ilanlarim = profil.indexOf('İlanlarım');
+      expect(anahtar, greaterThan(-1));
+      expect(ilanlarim, greaterThan(-1));
+      expect(anahtar, lessThan(ilanlarim));
     });
 
+    /// Müsaitlik anahtarının TAM gövdesi.
+    ///
+    /// 2026-08-14: widget `ConsumerStatefulWidget`'a çevrildi (yazma
+    /// koruması için), gövde artık `_AvailabilitySwitchState` içinde.
+    /// Bu yüzden State sınıfından başlanır; yoksa yalnız boş sarmalayıcı
+    /// okunur ve testler yanlış yere bakar.
+    String availabilityBlok() {
+      final i = profil.indexOf('class _AvailabilitySwitchState');
+      expect(i, greaterThan(-1), reason: 'Müsaitlik anahtarı sınıfı yok.');
+      final sonrakiSinif = profil.indexOf('\nclass ', i + 1);
+      return profil.substring(
+          i, sonrakiSinif == -1 ? profil.length : sonrakiSinif);
+    }
+
     test('anahtarın yanında yalnız "Müsait" yazıyor', () {
-      final i = profil.indexOf('class _AvailabilitySwitch');
-      final blok = profil.substring(i, i + 2600);
+      final blok = availabilityBlok();
       expect(blok.contains("'Müsait'"), isTrue);
       // Eski uzun metinler gitti.
       expect(blok.contains('Şu an kapalısın'), isFalse);
@@ -277,8 +321,7 @@ void main() {
     });
 
     test('kapalıyken PASİF görünüyor (sönük renk)', () {
-      final i = profil.indexOf('class _AvailabilitySwitch');
-      final blok = profil.substring(i, i + 2600);
+      final blok = availabilityBlok();
       expect(blok.contains('available ? palette.ink : palette.inkMuted'),
           isTrue);
     });

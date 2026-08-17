@@ -2,52 +2,73 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/utils/snackbar_helper.dart';
+import '../../../data/models/app_user.dart';
+import '../../../data/models/artisan_profile.dart';
 import '../../auth/application/auth_controller.dart';
 import 'my_profile_controller.dart';
 
-/// Müsait olmayan USTANIN yeni sohbet başlatmasını engelleyen ortak kapı.
+/// Müsait olmayan sağlayıcının (usta / mağaza) **yeni** sohbet başlatmasını
+/// engelleyen ortak kapı.
 ///
-/// Neden ortak: sohbeti başlatan **DÖRT** giriş var — ilan detayı, usta
-/// profili, genel kullanıcı profili ve **ürün detayı** (Mağaza). Kapı önce
-/// yalnız ilan detayındaydı ve diğerleri onu atlıyordu: müsait olmayan usta
-/// ilanı görüp mesaj atamıyor, ama ilandaki avatara dokunup profile geçince
-/// oradan yazabiliyordu (2026-08-10 bulgusu).
+/// Neden ortak: sohbeti başlatan girişler — ilan detayı, usta profili, genel
+/// kullanıcı profili, ürün detayı. Kapı birinde unutulursa müsait olmayan
+/// kişi diğerinden yazabiliyordu.
 ///
-/// Ürün detayı SONRADAN eklendi (aynı gün): Mağaza modülü geri getirildiğinde
-/// kapısız geldi, çünkü kapı kurulduğu sırada o modül üründe yoktu. Müsait
-/// olmayan usta ilandan yazamayıp Mağaza'dan aynı kişiye yazabiliyordu.
+/// ⚠️ Yeni bir sohbet girişi eklersen BU KAPIYI ÇAĞIR.
 ///
-/// ⚠️ Yeni bir sohbet girişi eklersen BU KAPIYI ÇAĞIR. Regresyon testi
-/// `startChat` çağrı sayısını sayar — kapısız bir giriş eklenirse kırılır.
+/// Kapsam:
+///  - **Usta veya mağaza profili** açmış herkes (aktif "usta modu" şart değil —
+///    İlanlar sekmesi `hasArtisanProfile` ile açılır).
+///  - Yalnız **YENİ** sohbet. Mesajlar’daki mevcut sohbetler sürer.
 ///
-/// Kapının doğru yeri gezinme DEĞİL, eylemdir. Profili gizlemek deliği
-/// kapatmaz (arama, favoriler, mevcut sohbet hep aynı kişiye götürür) ve
-/// meşru bir bilgiyi — ilanı kimin verdiğini — gereksizce saklardı.
-///
-/// Kapsam bilinçli olarak dar:
-///  - Yalnız **usta modundaki** kullanıcıyı bağlar; müşterinin müsaitlik
-///    kavramı yoktur.
-///  - Yalnız **YENİ** sohbeti engeller. Var olan sohbetler Mesajlar
-///    sekmesinden sürer — müsaitlik "yeni iş almıyorum" demektir,
-///    "kimseyle konuşmuyorum" değil.
-///
-/// `true` → devam edilebilir. `false` → çağıran işlemi bırakmalı
-/// (kullanıcıya sebep zaten gösterildi).
+/// `true` → devam. `false` → bırak (kullanıcıya sebep gösterildi).
 bool artisanAvailabilityAllowsNewChat(BuildContext context, WidgetRef ref) {
   final user = ref.read(currentUserProvider);
-  // Müşteri modu: kapı yok.
-  if (user == null || !user.isArtisan) return true;
+  if (user == null) return true;
+
+  // Ne usta ne mağaza: müşteri gibi davranır, kapı yok.
+  if (!user.hasArtisanProfile && !user.hasShopProfile) return true;
 
   final draft = ref.read(myProfileControllerProvider).valueOrNull;
-  // Profil henüz yüklenmediyse engelleme: kapı bir kolaylıktır, güvenlik
-  // sınırı değildir (asıl sınırlar kurallarda ve CF'lerde).
-  if (draft == null) return true;
-
-  if (draft.profile.isAvailable) return true;
+  if (providerMayStartNewChat(user: user, profile: draft?.profile)) {
+    return true;
+  }
 
   context.showInfo(
-    'Şu an "müsait değil" görünüyorsunuz. Mesaj göndermek için '
-    'profilinizden müsaitliği açın.',
+    'Şu an "müsait değil" görünüyorsunuz. Yeni mesaj başlatmak için '
+    'Profil’den “Müsait” durumunu açın. Mevcut sohbetleriniz etkilenmez.',
   );
   return false;
+}
+
+/// Sağlayıcı (usta / satıcı) yeni iş–talep–vitrin sohbeti başlatabilir mi?
+///
+/// İki kaynak **birlikte** bakılır (desenkron tuzağı):
+///  1. `users.available` — profil anahtarının ortak aynası
+///  2. `artisanProfiles` müsaitliği — `manualPause` / takvim / premium
+///
+/// Biri kapalıysa mesaj yok. Profil henüz yüklenmediyse yalnız
+/// `users.available` yeter (anahtar her zaman onu da yazar).
+bool providerMayStartNewChat({
+  required AppUser user,
+  ArtisanProfile? profile,
+}) {
+  if (!user.hasArtisanProfile && !user.hasShopProfile) return true;
+  if (!user.available) return false;
+  if (user.hasArtisanProfile &&
+      profile != null &&
+      !profile.isAvailable) {
+    return false;
+  }
+  return true;
+}
+
+/// UI: müsait değil uyarısı gösterilsin mi? (buton gizle)
+bool providerIsUnavailableForNewChat({
+  required AppUser? user,
+  ArtisanProfile? profile,
+}) {
+  if (user == null) return false;
+  if (!user.hasArtisanProfile && !user.hasShopProfile) return false;
+  return !providerMayStartNewChat(user: user, profile: profile);
 }

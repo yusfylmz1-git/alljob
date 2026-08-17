@@ -66,13 +66,10 @@ final unreadBySideProvider = Provider<({int customer, int artisan})>((ref) {
   return (customer: meta.customer, artisan: meta.artisan);
 });
 
-/// Aktif modun KARŞISINA düşen okunmamışlar (çapraz mod rozeti): müşteri
-/// modundayken usta tarafına mesaj gelirse ☰ menü düğmesinde kırmızı nokta ve
-/// "Usta Moduna Geç" satırında rozet gösterilir (tersi de aynı). Usta profili
-/// olmayan kullanıcı için her zaman 0.
+/// Eski "karşı mod" rozeti. Aktif usta/müşteri switch'i kalktığı için
+/// menüde ayrı çapraz rozet yok (toplam okunmamış alt barda).
+/// API uyumu için provider korunur; her zaman 0.
 final otherModeUnreadProvider = Provider<int>((ref) {
-  final user = ref.watch(currentUserProvider);
-  if (user == null || !user.hasArtisanProfile) return 0;
-  final bySide = ref.watch(unreadBySideProvider);
-  return user.isArtisan ? bySide.customer : bySide.artisan;
+  ref.watch(currentUserProvider);
+  return 0;
 });

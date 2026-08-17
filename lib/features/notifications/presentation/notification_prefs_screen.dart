@@ -94,8 +94,8 @@ class NotificationPrefsScreen extends ConsumerWidget {
                         color: palette.primary),
                     title: const Text('Ürün talepleri'),
                     subtitle: const Text(
-                        'İlindeki ürün taleplerinin günlük özeti — '
-                        'günde en fazla bir bildirim'),
+                        'Aynı il ve kategorideki talepler — anlık bildirim '
+                        've akşam özeti'),
                     value: prefs.productDigest,
                     onChanged: (v) => _set(
                       context,

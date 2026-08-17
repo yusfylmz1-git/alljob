@@ -75,9 +75,14 @@ ui-debug.log
 .env.local
 
 # Deploy/build komut çıktıları (yerel kayıt, repoya girmez)
+# Hem alt tire hem tire kullanılmış: deploy_x.txt ve deploy-x.txt
 /deploy_*.txt
+/deploy-*.txt
+/deploy*.log
+/probe_ops.txt
 /tool/last_*.txt
 /tool/_kprof.txt
+/tool/cf_deploy_out.txt
 console.log(e
 
 # Demo görselleri (mağaza ekran görüntüsü seti) — yerelde durur, repoya

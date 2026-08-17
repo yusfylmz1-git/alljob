@@ -517,6 +517,84 @@ void main() {
         ['Mutfak tıkanıklık'],
       );
     });
+
+    // 2026-08-15: filtre sayfasına Kategori seçeneği eklendi. Daha önce
+    // meslek yalnızca metin aramasında geçiyordu ("Meslek dropdown yok").
+    test('kategori tek başına daraltır', () {
+      final jobs = <Job>[
+        _sampleJob(category: 'painter', province: 'Bursa')
+            .copyWith(title: 'Salon boya'),
+        _sampleJob(category: 'plumber', province: 'Bursa')
+            .copyWith(title: 'Mutfak tıkanıklık'),
+        _sampleJob(category: 'painter', province: 'İzmir')
+            .copyWith(title: 'Cephe boya'),
+      ];
+
+      expect(
+        const JobExploreFilter(category: 'painter')
+            .apply(jobs)
+            .map((j) => j.title)
+            .toList(),
+        ['Salon boya', 'Cephe boya'],
+      );
+    });
+
+    test('kategori il ile birlikte kesişim verir', () {
+      final jobs = <Job>[
+        _sampleJob(category: 'painter', province: 'Bursa')
+            .copyWith(title: 'Salon boya'),
+        _sampleJob(category: 'painter', province: 'İzmir')
+            .copyWith(title: 'Cephe boya'),
+        _sampleJob(category: 'plumber', province: 'Bursa')
+            .copyWith(title: 'Mutfak tıkanıklık'),
+      ];
+
+      expect(
+        const JobExploreFilter(category: 'painter', province: 'Bursa')
+            .apply(jobs)
+            .map((j) => j.title)
+            .toList(),
+        ['Salon boya'],
+      );
+    });
+
+    // Fazlasını yapmama kontrolü: kategori BOŞ bırakılırsa hiçbir ilan
+    // elenmemeli (filtre alanları isteğe bağlıdır).
+    test('kategori boşken liste daralmaz', () {
+      final jobs = <Job>[
+        _sampleJob(category: 'painter').copyWith(title: 'Salon boya'),
+        _sampleJob(category: 'plumber').copyWith(title: 'Mutfak tıkanıklık'),
+      ];
+
+      expect(const JobExploreFilter().apply(jobs).length, 2);
+      expect(const JobExploreFilter(category: '').apply(jobs).length, 2);
+    });
+
+    test('kategori sayacı ve rozet durumu', () {
+      const bos = JobExploreFilter();
+      expect(bos.hasDetailFilters, isFalse);
+      expect(bos.activeDetailCount, 0);
+
+      const kategorili = JobExploreFilter(category: 'painter');
+      expect(kategorili.hasDetailFilters, isTrue);
+      expect(kategorili.activeDetailCount, 1);
+
+      const ucu = JobExploreFilter(
+        category: 'painter',
+        province: 'Bursa',
+        district: 'Nilüfer',
+      );
+      expect(ucu.activeDetailCount, 3);
+    });
+
+    test('copyWith kategoriyi taşır ve clearCategory temizler', () {
+      const f = JobExploreFilter(category: 'painter', province: 'Bursa');
+
+      expect(f.copyWith(province: 'İzmir').category, 'painter');
+      expect(f.copyWith(clearCategory: true).category, isNull);
+      // Kategoriyi temizlemek ili düşürmemeli.
+      expect(f.copyWith(clearCategory: true).province, 'Bursa');
+    });
   });
 
   // Sohbet artık İLAN BAZLI: `chat_{müşteri}__{usta}__{jobId}`. Aynı çift her

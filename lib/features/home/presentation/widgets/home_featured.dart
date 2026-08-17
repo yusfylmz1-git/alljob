@@ -10,9 +10,12 @@ import '../../../../core/widgets/app_image.dart';
 import '../../../../core/widgets/job_thumb.dart';
 import '../../../../core/widgets/tap_scale.dart';
 import '../../../../data/models/job.dart';
+import '../../../../data/models/product.dart';
 import '../../../artisan/data/artisan_providers.dart';
 import '../../../artisan/data/artisan_repository.dart';
 import '../../../jobs/data/job_providers.dart';
+import '../../../products/data/product_category_providers.dart';
+import '../../../products/data/product_providers.dart';
 
 /// Öne çıkan ustalar (algoritmik — şimdilik: müsait + puana göre ilk sonuçlar).
 /// Boş filtreyle repo'dan çeker; hata/boşsa boş liste → bölüm gizlenir.
@@ -51,6 +54,9 @@ class HomeFeatured extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final ustalar = ref.watch(oneChikanUstalarProvider).valueOrNull ?? const [];
     final isler = ref.watch(openJobsProvider).valueOrNull ?? const [];
+    final urunler = ref.watch(productsLiveProvider)
+        ? (ref.watch(discoverProductsProvider).valueOrNull ?? const <Product>[])
+        : const <Product>[];
 
     final sections = <Widget>[
       if (ustalar.isNotEmpty)
@@ -60,6 +66,15 @@ class HomeFeatured extends ConsumerWidget {
           tall: true, // fotoğraflı usta kartları daha uzundur
           children: [
             for (final u in ustalar.take(6)) _UstaKart(usta: u),
+          ],
+        ),
+      if (urunler.isNotEmpty)
+        _FeaturedSection(
+          title: 'Son Paylaşılan Ürünler',
+          exploreTab: 'shop',
+          tall: true,
+          children: [
+            for (final p in urunler.take(6)) _UrunKart(urun: p),
           ],
         ),
       if (isler.isNotEmpty)
@@ -355,6 +370,109 @@ class _EtiketRozet extends StatelessWidget {
               fontWeight: FontWeight.w700,
               fontSize: 10.5,
             ),
+      ),
+    );
+  }
+}
+
+/// Son paylaşılan ürün — usta kartıyla aynı boy: fotoğraf + ad + fiyat.
+class _UrunKart extends ConsumerWidget {
+  const _UrunKart({required this.urun});
+  final Product urun;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final palette = context.palette;
+    final cat = catalogOf(ref).label(urun.categoryCode);
+
+    return TapScale(
+      child: Container(
+        width: 168,
+        margin: const EdgeInsets.only(right: 12),
+        child: Material(
+          color: palette.card,
+          borderRadius: BorderRadius.circular(18),
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: () => context.push(RoutePaths.productDetail(urun.id)),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                SizedBox(
+                  height: 150,
+                  width: double.infinity,
+                  child: urun.coverPhoto != null
+                      ? AppImage(
+                          handle: urun.coverPhoto,
+                          fit: BoxFit.cover,
+                          memCacheWidth: 360,
+                        )
+                      : Container(
+                          color: palette.primary.withValues(alpha: 0.10),
+                          alignment: Alignment.center,
+                          child: Icon(Icons.inventory_2_outlined,
+                              size: 44, color: palette.primary),
+                        ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        urun.title,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.titleSmall
+                            ?.copyWith(fontWeight: FontWeight.w800),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        urun.priceLabel,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.labelLarge?.copyWith(
+                          color: palette.primary,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        cat,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant),
+                      ),
+                      if (urun.placeLabel.trim().isNotEmpty) ...[
+                        const SizedBox(height: 2),
+                        Row(
+                          children: [
+                            Icon(Icons.place_outlined,
+                                size: 13,
+                                color: theme.colorScheme.onSurfaceVariant),
+                            const SizedBox(width: 2),
+                            Expanded(
+                              child: Text(
+                                urun.placeLabel,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: theme.textTheme.labelSmall?.copyWith(
+                                    color:
+                                        theme.colorScheme.onSurfaceVariant),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }

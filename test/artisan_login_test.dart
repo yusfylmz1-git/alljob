@@ -22,7 +22,7 @@ void main() {
     await tester.pumpWidget(
       UncontrolledProviderScope(
         container: container,
-        child: const UstaCepteApp(),
+        child: const SepetteHizmetApp(),
       ),
     );
 
@@ -51,16 +51,12 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(seconds: 1));
     expect(find.byType(ProfileScreen), findsOneWidget);
-    // Sadeleştirme sonrası bölüm etiketleri (DÜKKÂNIM/İŞLER/TALEPLERİM)
-    // kaldırıldı: tek profil + "Usta modu" anahtarı. Anahtarın varlığı,
-    // usta bölümlerinin render olduğunun göstergesi.
-    // Başlıktaki mod rozeti KALKTI (anahtar aynı bilgiyi veriyordu,
-    // mükerrerdi); geriye tek "Usta modu" başlığı kaldı — anahtarınki.
-    expect(find.text('Usta modu'), findsOneWidget);
-    // Anahtarın alt yazısı yalnız anahtarda — usta modülleri render oldu.
-    expect(
-      find.textContaining('iş alabilir'),
-      findsOneWidget,
-    );
+    // GÜNCELLENDİ 2026-08-14: "Usta modu" anahtarı KALDIRILDI.
+    //
+    // Aktif mod ayrımı bitti; yetenekler `hasArtisanProfile` ile açılıyor ve
+    // profilde MÜSAİTLİK anahtarı duruyor. Testin asıl iddiası değişmedi:
+    // usta giriş yapıp /panel'e gidince BİRLEŞİK PROFİL, usta bölümleriyle
+    // render olmalı. Göstergesi artık müsaitlik anahtarı.
+    expect(find.text('Müsait'), findsOneWidget);
   });
 }

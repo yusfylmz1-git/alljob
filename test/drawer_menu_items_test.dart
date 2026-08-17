@@ -57,20 +57,24 @@ void main() {
       expect(drawer.contains('RoutePaths.myJobs'), isTrue);
     });
 
-    // 2026-08-09: "İş İlanı Ver" menüden KALKTI. Keşfet'in üst barındaki
-    // ikon tek giriş; menü + Keşfet gövdesi + hero üç ayrı kapı demekti.
-    test('"İş İlanı Ver" satırı menüde YOK, Keşfet üst barında VAR', () {
+    // 2026-08-09: "İş İlanı Ver" menüden KALKTI.
+    // 2026-08-10: "Yeni İlan" hero'dan İlanlar sekmesi sağ üste taşındı.
+    test('"İş İlanı Ver" menüde YOK; Yeni İlan İlanlar sekmesinde', () {
       expect(drawer.contains("Text('İş İlanı Ver')"), isFalse,
           reason: 'İlan verme menüye geri eklenmiş — mükerrer giriş.');
 
-      // Giriş 2026-08-09'da yazılı etikete çevrildi: tooltip dokunmatikte
-      // görünmediği için ikonun ne yaptığı belirsizdi.
       final kesfet = read(
           'lib/features/customer/presentation/customer_dashboard_screen.dart');
-      expect(kesfet.contains("Text('Yeni İlan')"), isTrue,
-          reason: 'Keşfet üst barındaki tek giriş kaybolmuş.');
+      // Hero'da olmamalı: _HeroHeader içinde "Yeni İlan" yok.
+      expect(kesfet.contains("label: const Text('Yeni İlan')"), isTrue,
+          reason: 'İlanlar sekmesi sağ üstteki Yeni İlan kaybolmuş.');
       expect(kesfet.contains('RoutePaths.newJob'), isTrue,
           reason: 'Giriş ilan verme rotasına gitmiyor.');
+      // Kapı: usta MODU değil usta PROFİLİ.
+      expect(kesfet.contains('!user.hasArtisanProfile'), isTrue,
+          reason: 'İlanlar hasArtisanProfile ile açılmalı.');
+      expect(kesfet.contains('!user.isArtisan'), isFalse,
+          reason: 'İlanlar artık isArtisan (aktif mod) ile kilitlenmemeli.');
     });
   });
 }

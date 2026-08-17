@@ -25,7 +25,10 @@ import 'widgets/job_widgets.dart';
 /// seçim modu açılır: ustaya bağlanmamış ilanlar kutucuklarla seçilip topluca
 /// silinebilir ("Tümünü seç" dahil).
 class MyJobsScreen extends ConsumerStatefulWidget {
-  const MyJobsScreen({super.key});
+  const MyJobsScreen({super.key, this.onlyProductRequests = false});
+
+  /// true ise yalnız ürün talepleri (Mağaza → Taleplerim).
+  final bool onlyProductRequests;
 
   @override
   ConsumerState<MyJobsScreen> createState() => _MyJobsScreenState();
@@ -87,16 +90,23 @@ class _MyJobsScreenState extends ConsumerState<MyJobsScreen> {
     }
   }
 
+  List<Job> _visible(List<Job> jobs) {
+    if (!widget.onlyProductRequests) return jobs;
+    return jobs.where((j) => j.isProductRequest).toList(growable: false);
+  }
+
   @override
   Widget build(BuildContext context) {
     final user = ref.watch(currentUserProvider);
     final jobsAsync =
         user == null ? null : ref.watch(myJobsProvider(user.uid));
+    final visible = _visible(jobsAsync?.valueOrNull ?? const <Job>[]);
     // Silinebilir ilanlar: ustaya bağlanmamış olanlar (Job.canDelete).
     final deletableIds = [
-      for (final j in jobsAsync?.valueOrNull ?? const <Job>[])
+      for (final j in visible)
         if (j.canDelete) j.jobId
     ];
+    final talepler = widget.onlyProductRequests;
 
     return PopScope(
       // Alt bar sekmesi: geri tuşu uygulamayı KAPATMAMALI, Ana Sayfa'ya
@@ -153,11 +163,10 @@ class _MyJobsScreenState extends ConsumerState<MyJobsScreen> {
                 ],
               )
             : SurfaceAppBar(
-                title: 'İlanlarım',
+                title: talepler ? 'Taleplerim' : 'İlanlarım',
                 subtitle: () {
-                  final jobs = jobsAsync?.valueOrNull;
-                  if (jobs == null || jobs.isEmpty) return null;
-                  final open = jobs
+                  if (visible.isEmpty) return null;
+                  final open = visible
                       .where((j) => j.effectiveStatus == JobStatus.open)
                       .length;
                   // Açık ilan KOTASI burada görünür: kullanıcı limite
@@ -165,22 +174,24 @@ class _MyJobsScreenState extends ConsumerState<MyJobsScreen> {
                   // yayınlama anında anlamsız bir ret alıyordu).
                   return open > 0
                       ? '$open/${AppConstants.maxOpenJobs} açık · '
-                          '${jobs.length} ilan'
-                      : '${jobs.length} ilan';
+                          '${visible.length} ${talepler ? 'talep' : 'ilan'}'
+                      : '${visible.length} ${talepler ? 'talep' : 'ilan'}';
                 }(),
-                icon: Icons.campaign_outlined,
+                icon: talepler
+                    ? Icons.storefront_outlined
+                    : Icons.campaign_outlined,
                 actions: [
                   // Pasif (gri) ikon gradyan üzerinde kötü durur — silinecek
                   // ilan yokken çöp kutusu hiç gösterilmez.
                   if (deletableIds.isNotEmpty)
                     IconButton(
                       icon: const Icon(Icons.delete_outline),
-                      tooltip: 'İlan sil',
+                      tooltip: talepler ? 'Talep sil' : 'İlan sil',
                       onPressed: () => setState(() => _selectionMode = true),
                     ),
-                  const Padding(
-                    padding: EdgeInsets.only(left: 4, right: 12),
-                    child: _NewJobButton(),
+                  Padding(
+                    padding: const EdgeInsets.only(left: 4, right: 12),
+                    child: _NewJobButton(productRequest: talepler),
                   ),
                 ],
               ),
@@ -201,13 +212,15 @@ class _MyJobsScreenState extends ConsumerState<MyJobsScreen> {
                         onRetry: () =>
                             ref.invalidate(myJobsProvider(user.uid))),
                   ),
-                  data: (jobs) => jobs.isEmpty
+                  data: (all) {
+                    final jobs = _visible(all);
+                    return jobs.isEmpty
                       ? RefreshableEmpty(
                           onRefresh: () => awaitRefresh(() async {
                             ref.invalidate(myJobsProvider(user.uid));
                             await ref.read(myJobsProvider(user.uid).future);
                           }),
-                          child: const _EmptyJobs(),
+                          child: _EmptyJobs(productRequests: talepler),
                         )
                       : ResponsiveCenter(
                           maxWidth: 720,
@@ -244,7 +257,8 @@ class _MyJobsScreenState extends ConsumerState<MyJobsScreen> {
                               },
                             ),
                           ),
-                        ),
+                        );
+                  },
                 ),
       ),
     );
@@ -254,7 +268,9 @@ class _MyJobsScreenState extends ConsumerState<MyJobsScreen> {
 /// Gradyan app bar üzerinde beyaz hap şeklinde "Yeni İlan" butonu — lacivert
 /// zeminde net bir birincil aksiyon olarak öne çıkar (eski FAB'ın yerine).
 class _NewJobButton extends StatelessWidget {
-  const _NewJobButton();
+  const _NewJobButton({this.productRequest = false});
+
+  final bool productRequest;
 
   @override
   Widget build(BuildContext context) {
@@ -263,17 +279,21 @@ class _NewJobButton extends StatelessWidget {
       borderRadius: BorderRadius.circular(999),
       child: InkWell(
         borderRadius: BorderRadius.circular(999),
-        onTap: () => context.push(RoutePaths.newJob),
-        child: const Padding(
-          padding: EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        onTap: () => context.push(
+          productRequest
+              ? RoutePaths.newProductRequestJob
+              : RoutePaths.newJob,
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.add_rounded, size: 18, color: AppColors.primary),
-              SizedBox(width: 4),
+              const Icon(Icons.add_rounded, size: 18, color: AppColors.primary),
+              const SizedBox(width: 4),
               Text(
-                'Yeni İlan',
-                style: TextStyle(
+                productRequest ? 'Yeni Talep' : 'Yeni İlan',
+                style: const TextStyle(
                   color: AppColors.primaryDark,
                   fontWeight: FontWeight.w800,
                   fontSize: 13,
@@ -331,7 +351,7 @@ class _JobCard extends StatelessWidget {
               ),
               const SizedBox(height: 6),
               Text(
-                '${kProfessionNames[job.category] ?? job.category} • '
+                '${kProfessionNames[job.category] ?? job.categoryLabelTR} • '
                 '${job.district}${job.neighborhood != null ? ' / ${job.neighborhood}' : ''}',
                 style: Theme.of(context)
                     .textTheme
@@ -426,7 +446,9 @@ class _InfoChip extends StatelessWidget {
 }
 
 class _EmptyJobs extends StatelessWidget {
-  const _EmptyJobs();
+  const _EmptyJobs({this.productRequests = false});
+
+  final bool productRequests;
 
   @override
   Widget build(BuildContext context) {
@@ -443,18 +465,27 @@ class _EmptyJobs extends StatelessWidget {
                 color: context.palette.primaryContainer,
                 shape: BoxShape.circle,
               ),
-              child: Icon(Icons.campaign_outlined,
-                  size: 34, color: context.palette.onPrimaryContainer),
+              child: Icon(
+                  productRequests
+                      ? Icons.storefront_outlined
+                      : Icons.campaign_outlined,
+                  size: 34,
+                  color: context.palette.onPrimaryContainer),
             ),
             const SizedBox(height: 16),
-            Text('Henüz ilanınız yok',
+            Text(
+                productRequests
+                    ? 'Henüz ürün talebiniz yok'
+                    : 'Henüz ilanınız yok',
                 style: Theme.of(context)
                     .textTheme
                     .titleMedium
                     ?.copyWith(fontWeight: FontWeight.w700)),
             const SizedBox(height: 6),
             Text(
-              'İş ilanı verin, bölgenizdeki ustalar sizinle iletişime geçsin.',
+              productRequests
+                  ? 'Aradığınız ürünü yazın, ilinizdeki satıcılar görsün.'
+                  : 'İş ilanı verin, bölgenizdeki ustalar sizinle iletişime geçsin.',
               textAlign: TextAlign.center,
               style: Theme.of(context)
                   .textTheme
@@ -463,9 +494,13 @@ class _EmptyJobs extends StatelessWidget {
             ),
             const SizedBox(height: 20),
             FilledButton.icon(
-              onPressed: () => context.push(RoutePaths.newJob),
+              onPressed: () => context.push(
+                productRequests
+                    ? RoutePaths.newProductRequestJob
+                    : RoutePaths.newJob,
+              ),
               icon: const Icon(Icons.add_rounded),
-              label: const Text('İlk İlanını Ver'),
+              label: Text(productRequests ? 'Talep oluştur' : 'İlk İlanını Ver'),
             ),
           ],
         ),

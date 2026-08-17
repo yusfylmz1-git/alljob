@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/config/backend_config.dart';
+import '../../../core/utils/signout_safe_stream.dart';
 import '../../../data/models/app_notification.dart';
 
 /// Uygulama içi bildirim merkezi soyutlaması. Kayıtları sunucu (Cloud
@@ -48,7 +49,10 @@ class FirebaseNotificationRepository implements NotificationRepository {
         .snapshots()
         .map((s) => s.docs
             .map((d) => AppNotification.fromMap(d.id, d.data()))
-            .toList());
+            .toList())
+        // Çıkışta bu akış bir an eski uid ile canlı kalır → permission-denied.
+        // Sessizce kapat: kullanıcı "uygulama çöktü" sanmasın.
+        .signOutSafe('bildirimler', uid);
   }
 
   @override
@@ -59,7 +63,8 @@ class FirebaseNotificationRepository implements NotificationRepository {
         .where('read', isEqualTo: false)
         .limit(kNotificationUnreadCap)
         .snapshots()
-        .map((s) => s.docs.length);
+        .map((s) => s.docs.length)
+        .signOutSafe('bildirim rozeti', uid);
   }
 
   @override

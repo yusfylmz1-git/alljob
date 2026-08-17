@@ -24,6 +24,93 @@
 
 ## ✅ Son Durum (EN SON BURAYI OKU)
 
+**Tarih:** 2026-08-17 — **PLAY STORE ÖNCESİ TAM DENETİM**
+
+`flutter analyze` 0 · **935 test** (öncesi 912) · CF lint 0 hata.
+Rapor: `docs/YAYIN_DENETIMI_2026_08_17.md` · Regresyon:
+`test/yayin_denetimi_2026_08_17_test.dart` (23 test).
+
+### En kritik iki bulgu (ikisi de SESSİZ arıza)
+
+1. **`jobs(customerId+status)` indeksi yoktu → 5 ilan limiti FİİLEN KAPALIYDI.**
+   Sorgu catch'e düşüyor, sayaç yazılmıyor, kural her zaman 0 okuyor. Bir
+   kullanıcı sınırsız ilan açabilirdi (her ilan = bölgedeki tüm ustalara
+   bildirim).
+2. **`reviews(customerUID+createdAt)` indeksi yoktu** → profil ekranındaki
+   yorum bloğu canlıda hiç görünmezdi.
+
+### Düzeltilen 11 madde
+
+Ölçek: indeksler, TTL politikası, ürün taslağı kotası (100), sayaç
+sorgularına limit, usta aramasında il filtresinin sunucuya taşınması.
+Güvenlik/KVKK: `reviews` create allowlist + boyut tavanı, sertifika
+gizliliği, Console talimatlarının kullanıcıdan gizlenmesi, silinen
+kullanıcının yorumuna `authorDeleted` işareti.
+Akış: **profil fotoğrafı Keşfet'te eski kalıyordu** (kullanıcı şikâyeti),
+süresi dolmuş ilana hâlâ mesaj atılabiliyordu.
+
+### ⚠️ Yayın öncesi ELLE yapılacaklar
+
+Kodla çözülemez, konsol ister — ayrıntı raporun sonunda:
+`firebase deploy --only firestore:indexes,storage,functions` · App Check
+gerçek durumu (3 belge çelişiyor) · bootstrap admin 2FA · TTL doğrulama ·
+Data Safety formu (telefon "herkese açık", konum "toplanmaz", reklam kimliği
+"evet") · IAP ürünü Play Console'da tanımlı mı.
+
+---
+
+**Tarih:** 2026-08-16 — **MAĞAZA EKRAN GÖRÜNTÜSÜ İÇİN DEMO VERİ SETİ**
+
+`flutter analyze` 0 · **886 test geçiyor** (öncesi 852, +34 yeni).
+
+Play/App Store görselleri için mock modda gerçekçi veri üretildi: 10 persona
+(9 usta + 1 yalnız müşteri), 4 ilan, 8 ürün, 4 sohbet, 3 favori.
+**Canlı Firebase'e hiç dokunulmadı** — tamamı bellek içi.
+
+Kasa notu: `vault/06-Test/Demo-Veri-Seti.md` (personalar, tuzaklar, çekim adımları).
+
+### Ne eklendi
+
+| Dosya | Ne |
+|---|---|
+| `lib/data/local/mock_database.dart` | `MockDatabase({withDemoPersonas})` — **varsayılan false**; `_add`'e opsiyonel persona parametreleri; `demoUsers` + `publicUser()` |
+| `lib/data/local/demo_assets.dart` | **YENİ** — `assets/demo/` görsellerini `local://` handle ile depoya yükler |
+| `lib/features/chat/data/chat_repository.dart` | `seedDemoThreads()` — 4 Türkçe konuşma (sistem şeridi, foto, pazarlık, okunmamış rozet) |
+| `lib/features/auth/data/mock_auth_repository.dart` | `publicUserResolver` — **parite düzeltmesi** (Firestore'da `users/{uid}` herkese açık okunur, mock bunu taklit etmiyordu) |
+| `lib/main.dart` | `_demoModeOverrides()` — yalnız mock modda devreye girer |
+| `test/helpers/mock_backend.dart` | Eksik `productRepositoryProvider` override'ı eklendi |
+| `test/demo_seed_test.dart` | 28 test — verinin doğru ÜRETİLDİĞİ |
+| `test/demo_ekran_test.dart` | 5 test — verinin ekranlara ULAŞTIĞI |
+| `test/yayin_hazirlik_test.dart` | 3 muhafız — mock modu / demo asset yayına sızmasın |
+| `lib/features/artisan/data/mock_artisan_repository.dart` | Demo modda **fotoğraflı ustalar öne** alınır (yalnız `demoUsers` doluyken) |
+| `lib/core/widgets/app_image.dart` · `artisan_card.dart` | Fotoğrafsızlarda baş harf yerine **meslek ikonu** (`professionCode` opsiyonel) |
+
+### Fotoğrafsız usta sorunu
+
+900 tohumlanmış ustanın hiçbirinde fotoğraf yok (yalnız 9 personada var).
+İki düzeltme yapıldı; ölçüm: **Türkiye geneli ilk 8 kartın 8'i fotoğraflı**,
+bölge filtresinde ilk kart fotoğraflı + gerisi renkli meslek ikonu.
+
+### ⚠️ Şu an AÇIK olan geçici değişiklikler
+
+Ekran görüntüsü çekimi için **kasıtlı** açık; çekim bitince kapatılacak:
+
+1. `lib/core/config/backend_config.dart:8` → `useFirebaseBackend = **false**`
+2. `pubspec.yaml` → `assets/demo/{avatar,work,product}/` kayıtları
+
+`test/yayin_hazirlik_test.dart` ikisini de denetler ve **şu an kasıtlı olarak
+kırık** — ikisi kapatılınca yeşile döner. Yayın öncesi bu testin geçtiğini
+doğrulayın.
+
+### Kullanıcıya düşen
+
+`assets/demo/` altına 27 fotoğraf (10 avatar + 9 iş + 8 ürün).
+Dosya adları ve boyutlar: `assets/demo/NASIL-KULLANILIR.md`.
+Fotoğraf olmadan da çalışır — baş harf rozeti + kategori ikonu yedeği devreye
+girer ("Demo modu: N görsel yüklendi" logu yüklemeyi doğrular).
+
+---
+
 **Tarih:** 2026-08-15 — **TAM DENETİM + YAYIN SERTLEŞTİRMESİ**
 
 `flutter analyze` 0 · **814 test** · `npm run lint` 0 hata · release AAB
