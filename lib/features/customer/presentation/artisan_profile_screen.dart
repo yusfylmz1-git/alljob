@@ -9,6 +9,7 @@ import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/snackbar_helper.dart';
 import '../../../core/widgets/app_button.dart';
 import '../../../core/widgets/app_image.dart';
+import '../../../core/widgets/photo_gallery_page.dart';
 import '../../../core/widgets/rating_stars.dart';
 import '../../../core/widgets/responsive_center.dart';
 import '../../../core/widgets/status_views.dart';
@@ -23,6 +24,7 @@ import '../../auth/presentation/email_verification_gate.dart';
 import '../../chat/data/chat_providers.dart';
 import '../../favorites/data/favorite_providers.dart';
 import '../../favorites/presentation/favorite_button.dart';
+import '../../products/data/product_providers.dart';
 import '../../products/presentation/widgets/dukkan_bolumu.dart';
 import '../../review/presentation/widgets/review_cta.dart';
 import '../../../core/widgets/profile_header.dart';
@@ -226,7 +228,14 @@ class _ProfileBody extends ConsumerWidget {
                       ),
                     ),
 
-                    if (profile.certificates.isNotEmpty) ...[
+                    // Belge GÖRSELLERİ yalnız sahibine gösterilir. Ustanın
+                    // yüklediği evrak ustalık belgesi, diploma, hatta kimlik
+                    // fotokopisi olabiliyor — KVKK'da özel nitelikli veridir
+                    // ve `storage.rules` okumayı sahibi+admin'e kapattı.
+                    // Müşteriye görseli çizmeye çalışmak yalnız kırık kutu
+                    // üretirdi; onun yerine onay ROZETİ gösterilir (güven
+                    // sinyali korunur, belge açılamaz).
+                    if (profile.certificates.isNotEmpty && isOwner) ...[
                       _Section(
                         // Yalnız ONAYLI belgeler "doğrulanmış" olarak sunulur;
                         // inceleme bekleyen/reddedilen belge müşteriye
@@ -277,6 +286,20 @@ class _ProfileBody extends ConsumerWidget {
                                 ),
                               ),
                             ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                    ] else if (profile.hasApprovedCertificates) ...[
+                      // Müşteri görünümü: belge açılmaz, onay bilgisi kalır.
+                      _Section(
+                        icon: Icons.verified_user,
+                        title: 'Belgeleri onaylı',
+                        child: Text(
+                          'Bu ustanın mesleki belgeleri incelenip onaylandı. '
+                          'Belgeler gizlilik gereği paylaşılmaz.',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: palette.inkMuted,
                           ),
                         ),
                       ),
@@ -365,7 +388,11 @@ class _WorkPhotoGrid extends StatelessWidget {
       itemBuilder: (context, i) {
         final h = handles[i];
         return GestureDetector(
-          onTap: () => _showCertificate(context, h),
+          onTap: () => PhotoGalleryPage.open(
+            context,
+            handles: handles,
+            initialIndex: i,
+          ),
           child: AppImage(
             handle: h,
             fit: BoxFit.cover,
@@ -557,10 +584,20 @@ class _HeroHeader extends ConsumerWidget {
                       children: [
                         Expanded(
                           child: ProfileActionButton(
-                            label: 'Profili düzenle',
+                            label: 'Düzenle',
                             onTap: () => context.push(RoutePaths.profileEdit),
                           ),
                         ),
+                        if (ref.watch(productsLiveProvider)) ...[
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: ProfileActionButton(
+                              label: 'Mağazam',
+                              onTap: () =>
+                                  context.push(RoutePaths.myProducts),
+                            ),
+                          ),
+                        ],
                       ],
                     )
                   : Row(
@@ -573,10 +610,22 @@ class _HeroHeader extends ConsumerWidget {
                                 _mesajGonder(context, ref, me, detail),
                           ),
                         ),
-                        const SizedBox(width: 8),
+                        const SizedBox(width: 6),
                         Expanded(
                           child: _TakipDugmesi(detail: detail),
                         ),
+                        if (ref.watch(productsLiveProvider)) ...[
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: ProfileActionButton(
+                              label: 'Mağaza',
+                              onTap: () => context.push(
+                                '${RoutePaths.artisanProducts(detail.uid)}'
+                                '?ad=${Uri.encodeComponent(detail.displayName)}',
+                              ),
+                            ),
+                          ),
+                        ],
                       ],
                     ),
             ),

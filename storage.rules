@@ -30,20 +30,48 @@ service firebase.storage {
         && isValidImage();
     }
 
-    // Yeni yükleme yolu: {klasör}/{uid}/{dosya} — herkes yalnızca KENDİ uid
-    // klasörüne yazabilir (başkasının görselini ezme/istenmeyen klasör yok).
-    match /{folder}/{uid}/{fileName} {
-      allow read: if true;
+    // Sertifika/belge — ÖZEL. Usta buraya ustalık belgesi, diploma, hatta
+    // kimlik fotokopisi yükleyebiliyor: KVKK'da özel nitelikli veri sınıfına
+    // girer ve herkese açık olamaz. Yol tahmin edilebilir yapıda
+    // (certificate/{uid}/{dosya}) ve uid herkese açık olduğu için "URL'yi
+    // kimse bilmez" savunması geçersizdi.
+    //
+    // Müşteri güven sinyalini KAYBETMEZ: `artisanProfiles.certificateStatus`
+    // herkese açık okunur, yani profilde "Belgeleri onaylanmış" rozeti
+    // görünmeye devam eder — yalnız belgenin KENDİSİ açılamaz.
+    // Bu match, aşağıdaki genel {folder} kuralından ÖNCE gelir ve daha
+    // dar olduğu için sertifika okumasını o kural açamaz (Storage'da
+    // kurallar OR'lanır → genel kuraldan 'certificate' çıkarılmıştır).
+    match /certificate/{uid}/{fileName} {
+      allow read: if request.auth != null
+        && (request.auth.uid == uid
+            || request.auth.token.get('admin', false) == true);
       allow write: if request.auth != null
         && request.auth.uid == uid
-        && folder in ['profile', 'work', 'job', 'certificate', 'chat', 'product']
+        && isValidImage();
+    }
+
+    // Yeni yükleme yolu: {klasör}/{uid}/{dosya} — herkes yalnızca KENDİ uid
+    // klasörüne yazabilir (başkasının görselini ezme/istenmeyen klasör yok).
+    // 'certificate' bu listede YOKTUR: yukarıdaki özel kural yönetir.
+    match /{folder}/{uid}/{fileName} {
+      // ⚠️ Storage'da eşleşen TÜM kurallar OR'lanır: bu desen
+      // `certificate/{uid}/{dosya}` yoluna DA uyar. `if true` bırakılırsa
+      // yukarıdaki özel sertifika kuralı hiçbir işe yaramaz — okuma yine
+      // herkese açılırdı. Bu yüzden okuma da klasör listesiyle sınırlı.
+      allow read: if folder in ['profile', 'work', 'job', 'chat', 'product'];
+      allow write: if request.auth != null
+        && request.auth.uid == uid
+        && folder in ['profile', 'work', 'job', 'chat', 'product']
         && isValidImage();
     }
 
     // Eski düz yol ({klasör}/{dosya}): mevcut görseller okunmaya devam eder,
     // ancak bu yola YENİ yazım kapalıdır (sahiplik kanıtlanamaz).
+    // Sertifika burada da dışarıda: eski düz yola yüklenmiş bir belge varsa
+    // o da herkese açık olmamalı.
     match /{folder}/{fileName} {
-      allow read: if true;
+      allow read: if folder != 'certificate';
       allow write: if false;
     }
   }

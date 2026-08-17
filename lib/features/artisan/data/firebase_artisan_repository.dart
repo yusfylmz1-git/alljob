@@ -46,25 +46,39 @@ class FirebaseArtisanRepository implements ArtisanRepository {
     _profilesCacheAt = null;
   }
 
+  /// [professionCode] ve [province] sunucu tarafında filtrelenir.
+  ///
+  /// Bölge filtresi neden önemli: eskiden yalnız meslek sunucudaydı, il/ilçe
+  /// istemcide eleniyordu. Meslek de seçilmemişse koleksiyonun ilk 180
+  /// profili çekilip Dart'ta filtreleniyordu — yani 181. usta hiçbir aramada
+  /// GÖRÜNMÜYORDU ("profilim listede yok" şikâyeti) ve İstanbul araması için
+  /// Türkiye genelinden 180 doküman okunup 12'si gösteriliyordu.
+  ///
+  /// Firestore tek sorguda İKİ `arrayContains` kabul etmez; bu yüzden meslek
+  /// seçiliyken bölge, meslek seçili değilken il sunucuya verilir. İlçe
+  /// kırılımı her hâlde istemcide kalır (tek `arrayContains` hakkı il için
+  /// harcanır — il çok daha fazla eleme yapar).
   Future<List<({String id, Map<String, dynamic> data})>> _cachedProfiles(
-      String? professionCode) async {
-    final key = professionCode ?? '*';
+      String? professionCode, String? province) async {
+    final key = '${professionCode ?? '*'}|${province ?? '*'}';
     if (_profilesCacheKey == key &&
         _fresh(_profilesCacheAt) &&
         _profilesCache != null) {
       return _profilesCache!;
     }
     final cap = AppConstants.artisanFetchCap;
+    final col = _db.collection('artisanProfiles');
     List<({String id, Map<String, dynamic> data})> list;
+
     if (professionCode != null) {
       // Çoklu + legacy: array-contains ve eski profession== birleştir.
-      final multi = _db
-          .collection('artisanProfiles')
+      // `professions` zaten arrayContains kullandığı için il buraya
+      // EKLENEMEZ; il elemesi aşağıda istemcide yapılır.
+      final multi = col
           .where('professions', arrayContains: professionCode)
           .limit(cap)
           .get();
-      final single = _db
-          .collection('artisanProfiles')
+      final single = col
           .where('profession', isEqualTo: professionCode)
           .limit(cap)
           .get();
@@ -78,13 +92,24 @@ class FirebaseArtisanRepository implements ArtisanRepository {
       list = map.entries
           .map((e) => (id: e.key, data: e.value))
           .toList(growable: false);
+    } else if (province != null && province.isNotEmpty) {
+      // Meslek yok → arrayContains hakkı İL için kullanılır. Asıl kazanç
+      // burada: "Tümü" filtresiyle il seçen kullanıcı artık ülke genelinin
+      // ilk 180'ini değil, KENDİ İLİNDEKİ ustaları görür.
+      final snap = await col
+          .where('serviceProvinces', arrayContains: province)
+          .limit(cap)
+          .get();
+      list = snap.docs
+          .map((d) => (id: d.id, data: d.data()))
+          .toList(growable: false);
     } else {
-      final snap =
-          await _db.collection('artisanProfiles').limit(cap).get();
+      final snap = await col.limit(cap).get();
       list = snap.docs
           .map((d) => (id: d.id, data: d.data()))
           .toList(growable: false);
     }
+
     _profilesCache = list;
     _profilesCacheKey = key;
     _profilesCacheAt = DateTime.now();
@@ -98,7 +123,8 @@ class FirebaseArtisanRepository implements ArtisanRepository {
     required int limit,
     bool? premiumFreeDuringBeta,
   }) async {
-    final docs = await _cachedProfiles(filter.professionCode);
+    final docs =
+        await _cachedProfiles(filter.professionCode, filter.province);
     final now = DateTime.now();
 
     // Premium kapısı: ücretsiz dönem kapalıysa premium erişimi olmayan usta

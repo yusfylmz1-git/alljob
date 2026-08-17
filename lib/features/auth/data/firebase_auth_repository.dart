@@ -662,14 +662,26 @@ class FirebaseAuthRepository implements AuthRepository {
     final ayna = <String, dynamic>{};
     if (name != null) ayna['displayName'] = name;
     if (profilePhotoUrl != null) ayna['profilePhotoURL'] = profilePhotoUrl;
-    if (ayna.isNotEmpty && _cached?.hasArtisanProfile == true) {
+    if (ayna.isNotEmpty) {
+      // Kapı `_cached.hasArtisanProfile` DEĞİL, dokümanın kendisidir.
+      // Önbellek bayat kalabiliyordu (usta olduktan sonra oturum
+      // tazelenmeden profil ekranından foto değiştirmek gibi) ve ayna
+      // sessizce atlanıyordu: `users` yeni fotoğrafı, `artisanProfiles`
+      // eskisini taşıyordu. Kullanıcı kendi profilinde yeni fotoğrafı
+      // görüyor ama Ana Sayfa/Keşfet (artisanProfiles okur) eskisini
+      // gösteriyordu — "profil fotoğrafım bozuk geliyor" şikâyeti buydu.
+      //
+      // `merge: true` olmayan dokümanı OLUŞTURUR; bu yüzden önce varlığı
+      // sorulur, yoksa usta olmayan kullanıcı için boş vitrin kaydı doğardı.
       try {
-        await _db
-            .collection('artisanProfiles')
-            .doc(fbUser.uid)
-            .set(ayna, SetOptions(merge: true));
+        final ref = _db.collection('artisanProfiles').doc(fbUser.uid);
+        final snap = await ref.get();
+        if (snap.exists) {
+          await ref.set(ayna, SetOptions(merge: true));
+        }
       } catch (_) {
-        /* profil yoksa zararsız */
+        // Ayna kozmetiktir: ana kayıt (`users`) zaten yazıldı. Hata
+        // ana akışı DÜŞÜRMEZ — kullanıcı profilini kaydedebilmiş sayılır.
       }
     }
 

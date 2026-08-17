@@ -740,4 +740,99 @@ try/catch içindedir · Auth kaydı zaten yoksa (yarıda kalmış önceki deneme
 başarı sayılır. Regresyon: `test/hesap_silme_kapsami_test.dart`.
 
 ---
-İlgili: [[Mimari-Kararlar]] · [[Guvenlik-Kurallari]] · [[Sohbet-Mimarisi]] · [[Deploy-ve-Ortam]]
+
+## 🟠 Mock'taki yapay gecikme uzun listede "donma" gibi görünür
+
+2026-08-16: Keşfet'te filtre "Tümü"ye alınınca arayüz donuyor sanıldı.
+
+`MockArtisanRepository.searchArtisans` her çağrıda `Future.delayed(400ms)`
+uyguluyordu — "ağ hissi" için. Filtre boşken liste **900 tohumlanmış ustaya**
+kadar büyüdüğü için sonsuz kaydırma 45 sayfa demek: 45 × 400 ms ≈ **18 saniye**
+bekleme. Kullanıcı bunu donma olarak algılar.
+
+> [!warning] Önce ölç, sonra düzelt
+> İlk teşhis yanlıştı: sorunun `loadMore`'daki yarış durumundan geldiği
+> sanıldı ve senkron bir kilit eklendi. Kilit kaldırılınca testler **yine
+> geçti** — yani kilit gerçek sebebi çözmüyordu. Ölçüm gerçeği gösterdi:
+> 45 kez tam sıralama toplam **9 ms**, ama her sayfa sabit **~410 ms**.
+> Darboğaz hesaplama değil, yapay gecikmeydi.
+
+Düzeltme: gecikme yalnız **ilk sayfada** 400 ms (iskelet/yükleniyor durumu
+görünsün), sayfalamada 60 ms. Tüm listeyi gezme süresi 18.2 sn → **3.3 sn**.
+
+Genel kural: mock gecikmeleri tek çağrıda makul görünür ama **N kez tekrar
+eden akışlarda** (sonsuz kaydırma, toplu işlem) çarpılır. Sayfalama yolunda
+gecikmeyi ayrı tut. Regresyon: `test/artisan_search_sayfalama_test.dart`.
+
+---
+
+## 🔴 Eksik indeks = SESSİZ arıza (kural kapısı fiilen kapanır)
+
+2026-08-17 denetiminde iki eksik bileşik indeks bulundu. İkisi de **hata
+göstermeden** çalışıyordu, en tehlikeli sınıf.
+
+**`jobs(customerId + status)` yoktu → 5 ilan limiti FİİLEN KAPALIYDI.**
+Zincir şöyle: `refreshOpenJobCount` iki eşitlik filtresi kullanır → bileşik
+indeks şart → indeks yok → sorgu `catch`'e düşer ve `logger.warn` ile yutulur
+→ `private/jobStats.openCount` **hiç yazılmaz** → `firestore.rules`
+`openJobQuotaOk()` her zaman `0` okur → limit yok. Bir kullanıcı sınırsız ilan
+açabilirdi ve her ilan bölgedeki tüm ustalara bildirim gönderiyor.
+
+**`reviews(customerUID + createdAt)` yoktu** → profil başlığındaki yorum
+bloğu canlıda hiç görünmezdi (`Future.wait` içinde patlıyor).
+
+> [!danger] Denormalize sayaca dayanan her kural kapısı çift bağımlıdır
+> Kural sayacı okur, sayacı CF yazar, CF sorgusu indekse muhtaçtır. Zincirin
+> ortasındaki indeks eksikse **kapı sessizce açılır**. Yeni bir kota kapısı
+> eklerken üçünü birlikte ekleyin: indeks + CF sayacı + kural.
+
+Genel kural: `firestore.indexes.json`'a **iki eşitlik filtresi** veya
+`where + orderBy` içeren her yeni sorgu için indeks ekleyin. Mock'ta indeks
+aranmadığı için testler bunu YAKALAMAZ — `test/yayin_denetimi_2026_08_17_test.dart`
+indeks dosyasını okuyarak bu boşluğu kapatıyor.
+
+## 🟠 Storage'da kurallar OR'lanır — dar kural geniş kuralı kapatmaz
+
+Sertifikaları (`certificate/{uid}/{dosya}`) sahibi+admin'e kapatmak için özel
+bir `match` yazmak **yetmez**: genel `{folder}/{uid}/{fileName}` deseni aynı
+yola uyar ve içindeki `allow read: if true` erişimi geri açar. Firestore ve
+Storage'da eşleşen tüm kurallar OR'lanır — bir kuralın "hayır" demesi diğerinin
+"evet"ini iptal etmez.
+
+Doğru çözüm: genel kuralın okumasını da klasör listesiyle sınırla ve korunan
+klasörü listeden çıkar.
+```
+allow read: if folder in ['profile', 'work', 'job', 'chat', 'product'];
+```
+
+Aynı tuzak eski düz yol (`{folder}/{fileName}`) için de geçerlidir.
+
+## 🟠 Ham `status` ile efektif durum aynı şey değil
+
+`jobs.status` sonsuza kadar `open` kalır — **süresi dolan ilanı `expired`
+yapan zamanlanmış görev YOKTUR**. Süre yalnız `expiresAt`/`expiresAtMs`
+alanlarında yaşar ve istemci `Job.effectiveStatus` ile hesaplar.
+
+Kullanıcıya kapı açan her kontrol (mesaj gönderme, teklif, düzenleme)
+`effectiveStatus` kullanmalı. `job_detail_screen.dart` ham `status`e baktığı
+için aylar önce dolmuş ilana "Mesaj gönder" düğmesi çıkıyordu.
+
+Firestore **sorguları ve kuralları** ham `status`e bakar; bu bilinçli kabul
+(kural motoru zaman hesabı yapamaz) ama sorgu sonucunu istemcide efektif
+duruma göre elemek gerekir.
+
+## 🟠 Denormalize aynada bayat önbellek kapısı
+
+`users` → `artisanProfiles` ad/foto aynası `_cached.hasArtisanProfile == true`
+koşuluna bağlıydı. Önbellek oturum tazelenmeden güncellenmediği için ayna
+sessizce atlanıyor, iki koleksiyon ayrışıyordu: kullanıcı kendi profilinde
+yeni fotoğrafı, Keşfet/Ana Sayfa (bunlar `artisanProfiles` okur) eskisini
+gösteriyordu. Kullanıcı bunu *"profil fotoğrafım bozuk geliyor"* diye tarif
+eder ve sebebi bulunamaz.
+
+Kapı **önbelleğe değil dokümanın kendisine** bakmalı (`snap.exists`).
+`set(merge: true)` olmayan dokümanı oluşturduğu için varlık kontrolü şart —
+yoksa usta olmayan kullanıcıya boş vitrin kaydı doğar.
+
+---
+İlgili: [[Mimari-Kararlar]] · [[Guvenlik-Kurallari]] · [[Sohbet-Mimarisi]] · [[Deploy-ve-Ortam]] · [[Demo-Veri-Seti]]

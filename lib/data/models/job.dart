@@ -28,8 +28,9 @@ const kQuickSupportName = 'Kolay İş';
 /// canlıda test edilmiş durumda. Kolay İş de tam olarak böyle kurulmuştur.
 ///
 /// ⚠️ Bu kategorideki ilan USTALARA DÜŞMEZ — alıcı kitlesi satıcılardır
-/// (o kategoride yayında ürünü olanlar). `onJobCreated` fan-out'u bu
-/// kategoriyi atlar; bildirimi `sendProductRequestDigest` gönderir.
+/// (aynı il + `productCategoryCode`: yayında ürün veya mağaza kategorisi).
+/// `onJobCreated` ustalara gitmez; `notifyProductRequestSellers` anlık
+/// yollar. Akşam `sendProductRequestDigest` anlık kaçıranları tamamlar.
 const kProductRequestCategory = 'product_request';
 
 /// Kullanıcıya görünen ad.
@@ -198,6 +199,7 @@ class Job {
     this.budget,
     this.cancelReason,
     this.moderationHidden = false,
+    this.productCategoryCode,
   });
 
   final String jobId;
@@ -208,6 +210,11 @@ class Job {
   final String title;
   final String description;
   final String category; // meslek kodu (kProfessionNames)
+
+  /// Ürün talebinde seçilen satış kategorisi (`ProductCategory` kodu).
+  /// Normal iş ilanında null. `category` yine `product_request` kalır
+  /// (CF özet + feed süzümü buna bakar).
+  final String? productCategoryCode;
 
   final String province;
   final String district;
@@ -272,6 +279,7 @@ class Job {
     JobStatus? status,
     JobCancelReason? cancelReason,
     DateTime? expiresAt,
+    String? productCategoryCode,
   }) {
     return Job(
       jobId: jobId,
@@ -292,6 +300,7 @@ class Job {
       createdAt: createdAt,
       expiresAt: expiresAt ?? this.expiresAt,
       moderationHidden: moderationHidden,
+      productCategoryCode: productCategoryCode ?? this.productCategoryCode,
     );
   }
 
@@ -302,6 +311,8 @@ class Job {
         'title': title,
         'description': description,
         'category': category,
+        if (productCategoryCode != null && productCategoryCode!.isNotEmpty)
+          'productCategoryCode': productCategoryCode,
         'province': province,
         'district': district,
         'neighborhood': neighborhood,
@@ -327,6 +338,7 @@ class Job {
       title: (map['title'] as String?) ?? '',
       description: (map['description'] as String?) ?? '',
       category: (map['category'] as String?) ?? '',
+      productCategoryCode: map['productCategoryCode'] as String?,
       province: (map['province'] as String?) ?? '',
       district: (map['district'] as String?) ?? '',
       neighborhood: map['neighborhood'] as String?,
@@ -396,6 +408,16 @@ class Job {
 
   /// Bu ilan bir ürün talebi mi? (Mağaza > İlan Ver)
   bool get isProductRequest => category == kProductRequestCategory;
+
+  /// Kullanıcıya görünen kategori. `product_request` meslek listesinde
+  /// yoktur — ham kod ekrana sızmasın diye burada çözülür.
+  static String labelForCategory(String category) {
+    if (category == kProductRequestCategory) return kProductRequestName;
+    if (category == kQuickSupportCategory) return kQuickSupportName;
+    return category;
+  }
+
+  String get categoryLabelTR => labelForCategory(category);
 
   /// Usta ilanın İLÇESİNDE de hizmet veriyor mu? Hemen Lazım ilanları il
   /// geneline gittiğinden, aynı ilçedekiler listede öne alınır ve "Yakınında"

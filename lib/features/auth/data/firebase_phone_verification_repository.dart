@@ -175,9 +175,12 @@ class FirebasePhoneVerificationRepository
       case 'operation-not-allowed':
         // Aynı kod iki farklı durumda döner: (a) Phone sağlayıcısı kapalı,
         // (b) SMS bölge politikası hedef ülkeye (+90) kapalı. Mesajdan ayırt et.
+        // Kullanıcı sade metni görür; Console adımları yalnız loga düşer.
         if ((e.message ?? '').toLowerCase().contains('region')) {
+          PhoneVerificationException.regionBlocked.logDevNote();
           return PhoneVerificationException.regionBlocked;
         }
+        PhoneVerificationException.providerDisabled.logDevNote();
         return PhoneVerificationException.providerDisabled;
       default:
         return PhoneVerificationException(

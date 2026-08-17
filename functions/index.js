@@ -21,6 +21,7 @@ const {
 } = require("firebase-functions/v2/firestore");
 const {onCall, HttpsError} = require("firebase-functions/v2/https");
 const {onSchedule} = require("firebase-functions/v2/scheduler");
+const {onMessagePublished} = require("firebase-functions/v2/pubsub");
 // DIKKAT: "firebase-functions/v2" (kok) import'u TUM v2 agacini ceker; icinde
 // database saglayicisi @firebase/app peer'ini ister ve cozulemeyip cold start'ta
 // patlar. setGlobalOptions zaten kendi alt yolunda -> yalniz onu al.
@@ -794,9 +795,14 @@ const JOB_FANOUT_RECIPIENT_CAP = 120;
 async function refreshOpenJobCount(customerId) {
   if (!customerId) return;
   try {
+    // Sayaç yalnız "limitin altında mı?" sorusuna hizmet ediyor; tam sayıya
+    // ihtiyaç yok. Limitsiz `.get()` bırakılırsa 10.000 ilanı olan bir hesapta
+    // HER ilan yazımında 10.000 doküman okunurdu. Tavan = limit + biraz pay
+    // (süresi dolmuşlar elendiği için birkaç fazla okumak gerekir).
     const snap = await db.collection("jobs")
         .where("customerId", "==", customerId)
         .where("status", "==", "open")
+        .limit(50)
         .get();
     // Süresi dolmuş ilanlar `open` yazar ama yeni ilana engel OLMAMALI.
     const now = Date.now();
@@ -818,6 +824,38 @@ async function refreshOpenJobCount(customerId) {
         }, {merge: true});
   } catch (e) {
     logger.warn(`refreshOpenJobCount failed for ${customerId}: ${e}`);
+  }
+}
+
+/**
+ * Kullanıcının TASLAK ürün sayacını tazeler (`private/productStats`).
+ *
+ * Yayınlama tarafı `publishProduct` içinde korunuyordu (10/gün + 50 aktif),
+ * ama taslak yazımı doğrudan Firestore'a gidiyor ve adet sınırı yoktu:
+ * doğrulanmış e-postalı bir hesap SDK ile yüz binlerce taslak yazıp hem
+ * koleksiyonu şişirebilir hem her yazımda bu trigger'ı tetikleyip fatura
+ * üretebilirdi. Kural (`productDraftQuotaOk`) bu sayaca bakar.
+ *
+ * `refreshOpenJobCount` ile aynı desen: sayaç yalnız "limitin altında mı?"
+ * sorusuna hizmet eder, bu yüzden okuma tavanlıdır.
+ */
+async function refreshDraftProductCount(ownerUid) {
+  if (!ownerUid) return;
+  try {
+    const snap = await db.collection("products")
+        .where("ownerUid", "==", ownerUid)
+        .where("status", "==", "draft")
+        .limit(150)
+        .get();
+    await db.collection("users").doc(ownerUid)
+        .collection("private").doc("productStats")
+        .set({
+          draftCount: snap.size,
+          updatedAt: new Date().toISOString(),
+          updatedAtMs: Date.now(),
+        }, {merge: true});
+  } catch (e) {
+    logger.warn(`refreshDraftProductCount failed for ${ownerUid}: ${e}`);
   }
 }
 
@@ -1478,6 +1516,27 @@ exports.onProductWritten = onDocumentWritten(
       } catch (e) {
         logger.warn(`adminStats product: ${e}`);
       }
+
+      // Taslak kotası sayacı (`private/productStats.draftCount`). Kural
+      // `productDraftQuotaOk` bunu okur; sayaç güncellenmezse kota fiilen
+      // devre dışı kalır. Sayacı yalnız taslak durumu DEĞİŞTİĞİNDE tazele —
+      // her alan düzenlemesinde koleksiyon taramak gereksiz maliyettir.
+      try {
+        const b = event.data && event.data.before;
+        const a = event.data && event.data.after;
+        const beforeDraft =
+          b && b.exists && b.data().status === "draft";
+        const afterDraft =
+          a && a.exists && a.data().status === "draft";
+        if (beforeDraft !== afterDraft) {
+          const owner =
+            (a && a.exists && a.data().ownerUid) ||
+            (b && b.exists && b.data().ownerUid);
+          await refreshDraftProductCount(owner);
+        }
+      } catch (e) {
+        logger.warn(`productStats draft: ${e}`);
+      }
     },
 );
 
@@ -1634,8 +1693,16 @@ exports.deleteAccount = onCall(
         db.collection("reviews").where("customerUID", "==", uid).get(),
         db.collection("reviews").where("artisanUID", "==", uid).get(),
       ]);
-      reviewsBy.forEach((d) =>
-        writer.update(d.ref, {customerDisplayName: DELETED_USER_NAME}));
+      //    `customerUID` SİLİNMEZ: doküman kimliği (`rev_{yazan}__{hedef}`)
+      //    zaten o uid'i taşır ve kural motoru yazar kontrolünü bu alandan
+      //    yapar — null'lanırsa yorum "sahipsiz" kalır ve düzenleme kuralı
+      //    kilitlenir. `supportTickets`/`reports`'ta uid null'lanabiliyor
+      //    çünkü orada kimlik alanı yetki kapısı DEĞİL. Bunun yerine kayıt
+      //    silinmiş olarak işaretlenir; ad zaten anonimleşiyor.
+      reviewsBy.forEach((d) => writer.update(d.ref, {
+        customerDisplayName: DELETED_USER_NAME,
+        authorDeleted: true,
+      }));
       reviewsAbout.forEach((d) => writer.delete(d.ref));
 
       // 4b) Üyelik satın alma kaydı → SİL. Play token'ı kişisel veridir ve
@@ -5477,3 +5544,157 @@ exports.sendProductRequestDigest = onSchedule(
     },
 );
 
+
+// ---------------------------------------------------------------------------
+// MALİYET DUVARI — bütçe aşımında faturalandırmayı kes.
+// ---------------------------------------------------------------------------
+//
+// Blaze planında Google'ın hazır bir "şu tutarda dur" düğmesi YOKTUR.
+// Konsoldaki bütçe uyarıları yalnızca e-posta gönderir; harcama sürer. Duvar
+// budur: Cloud Billing bütçesi → Pub/Sub konusu → bu fonksiyon → projeden
+// faturalandırma hesabını AYIR.
+//
+// ⚠️ BU SERT BİR DURDURMADIR. Faturalandırma ayrılınca proje TAMAMEN durur:
+// Firestore okuma/yazma reddedilir, Auth çalışmaz, uygulama kullanıcılar için
+// ölür. Geri açmak MANUELDİR (Console → Billing → hesabı yeniden bağla) ve
+// servislerin toparlanması dakikalar alır. Bu bir "fren" değil, imdat frenidir:
+// 5.000 $'lık sürpriz faturaya karşı son savunma.
+//
+// Bu yüzden eşik normal faturanın (bu ölçekte 0–200 ₺/ay) çok üstünde tutulur.
+// Uyarı kademeleri (200/1.000/2.000 ₺) bütçenin kendi e-postalarıyla gelir;
+// buradaki kod YALNIZ son kademede (4.000 ₺) iş yapar.
+//
+// Kurulum (docs/OPS_MALIYET_DUVARI.md): bütçeyi ve Pub/Sub konusunu oluştur,
+// runtime servis hesabına faturalandırma yöneticisi rolünü ver.
+
+// Faturalandırmanın kesileceği eşik. Bütçe tutarı Console'da ayrı tanımlanır;
+// buradaki sayı ondan BAĞIMSIZ bir ikinci emniyettir — bütçe yanlışlıkla
+// düşük kurulsa bile bu tutarın altında kesme yapılmaz.
+//
+// PARA BİRİMİ: hesap TRY (₺) faturalandırılıyor (2026-08-15 doğrulandı),
+// bu yüzden eşik de ₺ cinsindendir. 4000 ₺ ≈ 100 $ (kur ~40 ₺/$).
+// Beklenen normal fatura 0–200 ₺/ay olduğu için bu gerçek bir imdat freni.
+const BILLING_KILL_AMOUNT = 4000;
+
+// Bütçenin para birimi. Bütçe mesajı bundan farklı bir birim taşırsa
+// kıyaslama anlamsızdır (100 ₺ ile 100 $ aynı sayı, farklı para) — kesme
+// yapılmaz, yalnız uyarı loglanır. Console'daki bütçe bu birimde olmalı.
+const BILLING_CURRENCY = "TRY";
+
+// Bütçe uyarılarının aktığı Pub/Sub konusu. Console'daki bütçe bu konuya
+// bağlanır; ad birebir aynı olmalıdır.
+const BILLING_TOPIC = "butce-uyarilari";
+
+/**
+ * Projeden faturalandırma hesabını ayırır (harcamayı durdurur).
+ *
+ * @return {Promise<string>} İşlem sonucunu anlatan kısa Türkçe özet.
+ */
+async function detachBillingAccount() {
+  const {google} = require("googleapis");
+  const projectId =
+    process.env.GCLOUD_PROJECT || process.env.GOOGLE_CLOUD_PROJECT;
+  if (!projectId) throw new Error("Proje kimliği okunamadı.");
+
+  const auth = new google.auth.GoogleAuth({
+    scopes: ["https://www.googleapis.com/auth/cloud-billing"],
+  });
+  const billing = google.cloudbilling({version: "v1", auth});
+  const name = `projects/${projectId}`;
+
+  const info = await billing.projects.getBillingInfo({name});
+  if (!info.data || info.data.billingEnabled !== true) {
+    return "Faturalandırma zaten kapalı — işlem yapılmadı.";
+  }
+
+  // billingAccountName: "" → hesabı ayır. Harcama burada durur.
+  await billing.projects.updateBillingInfo({
+    name,
+    requestBody: {billingAccountName: ""},
+  });
+  return `Faturalandırma KESİLDİ (${projectId}).`;
+}
+
+/**
+ * Kesme olayını Firestore'a yazar ki panelde/loglarda iz kalsın.
+ *
+ * Faturalandırma kesilirse bu yazma da başarısız olabilir (Firestore durur);
+ * bu yüzden kesmeden ÖNCE çağrılır ve hatası yutulur.
+ *
+ * @param {object} kayit Yazılacak alanlar.
+ */
+async function logBillingEvent(kayit) {
+  try {
+    await db.collection("adminBillingEvents").add({
+      ...kayit,
+      at: new Date().toISOString(),
+    });
+  } catch (e) {
+    logger.warn(`billing event yazılamadı: ${e}`);
+  }
+}
+
+exports.butceBekcisi = onMessagePublished(
+    {
+      topic: BILLING_TOPIC,
+      region: REGION,
+      // Tek örnek yeter; eşzamanlı kesme denemesi istemiyoruz.
+      maxInstances: 1,
+      retry: false,
+    },
+    async (event) => {
+      let veri = {};
+      try {
+        veri = event.data.message.json || {};
+      } catch (e) {
+        logger.warn(`bütçe mesajı çözülemedi: ${e}`);
+        return;
+      }
+
+      // Bütçe mesajının alanları: costAmount (şu ana kadarki harcama),
+      // budgetAmount (bütçe tutarı), alertThresholdExceeded (0.5, 0.9, 1.0...).
+      const harcama = Number(veri.costAmount || 0);
+      const butce = Number(veri.budgetAmount || 0);
+      const esik = Number(veri.alertThresholdExceeded || 0);
+      const paraBirimi = veri.currencyCode || "USD";
+
+      logger.info(
+          `[bütçe] harcama=${harcama} ${paraBirimi} / bütçe=${butce} ` +
+          `(eşik=${esik})`);
+
+      // Beklenenden farklı para biriminde eşik kıyaslaması yanıltıcı olur
+      // (100 ₺ ile 100 $ aynı sayı, çok farklı tutar) — kesme yapma, uyar.
+      if (paraBirimi !== BILLING_CURRENCY) {
+        logger.warn(
+            `[bütçe] para birimi ${paraBirimi}, beklenen ` +
+            `${BILLING_CURRENCY} — kesme atlandı. Bütçeyi ` +
+            `${BILLING_CURRENCY} kurun ya da BILLING_CURRENCY'yi güncelleyin.`);
+        return;
+      }
+
+      if (harcama < BILLING_KILL_AMOUNT) return; // uyarı kademesi: yalnız log
+
+      logger.error(
+          `[bütçe] EŞİK AŞILDI (${harcama} ≥ ${BILLING_KILL_AMOUNT} ` +
+          `${BILLING_CURRENCY}) — faturalandırma kesiliyor.`);
+
+      await logBillingEvent({
+        tur: "kesme_denemesi",
+        harcama,
+        butce,
+        esik: BILLING_KILL_AMOUNT,
+        paraBirimi,
+      });
+
+      try {
+        const sonuc = await detachBillingAccount();
+        logger.error(`[bütçe] ${sonuc}`);
+      } catch (e) {
+        // Kesme başarısızsa bunu GÖRMEK kritiktir: harcama devam ediyor.
+        // En sık sebep: runtime servis hesabında faturalandırma yöneticisi
+        // rolü yok (bkz. docs/OPS_MALIYET_DUVARI.md).
+        logger.error(`[bütçe] KESME BAŞARISIZ — harcama sürüyor: ${e}`);
+        await logBillingEvent({tur: "kesme_hatasi", hata: String(e)});
+      }
+    },
+);

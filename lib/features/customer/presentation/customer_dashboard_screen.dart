@@ -62,6 +62,13 @@ class _CustomerDashboardScreenState
     // Ustalar listesi HER MODDA hemen yüklenir. Eskiden usta modunda erken
     // çıkılıyordu (o modda sekme gizliydi); artık sekme her modda görünüyor,
     // arama başlatılmazsa liste BOŞ açılırdı.
+    final tab = widget.initialTab;
+    _tab.index = switch (tab) {
+      'jobs' => 1,
+      'shop' || 'products' || 'magaza' => 2,
+      _ => 0,
+    };
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       // Ana Sayfa "Kategoriler"den bir meslek koduyla gelindiyse filtreyi
       // uygula ve taze ara (kullanıcı özellikle o kategoriyi seçti).
@@ -87,6 +94,10 @@ class _CustomerDashboardScreenState
   }
 
   void _onScroll() {
+    if (!_scrollController.hasClients) return;
+    // Yalnız Ustalar sekmesi bu listeyi sayfalar; diğer sekmelerdeyken
+    // kaydırma olayları boşuna controller'ı dürtmesin.
+    if (_tab.index != 0) return;
     if (_scrollController.position.pixels >=
         _scrollController.position.maxScrollExtent - 300) {
       ref.read(artisanSearchControllerProvider.notifier).loadMore();
@@ -184,26 +195,8 @@ class _HeroHeader extends ConsumerWidget {
                   ),
                 ),
               ),
-              // İLAN VER — TEK GİRİŞ (2026-08-09). Eskiden arama satırının
-              // altında ikinci bir "İş İlanı Ver" düğmesi ve yan menüde bir
-              // satır daha vardı; aynı yere giden üç kapı gereksizdi. Hero'da
-              // duran bu ikon her iki modda da görünür (ilan vermek için usta
-              // olmak gerekmiyor) ve sekme değişse bile yerinde kalır.
-              // Yalnız ikon yetmiyordu: tooltip dokunmatikte görünmez, ikonun
-              // ne yaptığı belirsiz kalıyordu. Etiket yazıya çıkarıldı.
-              if (user != null)
-                TextButton.icon(
-                  style: TextButton.styleFrom(
-                    foregroundColor: Colors.white,
-                    backgroundColor: Colors.white.withValues(alpha: 0.12),
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                    visualDensity: VisualDensity.compact,
-                  ),
-                  icon: const Icon(Icons.add_box_rounded, size: 18),
-                  label: const Text('Yeni İlan'),
-                  onPressed: () => context.push(RoutePaths.newJob),
-                ),
+              // "Yeni İlan" buradan KALKTI (2026-08-10): İlanlar sekmesinin
+              // sağ üstüne taşındı — Keşfet hero'su yalnız marka + bildirim.
               const NotificationBell(color: Colors.white),
               if (user == null)
                 TextButton.icon(
@@ -621,9 +614,9 @@ class _Centered extends StatelessWidget {
 
 /// Keşfet "İlanlar" sekmesi — erişim kapısı + liste.
 ///
-/// İlan listesi yalnız **usta modu açık** ve **müsait** kullanıcıya görünür:
-/// müsait olmayan usta zaten aramada da çıkmaz, ilan sahibine haber veremez.
-/// Kapı burada tek yerde; panelin kendisi kapı bilmez.
+/// İlan listesi **usta profili açmış** herkese görünür (aktif mod müşteri
+/// olsa bile). Müsaitlik kapısı yok: müsait olmayan usta ilanları görür,
+/// yalnız mesaj atamaz. "Yeni İlan" üst sağda; profil şartı yok.
 class _JobsTab extends ConsumerWidget {
   const _JobsTab();
 
@@ -657,40 +650,70 @@ class _JobsTab extends ConsumerWidget {
       );
     }
 
-    if (user == null) {
-      return notice(
-        Icons.login_rounded,
-        'İlanları görmek için giriş yap',
-        'İş ilanlarını görüntülemek ve teklif vermek için hesabına giriş yap.',
-        action: Center(
-          child: FilledButton(
-            onPressed: () => context.push(RoutePaths.login),
-            child: const Text('Giriş yap'),
+    final body = () {
+      if (user == null) {
+        return notice(
+          Icons.login_rounded,
+          'İlanları görmek için giriş yap',
+          'İş ilanlarını görüntülemek ve teklif vermek için hesabına giriş yap.',
+          action: Center(
+            child: FilledButton(
+              onPressed: () => context.push(RoutePaths.login),
+              child: const Text('Giriş yap'),
+            ),
           ),
-        ),
-      );
-    }
+        );
+      }
 
-    if (!user.isArtisan) {
-      return notice(
-        Icons.handyman_outlined,
-        'İlanlar usta moduna özel',
-        'İş ilanlarını görmek için Profil sayfasından "Usta modu" anahtarını '
-        'aç. İlan vermek için usta olman gerekmez.',
-        action: Center(
-          child: FilledButton(
-            onPressed: () => context.push(RoutePaths.profile),
-            child: const Text('Profile git'),
+      // Usta MODU değil; usta PROFİLİ. Profili açan herkes (müşteri
+      // modundayken bile) ilanları görür.
+      if (!user.hasArtisanProfile) {
+        return notice(
+          Icons.handyman_outlined,
+          'İlanları görmek için usta profili',
+          'İş ilanlarını görüntülemek için Profil’den usta profili açın. '
+          'İlan vermek için usta olmanız gerekmez — sağ üstteki '
+          '“Yeni İlan”ı kullanın.',
+          action: Center(
+            child: FilledButton(
+              onPressed: () => context.push(RoutePaths.profile),
+              child: const Text('Profile git'),
+            ),
           ),
-        ),
-      );
-    }
+        );
+      }
 
-    // MÜSAİTLİK KAPISI KALKTI (2026-08-10, kullanıcı kararı): müsait olmayan
-    // usta ilanları GÖRÜR ve bildirim ALIR, yalnız MESAJ ATAMAZ. Eskiden
-    // burada tam ekran bir duvar vardı; usta müsaitliğini açmadan piyasada
-    // ne olduğunu göremiyordu. Mesaj kapısı ilan detayında duruyor
-    // (`_ArtisanOfferSection`), aramada görünmeme kuralı da değişmedi.
-    return const JobsExplorePanel();
+      // MÜSAİTLİK KAPISI YOK (2026-08-10): müsait olmayan usta ilanları
+      // GÖRÜR ve bildirim ALIR, yalnız MESAJ ATAMAZ.
+      return const JobsExplorePanel();
+    }();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (user != null)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'İş ilanları',
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+                FilledButton.tonalIcon(
+                  onPressed: () => context.push(RoutePaths.newJob),
+                  icon: const Icon(Icons.add, size: 18),
+                  label: const Text('Yeni İlan'),
+                ),
+              ],
+            ),
+          ),
+        Expanded(child: body),
+      ],
+    );
   }
 }

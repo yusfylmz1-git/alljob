@@ -127,6 +127,12 @@ class ArtisanSearchController extends AsyncNotifier<ArtisanSearchState> {
   // Aktif aramanın filtresi (sayfalama için saklanır).
   ArtisanFilter _filter = const ArtisanFilter();
 
+  /// Sayfalama kilidi — `state.isLoadingMore` bayrağının senkron ikizi.
+  /// Bayrak `state` atamasıyla geldiği için ilk kontrol ile atama arasında
+  /// teorik bir açık kalır; kaydırma dinleyicisi saniyede onlarca kez
+  /// ateşlendiğinden bu açığı senkron bir alanla kapatmak daha güvenlidir.
+  bool _loadingMore = false;
+
   @override
   Future<ArtisanSearchState> build() async => const ArtisanSearchState();
 
@@ -142,6 +148,9 @@ class ArtisanSearchController extends AsyncNotifier<ArtisanSearchState> {
   /// Seçili (opsiyonel) filtreyle ilk sayfayı getirir. Filtre boş olabilir.
   Future<void> search() async {
     _filter = ref.read(customerFilterProvider).toArtisanFilter();
+    // Yeni arama başlıyor → önceki sayfalama kilidi düşer, yoksa devam eden
+    // bir loadMore yüzünden yeni filtrede "daha fazla" hiç çalışmazdı.
+    _loadingMore = false;
 
     state = const AsyncLoading();
     state = await AsyncValue.guard(() async {
@@ -161,6 +170,10 @@ class ArtisanSearchController extends AsyncNotifier<ArtisanSearchState> {
 
   /// Sonraki sayfayı mevcut listeye ekler.
   Future<void> loadMore() async {
+    // Kilit ÖNCE kontrol edilir: `state` güncellemesini beklemeden senkron
+    // olarak kapanır, böylece aynı kaydırmada gelen çağrılar burada durur.
+    if (_loadingMore) return;
+
     final current = state.valueOrNull;
     if (current == null ||
         !current.hasMore ||
@@ -169,6 +182,7 @@ class ArtisanSearchController extends AsyncNotifier<ArtisanSearchState> {
       return;
     }
 
+    _loadingMore = true;
     state = AsyncData(current.copyWith(isLoadingMore: true));
     try {
       final page = await _repo.searchArtisans(
@@ -177,13 +191,22 @@ class ArtisanSearchController extends AsyncNotifier<ArtisanSearchState> {
         limit: AppConstants.artisanPageSize,
         premiumFreeDuringBeta: _freeBeta,
       );
-      state = AsyncData(current.copyWith(
-        items: [...current.items, ...page.items],
+      // Devam eden istek sırasında yeni bir arama başladıysa (filtre değişti)
+      // eski sayfayı yeni listeye eklemeyiz — karışık sonuç görünürdü.
+      final latest = state.valueOrNull;
+      if (latest == null || !latest.hasSearched) return;
+      state = AsyncData(latest.copyWith(
+        items: [...latest.items, ...page.items],
         hasMore: page.hasMore,
         isLoadingMore: false,
       ));
     } catch (_) {
-      state = AsyncData(current.copyWith(isLoadingMore: false));
+      final latest = state.valueOrNull;
+      if (latest != null) {
+        state = AsyncData(latest.copyWith(isLoadingMore: false));
+      }
+    } finally {
+      _loadingMore = false;
     }
   }
 }

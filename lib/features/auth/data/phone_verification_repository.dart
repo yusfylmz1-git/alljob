@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/config/backend_config.dart';
+import '../../../core/utils/app_log.dart';
 import 'auth_repository.dart';
 import 'firebase_phone_verification_repository.dart';
 
@@ -55,8 +56,22 @@ class PhoneVerificationSession {
 
 /// Kullanıcıya gösterilebilir Türkçe telefon-doğrulama hatası.
 class PhoneVerificationException implements Exception {
-  const PhoneVerificationException(this.message);
+  const PhoneVerificationException(this.message, {this.devNote});
+
+  /// Kullanıcıya gösterilen metin. Sade, suçlayıcı olmayan, ne yapacağını
+  /// söyleyen Türkçe.
   final String message;
+
+  /// Yalnız geliştirici için: yapılandırma hatalarında konsola düşer
+  /// (bkz. [logDevNote]). Kullanıcı arayüzünde ASLA gösterilmez.
+  final String? devNote;
+
+  /// Yapılandırma hatasını debug derlemesinde loga yazar (release'te sessiz).
+  void logDevNote() {
+    final n = devNote;
+    if (n != null) AppLog.d('[Telefon doğrulama — YAPILANDIRMA] $n');
+  }
+
   @override
   String toString() => message;
 
@@ -72,20 +87,62 @@ class PhoneVerificationException implements Exception {
     'Bu numara başka bir hesapta doğrulanmış. Kendi numaranızsa o hesaba '
     'giriş yapın veya farklı bir numara kullanın.',
   );
+  /// Firebase'in NUMARA BAZLI SMS kotası doldu (hesap engellenmedi).
+  ///
+  /// Kota kısa aralıkla tekrarlanan denemelerde devreye girer ve genelde
+  /// 30–60 dakikada açılır. "Bir süre sonra" demek kullanıcıyı uygulamada
+  /// tekrar tekrar denemeye itiyordu — bu da kotayı uzatıyor.
   static const tooManyRequests = PhoneVerificationException(
-    'Çok fazla deneme yapıldı. Lütfen bir süre sonra tekrar deneyin.',
+    'Bu numara için çok fazla deneme yapıldı. Güvenlik nedeniyle bir süre '
+    'yeni kod gönderilemiyor — yaklaşık 1 saat sonra tekrar deneyin. '
+    'Tekrar tekrar denemek bekleme süresini uzatır.',
   );
+  // Aşağıdaki ikisi YAPILANDIRMA hatasıdır — sebebi kullanıcıda değil bizde.
+  // Kullanıcıya Firebase Console adımları GÖSTERİLMEZ: ne anlar ne de
+  // yapabilir, üstelik altyapı kurulumumuzu ifşa eder. Geliştirici talimatı
+  // debugPrint ile loga düşer (aşağıdaki devNote), kullanıcı sade metni görür.
   static const providerDisabled = PhoneVerificationException(
-    'Telefonla doğrulama henüz etkin değil. Firebase Console → Authentication '
-    '→ Sign-in method → Phone sağlayıcısını etkinleştirin.',
+    'Telefon doğrulama şu anda kullanılamıyor. Kısa süre sonra tekrar '
+    'deneyin; sorun sürerse bize ulaşın.',
+    devNote: 'Firebase Console → Authentication → Sign-in method → '
+        'Phone sağlayıcısı KAPALI.',
   );
   static const regionBlocked = PhoneVerificationException(
-    'SMS gönderimi Türkiye (+90) için henüz açık değil. Firebase Console → '
-    'Authentication → Settings → SMS region policy bölümünden Türkiye\'ye '
-    'izin verin.',
+    'Telefon doğrulama şu anda kullanılamıyor. Kısa süre sonra tekrar '
+    'deneyin; sorun sürerse bize ulaşın.',
+    devNote: 'Firebase Console → Authentication → Settings → SMS region '
+        'policy: Türkiye (+90) izinli değil.',
   );
   static const notSignedIn = PhoneVerificationException(
     'Önce giriş yapmalısınız.',
+  );
+
+  /// Android'de `code=unknown`: SMS gönderilmeden ÖNCEKİ cihaz doğrulaması
+  /// (Play Integrity / SafetyNet zinciri) başarısız oldu.
+  ///
+  /// **En sık sebep (2026-08-14'te cihaz logundan doğrulandı): uygulama
+  /// henüz Play Store'da yayınlanmamış.**
+  ///
+  /// Logcat'teki gerçek satır:
+  /// `18002 Invalid PlayIntegrity token; app not Recognized by Play Store`
+  ///
+  /// Play Integrity, mağazada olmayan bir uygulamayı tanımaz ve token'ı
+  /// reddeder. Firebase reCAPTCHA yedeğine düşer; projede reCAPTCHA
+  /// Enterprise site key yoksa o da başarısız olur ve SDK ayırt edici bir
+  /// kod yerine `unknown` fırlatır.
+  ///
+  /// ⚠️ Bu bir KOD HATASI DEĞİLDİR. Kapalı teste (internal testing)
+  /// yüklendiği anda kendiliğinden düzelir. O zamana kadar Firebase test
+  /// numaralarıyla test edilir (Play Integrity'yi atlarlar).
+  ///
+  /// Diğer (daha nadir) sebepler: cihazda Google Play Services eksik/eski
+  /// — emülatörde sık; ağın Google servislerini engellemesi.
+  ///
+  /// Ayrıntı: docs/TELEFON_DOGRULAMA_TANI.md
+  static const deviceCheckFailed = PhoneVerificationException(
+    'SMS gönderilemedi: cihaz doğrulaması tamamlanamadı. İnternet '
+    'bağlantını kontrol edip tekrar dene. Sorun sürerse Google Play '
+    'Hizmetleri güncel olmayabilir.',
   );
 
   /// Numara değiştirme gibi hassas işlemler yakın zamanlı oturum ister.

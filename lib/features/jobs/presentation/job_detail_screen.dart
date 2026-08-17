@@ -779,10 +779,15 @@ class _ArtisanOfferSection extends ConsumerWidget {
     final theme = Theme.of(context);
     final user = ref.watch(currentUserProvider);
 
-    if (!job.status.isActiveForOffers) {
+    // Ham `status` DEĞİL, süre kontrolünü de içeren efektif durum.
+    // Süresi dolan ilanı `expired` yapan bir sunucu görevi YOK: doküman
+    // sonsuza kadar `open` kalır ve ham duruma bakılınca aylar önce dolmuş
+    // ilana hâlâ "Mesaj gönder" düğmesi çıkıyordu ("ilanım doldu ama hâlâ
+    // mesaj geliyor"). `effectiveStatus` `expiresAt`'i de hesaba katar.
+    if (!job.effectiveStatus.isActiveForOffers) {
       return const _NoticeCard(
         icon: Icons.info_outline,
-        text: 'Bu ilan artık teklife açık değil.',
+        text: 'Bu ilanın süresi doldu, artık mesaj gönderilemiyor.',
       );
     }
 

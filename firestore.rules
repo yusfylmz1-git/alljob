@@ -156,9 +156,10 @@ service cloud.firestore {
       // contact: telefon; push: fcmTokens[] + prefs (H2);
       // chatMeta: denormalize sohbet okunmamış sayacı (alt bar rozeti).
       // Başka docId yok (rastgele private/* şişirmesi / PII sızıntı yüzeyi kapanır).
-      // `jobStats` (açık ilan sayacı) LİSTEDE YOK: yalnız CF yazar
-      // (onJobWritten). İstemci yazabilseydi sayacı sıfırlayıp ilan limitini
-      // kendi kaldırırdı. Okuma sahibine açık — UI kalan hakkı gösterebilsin.
+      // `jobStats` (açık ilan sayacı) ve `productStats` (taslak sayacı)
+      // LİSTEDE YOK: yalnız CF yazar (onJobWritten / onProductWritten).
+      // İstemci yazabilseydi sayacı sıfırlayıp kotayı kendi kaldırırdı.
+      // Okuma sahibine açık — UI kalan hakkı gösterebilsin.
       // `rating` de CF'e ait: usta→müşteri puanı (a2c) burada tutulur.
       match /private/{doc} {
         allow read: if isSelf(uid);
@@ -614,8 +615,18 @@ service cloud.firestore {
       // H5: herkes okur; gizlenenler istemcide elenir (alan bazlı filter yok).
       // Admin gizleme bayrağını okuyabilir; istemci hiddenByAdmin==true olanı göstermez.
       allow read: if true;
+      // Alan allowlist'i ZORUNLU: `reviews` herkese açık okunur ve usta
+      // profilinde listelenir. Allowlist olmadan (a) istemci `hiddenByAdmin`
+      // gibi YALNIZ CF'e ait moderasyon alanlarını ilk yazımda enjekte
+      // edebiliyordu, (b) doküman boyutuna tavan olmadığı için tek yoruma
+      // yüzlerce KB metin konup her profil görüntüleyene indirtilebiliyordu.
+      // Modelin yazdığı alanlar: review.dart `toMap()` (8 alan).
       allow create: if isSignedIn()
         && !isSuspended()
+        && request.resource.data.keys().hasOnly([
+             'artisanUID', 'customerUID', 'customerDisplayName',
+             'chatId', 'rating', 'tags', 'direction', 'createdAt'
+           ])
         && request.resource.data.customerUID is string
         && request.resource.data.artisanUID is string
         && request.resource.data.customerUID != request.resource.data.artisanUID
@@ -623,7 +634,12 @@ service cloud.firestore {
         && reviewIdOk()
         && request.resource.data.rating is int
         && request.resource.data.rating >= 1
-        && request.resource.data.rating <= 5;
+        && request.resource.data.rating <= 5
+        // Etiketler hazır listeden gelir (ReviewTags) — serbest metin değil.
+        && request.resource.data.tags is list
+        && request.resource.data.tags.size() <= 8
+        && request.resource.data.customerDisplayName is string
+        && request.resource.data.customerDisplayName.size() <= 60;
       // Güncelleme: YALNIZ değerlendirmeyi YAZAN taraf (yöne göre müşteri ya
       // da usta); kimlik alanları (customerUID/artisanUID/chatId/direction)
       // değiştirilemez, puan yine 1..5 int.
@@ -842,9 +858,24 @@ service cloud.firestore {
 
       allow read: if true;
       // Create: yalnız draft; moderationHidden zorunlu false.
+      // TASLAK KOTASI (100). Yayınlama tarafı iyi korunuyordu (publishProduct
+      // CF'inde 10/gün + 50 aktif ürün), ama TASLAK yazımı doğrudan Firestore'a
+      // gidiyor ve adet sınırı yoktu: doğrulanmış e-postalı bir hesap SDK ile
+      // döngüde yüz binlerce taslak yazıp hem veritabanını şişirebilir hem her
+      // yazımda `onProductWritten` tetikleyip CF faturası üretebilirdi.
+      // `jobs`taki `openJobQuotaOk` deseninin aynısı: sayaç
+      // `users/{uid}/private/productStats.draftCount` içinde durur, yalnız CF
+      // yazar (onProductWritten). Doküman yoksa (ilk ürün) limit geçilir.
+      // Normal kullanıcı bu tavana hiç yaklaşmaz.
+      function productDraftQuotaOk() {
+        let p = /databases/$(database)/documents/users/$(request.auth.uid)/private/productStats;
+        return !exists(p) || get(p).data.get('draftCount', 0) < 100;
+      }
+
       allow create: if isSignedIn()
         && !isSuspended()
         && isEmailVerified()
+        && productDraftQuotaOk()
         && productClientKeysOk()
         && productFieldsBasicOk()
         && request.resource.data.status == 'draft'
