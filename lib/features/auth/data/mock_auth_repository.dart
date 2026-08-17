@@ -2,6 +2,7 @@ import 'dart:async';
 
 import '../../../core/utils/validators.dart';
 import '../../../data/models/app_user.dart';
+import '../../../data/models/geo_models.dart';
 import '../../../data/models/social_links.dart';
 import '../../../data/models/user_role.dart';
 import '../../admin/data/admin_config.dart';
@@ -10,7 +11,16 @@ import 'auth_repository.dart';
 /// Bellek içi (in-memory) kimlik doğrulama. Firebase bağlanana kadar
 /// uygulamanın uçtan uca çalışmasını sağlar. Oturum uygulama kapanınca silinir.
 class MockAuthRepository implements AuthRepository {
-  MockAuthRepository() {
+  /// [publicUserResolver]: oturum DIŞINDAKİ uid'ler için görüntülenebilir
+  /// kullanıcı döndürür (tipik olarak `MockDatabase.publicUser`).
+  ///
+  /// Neden var: Firestore'da `users/{uid}` HERKESE AÇIK okunur (CLAUDE.md
+  /// kural 5), ama mock yalnız oturumdaki kullanıcıyı biliyordu. Bu bir
+  /// parite açığıydı — "başkasının profili" akışları (sohbet başlığı, ürün
+  /// satıcısı, herkese açık profil) bellek içi doğru çalışmıyordu.
+  /// Verilmezse eski iskelet davranışı korunur, mevcut testler etkilenmez.
+  MockAuthRepository({AppUser? Function(String uid)? publicUserResolver})
+      : _resolvePublic = publicUserResolver {
     // Geliştirme/test için hazır demo hesaplar.
     _seed('musteri@test.com', '123456', 'Test Müşteri');
     _seed('usta@test.com', '123456', 'Ahmet Usta', artisan: true);
@@ -18,6 +28,7 @@ class MockAuthRepository implements AuthRepository {
 
   final _controller = StreamController<AppUser?>.broadcast();
   final Map<String, _Account> _accounts = {}; // key: email (lowercase)
+  final AppUser? Function(String uid)? _resolvePublic;
   AppUser? _current;
 
   void _seed(
@@ -213,6 +224,10 @@ class MockAuthRepository implements AuthRepository {
     String? publicPhone,
     SocialLinks? socialLinks,
     String? aboutText,
+    bool? hasShopProfile,
+    List<String>? shopCategories,
+    List<ServiceArea>? shopServiceAreas,
+    bool? available,
   }) async {
     await _delay();
     final user = _current;
@@ -223,6 +238,17 @@ class MockAuthRepository implements AuthRepository {
       final nameErr = Validators.displayName(name);
       if (nameErr != null) throw AuthException(nameErr);
     }
+    // KURAL PARİTESİ: `firestore.rules` → `providerFlagOk`. Mağaza profilini
+    // AÇMAK doğrulanmış telefon ister; kapatmak ve zaten açık profili
+    // güncellemek serbesttir. Mock bunu taklit etmezse istemci kapısındaki
+    // bir gerileme yalnız canlıda patlar (CLAUDE.md kural 1).
+    if (hasShopProfile == true &&
+        !user.hasShopProfile &&
+        !user.phoneVerified) {
+      throw const AuthException(
+        'Mağaza açmak için telefon doğrulaması gerekiyor.',
+      );
+    }
     // Firebase paritesi: boş dize = ALANI TEMİZLE (kural 1).
     final t = publicPhone?.trim();
     var updated = user.copyWith(
@@ -232,6 +258,10 @@ class MockAuthRepository implements AuthRepository {
       clearPublicPhone: t != null && t.isEmpty,
       socialLinks: socialLinks,
       aboutText: aboutText?.trim(),
+      hasShopProfile: hasShopProfile,
+      shopCategories: shopCategories,
+      shopServiceAreas: shopServiceAreas,
+      available: available,
     );
     // Firebase paritesi: ortak alanlardan biri yazıldığı an kayıt "göçmüş"
     // sayılır (orada `fromMap` alanın VARLIĞINA bakar). Bayrak taşınmazsa
@@ -260,17 +290,33 @@ class MockAuthRepository implements AuthRepository {
   @override
   Future<AppUser?> fetchPublicUser(String uid) async {
     await _delay();
-    // Mock'ta yalnız oturumdaki kullanıcı bilinir; başka uid için
-    // gösterilebilir bir iskelet döner (ekran boş kalmasın).
     final me = _current;
     if (me != null && me.uid == uid) return me;
     if (uid.trim().isEmpty) return null;
+    // Rehber verilmişse başka kullanıcıları da çözer (Firestore'da users/{uid}
+    // herkese açık okunur — bkz. kurucu notu).
+    final resolved = _resolvePublic?.call(uid);
+    if (resolved != null) return resolved;
+    // Rehber yoksa/tanımıyorsa: gösterilebilir iskelet (ekran boş kalmasın).
     return AppUser(
       uid: uid,
       displayName: 'Kullanıcı',
       email: '',
       createdAt: DateTime.now(),
     );
+  }
+
+  @override
+  Stream<AppUser?> watchPublicUser(String uid) {
+    // Firebase paritesi: canlı akış. Mock'ta tek gerçek kaynak oturumdaki
+    // kullanıcıdır; kendi uid'imiz için auth akışını izleriz ki müsaitlik
+    // değişimi (users.available) anında yansısın — gerçek uygulamada da
+    // öyle davranır.
+    if (uid.trim().isEmpty) return Stream.value(null);
+    return authStateChanges().asyncMap((u) {
+      if (u != null && u.uid == uid) return u;
+      return fetchPublicUser(uid);
+    });
   }
 
   @override

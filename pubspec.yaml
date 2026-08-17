@@ -90,6 +90,12 @@ flutter:
   assets:
     - assets/data/
     - assets/brand/
+    # Ekran görüntüsü çekmek için demo görselleri gerektiğinde şu üç satır
+    # GEÇİCİ olarak açılır, çekim biter bitmez tekrar kapatılır (yoksa ~34 MB
+    # demo fotoğraf yayın paketine girer). Muhafız: test/yayin_hazirlik_test.dart
+    #   - assets/demo/avatar/
+    #   - assets/demo/work/
+    #   - assets/demo/product/
 
   fonts:
     - family: Inter

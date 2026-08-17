@@ -14,8 +14,16 @@ import 'core/config/backend_config.dart';
 import 'core/widgets/app_error_fallback.dart';
 import 'core/theme/accent_state.dart';
 import 'core/theme/theme_mode_state.dart';
+import 'data/local/demo_assets.dart';
+import 'data/local/mock_database.dart';
+import 'features/artisan/data/artisan_providers.dart';
+import 'features/auth/application/auth_controller.dart';
+import 'features/auth/data/mock_auth_repository.dart';
+import 'features/chat/data/chat_providers.dart';
+import 'features/chat/data/chat_repository.dart';
 import 'features/membership/membership_package.dart';
 import 'features/onboarding/onboarding_state.dart';
+import 'features/storage/storage_repository.dart';
 import 'firebase_options.dart';
 
 /// Uygulama arka planda/kapalıyken gelen push mesajlarını işler. Ayrı bir
@@ -132,9 +140,15 @@ Future<void> main() async {
   // Tema tercihi (Sistem/Açık/Koyu) cihazdan okunur; kayıt yoksa Sistem.
   final themeMode = await readThemeMode();
 
-  // Mod başına seçilen vurgu rengi (Görünüm ayarı) cihazdan okunur.
-  final customerAccentId = await readCustomerAccentId();
-  final artisanAccentId = await readArtisanAccentId();
+  // Vurgu rengi (Görünüm → Renk) cihazdan okunur.
+  final accentId = await readAccentId();
+
+  // Mağaza ekran görüntüsü seti: yalnız MOCK modda devreye girer. Firebase
+  // açıkken (yayın yapılandırması) bu blok hiç çalışmaz — canlı veri
+  // etkilenmez. Ayrıntı: `vault/06-Test/Demo-Veri-Seti.md`.
+  final demoOverrides = useFirebaseBackend
+      ? const <Override>[]
+      : await _demoModeOverrides();
 
   runApp(
     ProviderScope(
@@ -145,10 +159,44 @@ Future<void> main() async {
           (ref) => selectedPackage,
         ),
         themeModeProvider.overrideWith((ref) => themeMode),
-        customerAccentIdProvider.overrideWith((ref) => customerAccentId),
-        artisanAccentIdProvider.overrideWith((ref) => artisanAccentId),
+        accentIdProvider.overrideWith((ref) => accentId),
+        ...demoOverrides,
       ],
-      child: const UstaCepteApp(),
+      child: const SepetteHizmetApp(),
     ),
   );
+}
+
+/// Mock modda demo verisini (10 persona, ilan, ürün, sohbet, fotoğraf)
+/// devreye alan provider override'ları.
+///
+/// Depo örneği burada BİR KEZ kurulup görselleri yüklenir, sonra override ile
+/// paylaşılır; aksi hâlde her okumada yeni bir depo doğar ve yüklenen baytlar
+/// kaybolurdu.
+Future<List<Override>> _demoModeOverrides() async {
+  final storage = MockStorageRepository();
+  final loaded = await seedDemoAssets(storage);
+  if (kDebugMode) {
+    debugPrint('Demo modu: $loaded görsel yüklendi '
+        '(eksikler baş harf/ikon yedeğine düşer).');
+  }
+
+  final db = MockDatabase(withDemoPersonas: true);
+
+  return [
+    storageRepositoryProvider.overrideWithValue(storage),
+    mockDatabaseProvider.overrideWithValue(db),
+    // Firestore'da users/{uid} herkese açık okunur; mock'un bunu taklit
+    // etmesi için kullanıcı rehberi bağlanır (sohbet başlığı, satıcı adı).
+    authRepositoryProvider.overrideWith((ref) {
+      final repo = MockAuthRepository(publicUserResolver: db.publicUser);
+      ref.onDispose(repo.dispose);
+      return repo;
+    }),
+    chatRepositoryProvider.overrideWith((ref) {
+      final repo = MockChatRepository()..seedDemoThreads();
+      ref.onDispose(repo.dispose);
+      return repo;
+    }),
+  ];
 }

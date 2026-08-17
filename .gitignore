@@ -79,3 +79,17 @@ ui-debug.log
 /tool/last_*.txt
 /tool/_kprof.txt
 console.log(e
+
+# Demo görselleri (mağaza ekran görüntüsü seti) — yerelde durur, repoya
+# ve yayın paketine girmez. Klasör yapısı .gitkeep ile korunur.
+# Ne konacağı: assets/demo/NASIL-KULLANILIR.md
+assets/demo/**/*.jpg
+assets/demo/**/*.jpeg
+assets/demo/**/*.jfif
+assets/demo/**/*.png
+assets/demo/**/*.webp
+assets/demo/**/*.JPG
+assets/demo/**/*.JPEG
+assets/demo/**/*.JFIF
+assets/demo/**/*.PNG
+assets/demo/**/*.WEBP

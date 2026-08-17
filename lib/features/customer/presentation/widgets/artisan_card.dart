@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_palette.dart';
 import '../../../../core/widgets/app_image.dart';
+import '../../../../core/widgets/job_thumb.dart';
 import '../../../../core/widgets/premium_surface_card.dart';
 import '../../../artisan/data/artisan_repository.dart';
 
@@ -174,6 +175,7 @@ class _RingedAvatar extends StatelessWidget {
                     child: _AvatarFill(
                       initials: _initials(artisan.displayName),
                       photoUrl: artisan.profilePhotoUrl,
+                      professionCode: artisan.professionCode,
                     ),
                   ),
                 ),
@@ -198,31 +200,54 @@ class _RingedAvatar extends StatelessWidget {
 
 /// Parent ClipOval içinde tüm alanı kaplar (BoxFit.cover).
 class _AvatarFill extends StatelessWidget {
-  const _AvatarFill({required this.initials, this.photoUrl});
+  const _AvatarFill({
+    required this.initials,
+    this.photoUrl,
+    this.professionCode,
+  });
 
   final String initials;
   final String? photoUrl;
 
+  /// Fotoğrafsız kartta baş harf yerine meslek ikonu çizilir; her meslek
+  /// kendi rengiyle gelir (`job_thumb.dart`). Fotoğrafı olmayan ustalar
+  /// listenin çoğunu oluşturduğu için tek tip harf yerine ayırt edilebilir
+  /// bir görsel dil daha okunur oluyor.
+  final String? professionCode;
+
   @override
   Widget build(BuildContext context) {
-    final letter = DecoratedBox(
-      decoration: const BoxDecoration(gradient: AppColors.brandGradient),
-      child: Center(
-        child: Text(
-          initials,
-          style: const TextStyle(
-            fontSize: 22,
-            fontWeight: FontWeight.w700,
-            color: Colors.white,
-            letterSpacing: 0.4,
+    final code = professionCode?.trim() ?? '';
+
+    final Widget fallback;
+    if (code.isNotEmpty) {
+      final visual = jobVisualFor(code);
+      fallback = DecoratedBox(
+        decoration: BoxDecoration(color: visual.color.withValues(alpha: 0.16)),
+        child: Center(
+          child: Icon(visual.icon, size: 34, color: visual.color),
+        ),
+      );
+    } else {
+      fallback = DecoratedBox(
+        decoration: const BoxDecoration(gradient: AppColors.brandGradient),
+        child: Center(
+          child: Text(
+            initials,
+            style: const TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.w700,
+              color: Colors.white,
+              letterSpacing: 0.4,
+            ),
           ),
         ),
-      ),
-    );
+      );
+    }
 
     final url = photoUrl?.trim();
     if (url == null || url.isEmpty) {
-      return SizedBox.expand(child: letter);
+      return SizedBox.expand(child: fallback);
     }
 
     final dpr = MediaQuery.devicePixelRatioOf(context);
@@ -235,7 +260,7 @@ class _AvatarFill extends StatelessWidget {
         fit: BoxFit.cover,
         memCacheWidth: cache,
         memCacheHeight: cache,
-        placeholder: letter,
+        placeholder: fallback,
       ),
     );
   }

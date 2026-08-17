@@ -10,6 +10,8 @@ import 'package:sepette_hizmet/features/favorites/data/favorite_providers.dart';
 import 'package:sepette_hizmet/features/favorites/data/mock_favorite_repository.dart';
 import 'package:sepette_hizmet/features/jobs/data/job_providers.dart';
 import 'package:sepette_hizmet/features/jobs/data/mock_job_repository.dart';
+import 'package:sepette_hizmet/features/products/data/mock_product_repository.dart';
+import 'package:sepette_hizmet/features/products/data/product_providers.dart';
 import 'package:sepette_hizmet/features/safety/data/block_repository.dart';
 import 'package:sepette_hizmet/features/safety/data/report_repository.dart';
 import 'package:sepette_hizmet/features/safety/data/safety_providers.dart';
@@ -48,6 +50,9 @@ List<Override> mockBackendOverrides() => [
       ),
       jobRepositoryProvider.overrideWith(
         (ref) => MockJobRepository(ref.watch(mockDatabaseProvider)),
+      ),
+      productRepositoryProvider.overrideWith(
+        (ref) => MockProductRepository(ref.watch(mockDatabaseProvider)),
       ),
       myProfileRepositoryProvider.overrideWith(
         (ref) => MockMyProfileRepository(ref),

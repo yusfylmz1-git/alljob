@@ -192,6 +192,215 @@ class MockChatRepository implements ChatRepository {
       _msgControllers.putIfAbsent(
           chatId, () => StreamController<List<ChatMessage>>.broadcast());
 
+  // ==========================================================================
+  // DEMO SOHBETLERİ — mağaza ekran görüntüleri için
+  //
+  // Yalnız demo akışında çağrılır; normal mock davranışını değiştirmez.
+  // `sendMessage()` KULLANILMAZ çünkü createdAt'i `DateTime.now()`'a sabitler
+  // (tüm mesajlar aynı dakikaya düşer, saat damgaları tek tip çıkar) ve
+  // `isSystem` parametresi almaz. Bu yüzden kayıtlar doğrudan yazılır.
+  // Ayrıntı: `vault/06-Test/Demo-Veri-Seti.md`.
+  // ==========================================================================
+
+  /// Ekran görüntüsü için gerçekçi sohbet geçmişi.
+  ///
+  /// [readerUid] verilirse o kullanıcı sohbetleri okumuş sayılır; okunmamış
+  /// rozeti görünsün diye bazı sohbetler kasıtlı okunmamış bırakılır.
+  void seedDemoThreads() {
+    void thread({
+      required String customerUid,
+      required String customerName,
+      required String artisanUid,
+      required String artisanName,
+      required List<_DemoMsg> msgs,
+      String? jobId,
+      String? jobTitle,
+      bool readByCustomer = true,
+      Set<String> pinnedBy = const {},
+      Set<String> archivedBy = const {},
+    }) {
+      // Kimlik alfabetiktir; hangi taraf müşteri olursa olsun aynı oda.
+      final id = chatIdFor(customerUid, artisanUid);
+      final now = DateTime.now();
+
+      final list = <ChatMessage>[
+        for (final m in msgs)
+          ChatMessage(
+            id: 'msg_demo_${_seq++}',
+            chatId: id,
+            senderUid: m.isSystem ? 'system' : m.senderUid,
+            text: m.text,
+            imageHandle: m.imageHandle,
+            isSystem: m.isSystem,
+            createdAt: now.subtract(Duration(minutes: m.minutesAgo)),
+          ),
+      ];
+      _messages[id] = list;
+
+      final last = list.last;
+      _threads[id] = ChatThread(
+        id: id,
+        customerUid: customerUid,
+        artisanUid: artisanUid,
+        customerName: customerName,
+        artisanName: artisanName,
+        customerPhotoUrl: _demoAvatar(customerUid),
+        artisanPhotoUrl: _demoAvatar(artisanUid),
+        lastMessage: last.imageHandle != null && last.text == null
+            ? 'Fotoğraf'
+            : last.text,
+        lastMessageSenderUid: last.senderUid,
+        createdAt: list.first.createdAt,
+        updatedAt: last.createdAt,
+        customerStarted: true,
+        jobId: jobId,
+        jobTitle: jobTitle,
+        pinnedBy: pinnedBy,
+        archivedBy: archivedBy,
+      );
+
+      if (readByCustomer) {
+        _lastRead.putIfAbsent(id, () => {})[customerUid] = now;
+      }
+      // Usta tarafı okunmamış bırakılır → ustanın listesinde rozet görünür.
+    }
+
+    // 1) Zeynep ↔ Elif — tam senaryo: soru, fotoğraf, teklif, pazarlık, randevu.
+    thread(
+      customerUid: 'demo_zeynep',
+      customerName: 'Zeynep Uçar',
+      artisanUid: 'demo_elif',
+      artisanName: 'Elif Sarıkaya',
+      jobId: 'job_demo_1',
+      jobTitle: 'Banyo fayansları yenilenecek',
+      pinnedBy: const {'demo_zeynep'},
+      msgs: [
+        // Sistem şeridi: balon değil, ortada ince çizgi (chat_screen.dart:823).
+        _DemoMsg('system',
+            text: 'Bu sohbet "Banyo fayansları yenilenecek" ilanı üzerinden '
+                'başladı.',
+            isSystem: true,
+            minutesAgo: 322),
+        _DemoMsg('demo_zeynep',
+            text: 'Merhaba Elif Hanım, ilanımı gördünüz mü? Banyo yaklaşık 6 m².',
+            minutesAgo: 320),
+        _DemoMsg('demo_elif',
+            text: 'Merhaba Zeynep Hanım, gördüm. Eski fayanslar sökülecek mi, '
+                'yoksa üzerine mi yapılacak?',
+            minutesAgo: 314),
+        _DemoMsg('demo_zeynep',
+            text: 'Sökülecek. Zemin de dahil.', minutesAgo: 310),
+        _DemoMsg('demo_zeynep',
+            imageHandle: 'local://demo/work/work_tiler_1', minutesAgo: 309),
+        _DemoMsg('demo_elif',
+            text: 'Fotoğraf için teşekkürler, durum net. Söküm, su yalıtımı ve '
+                'uygulama dahil 16.500 ₺ diyebilirim. Malzeme size ait.',
+            minutesAgo: 300),
+        _DemoMsg('demo_zeynep',
+            text: 'Yalıtım da dahil mi? 15.000 olur mu?', minutesAgo: 292),
+        _DemoMsg('demo_elif',
+            text: 'Yalıtım dahil evet. 15.750 ₺ son fiyatım, iki günde bitiririm.',
+            minutesAgo: 288),
+        _DemoMsg('demo_zeynep',
+            text: 'Anlaştık. Cumartesi sabah 9 uygun mu?', minutesAgo: 40),
+        _DemoMsg('demo_elif',
+            text: 'Uygun. Cumartesi 9\'da adresinizdeyim, malzeme listesini '
+                'akşam göndereyim.',
+            minutesAgo: 35),
+        _DemoMsg('demo_zeynep', text: 'Harika, teşekkür ederim.', minutesAgo: 12),
+      ],
+    );
+
+    // 2) Zeynep ↔ Kerem — son iki mesaj ustadan ve OKUNMAMIŞ → liste rozeti.
+    thread(
+      customerUid: 'demo_zeynep',
+      customerName: 'Zeynep Uçar',
+      artisanUid: 'demo_kerem',
+      artisanName: 'Kerem Alptekin',
+      readByCustomer: false,
+      msgs: [
+        _DemoMsg('demo_zeynep',
+            text: 'Merhaba, salon ve iki odayı boyatmak istiyorum.',
+            minutesAgo: 180),
+        _DemoMsg('demo_kerem',
+            text: 'Merhaba Zeynep Hanım, kaç m² civarı? Tavanlar da dahil mi?',
+            minutesAgo: 174),
+        _DemoMsg('demo_zeynep',
+            text: 'Yaklaşık 95 m², tavanlar da dahil.', minutesAgo: 170),
+        _DemoMsg('demo_kerem',
+            text: 'Silinebilir boyayla iki kat, işçilik 12.000 ₺. Boyayı siz '
+                'alırsanız marka listesini göndereyim.',
+            minutesAgo: 25),
+        _DemoMsg('demo_kerem',
+            text: 'Geçen hafta bitirdiğim benzer bir daire.',
+            imageHandle: 'local://demo/work/work_painter_2',
+            minutesAgo: 24),
+      ],
+    );
+
+    // 3) Tolga ↔ Sevil — ikisi de usta, Tolga müşteri rolünde.
+    //    "Rol ayrımı yok" ilkesinin görsel kanıtı.
+    thread(
+      customerUid: 'demo_tolga',
+      customerName: 'Tolga Şenyurt',
+      artisanUid: 'demo_sevil',
+      artisanName: 'Sevil Karaduman',
+      jobId: 'job_demo_3',
+      jobTitle: 'Ofis taşınacak, 2 kat merdiven var',
+      msgs: [
+        _DemoMsg('demo_tolga',
+            text: 'Sevil Hanım merhaba, ofisimin iç tasarımı için '
+                'görüşebilir miyiz?',
+            minutesAgo: 1450),
+        _DemoMsg('demo_sevil',
+            text: 'Merhaba Tolga Bey, tabii. Kaç m² ve kaç kişilik bir ofis?',
+            minutesAgo: 1440),
+        _DemoMsg('demo_tolga',
+            text: '70 m², 8 kişilik açık ofis olacak.', minutesAgo: 1430),
+        _DemoMsg('demo_sevil',
+            text: 'Benzer ölçüde bir proje. Konsepti beğenirseniz üzerine '
+                'çalışalım.',
+            imageHandle: 'local://demo/work/work_interior_1',
+            minutesAgo: 1425),
+        _DemoMsg('demo_tolga',
+            text: 'Çok beğendim. Hafta içi bir gün ofise gelebilir misiniz?',
+            minutesAgo: 200),
+      ],
+    );
+
+    // 4) Zeynep ↔ Ayşe Nur — kısa, olumlu, düzenli anlaşma.
+    thread(
+      customerUid: 'demo_zeynep',
+      customerName: 'Zeynep Uçar',
+      artisanUid: 'demo_ayse',
+      artisanName: 'Ayşe Nur Tunç',
+      msgs: [
+        _DemoMsg('demo_zeynep',
+            text: 'Merhaba, tadilat sonrası detaylı temizlik için '
+                'fiyat alabilir miyim?',
+            minutesAgo: 2900),
+        _DemoMsg('demo_ayse',
+            text: 'Merhaba, 3+1 daire için 4.500 ₺. Cam ve balkon dahil, '
+                'ürünler bana ait.',
+            minutesAgo: 2880),
+        _DemoMsg('demo_zeynep',
+            text: 'Uygun. Ayda bir düzenli de yaptırmak isterim.',
+            minutesAgo: 2850),
+        _DemoMsg('demo_ayse',
+            text: 'Düzenli müşterilerime %15 indirim uyguluyorum, '
+                'takvime alalım.',
+            minutesAgo: 2840),
+      ],
+    );
+
+    _threadsTick.add(null);
+  }
+
+  /// Demo avatar handle'ı — `MockDatabase.demoPhoto` ile aynı deseni üretir.
+  /// (Sohbet katmanı `data/local`'a bağımlı olmasın diye burada tekrarlanır.)
+  static String? _demoAvatar(String uid) =>
+      uid.startsWith('demo_') ? 'local://demo/avatar/$uid' : null;
+
   @override
   Stream<List<ChatThread>> watchThreads(String uid) async* {
     yield _threadsFor(uid);
@@ -444,4 +653,24 @@ class MockChatRepository implements ChatRepository {
     }
     _threadsTick.close();
   }
+}
+
+/// Demo sohbet mesajı tarifi ([MockChatRepository.seedDemoThreads] için).
+/// Konuşmaları okunur tutar ve alan sırasının karışmasını engeller.
+class _DemoMsg {
+  const _DemoMsg(
+    this.senderUid, {
+    this.text,
+    this.imageHandle,
+    this.isSystem = false,
+    required this.minutesAgo,
+  });
+
+  final String senderUid;
+  final String? text;
+  final String? imageHandle;
+  final bool isSystem;
+
+  /// Şimdiden kaç dakika önce gönderildi (büyük değer = daha eski).
+  final int minutesAgo;
 }

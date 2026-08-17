@@ -18,7 +18,14 @@ class MockArtisanRepository implements ArtisanRepository {
     required int limit,
     bool? premiumFreeDuringBeta,
   }) async {
-    await Future.delayed(const Duration(milliseconds: 400));
+    // Yapay ağ gecikmesi — iskelet/yükleniyor durumları mock'ta da görünsün.
+    // Sayfalamada (offset > 0) KISA tutulur: 900 tohumlanmış ustayı kaydırarak
+    // gezmek 45 sayfa demek ve her birinde 400 ms beklemek listeyi donmuş
+    // gibi gösteriyordu. İlk sayfa yükleniyor animasyonunu hak eder, sonsuz
+    // kaydırma etmez — kullanıcı zaten içeriğe bakıyor.
+    await Future.delayed(
+      Duration(milliseconds: offset == 0 ? 400 : 60),
+    );
 
     final now = DateTime.now();
 
@@ -50,10 +57,22 @@ class MockArtisanRepository implements ArtisanRepository {
 
     // Sıralama (PRD §3): ilk yıl modelinde önce müsait ustalar (puana göre),
     // sonra müsait olmayanlar; 1. yıldan sonra tümü zaten müsait → puana göre.
+    //
+    // Demo setinde ek bir kural devreye girer: fotoğrafı olan ustalar öne
+    // alınır. Tohumlanan 900 ustanın fotoğrafı yoktur (baş harf rozetine
+    // düşerler); demo personalar araya karışınca ekran görüntüsünde ilk
+    // görünen kartlar fotoğrafsız oluyordu. Kural YALNIZ demo verisi
+    // yüklüyken çalışır → normal mock davranışı ve testler etkilenmez.
+    final demoAktif = _db.demoUsers.isNotEmpty;
     matches.sort((a, b) {
       final aAvail = musait(a.profile);
       final bAvail = musait(b.profile);
       if (aAvail != bAvail) return aAvail ? -1 : 1;
+      if (demoAktif) {
+        final aFoto = (a.profilePhotoUrl ?? '').isNotEmpty;
+        final bFoto = (b.profilePhotoUrl ?? '').isNotEmpty;
+        if (aFoto != bFoto) return aFoto ? -1 : 1;
+      }
       return b.profile.averageRating.compareTo(a.profile.averageRating);
     });
 

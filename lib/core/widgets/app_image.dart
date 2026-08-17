@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../features/storage/storage_repository.dart';
+import 'job_thumb.dart';
 
 /// Hem uzak URL'leri (http) hem de mock `local://` handle'larını gösterebilen
 /// görsel bileşeni. Platformdan bağımsız çalışır (Image.memory).
@@ -104,42 +105,66 @@ class AppAvatar extends ConsumerWidget {
     required this.name,
     this.photo,
     this.size = 40,
+    this.professionCode,
   });
 
   final String name;
   final String? photo;
   final double size;
 
+  /// Fotoğraf yokken baş harf yerine MESLEK İKONU göster (boyacı → rulo,
+  /// tesisatçı → musluk). Meslek rengi de ikonla birlikte gelir, böylece
+  /// fotoğrafsız kartlar tek tip gri değil, ayırt edilebilir görünür.
+  /// Verilmezse eski davranış (baş harf) korunur.
+  final String? professionCode;
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final scheme = Theme.of(context).colorScheme;
     final dpr = MediaQuery.devicePixelRatioOf(context);
     final cachePx = (size * dpr).round().clamp(48, 256);
-    final letter = name.trim().isEmpty
-        ? '?'
-        : name.trim().substring(0, 1).toUpperCase();
 
-    final letterFallback = Container(
-      width: size,
-      height: size,
-      color: scheme.primaryContainer,
-      alignment: Alignment.center,
-      child: Text(
-        letter,
-        style: TextStyle(
-          fontSize: size * 0.42,
-          fontWeight: FontWeight.w700,
-          color: scheme.onPrimaryContainer,
+    final code = professionCode?.trim() ?? '';
+    final Widget fallback;
+    if (code.isNotEmpty) {
+      final visual = jobVisualFor(code);
+      fallback = Container(
+        width: size,
+        height: size,
+        color: visual.color.withValues(alpha: 0.16),
+        alignment: Alignment.center,
+        child: Icon(
+          visual.icon,
+          size: size * 0.52,
+          color: visual.color,
         ),
-      ),
-    );
+      );
+    } else {
+      final letter = name.trim().isEmpty
+          ? '?'
+          : name.trim().substring(0, 1).toUpperCase();
+      fallback = Container(
+        width: size,
+        height: size,
+        color: scheme.primaryContainer,
+        alignment: Alignment.center,
+        child: Text(
+          letter,
+          style: TextStyle(
+            fontSize: size * 0.42,
+            fontWeight: FontWeight.w700,
+            color: scheme.onPrimaryContainer,
+          ),
+        ),
+      );
+    }
 
     return ClipOval(
       child: SizedBox(
         width: size,
         height: size,
         child: (photo == null || photo!.isEmpty)
-            ? letterFallback
+            ? fallback
             : AppImage(
                 handle: photo,
                 width: size,
@@ -149,7 +174,7 @@ class AppAvatar extends ConsumerWidget {
                 memCacheHeight: cachePx,
                 // Önbellekten gelince anında; ağda kısa fade.
                 fadeInDuration: const Duration(milliseconds: 80),
-                placeholder: letterFallback,
+                placeholder: fallback,
               ),
       ),
     );
