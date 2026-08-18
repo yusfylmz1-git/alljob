@@ -1,8 +1,23 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
     <!-- Push bildirimleri (FCM). Android 13+ çalışma anında izin ister;
          tanılama satırı Bildirim tercihleri ekranının altındadır. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <uses-permission android:name="android.permission.VIBRATE"/>
+    <!-- REKLAM KİMLİĞİ KALDIRILDI (2026-08-19, Play ön kontrolü):
+         Bu izinleri biz yazmadık; `firebase_analytics` kendi manifest'inde
+         tanımlıyor ve manifest birleştirmesiyle uygulamaya geçiyordu. Play
+         "Reklam Kimliği" beyanında "Hayır" dediğimiz hâlde izni pakette
+         görüp çelişki bildirdi.
+         Uygulama reklam GÖSTERMİYOR; Analytics reklam kimliği olmadan da
+         çalışır (olay sayımı sürer, kişiselleştirilmiş reklam hedefleme
+         zaten kullanılmıyor). İzni burada kaldırmak beyanı doğru tutar ve
+         mağaza sayfasında gereksiz "reklam kimliği kullanır" görünmesini
+         engeller. -->
+    <uses-permission android:name="com.google.android.gms.permission.AD_ID"
+        tools:node="remove"/>
+    <uses-permission android:name="android.permission.ACCESS_ADSERVICES_AD_ID"
+        tools:node="remove"/>
     <!-- KALDIRILAN İZİNLER (2026-08-10, Play Store hazırlığı):
          RECORD_AUDIO ve RECEIVE_BOOT_COMPLETED, Takip Merkezi modülüne
          aitti; modül 4476326'da silindi ve `record` paketi de pubspec'ten
