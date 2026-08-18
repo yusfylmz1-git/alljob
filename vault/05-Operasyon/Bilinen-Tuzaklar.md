@@ -7,6 +7,50 @@
 
 ---
 
+## 🔴 Play'den inen sürümde Google girişi ÇALIŞMAZ — SHA eksik
+
+2026-08-19, ilk kapalı test kurulumu. Uygulama Play'den indi, açıldı, ama
+**"Google ile devam et"** basılınca hesap seçme ekranı açılıp anında
+kapanıyordu. Hata mesajı yok, çökme yok — akış sessizce iptal.
+
+`flutter run` ile kurulan sürümde aynı giriş SORUNSUZ çalışıyordu; bu yüzden
+"kodda bir şey yok" sanılıp saatlerce yanlış yerde aranabilir.
+
+**Sebep:** Play Uygulama İmzalama. Play, yüklediğin AAB'yi senin
+`upload-keystore.jks` anahtarınla DEĞİL, **kendi anahtarıyla yeniden
+imzalayıp** dağıtır. Firebase'de yalnız şunlar kayıtlıydı:
+
+| SHA-1 | Ne |
+|---|---|
+| `5dc4f162…` | debug anahtarı (`flutter run` → bu yüzden çalışıyordu) |
+| `997acb23…` | upload anahtarı (`upload-keystore.jks`) |
+| — | **Play imzalama anahtarı YOKTU** |
+
+Google Sign-In, imzayı tanımadığı için isteği reddediyordu.
+
+**Çözüm:** Play'in imzalama SHA'sını Firebase'e ekle.
+
+```bash
+# Parmak izini Play Console'da aramaya gerek yok (menü yeri değişiyor).
+# Cihazdaki KURULU APK'dan doğrudan oku — kesin sonuç:
+adb shell pm path com.sepettehizmet.app
+adb pull <base.apk yolu> /tmp/play.apk
+apksigner verify --print-certs /tmp/play.apk    # "Signer #1 certificate SHA-1"
+```
+
+Sonra Firebase Console → Proje ayarları → Android uygulaması → parmak izi
+ekle. **Uygulama güncellemesi GEREKMEZ**, `google-services.json`'ı yeniden
+indirmek de gerekmez — kayıt sunucu tarafında tutulur, dakikalar içinde
+etkili olur.
+
+⚠️ Aynı tuzak **App Check / Play Integrity** için de geçerlidir: Play imzası
+tanımlı değilse token doğrulaması düşer.
+
+⚠️ Paket adı değişirse veya yeni bir Firebase projesine geçilirse bu adım
+BAŞTAN yapılır.
+
+---
+
 ## 🔴 ASLA DEĞİŞTİRİLMEYECEK sabitler
 
 Bunlar kozmetik görünür ama değiştirmek **kullanıcı verisi kaybettirir**.

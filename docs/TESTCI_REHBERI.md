@@ -10,9 +10,15 @@
 
 ## 1. Davet mesajı (WhatsApp)
 
-> Katılım bağlantısı, kapalı test onaylandıktan sonra Play Console'da
-> **Test edin ve yayınlayın → Kapalı test → Test kullanıcıları** altında çıkar.
-> Aşağıdaki `[BAĞLANTI]` yerine onu koy.
+> **Bağlantıyı SEN nereden alırsın:** Play Console → Test edin ve yayınlayın →
+> Kapalı test → **Test kullanıcıları** sekmesi. Sürüm onaylandıktan sonra
+> orada "katılım URL'si" çıkar; `https://play.google.com/apps/testing/...`
+> biçiminde olur. Aşağıdaki `[BAĞLANTI]` yerine onu koy.
+>
+> **Testçiler Play Console'a GİRMEZ.** Onlara gönderdiğin bağlantı sıradan bir
+> web sayfasıdır: Gmail hesabıyla açar, "Testçi ol" der, aynı sayfadaki Play
+> Store bağlantısından uygulamayı indirir. Play Console senin yönetim panelin,
+> onların orada işi yok.
 
 ```
 Selam! İlanda Hizmet diye bir uygulama yaptım — usta bulma, ilan verme ve
@@ -22,7 +28,9 @@ ve senin yardımına ihtiyacım var.
 Yapman gerekenler:
 1. Şu bağlantıya Gmail hesabınla gir: [BAĞLANTI]
 2. "Testçi ol" / "Become a tester" de
-3. Aynı sayfadaki Play Store bağlantısından uygulamayı indir
+3. Sayfada çıkan "Download it on Google Play" bağlantısından uygulamayı indir
+   (aşağıdaki "Install the public version" DEĞİL — o çalışmaz, uygulamanın
+   henüz herkese açık sürümü yok)
 
 ÖNEMLİ: Google'ın kuralı gereği uygulamanın 14 gün boyunca telefonunda
 kurulu kalması gerekiyor. Silersen sayaç sıfırlanıyor ve baştan başlıyoruz.
