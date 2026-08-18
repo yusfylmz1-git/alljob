@@ -6,7 +6,9 @@ import 'package:sepette_hizmet/data/models/product_category.dart';
 
 /// new.md (2026-08-14) dört maddesinin sözleşme testleri.
 ///
-/// 1–2: usta/mağaza açan kişi telefonunu DOĞRULAMADAN kaydedemez.
+/// 1–2: usta/mağaza kayıt gereksinimleri (meslek/kategori + bölge).
+///      SMS ZORUNLULUĞU 2026-08-18'de KALDIRILDI — telefon doğrulaması
+///      artık isteğe bağlıdır; aşağıdaki "isteğe bağlı" grubu bunu korur.
 /// 3: sohbette WhatsApp ikonu yalnız doğrulanmış + numarasını YAYINLAMIŞ
 ///    kişide çıkar.
 /// 4: ürün kategorileri çeşitlendi; profilde çok çip taşmıyor.
@@ -16,38 +18,7 @@ import 'package:sepette_hizmet/data/models/product_category.dart';
 void main() {
   String read(String p) => File(p).readAsStringSync();
 
-  group('Madde 1–2 · sağlayıcı telefon doğrulama kapısı', () {
-    test('ortak kapı tek dosyada yaşıyor', () {
-      final gate = read('lib/features/auth/application/provider_phone_gate.dart');
-      expect(gate.contains('ensureVerifiedPhoneForProvider'), isTrue);
-      // Zaten doğrulanmış kullanıcı SMS'e tekrar gönderilmez.
-      expect(gate.contains('if (user.phoneVerified) return true;'), isTrue);
-    });
-
-    test('usta profili kaydı kapıdan geçiyor', () {
-      final ekran = read(
-        'lib/features/artisan/presentation/artisan_profile_edit_screen.dart',
-      );
-      expect(ekran.contains('ensureVerifiedPhoneForProvider'), isTrue);
-      // Kapı KAYITTAN ÖNCE olmalı: doğrulanmazsa `save()` çağrılmamalı.
-      final kapi = ekran.indexOf('ensureVerifiedPhoneForProvider');
-      final kaydet = ekran.indexOf('await _controller.save()');
-      expect(kapi, lessThan(kaydet),
-          reason: 'Telefon kapısı kayıttan SONRA çalışıyor — doğrulanmamış '
-              'usta profili kaydedilir.');
-    });
-
-    test('mağaza kurulumu kapıdan geçiyor', () {
-      final ekran =
-          read('lib/features/products/presentation/shop_setup_screen.dart');
-      expect(ekran.contains('ensureVerifiedPhoneForProvider'), isTrue);
-      final kapi = ekran.indexOf('ensureVerifiedPhoneForProvider');
-      final yaz = ekran.indexOf('updateUserProfile');
-      expect(kapi, lessThan(yaz),
-          reason: 'Telefon kapısı mağaza yazımından SONRA — doğrulanmamış '
-              'mağaza açılır.');
-    });
-
+  group('Madde 1–2 · sağlayıcı kayıt gereksinimleri', () {
     test('mağazada en az bir kategori ve bölge zorunlu', () {
       final ekran =
           read('lib/features/products/presentation/shop_setup_screen.dart');
@@ -64,38 +35,69 @@ void main() {
     });
   });
 
-  group('Telefon doğrulama · hata eşlemesi', () {
-    late String repo;
-    setUpAll(() => repo = read(
-        'lib/features/auth/data/firebase_phone_verification_repository.dart'));
-
-    // 2026-08-14 cihaz bulgusu: ekranda "Doğrulama başarısız (unknown)".
-    // `unknown`, Android'de SMS ÖNCESİ cihaz doğrulaması (Play Integrity /
-    // SafetyNet) düştüğünde gelir — en sık sebep Google Cloud'da
-    // `androidcheck.googleapis.com` API'sinin KAPALI olması.
-    // Kullanıcıya "unknown" göstermek hiçbir şey anlatmıyordu.
-    test('code=unknown anlamlı mesaja eşleniyor', () {
-      expect(repo.contains("case 'unknown':"), isTrue,
-          reason: 'unknown default dalına düşüyor — kullanıcı "(unknown)" '
-              'görüyor ve ne yapacağını bilmiyor.');
-      expect(repo.contains('deviceCheckFailed'), isTrue);
+  /// SMS doğrulamasının TAMAMEN kaldırılması (2026-08-18).
+  ///
+  /// Çift test (kural 7): akış gerçekten gitti Mİ, ve giderken güvenlik
+  /// açığı bıraktı MI — telefon kapısı kalkınca `isVerified` istemciye açık
+  /// kalsaydı herkes kendine mavi tik verebilirdi.
+  group('SMS doğrulama · tamamen kaldırıldı', () {
+    test('SMS altyapısı dosyaları depoda yok', () {
+      const silinen = [
+        'lib/features/auth/data/phone_verification_repository.dart',
+        'lib/features/auth/data/firebase_phone_verification_repository.dart',
+        'lib/features/auth/presentation/phone_verification_sheet.dart',
+        'lib/features/auth/presentation/verification_tile.dart',
+        'lib/features/auth/application/provider_phone_gate.dart',
+      ];
+      for (final p in silinen) {
+        expect(File(p).existsSync(), isFalse, reason: '$p geri gelmiş.');
+      }
     });
 
-    test('cihaz doğrulama hatası kullanıcıya eylem öneriyor', () {
-      final ex = read('lib/features/auth/data/phone_verification_repository.dart');
-      final i = ex.indexOf('deviceCheckFailed');
-      expect(i, greaterThan(-1));
-      final blok = ex.substring(i, i + 400);
-      // Mesaj teknik kod değil, yapılabilir bir şey söylemeli.
-      expect(blok.contains('unknown'), isFalse,
-          reason: 'Ham hata kodu kullanıcıya sızıyor.');
-      expect(blok.toLowerCase().contains('bağlantı'), isTrue);
+    test('istemcide SMS doğrulama çağrısı kalmadı', () {
+      final kalan = <String>[];
+      for (final f in Directory('lib').listSync(recursive: true)) {
+        if (f is! File || !f.path.endsWith('.dart')) continue;
+        final s = f.readAsStringSync();
+        if (s.contains('PhoneVerificationSheet') ||
+            s.contains('verifyPhoneNumber') ||
+            s.contains('setPhoneVerified')) {
+          kalan.add(f.path);
+        }
+      }
+      expect(kalan, isEmpty, reason: 'SMS akışı izleri: $kalan');
     });
 
-    test('tanı logu kök nedeni işaret ediyor', () {
-      // Bir daha baştan araştırma yapılmasın.
-      expect(repo.contains('androidcheck'), isTrue,
-          reason: 'Tanı logu kök nedeni göstermiyor.');
+    test('sunucu kuralı sağlayıcı olmak için telefon istemez', () {
+      final rules = read('firestore.rules');
+      // Kaldırılan kapılar geri gelmemeli (istemci + kural birlikte — kural 2).
+      expect(rules.contains('providerFlagOk'), isFalse);
+      expect(rules.contains('phoneClaimOkFor'), isFalse);
+      expect(rules.contains('verifiedClaimOk'), isFalse);
+    });
+
+    test('mavi tik (isVerified) istemciye kapalı — yalnız CF/admin yazar', () {
+      final rules = read('firestore.rules');
+      // Telefon kapısı kalkınca isVerified'ı istemciye bırakmak kendine
+      // rozet vermeyi serbestleştirirdi.
+      expect(rules.contains("'isVerified','adminVerified'"), isTrue);
+    });
+
+    test('yasal metinler telefon doğrulaması vaat etmiyor', () {
+      final legal = read('lib/features/legal/legal_docs.dart');
+      expect(legal.contains('SMS ile doğrulanması zorunludur'), isFalse);
+      expect(legal.contains('SMS doğrulaması zorunludur'), isFalse);
+      expect(legal.contains('SMS ile telefon doğrulaması YAPMAZ'), isTrue);
+      // Yayınlanan HTML tek kaynaktan üretilir; eski hâli kalmamalı.
+      final html = read('hosting/gizlilik-politikasi.html');
+      expect(html.contains('SMS ile doğrulanması zorunludur'), isFalse);
+    });
+
+    test('rozet metni artık telefon değil platform onayı diyor', () {
+      final model = read('lib/data/models/artisan_profile.dart');
+      expect(model.contains('Platform onaylı usta'), isTrue);
+      final repo = read('lib/features/artisan/data/artisan_repository.dart');
+      expect(repo.contains('Telefonu doğrulanmış usta'), isFalse);
     });
   });
 
@@ -108,10 +110,6 @@ void main() {
     test('ikon var ve wa.me bağlantısı açıyor', () {
       expect(chat.contains('_WhatsappAction'), isTrue);
       expect(chat.contains('https://wa.me/'), isTrue);
-    });
-
-    test('yalnız DOĞRULANMIŞ kişide çıkar', () {
-      expect(chat.contains('!other.phoneVerified'), isTrue);
     });
 
     test('GİZLİ numara sızdırılmıyor — yalnız publicPhone okunur', () {
@@ -245,9 +243,12 @@ void main() {
       expect(rules.contains("'phoneNumber'"), isTrue,
           reason: 'phoneNumber yasak listesinden çıkarılmış — hassas numara '
               'herkese açık dokümana sızabilir.');
+      // SMS akışı kaldırıldıktan (2026-08-18) sonra istemci doğrulanmış
+      // numarayı HİÇ yazmaz; kaynağı yalnız Firebase Auth'tur. Vitrinde
+      // gösterilen numara ayrı bir alandır (`publicPhone`, rıza ile).
       final repo = read('lib/features/auth/data/firebase_auth_repository.dart');
-      expect(repo.contains("collection('private').doc('contact')"), isTrue,
-          reason: 'Numara private/contact yerine başka yere yazılıyor.');
+      expect(repo.contains("'phoneNumber': "), isFalse,
+          reason: 'Hassas numara yeniden bir dokümana yazılmaya başlamış.');
     });
 
     test('profil başlığı numarayı users alanından okuyor', () {

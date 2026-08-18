@@ -21,8 +21,12 @@ abstract interface class MyProfileRepository {
     required ArtisanProfile profile,
   });
 
-  /// Telefon doğrulaması sonrası ustanın "mavi tik"ini (isVerified) açar.
-  /// Yalnızca profil dökümanı zaten varsa yazar (müşteri için no-op).
+  /// Ustanın "mavi tik"ini (isVerified) açar.
+  ///
+  /// SMS doğrulaması kaldırıldığından (2026-08-18) istemci bu metodu ARTIK
+  /// ÇAĞIRMAZ ve Firestore kuralı `isVerified` yazımını istemciye kapatır;
+  /// rozet yalnız admin/CF tarafından verilir (`adminVerified`). Metot,
+  /// arayüz bütünlüğü için duruyor.
   Future<void> markVerified(String uid);
 
   /// Vitrinde telefon görünürlüğü (rıza). Profil yoksa no-op.

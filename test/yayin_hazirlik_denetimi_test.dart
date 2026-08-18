@@ -99,35 +99,17 @@ void main() {
     });
   });
 
-  group('Telefon doğrulama · sunucu tarafı zorunlu', () {
+  group('Telefon ve PII güvenliği · sunucu kuralları', () {
     late String rules;
     setUpAll(() => rules = read('firestore.rules'));
 
-    test('sağlayıcı bayrakları kuralda telefon claim ister', () {
-      // İstemci kapısı (ensureVerifiedPhoneForProvider) ATLATILABİLİR:
-      // doğrudan SDK çağrısıyla yazan biri doğrulanmamış numarayla usta
-      // olabilirdi. Kural bunu sunucuda kapatır.
-      expect(rules.contains('providerFlagOk'), isTrue);
-      expect(rules.contains("providerFlagOk('hasArtisanProfile')"), isTrue);
-      expect(rules.contains("providerFlagOk('hasShopProfile')"), isTrue);
-      expect(rules.contains("request.auth.token.get('phone_number', null)"),
-          isTrue);
+    test('hassas phoneNumber alanı genel users dokümanına yazılamaz', () {
+      expect(rules.contains('notSettingPublicPii'), isTrue);
+      expect(rules.contains("'phoneNumber'"), isTrue);
     });
 
-    test('mevcut sağlayıcılar kilitlenmiyor — yalnız AÇARKEN aranır', () {
-      // Kapatma ve zaten açık profilin diğer alanlarını güncelleme serbest
-      // olmalı; aksi hâlde telefonu doğrulanmamış mevcut ustalar profillerini
-      // hiç düzenleyemez hâle gelirdi.
-      final i = rules.indexOf('function providerFlagOk');
-      final govde = rules.substring(i, i + 600);
-      expect(govde.contains('!acilyor'), isTrue,
-          reason: 'Kural her yazımda telefon istiyor — mevcut ustalar kilitlenir.');
-    });
-
-    test('mock, kural davranışını taklit ediyor (CLAUDE.md kural 1)', () {
-      final mock = read('lib/features/auth/data/mock_auth_repository.dart');
-      expect(mock.contains('hasShopProfile == true'), isTrue);
-      expect(mock.contains('phoneVerified'), isTrue);
+    test('isVerified alanı admin/CF moderasyonundadır', () {
+      expect(rules.contains("'isVerified'"), isTrue);
     });
   });
 
@@ -161,15 +143,10 @@ void main() {
       final usta = read(
         'lib/features/artisan/presentation/artisan_profile_edit_screen.dart',
       );
-      expect(usta.contains('_phoneGateBusy'), isTrue,
-          reason: 'Doğrulama sayfası açıkken Kaydet etkin kalıyor — '
-              'ikinci basış ikinci sayfa açar.');
+      expect(usta.contains('_isSaving'), isTrue);
       final shop =
           read('lib/features/products/presentation/shop_setup_screen.dart');
-      final kapi = shop.indexOf('ensureVerifiedPhoneForProvider');
-      final busy = shop.indexOf('_busy = true');
-      expect(busy, lessThan(kapi),
-          reason: '_busy kapıdan sonra açılıyor — düğme boşta kalıyor.');
+      expect(shop.contains('_busy = true'), isTrue);
     });
   });
 
@@ -336,39 +313,8 @@ void main() {
     });
   });
 
-  group('Sağlayıcı kaydı · telefon kapısı HER girişte', () {
-    // CİHAZ BULGUSU (2026-08-15): "Hizmet vermeye başla" → kırmızı şerit
-    // "Bir hata oluştu, lütfen tekrar deneyin".
-    //
-    // SEBEP: `becomeArtisan()` doğrudan `hasArtisanProfile: true` yazıyor;
-    // `firestore.rules` → `providerFlagOk()` bunun için Auth jetonunda
-    // `phone_number` claim'i arıyor. Kapı (`ensureVerifiedPhoneForProvider`)
-    // usta profili DÜZENLEME ve mağaza kurulumunda vardı, ama sağlayıcı
-    // olmanın diğer İKİ girişinde (profil sekmesi + yan menü) yoktu.
-    //
-    // Kapı sunucuda zaten duruyordu — istemci onu çağırmayınca kullanıcı
-    // sebebi anlaşılmayan bir hata görüyordu.
-    test('becomeArtisan çağıran her ekran kapıyı önce çağırıyor', () {
-      const girisler = [
-        'lib/features/profile/presentation/profile_screen.dart',
-        'lib/core/widgets/app_menu_drawer.dart',
-      ];
-      for (final yol in girisler) {
-        final src = read(yol);
-        final kapi = src.indexOf('ensureVerifiedPhoneForProvider');
-        final cagri = src.indexOf('.becomeArtisan()');
-        expect(kapi, greaterThan(-1),
-            reason: '$yol telefon kapısını çağırmıyor — sağlayıcı bayrağı '
-                'kuralda reddedilir ve kullanıcı sebebi anlaşılmayan bir '
-                'hata görür.');
-        expect(kapi, lessThan(cagri),
-            reason: '$yol kapıyı becomeArtisan\'dan SONRA çağırıyor.');
-      }
-    });
-
+  group('Sağlayıcı kaydı · hata yönetimi', () {
     test('reddedilen yazım anlamlı Türkçe hataya çevriliyor', () {
-      // Ham `permission-denied` yukarı çıkarsa UI onu "bilinmeyen hata"ya
-      // düşürür; kullanıcı ne yapacağını bilemez ve tekrar denemek çözmez.
       final repo = read('lib/features/auth/data/firebase_auth_repository.dart');
       final i = repo.indexOf('Future<AppUser> becomeArtisan()');
       expect(i, greaterThan(-1));
@@ -376,8 +322,6 @@ void main() {
       expect(govde.contains('permission-denied'), isTrue,
           reason: 'Kural reddi yakalanmıyor — kullanıcı "Bir hata oluştu" '
               'görür, sebebini asla öğrenemez.');
-      expect(govde.contains('telefon'), isTrue,
-          reason: 'Hata mesajı kullanıcıya ne yapacağını söylemiyor.');
     });
   });
 

@@ -259,7 +259,11 @@ void main() {
 
     test('uzunluk tavanı var (dokümanı şişirme koruması)', () {
       expect(rules.contains('d.aboutText.size() <= 1000'), isTrue);
-      expect(rules.contains('d.publicPhone.size() <= 32'), isTrue);
+      // publicPhone (2026-08-18): uzunluk tavanı yerine TAM BİÇİM şartı.
+      // SMS doğrulaması kaldırılıp numara elle girilmeye başlayınca "32
+      // karaktere kadar her şey" yetersiz kaldı — desen hem uzunluğu hem
+      // içeriği kilitliyor (13 karakter, yalnız +905XXXXXXXXX).
+      expect(rules.contains(r'^\\+905[0-9]{9}$'), isTrue);
     });
 
     test('hassas phoneNumber HÂLÂ yasak', () {

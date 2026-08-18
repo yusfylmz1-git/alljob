@@ -108,12 +108,23 @@ Sağlayıcı bayrağını açan **dört** giriş vardır:
 `becomeArtisan` `permission-denied`'i ne yapılacağını söyleyen Türkçe
 mesaja çeviriyor (ham hata bir daha "bilinmeyen"e düşmesin).
 
-Regresyon: `test/yayin_hazirlik_denetimi_test.dart` → "Sağlayıcı kaydı ·
-telefon kapısı HER girişte".
-
-⚠️ Bu kapı kayıt yolunun üstünde: **telefon doğrulama bozuksa hiç kimse
-usta/mağaza olamaz.** Firebase Console'da Phone sağlayıcısı, SMS region
-policy (+90) ve release SHA-256 doğru olmalı.
+> [!info] 2026-08-18: TELEFON KAPISI KALDIRILDI
+> SMS doğrulaması tamamen kaldırıldı — `provider_phone_gate.dart`,
+> `phone_verification_*` ve `verification_tile.dart` **silindi**;
+> `firestore.rules` içindeki `providerFlagOk` / `phoneClaimOkFor` /
+> `verifiedClaimOk` kapıları da gitti. Usta/mağaza olmak artık doğrulama
+> istemez.
+>
+> Yukarıdaki "dört giriş" tablosu **hâlâ geçerli**: sağlayıcı bayrağını
+> açan yollar bunlar. Kapı değil ama yeni bir kısıt eklenirse yine
+> dördünde birden düşünülmeli.
+>
+> Kalkarken alınan önlem: `isVerified` (mavi tik) istemciye **kapatıldı**
+> — kapı kalkınca herkes kendine rozet verebilirdi. Rozet artık yalnız
+> admin/CF (`adminVerified`) tarafından verilir.
+>
+> Regresyon: `test/saglayici_telefon_kapisi_test.dart` → "SMS doğrulama ·
+> tamamen kaldırıldı".
 
 ---
 

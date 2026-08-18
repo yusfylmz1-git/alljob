@@ -65,32 +65,12 @@ void main() {
       );
     });
 
-    test('sağlayıcı telefon kapısı yalnız ustaya uygulanır', () {
-      final body = saveBody();
-      final kapi = body.indexOf('ensureVerifiedPhoneForProvider');
-      expect(kapi, greaterThan(-1), reason: 'Telefon kapısı kaybolmuş.');
-
-      // Kapı `if (ustaMi) {` bloğunun İÇİNDE olmalı: müşterinin adını
-      // değiştirmesi SMS doğrulaması gerektirmez (maliyet + sürtünme).
-      final blok = body.lastIndexOf('if (ustaMi) {', kapi);
-      expect(
-        blok,
-        greaterThan(-1),
-        reason: 'Telefon kapısı koşulsuz çağrılıyor; müşteri de SMS '
-            'doğrulamasına zorlanır.',
-      );
-    });
-
-    // FAZLASINI YAPMAMA kontrolü: kapılar kaldırılmadı, yalnız koşullandı.
-    // Usta için üç doğrulama da yerinde durmalı.
-    test('usta için üç kapı da korunur', () {
+    test('usta için meslek ve bölge kontrolleri korunur', () {
       final body = saveBody();
       expect(body, contains('professionCodes.isEmpty'),
           reason: 'Meslek kontrolü tamamen silinmiş.');
       expect(body, contains('En az bir hizmet bölgesi ekleyin.'),
           reason: 'Bölge kontrolü tamamen silinmiş.');
-      expect(body, contains('ensureVerifiedPhoneForProvider'),
-          reason: 'Telefon kapısı tamamen silinmiş.');
     });
   });
 }

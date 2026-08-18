@@ -193,36 +193,9 @@ void main() {
     });
   });
 
-  group('Gizlilik: yapılandırma hataları kullanıcıya sızmamalı', () {
-    test('Firebase Console talimatı kullanıcı metninde YOK', () {
-      final src =
-          File('lib/features/auth/data/phone_verification_repository.dart')
-              .readAsStringSync();
-
-      // Kullanıcıya gösterilen `message` alanında Console adımı olmamalı;
-      // talimat yalnız devNote (loga düşen) alanında durur.
-      final mesajlar = RegExp(
-        r"PhoneVerificationException\(\s*'([^']*(?:'[^']*)*?)'",
-        multiLine: true,
-      );
-      for (final m in mesajlar.allMatches(src)) {
-        final metin = m.group(1) ?? '';
-        expect(metin.toLowerCase().contains('firebase console'), isFalse,
-            reason: 'Kullanıcı altyapı yapılandırmamızı görmemeli: "$metin"');
-      }
-    });
-
-    test('devNote alanı tanımlı ve AppLog ile loglanıyor', () {
-      final src =
-          File('lib/features/auth/data/phone_verification_repository.dart')
-              .readAsStringSync();
-
-      expect(src.contains('final String? devNote'), isTrue);
-      expect(src.contains('AppLog.d'), isTrue,
-          reason: 'Geliştirici bilgisi kaybolmamalı, ama release\'te '
-              'sessiz olmalı (doğrudan debugPrint yasak).');
-    });
-  });
+  // NOT: "Gizlilik: yapılandırma hataları kullanıcıya sızmamalı" grubu
+  // SMS doğrulama akışına özgüydü; akış 2026-08-18'de tamamen kaldırıldı
+  // (phone_verification_repository.dart silindi), testler de onunla düştü.
 
   group('Sertifika gizliliği (özel nitelikli veri)', () {
     late String storage;

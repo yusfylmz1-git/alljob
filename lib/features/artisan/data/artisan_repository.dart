@@ -46,12 +46,14 @@ class ArtisanSummary {
   final String? areaLabel;
 
   /// Mavi tik açıklaması (Keşfet kartı).
+  ///
+  /// SMS doğrulaması kaldırıldı (2026-08-18): rozet artık platform onayını
+  /// anlatır, telefon doğrulamasını değil.
   String get verifiedBadgeTooltip {
     if (isVerified && isEmailVerified) {
-      return 'Telefon ve e-posta doğrulanmış usta';
+      return 'E-postası doğrulanmış, platform onaylı usta';
     }
-    if (isVerified) return 'Telefonu doğrulanmış usta';
-    return 'Doğrulanmış usta';
+    return 'Platform onaylı usta';
   }
 }
 

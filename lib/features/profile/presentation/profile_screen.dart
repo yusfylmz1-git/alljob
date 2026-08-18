@@ -1,6 +1,5 @@
-import 'dart:typed_data';
-
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
@@ -26,9 +25,7 @@ import '../../../data/models/app_user.dart';
 import '../../../data/models/product.dart';
 import '../../artisan/application/my_profile_controller.dart';
 import '../../auth/application/auth_controller.dart';
-import '../../auth/application/provider_phone_gate.dart';
 import '../../auth/data/auth_repository.dart';
-import '../../auth/presentation/phone_verification_sheet.dart';
 import '../../membership/membership_access.dart';
 import '../../membership/membership_package.dart';
 import '../../products/data/product_category_providers.dart';
@@ -345,23 +342,6 @@ class _UstaTabPanel extends ConsumerWidget {
       ),
     );
     if (confirmed != true || !context.mounted) return;
-
-    // TELEFON KAPISI — ÜÇÜNCÜ GİRİŞ (2026-08-15 cihaz bulgusu).
-    //
-    // `becomeArtisan()` doğrudan `hasArtisanProfile: true` yazar ve
-    // `firestore.rules` → `providerFlagOk()` bunun için Auth jetonunda
-    // `phone_number` claim'i arar. Kapı çağrılmazsa yazım `permission-denied`
-    // alır; hata `AsyncValue.guard` içinde yutulduğu için kullanıcı yalnızca
-    // "Bir hata oluştu, lütfen tekrar deneyin" görür — sebebi anlaşılmaz.
-    //
-    // Kapı usta profili DÜZENLEME ve mağaza kurulumunda vardı; sağlayıcı
-    // olmanın bu üçüncü girişinde eksikti.
-    final telefonOk = await ensureVerifiedPhoneForProvider(
-      context,
-      ref,
-      isShop: false,
-    );
-    if (!telefonOk || !context.mounted) return;
 
     final ok = await ref.read(authControllerProvider.notifier).becomeArtisan();
     if (!context.mounted) return;
@@ -1060,35 +1040,40 @@ class _AccountGroup extends ConsumerWidget {
   const _AccountGroup({required this.user});
   final AppUser user;
 
-  Future<void> _verifyPhone(BuildContext context, WidgetRef ref) async {
-    final ok = await PhoneVerificationSheet.show(context);
-    if (ok == true && context.mounted) {
-      context.showSuccess(
-        user.hasArtisanProfile
-            ? 'Telefonun doğrulandı — mavi tik aktif! 🎉'
-            : 'Telefonun doğrulandı. Hesabın artık doğrulanmış. 🎉',
-      );
-    }
-  }
+  /// İletişim numarasını ekle / değiştir / kaldır.
+  ///
+  /// Numara DOĞRULANMAZ (SMS akışı kaldırıldı) — bu yüzden tek savunma
+  /// [normalizeTrMobile] ayrıştırıcısıdır: kaydedilen değer her zaman
+  /// E.164'tür, kullanıcı ne yazarsa yazsın.
+  Future<void> _editPhone(
+    BuildContext context,
+    WidgetRef ref,
+    AppUser user,
+  ) async {
+    final sonuc = await _PhoneEditSheet.show(context, user.publicPhone);
+    if (sonuc == null || !context.mounted) return;
 
-  /// Doğrulanmış numarayı YENİSİYLE değiştirir (hat/operatör değişimi).
-  /// Vitrinde numara gösteriliyorsa yenisi otomatik yerine geçer — sheet
-  /// bunu kendisi yapar; burada yalnız sonucu bildiririz.
-  Future<void> _changePhone(BuildContext context, WidgetRef ref) async {
-    final wasPublic =
-        ref
-            .read(myProfileControllerProvider)
-            .valueOrNull
-            ?.profile
-            .showPhoneOnProfile ??
-        false;
-    final ok = await PhoneVerificationSheet.show(context, isChange: true);
-    if (ok == true && context.mounted) {
+    final kaldirildi = sonuc.isEmpty;
+    try {
+      await ref.read(authRepositoryProvider).updateUserProfile(
+            // Boş dize = TEMİZLE (null "değiştirme" demek — bkz. AppUser).
+            publicPhone: sonuc,
+          );
+      // Numara kaldırıldıysa vitrindeki gösterim de kapanmalı: aksi hâlde
+      // profil "numaram görünsün" açık ama numara yok durumunda kalır.
+      if (kaldirildi && (user.hasArtisanProfile || user.hasShopProfile)) {
+        await ref
+            .read(myProfileControllerProvider.notifier)
+            .setPhoneVisibility(show: false);
+      }
+      if (!context.mounted) return;
       context.showSuccess(
-        wasPublic
-            ? 'Numaran güncellendi; profilindeki numara da yenilendi.'
-            : 'Numaran güncellendi.',
+        kaldirildi ? 'Numaran kaldırıldı.' : 'Numaran kaydedildi.',
       );
+    } catch (_) {
+      if (context.mounted) {
+        context.showError('Numara kaydedilemedi, tekrar deneyin.');
+      }
     }
   }
 
@@ -1225,37 +1210,29 @@ class _AccountGroup extends ConsumerWidget {
               : 'Pro özellikler kilitli · plan yükselt',
           onTap: () => context.push(RoutePaths.panelPremium),
         ),
-        if (user.phoneVerified)
-          _MenuRow(
-            icon: Icons.verified,
-            iconColor: context.palette.verified,
-            iconSurface: context.palette.info.withValues(alpha: 0.10),
-            title: 'Telefon doğrulandı',
-            // Numarayı göster: hangi hattın kayıtlı olduğu görünmüyordu.
-            subtitle: [
-              if (user.phoneNumber != null && user.phoneNumber!.isNotEmpty)
-                formatTrPhone(user.phoneNumber!),
-              if (user.hasArtisanProfile) 'Mavi tik aktif',
-            ].join(' · '),
-            // Hat/operatör değişiminde numara güncellenebilmeli; aksi hâlde
-            // vitrinde artık kullanılmayan numara kalırdı.
-            trailing: TextButton(
-              onPressed: () => _changePhone(context, ref),
-              child: const Text('Değiştir'),
+        // Telefon numarası TAMAMEN İSTEĞE BAĞLIDIR ve doğrulanmaz
+        // (SMS akışı 2026-08-18'de kaldırıldı). Numara girilince "profilde
+        // göster" anahtarı açılabilir; yayınlanmış numara sohbet başlığında
+        // WhatsApp düğmesini de açar.
+        _MenuRow(
+          icon: Icons.phone_outlined,
+          iconColor: context.palette.primary,
+          iconSurface: context.palette.primaryContainer,
+          title: 'İletişim Numarası',
+          subtitle: (user.publicPhone != null && user.publicPhone!.isNotEmpty)
+              ? formatTrPhone(user.publicPhone!)
+              : 'İsteğe bağlı — eklemezseniz numaranız hiç kaydedilmez',
+          trailing: TextButton(
+            onPressed: () => _editPhone(context, ref, user),
+            child: Text(
+              user.publicPhone != null && user.publicPhone!.isNotEmpty
+                  ? 'Düzenle'
+                  : 'Ekle',
             ),
           ),
-        // Usta profili + doğrulanmış telefon: vitrinde göster/gizle.
-        if (user.hasArtisanProfile && user.phoneVerified)
-          _PhoneVisibilityRow(phoneNumber: user.phoneNumber),
-        if (!user.phoneVerified)
-          _MenuRow(
-            icon: Icons.verified_outlined,
-            iconColor: context.palette.verified,
-            iconSurface: context.palette.info.withValues(alpha: 0.10),
-            title: user.hasArtisanProfile ? 'Mavi tik al' : 'Telefonu doğrula',
-            subtitle: 'Hesabı güvene al',
-            onTap: () => _verifyPhone(context, ref),
-          ),
+        ),
+        if (user.publicPhone != null && user.publicPhone!.isNotEmpty)
+          _PhoneVisibilityRow(phoneNumber: user.publicPhone),
         Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -1386,6 +1363,135 @@ class _AccountGroup extends ConsumerWidget {
 /// Usta için "telefonumu profilde göster" switch'i. Açıkken doğrulanmış
 /// numara ([ArtisanProfile.publicPhone]) vitrinde görünür ve müşteri "Ara"
 /// düğmesiyle arayabilir. Durum usta profil taslağından okunur.
+/// İletişim numarası giriş formu (alt sayfa).
+///
+/// Dönen değer: kaydedilecek E.164 numara, temizlemek için boş dize,
+/// vazgeçildiyse `null`.
+///
+/// TASARIM NOTU — numara doğrulanmadığı için hataları kaydetmeden ÖNCE
+/// yakalamak zorundayız:
+///  - Girdi yalnız rakam + biçim işaretlerine izin verir (harf yazılamaz).
+///  - Kaydet düğmesi geçersiz numarada PASİFTİR (sessiz başarısızlık yok).
+///  - Kayıt her zaman E.164'e çevrilir; kullanıcının yazım biçimi
+///    veritabanına sızmaz (`0532...`, `+90 532...` hepsi `+905...` olur).
+class _PhoneEditSheet extends StatefulWidget {
+  const _PhoneEditSheet({this.initial});
+
+  final String? initial;
+
+  static Future<String?> show(BuildContext context, String? initial) {
+    return showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (_) => _PhoneEditSheet(initial: initial),
+    );
+  }
+
+  @override
+  State<_PhoneEditSheet> createState() => _PhoneEditSheetState();
+}
+
+class _PhoneEditSheetState extends State<_PhoneEditSheet> {
+  late final TextEditingController _ctrl = TextEditingController(
+    text: widget.initial == null ? '' : formatTrPhone(widget.initial!),
+  );
+  String? _hata;
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  void _dogrula(String v) => setState(() => _hata = trPhoneError(v));
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final metin = _ctrl.text.trim();
+    final gecerli = metin.isNotEmpty && normalizeTrMobile(metin) != null;
+    final vardi = (widget.initial ?? '').isNotEmpty;
+
+    return Padding(
+      padding: EdgeInsets.fromLTRB(
+        20,
+        0,
+        20,
+        MediaQuery.of(context).viewInsets.bottom + 16,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'İletişim Numarası',
+            style: theme.textTheme.titleMedium
+                ?.copyWith(fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'İsteğe bağlıdır ve doğrulanmaz. Numaranı yalnızca '
+            '“profilimde görünsün” anahtarını açarsan diğer kullanıcılar '
+            'görebilir; kapalıyken kimseye gösterilmez.',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: 14),
+          TextField(
+            controller: _ctrl,
+            autofocus: true,
+            keyboardType: TextInputType.phone,
+            textInputAction: TextInputAction.done,
+            // Harf ve beklenmedik işaretler hiç yazılamasın (hata sonradan
+            // değil, tuşta engellenir).
+            inputFormatters: [
+              FilteringTextInputFormatter.allow(RegExp(r'[0-9 ()+\-]')),
+              LengthLimitingTextInputFormatter(20),
+            ],
+            decoration: InputDecoration(
+              labelText: 'Cep telefonu',
+              hintText: '0532 123 45 67',
+              prefixIcon: const Icon(Icons.phone_outlined),
+              errorText: _hata,
+              border: const OutlineInputBorder(),
+            ),
+            onChanged: _dogrula,
+            onSubmitted: (_) {
+              if (gecerli) Navigator.of(context).pop(normalizeTrMobile(metin));
+            },
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              if (vardi)
+                TextButton.icon(
+                  onPressed: () => Navigator.of(context).pop(''),
+                  icon: const Icon(Icons.delete_outline, size: 18),
+                  label: const Text('Numarayı kaldır'),
+                ),
+              const Spacer(),
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('Vazgeç'),
+              ),
+              const SizedBox(width: 8),
+              FilledButton(
+                onPressed: gecerli
+                    ? () =>
+                        Navigator.of(context).pop(normalizeTrMobile(metin))
+                    : null,
+                child: const Text('Kaydet'),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _PhoneVisibilityRow extends ConsumerWidget {
   const _PhoneVisibilityRow({required this.phoneNumber});
   final String? phoneNumber;
@@ -1396,19 +1502,15 @@ class _PhoneVisibilityRow extends ConsumerWidget {
     final shown = draft?.profile.hasPublicPhone ?? false;
 
     Future<void> onChanged(bool value) async {
-      // Açarken doğrulanmış numara şart (numara yoksa gösterecek bir şey yok).
+      // Açarken numara şart (gösterecek bir şey yoksa anahtar anlamsız).
       //
-      // NUMARA KAYNAĞI (2026-08-14): `AppUser.phoneNumber` artık Firebase
-      // Auth'tan geliyor. Hassas alan kural gereği `users` dokümanında
-      // tutulamıyor; eskiden yalnız doğrulama anında bellekte doluyordu ve
-      // uygulama yeniden açılınca boş kalıp bu hatayı veriyordu.
-      //
-      // Yine de boşsa: kullanıcıyı çıkmaza sokmadan ne yapması gerektiğini
-      // söyle (numarayı yeniden doğrulaması gerekir).
+      // NUMARA KAYNAĞI (2026-08-18): SMS doğrulaması kaldırıldı; numara
+      // artık kullanıcının elle girdiği `publicPhone` alanıdır. Bu satır
+      // zaten yalnız numara doluyken gösterilir — buraya düşmek, numaranın
+      // arada silinmiş olması demektir.
       if (value && (phoneNumber == null || phoneNumber!.trim().isEmpty)) {
         context.showError(
-          'Doğrulanmış numara okunamadı. Çıkış yapıp tekrar girin; '
-          'sorun sürerse numaranızı yeniden doğrulayın.',
+          'Önce “İletişim Numarası” bölümünden numaranızı ekleyin.',
         );
         return;
       }

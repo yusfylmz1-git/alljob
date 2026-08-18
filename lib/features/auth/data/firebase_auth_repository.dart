@@ -424,17 +424,10 @@ class FirebaseAuthRepository implements AuthRepository {
         'role': UserRole.artisan.apiValue,
       }, SetOptions(merge: true));
     } on FirebaseException catch (e) {
-      // SAĞLAYICI BAYRAĞI DOĞRULANMIŞ TELEFON İSTER (`providerFlagOk`).
-      //
-      // Çağıran ekran `ensureVerifiedPhoneForProvider()` kapısını atlarsa
-      // yazım burada reddedilir. Ham hatayı yukarı bırakmak kullanıcıya
-      // "Bir hata oluştu, lütfen tekrar deneyin" olarak dönüyordu — sebebi
-      // anlaşılmayan, tekrar denemenin de çözmediği bir mesaj.
       if (e.code == 'permission-denied') {
         AppLog.d('[auth] becomeArtisan reddedildi: ${e.code} ${e.message}');
         throw AuthException(
-          'Usta profili açmak için telefon numaranızı doğrulamanız '
-          'gerekiyor. Profil > Hesap Ayarları üzerinden doğrulayabilirsiniz.',
+          'Usta profili açılamadı. Lütfen tekrar deneyin.',
         );
       }
       rethrow;
@@ -573,32 +566,6 @@ class FirebaseAuthRepository implements AuthRepository {
       }
     }
     return verified;
-  }
-
-  @override
-  Future<AppUser> setPhoneVerified(String phoneE164) async {
-    final user = _cached;
-    final fbUser = _auth.currentUser;
-    if (user == null || fbUser == null) throw AuthException.notSignedIn;
-
-    // Kural `token.phone_number` ister; telefon bağlandıktan sonra jetonu
-    // tazeleyerek claim'in kesin olarak gelmesini sağlarız.
-    await fbUser.getIdToken(true);
-
-    // Herkese açık işaret.
-    await _userDoc(
-      user.uid,
-    ).set({'phoneVerified': true}, SetOptions(merge: true));
-    // Hassas numara yalnızca sahibin okuyabildiği özel alt-koleksiyonda.
-    await _userDoc(user.uid).collection('private').doc('contact').set({
-      'phoneNumber': phoneE164,
-      'verifiedAt': FieldValue.serverTimestamp(),
-    }, SetOptions(merge: true));
-
-    final updated = user.copyWith(phoneVerified: true, phoneNumber: phoneE164);
-    _cached = updated;
-    _manualUpdates.add(updated);
-    return updated;
   }
 
   @override

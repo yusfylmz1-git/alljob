@@ -33,8 +33,6 @@ import '../../../data/models/job.dart'
         kQuickSupportName;
 import '../../../data/models/social_links.dart';
 import '../../auth/application/auth_controller.dart';
-import '../../auth/application/provider_phone_gate.dart';
-import '../../auth/presentation/verification_tile.dart';
 import '../../jobs/presentation/quick_support_intro_sheet.dart';
 import '../../storage/storage_repository.dart';
 import '../application/my_profile_controller.dart';
@@ -105,13 +103,7 @@ class _EditFormState extends ConsumerState<_EditForm> {
   };
   bool _didScrollToFocus = false;
 
-  /// Telefon doğrulama kapısı açıkken true. Controller'ın `isLoading`'i bu
-  /// aşamayı görmez (kayıt henüz başlamadı) — bayrak olmadan kullanıcı
-  /// Kaydet'e ikinci kez basıp üst üste iki doğrulama sayfası açabilirdi.
-  bool _phoneGateBusy = false;
-
-  bool get _isSaving =>
-      _phoneGateBusy || ref.watch(myProfileControllerProvider).isLoading;
+  bool get _isSaving => ref.watch(myProfileControllerProvider).isLoading;
 
   MyProfileController get _controller =>
       ref.read(myProfileControllerProvider.notifier);
@@ -385,29 +377,6 @@ class _EditFormState extends ConsumerState<_EditForm> {
     if (ustaMi && bolgeler.isEmpty) {
       context.showError('En az bir hizmet bölgesi ekleyin.');
       return;
-    }
-
-    // TELEFON DOĞRULAMASI ZORUNLU (new.md madde 1–2). En sonda sorulur:
-    // önce ucuz form doğrulamaları geçsin, kullanıcı SMS'e boşuna girmesin.
-    // Doğrulamazsa KAYIT YAPILMAZ; form açık kalır, veriler kaybolmaz.
-    //
-    // YALNIZ SAĞLAYICIYA: kapı `providerFlagOk()` kuralının karşılığıdır —
-    // usta/mağaza bayrağı doğrulanmış telefon ister. Müşterinin adını veya
-    // hakkımda metnini düzenlemesi bu kuralın kapsamında değildir; kapıyı
-    // ona da uygulamak SMS maliyeti üretir ve gereksiz sürtünmedir.
-    if (ustaMi) {
-      setState(() => _phoneGateBusy = true);
-      final bool telefonOk;
-      try {
-        telefonOk = await ensureVerifiedPhoneForProvider(
-          context,
-          ref,
-          isShop: false,
-        );
-      } finally {
-        if (mounted) setState(() => _phoneGateBusy = false);
-      }
-      if (!mounted || !telefonOk) return;
     }
 
     final ok = await _controller.save();
@@ -940,10 +909,6 @@ class _EditFormState extends ConsumerState<_EditForm> {
               ),
               const SizedBox(height: 20),
             ], // ══════════ USTA VİTRİNİ sonu ══════════
-            // --- Doğrulama (mavi tik) — form alanlarının altında, kaydetmeden
-            // bağımsız tek seferlik işlem olduğu için en sona alındı. ---
-            VerificationTile(artisanContext: showArtisanVitrin),
-            const SizedBox(height: 8),
           ],
         ),
       ),
@@ -1017,9 +982,11 @@ class _CertificateStatusNote extends StatelessWidget {
   }
 }
 
-/// Doğrulanmış telefonun vitrinde görünmesi (KVKK: açık rıza, her an geri
-/// alınabilir). Telefon doğrulanmamışsa anahtar yerine yönlendirme gösterilir —
-/// doğrulanmamış numara vitrinde yayınlanamaz.
+/// Telefonun vitrinde görünmesi (KVKK: açık rıza, her an geri alınabilir).
+/// Numara girilmemişse anahtar yerine yönlendirme gösterilir.
+///
+/// Numara DOĞRULANMAZ (SMS akışı 2026-08-18'de kaldırıldı); kullanıcının
+/// Hesap Ayarları'ndan girdiği `publicPhone` kullanılır.
 ///
 /// Anahtar ANINDA kaydeder (formun "Kaydet" düğmesini beklemez): rıza geri
 /// alma tek dokunuşta etkili olmalı.
@@ -1032,13 +999,12 @@ class _PhoneVisibilityTile extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final user = ref.watch(currentUserProvider);
     final theme = Theme.of(context);
-    final phone = user?.phoneNumber;
-    final verified = user?.phoneVerified == true;
+    final phone = user?.publicPhone ?? profile.publicPhone;
 
-    if (!verified || phone == null || phone.trim().isEmpty) {
+    if (phone == null || phone.trim().isEmpty) {
       return Text(
-        'Telefonunuzu profilinizde gösterebilmek için önce doğrulamanız '
-        'gerekir. Doğrulama bu sayfanın altındadır.',
+        'Profilinizde telefon numarası kayıtlı olduğunda vitrininizde '
+        'gösterebilirsiniz.',
         style: theme.textTheme.bodySmall?.copyWith(
           color: theme.colorScheme.onSurfaceVariant,
         ),
@@ -1173,6 +1139,17 @@ class _SocialLinksSectionState extends State<_SocialLinksSection> {
           keyboardType: keyboardType,
           autocorrect: false,
           enableSuggestions: false,
+          // YAZARKEN de doğrula (2026-08-19): hata yalnız odak kaybında
+          // hesaplanıyordu; kullanıcı yazıp doğrudan "Kaydet"e basınca
+          // uyarıyı hiç görmüyor, alanın neden boş kaydedildiğini
+          // anlamıyordu. `_push()` yine odak kaybında — her tuşta taslak
+          // güncellemek gereksiz yazma üretirdi.
+          onChanged: (ham) {
+            final hata = validate(ham);
+            if (_errors[label] != hata) {
+              setState(() => _errors[label] = hata);
+            }
+          },
           decoration: InputDecoration(
             labelText: label,
             hintText: hint,

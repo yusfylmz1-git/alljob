@@ -672,8 +672,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               ),
             ),
             actions: [
-              // WhatsApp: yalnız telefonu DOĞRULANMIŞ ve numarasını profilinde
-              // YAYINLAMIŞ karşı tarafta çıkar (new.md madde 3).
+              // WhatsApp: yalnız numarasını profilinde YAYINLAMIŞ karşı
+              // tarafta çıkar. Doğrulama şartı YOK — SMS akışı 2026-08-18'de
+              // kaldırıldı; tek ölçüt `publicPhone` dolu mu.
               if (user != null && thread != null)
                 _WhatsappAction(uid: thread.otherUid(user.uid)),
               IconButton(
@@ -1615,16 +1616,13 @@ class _CustomerPreviewSheet extends StatelessWidget {
   }
 }
 
-/// Sohbet başlığındaki WhatsApp düğmesi (new.md madde 3).
+/// Sohbet başlığındaki WhatsApp düğmesi.
 ///
-/// **İki koşul birlikte aranır — biri bile eksikse ikon ÇIKMAZ:**
-///  1. `phoneVerified` — numara SMS ile doğrulanmış olmalı.
-///  2. `publicPhone` dolu — kullanıcı numarasını profilinde BİLEREK
-///     yayınlamış olmalı.
+/// Karşı taraf profilinde `publicPhone` (vitrin numarası) yayınlamışsa ikon çıkar.
 ///
 /// ⚠️ `AppUser.phoneNumber` burada KULLANILMAZ: o hassas alandır
 /// (`users/{uid}/private/contact`) ve sahibi dışında kimseye gösterilmez.
-/// İkonu ona bağlamak gizli numarayı sohbetten sızdırırdı.
+/// Yalnızca kullanıcının bilerek yayınladığı `publicPhone` kullanılır.
 class _WhatsappAction extends ConsumerWidget {
   const _WhatsappAction({required this.uid});
 
@@ -1633,7 +1631,7 @@ class _WhatsappAction extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final other = ref.watch(publicUserProvider(uid)).valueOrNull;
-    if (other == null || !other.phoneVerified) return const SizedBox.shrink();
+    if (other == null) return const SizedBox.shrink();
 
     // Yayınlanmış numarayı wa.me biçimine çevir (yalnız rakam).
     final digits = (other.publicPhone ?? '').replaceAll(RegExp(r'[^0-9]'), '');

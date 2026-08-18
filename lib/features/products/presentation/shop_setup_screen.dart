@@ -12,7 +12,6 @@ import '../../../data/local/local_data_service.dart';
 import '../../../data/models/geo_models.dart';
 import '../../artisan/application/my_profile_controller.dart';
 import '../../auth/application/auth_controller.dart';
-import '../../auth/application/provider_phone_gate.dart';
 import '../data/product_category_providers.dart';
 
 /// Mağaza (satıcı) profili ilk kurulum VE sonradan düzenleme.
@@ -113,29 +112,7 @@ class _ShopSetupScreenState extends ConsumerState<ShopSetupScreen> {
       context.showError('En az bir hizmet bölgesi ekleyin.');
       return;
     }
-    // TELEFON DOĞRULAMASI ZORUNLU (new.md madde 1–2). Usta kaydıyla aynı
-    // kapı: doğrulanmazsa mağaza AÇILMAZ, seçimler ekranda kalır.
-    //
-    // `_busy` kapıdan ÖNCE açılır: aksi hâlde doğrulama sayfası açıkken
-    // "Mağazayı aç" düğmesi etkin kalır ve ikinci basış ikinci bir sayfa
-    // açardı (çift gönderim).
     setState(() => _busy = true);
-    final bool telefonOk;
-    try {
-      telefonOk = await ensureVerifiedPhoneForProvider(
-        context,
-        ref,
-        isShop: true,
-      );
-    } catch (_) {
-      if (mounted) setState(() => _busy = false);
-      rethrow;
-    }
-    if (!telefonOk) {
-      if (mounted) setState(() => _busy = false);
-      return;
-    }
-    if (!mounted) return;
     try {
       final edit = _isEdit;
       await ref.read(authRepositoryProvider).updateUserProfile(

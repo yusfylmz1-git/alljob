@@ -97,19 +97,15 @@ class ArtisanProfile {
       publicPhone != null &&
       publicPhone!.trim().isNotEmpty;
 
-  /// Mavi tik: telefon yolu VEYA platform onayı (e-posta tek başına yetmez).
+  /// Mavi tik: platform onayı.
+  ///
+  /// [isVerified] eskiden SMS doğrulamasıyla açılırdı; akış kaldırıldı
+  /// (2026-08-18) ve alan istemciye kapatıldı. Eski verisi olan ustalarda
+  /// rozet korunsun diye iki alan da okunur, yenisini yalnız CF yazar.
   bool get showVerifiedBadge => isVerified || adminVerified;
 
   /// Keşfet / profil mavi tik tooltip metni.
-  String get verifiedBadgeTooltip {
-    if (adminVerified && !isVerified) return 'Platform onaylı usta';
-    if (isVerified && emailVerified) {
-      return 'Telefon ve e-posta doğrulanmış usta';
-    }
-    if (isVerified) return 'Telefonu doğrulanmış usta';
-    if (adminVerified) return 'Platform onaylı usta';
-    return 'Doğrulanmış usta';
-  }
+  String get verifiedBadgeTooltip => 'Platform onaylı usta';
 
   /// Etkili meslek listesi (çoklu + legacy tek alan).
   List<String> get professionCodes {

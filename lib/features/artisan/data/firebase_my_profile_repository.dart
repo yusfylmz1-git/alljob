@@ -132,12 +132,7 @@ class FirebaseMyProfileRepository implements MyProfileRepository {
 
   @override
   Future<void> markVerified(String uid) async {
-    // Yalnızca profil dökümanı VARSA yaz — merge, olmayan dökümanı yaratıp
-    // müşteriye yarım bir usta profili oluşturmasın. Kural, `isVerified=true`
-    // yazımına yalnızca jetonda doğrulanmış telefon varsa izin verir.
-    final snap = await _profileDoc(uid).get();
-    if (!snap.exists) return;
-    await _profileDoc(uid).set({'isVerified': true}, SetOptions(merge: true));
+    // `isVerified` alanı artık admin/CF moderasyonunda denetlenir.
   }
 
   @override

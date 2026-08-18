@@ -207,17 +207,6 @@ class MockAuthRepository implements AuthRepository {
   }
 
   @override
-  Future<AppUser> setPhoneVerified(String phoneE164) async {
-    await _delay();
-    final user = _current;
-    if (user == null) throw AuthException.notSignedIn;
-    final updated = user.copyWith(phoneVerified: true, phoneNumber: phoneE164);
-    _store(updated);
-    _emit(updated);
-    return updated;
-  }
-
-  @override
   Future<void> updateUserProfile({
     String? displayName,
     String? profilePhotoUrl,
@@ -238,19 +227,14 @@ class MockAuthRepository implements AuthRepository {
       final nameErr = Validators.displayName(name);
       if (nameErr != null) throw AuthException(nameErr);
     }
-    // KURAL PARİTESİ: `firestore.rules` → `providerFlagOk`. Mağaza profilini
-    // AÇMAK doğrulanmış telefon ister; kapatmak ve zaten açık profili
-    // güncellemek serbesttir. Mock bunu taklit etmezse istemci kapısındaki
-    // bir gerileme yalnız canlıda patlar (CLAUDE.md kural 1).
-    if (hasShopProfile == true &&
-        !user.hasShopProfile &&
-        !user.phoneVerified) {
-      throw const AuthException(
-        'Mağaza açmak için telefon doğrulaması gerekiyor.',
-      );
-    }
     // Firebase paritesi: boş dize = ALANI TEMİZLE (kural 1).
     final t = publicPhone?.trim();
+    // Kural paritesi: `firestore.rules` publicPhone'u E.164 TR cebe zorlar
+    // (`^\+905[0-9]{9}$`). Mock aynı reddi vermezse hatalı biçim yalnız
+    // canlıda patlar — mock güvenlik kuralını taklit etmelidir (kural 1).
+    if (t != null && t.isNotEmpty && !RegExp(r'^\+905[0-9]{9}$').hasMatch(t)) {
+      throw AuthException('Geçersiz telefon biçimi.');
+    }
     var updated = user.copyWith(
       displayName: name,
       profilePhotoUrl: profilePhotoUrl,

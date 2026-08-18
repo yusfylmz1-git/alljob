@@ -12,17 +12,16 @@ abstract final class AdminModerationGlossary {
       icon: Icons.verified,
       summary:
           'Ustaya “platform onaylı” mavi tik benzeri güven sinyali verir. '
-          'Telefon doğrulamasından BAĞIMSIZDIR.',
+          'SMS doğrulaması kaldırıldığından (2026-08-18) rozetin TEK '
+          'kaynağı budur.',
       details:
           '• Ne işe yarar?\n'
           '  Keşfet / profilde “Platform onaylı usta” rozeti çıkar. '
-          'Telefonu doğrulamamış ama ekibin güvendiği (eski tanınmış usta, '
-          'yüz yüze doğrulama, belge incelemesi sonrası) profilleri '
-          'öne çıkarmak için.\n\n'
+          'Ekibin güvendiği (tanınmış usta, yüz yüze doğrulama, belge '
+          'incelemesi sonrası) profilleri öne çıkarmak için.\n\n'
           '• Neden gerekli?\n'
-          '  Telefon OTP herkes alabilir; platform onayı ise sizin '
-          'manuel güvencenizdir. Sahte / düşük kaliteli vitrini otomatik '
-          'mavi tikten ayırır.\n\n'
+          '  Uygulamada otomatik doğrulama YOK; rozet yalnız sizin manuel '
+          'güvencenizdir. Sahte / düşük kaliteli vitrini ayırır.\n\n'
           '• Ne YAPMAZ?\n'
           '  Hesabı askıya almaz, ilan yazmayı engellemez, Premium vermez. '
           'Yalnız vitrin güven rozetidir.\n\n'

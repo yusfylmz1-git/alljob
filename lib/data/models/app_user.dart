@@ -49,10 +49,15 @@ class AppUser {
   /// Aktif arayüz modu. Usta modu yalnızca [hasArtisanProfile] ise geçerlidir.
   final UserRole activeMode;
 
-  /// Hesap telefon numarasıyla doğrulandı mı? (SMS OTP → hesaba bağlı telefon.)
-  /// Ustalarda "mavi tik"in (ArtisanProfile.isVerified) ön şartıdır; müşteride
-  /// "doğrulanmış hesap" göstergesi olarak kullanılır. Yalnızca gerçek doğrulama
-  /// sonrası `true` yazılabilir (Firestore kuralı `token.phone_number` ister).
+  /// Hesap telefon numarasıyla doğrulandı mı?
+  ///
+  /// SMS doğrulama akışı 2026-08-18'de KALDIRILDI — uygulama artık kimseye
+  /// numara doğrulatmaz. Alan yalnızca GEÇMİŞ veriyi taşır: daha önce
+  /// numarasını bağlamış hesaplarda Auth'tan `true` gelmeye devam eder.
+  /// Yeni hesaplarda her zaman `false`'tur; kod bu alana yeni değer YAZMAZ.
+  ///
+  /// Rozet için bakılacak yer artık `ArtisanProfile.adminVerified`
+  /// (admin/CF onayı) — bkz. [ArtisanProfile.showVerifiedBadge].
   final bool phoneVerified;
 
   /// E-posta adresi doğrulandı mı? KAYNAĞI Firebase Auth'tur (doğrulama

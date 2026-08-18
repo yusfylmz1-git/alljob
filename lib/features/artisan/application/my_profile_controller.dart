@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/constants/app_constants.dart';
+import '../../../core/utils/phone_format.dart';
 import '../../../core/utils/validators.dart';
 import '../../../data/models/artisan_profile.dart';
 import '../../../data/models/availability.dart';
@@ -394,8 +395,12 @@ class MyProfileController extends AsyncNotifier<MyProfileDraft> {
   String get saveErrorTR {
     final e = _lastSaveError ?? '';
     if (e.contains('permission-denied') || e.contains('PERMISSION_DENIED')) {
-      return 'Profil kaydedilemedi: sunucu reddetti. Hizmet bölgeleriniz ve '
-          'sosyal medya alanlarınızı kontrol edin.';
+      // Mesaj alan SAYMAZ (2026-08-19): eskiden belirli alanları işaret
+      // ediyordu; oysa ret telefon biçiminden geliyordu ve kullanıcı yanlış
+      // alanı düzeltmeye çalışıyordu. Yanlış yönlendirmektense genel
+      // kalması iyidir.
+      return 'Profil kaydedilemedi: sunucu bu bilgileri kabul etmedi. '
+          'Kırmızı uyarı çıkan alanları düzeltip tekrar deneyin.';
     }
     if (e.contains('unavailable') ||
         e.contains('deadline') ||
@@ -448,10 +453,22 @@ class MyProfileController extends AsyncNotifier<MyProfileDraft> {
       // ORTAK ALANLAR — herkeste `users/{uid}` altına (2026-08-08).
       // Tek doğruluk kaynağı burası; usta kaydındaki kopya artık
       // güncellenmiyor, yalnız eski veriyi okumak için duruyor.
+      // TELEFON BİÇİMİ (2026-08-19 cihaz bulgusu): kural `publicPhone`ı
+      // E.164 TR cebe zorluyor. Profilde ESKİ biçimde (ör. `+902222222222`
+      // veya `0532…`) bir numara duruyorsa her kaydetme denemesi
+      // `permission-denied` alıyordu — kullanıcı sosyal medya alanını
+      // boşaltsa bile hata sürüyordu, çünkü reddedilen alan telefondu.
+      //
+      // Çözüm: yazmadan önce normalize et. Çözümlenemeyen eski değer
+      // TEMİZLENİR (boş dize = alanı sil) — kaydı kilitlemektense
+      // geçersiz numarayı düşürmek doğru: kullanıcı yenisini girebilir.
+      final ham = sanitized.profile.publicPhone ?? '';
+      final telefon = ham.isEmpty ? '' : (normalizeTrMobile(ham) ?? '');
+
       await ref.read(authRepositoryProvider).updateUserProfile(
             displayName: sanitized.displayName,
             profilePhotoUrl: sanitized.profilePhotoUrl,
-            publicPhone: sanitized.profile.publicPhone ?? '',
+            publicPhone: telefon,
             socialLinks: sanitized.profile.socialLinks,
             aboutText: sanitized.profile.aboutText,
             // null → alan değişmez (ayrı yazım gerekmez).

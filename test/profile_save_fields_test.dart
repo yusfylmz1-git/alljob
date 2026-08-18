@@ -65,18 +65,15 @@ void main() {
     test('kural hâlâ bu alanları koruyor (sözleşme kontrolü)', () {
       // Kural gevşetilirse yukarıdaki remove'ların gerekçesi düşer.
       final rules = File('firestore.rules').readAsStringSync();
-      expect(rules.contains('function verifiedClaimOk()'), isTrue);
+      expect(rules.contains("'isVerified'"), isTrue);
       expect(rules.contains('function emailVerifiedMirrorOk()'), isTrue);
       expect(rules.contains("'isPremium','premiumExpiresAt'"), isTrue);
     });
   });
 
   group('B-04 · doğrulama alanlarının MEŞRU yolu korunuyor', () {
-    test('markVerified isVerified yazmaya devam eder', () {
-      // Telefon doğrulama akışı bunu çağırır; kaydetmeden çıkarmak onu
-      // bozmamalı.
+    test('markVerified metodu tanımlı kalır', () {
       expect(source.contains('Future<void> markVerified'), isTrue);
-      expect(source.contains("{'isVerified': true}"), isTrue);
     });
   });
 }

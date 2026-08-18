@@ -281,7 +281,8 @@ class _ArtisanFacts extends StatelessWidget {
       else
         'Premium yok',
       if (artisan['adminVerified'] == true) 'Platform onaylı',
-      if (artisan['isVerified'] == true) 'Telefon doğrulanmış',
+      // Eski SMS doğrulamasından kalan kayıt (akış 2026-08-18'de kaldırıldı).
+      if (artisan['isVerified'] == true) 'Doğrulanmış (eski kayıt)',
       if (artisan['moderationHidden'] == true) 'GİZLENMİŞ',
       '★ ${(artisan['averageRating'] as num? ?? 0).toStringAsFixed(1)}'
           ' (${artisan['totalReviews'] ?? 0})',

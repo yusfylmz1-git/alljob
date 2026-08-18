@@ -26,7 +26,7 @@ Ayrı modül değil; `jobs/data/offer_repository.dart`.
 ## Kullanıcı & kimlik
 
 ### `auth` (15 dosya)
-Google girişi, e-posta doğrulama, telefon doğrulama (SMS + mavi tik), askı
+Google girişi, e-posta doğrulama, askı
 kapısı, hesap silme.
 
 ### `artisan` (11 dosya)

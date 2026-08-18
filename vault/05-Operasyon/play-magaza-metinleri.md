@@ -100,7 +100,6 @@ Güvenliğin için: peşin ödeme yapmadan önce karşı tarafı ve işi/ürün�
 doğrula, mümkünse yüz yüze görüş. Uygunsuz içerik ve davranışları uygulama
 içinden şikayet edebilir, istemediğin kullanıcıları engelleyebilirsin.
 
-Usta ve mağaza profili açmak için SMS ile telefon doğrulaması gerekir.
 
 Kullanım koşulları: https://www.ilandahizmet.com/kullanim-kosullari.html
 Gizlilik politikası: https://www.ilandahizmet.com/gizlilik-politikasi.html

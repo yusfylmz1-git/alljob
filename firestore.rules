@@ -51,15 +51,6 @@ service cloud.firestore {
     // `phoneNumber` yazamaz (aşağıdaki `!hasAny` guard'ı). Hassas veri, yalnızca
     // sahibinin okuyabildiği `users/{uid}/private/*` alt-koleksiyonuna yazılır.
     match /users/{uid} {
-      // `phoneVerified` yalnızca gerçek SMS doğrulaması sonrası (kimlik jetonu
-      // doğrulanmış telefon taşırken) true yazılabilir — istemci keyfî olarak
-      // kendini "doğrulanmış" yapamaz.
-      function phoneClaimOkFor(field) {
-        // phone_number yokken `.token.phone_number` undefined hatası vermesin.
-        return request.resource.data.get(field, false) != true
-          || request.auth.token.get('phone_number', null) != null;
-      }
-
       // Owner yazamaz: phoneNumber, email, fcmTokens (H2) + moderasyon aynası
       // (suspended/suspendedAt) — yalnız CF yazar; kullanıcı kendini açamaz.
       // email/fcmTokens: create'te yasak; update'te yalnız SİLME (legacy temizlik).
@@ -97,11 +88,20 @@ service cloud.firestore {
       // Yalnız tip ve uzunluk tavanı doğrulanır: içerik denetimi istemcide
       // (Validators) ve moderasyonda. Tavan olmadan bir kullanıcı dökümana
       // megabaytlarca metin yazıp okuma maliyetini herkese ödetebilirdi.
+      //
+      // publicPhone BİÇİM ŞARTI (2026-08-18): SMS doğrulaması kaldırılınca
+      // numara elle giriliyor. İstemci `normalizeTrMobile()` ile her zaman
+      // E.164 yazar (`phone_format.dart`); kural aynı biçimi ZORUNLU kılar.
+      // Aksi hâlde doğrudan SDK çağrısıyla bu alana serbest metin (reklam,
+      // bağlantı, başkasının numarası) yazılabilirdi — alan herkese açık
+      // okunuyor ve sohbetteki WhatsApp düğmesini besliyor.
       function profileFieldsOk() {
         let d = request.resource.data;
         return (!('publicPhone' in d)
                 || d.publicPhone == null
-                || (d.publicPhone is string && d.publicPhone.size() <= 32))
+                || d.publicPhone == ''
+                || (d.publicPhone is string
+                    && d.publicPhone.matches('^\\+905[0-9]{9}$')))
           && (!('aboutText' in d)
                 || (d.aboutText is string && d.aboutText.size() <= 1000))
           && (!('socialLinks' in d)
@@ -109,43 +109,19 @@ service cloud.firestore {
                 || d.socialLinks is map);
       }
 
-      // SAĞLAYICI OLMAK DOĞRULANMIŞ TELEFON İSTER (new.md madde 1–2).
-      //
-      // İstemci tarafında `ensureVerifiedPhoneForProvider()` kapısı var, ama
-      // istemci kapısı ATLATILABİLİR (doğrudan SDK çağrısı). Usta/mağaza
-      // profili açmak platformdaki güven sözleşmesidir: doğrulanmamış
-      // numarayla hizmet veren biri müşteriye ulaşılamaz olur.
-      //
-      // Yalnız `true`ya ÇEKERKEN aranır: kapatma (`false`) ve zaten açık
-      // profilin diğer alanlarını güncelleme serbesttir — mevcut ustalar
-      // kilitlenmez.
-      function providerFlagOk(field) {
-        let d = request.resource.data;
-        let acilyor = d.get(field, false) == true
-          && (resource == null || resource.data.get(field, false) != true);
-        return !acilyor
-          || request.auth.token.get('phone_number', null) != null;
-      }
-
       allow read: if true;
       // create'te resource null olduğundan doğrudan yazılan anahtarlara bakılır.
       allow create: if isSelf(uid)
-        && providerFlagOk('hasArtisanProfile')
-        && providerFlagOk('hasShopProfile')
         && !request.resource.data.keys()
               .hasAny(['phoneNumber', 'suspended', 'suspendedAt',
                        'email', 'fcmTokens',
                        // Sayaçlar sıfırdan başlar; CF yazar (kural 3).
                        'completedJobsAsCustomer', 'reviewCountAsCustomer',
                        'ratingAsCustomer'])
-        && phoneClaimOkFor('phoneVerified')
         && displayNameOk()
         && profileFieldsOk();
       allow update: if isSelf(uid)
         && notSettingPublicPii()
-        && phoneClaimOkFor('phoneVerified')
-        && providerFlagOk('hasArtisanProfile')
-        && providerFlagOk('hasShopProfile')
         && profileFieldsOk()
         && (!request.resource.data.diff(resource.data).affectedKeys()
                 .hasAny(['displayName'])
@@ -202,14 +178,9 @@ service cloud.firestore {
     // Create ve update ayrı: create'te `resource` null olduğu için diff yerine
     // doğrudan yazılan anahtarlara bakılır (null.data erişimi kuralı hataya
     // düşürüp ilk kaydı reddediyordu).
-    // `isVerified` (mavi tik) yalnızca gerçek telefon doğrulaması sonrası
-    // (jetonda doğrulanmış telefon varken) true yazılabilir — usta kendini
-    // keyfî olarak "mavi tikli" yapamaz.
+    // `isVerified` (mavi tik) ve platform onayı yalnız Cloud Functions (Admin SDK)
+    // tarafından yazılır — usta kendini keyfî olarak "mavi tikli" yapamaz.
     match /artisanProfiles/{uid} {
-      function verifiedClaimOk() {
-        return request.resource.data.get('isVerified', false) != true
-          || request.auth.token.get('phone_number', null) != null;
-      }
       // emailVerified aynası: true yalnız token email_verified iken.
       function emailVerifiedMirrorOk() {
         return request.resource.data.get('emailVerified', false) != true
@@ -267,7 +238,7 @@ service cloud.firestore {
       }
 
       allow read: if true;
-      // adminVerified / featured / moderationHidden yalnız CF (moderasyon).
+      // adminVerified / isVerified / featured / moderationHidden yalnız CF (moderasyon).
       // Premium + moderasyon + skor: yalnız CF. premiumProductId/premiumUpdatedAt
       // de istemciden yazılamaz (yanlış abonelik id enjekte etmesin).
       allow create: if isSelf(uid)
@@ -276,13 +247,12 @@ service cloud.firestore {
                        'topTags','tagCounts',
                        'completedJobs','isPremium','premiumExpiresAt',
                        'premiumProductId','premiumUpdatedAt',
-                       'adminVerified','featured','moderationHidden',
+                       'isVerified','adminVerified','featured','moderationHidden',
                        'moderatedBy','moderatedAt',
                        // Belge inceleme sonucu: yalnız CF yazar. Aksi hâlde
                        // usta kendini "belgeli usta" ilan ederdi.
                        'certificateStatus','certificateNote',
                        'certificateReviewedBy','certificateUpdatedAt'])
-        && verifiedClaimOk()
         && emailVerifiedMirrorOk()
         && profileContentOk();
       allow update: if isSelf(uid)
@@ -291,13 +261,12 @@ service cloud.firestore {
                        'totalRatingSum','topTags','tagCounts','completedJobs',
                        'isPremium','premiumExpiresAt',
                        'premiumProductId','premiumUpdatedAt',
-                       'adminVerified','featured','moderationHidden',
+                       'isVerified','adminVerified','featured','moderationHidden',
                        'moderatedBy','moderatedAt',
                        // Belge inceleme sonucu: yalnız CF yazar (usta belge
                        // listesini değiştirince trigger pending'e döndürür).
                        'certificateStatus','certificateNote',
                        'certificateReviewedBy','certificateUpdatedAt'])
-        && verifiedClaimOk()
         && emailVerifiedMirrorOk()
         && profileContentOk();
       allow delete: if false;
