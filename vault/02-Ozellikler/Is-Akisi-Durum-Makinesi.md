@@ -90,8 +90,13 @@ davet kartı gösterir. Sayı ortaktır: `AppConstants.kapiOnizlemeSayisi` (3).
 
 | Sekme | Kapı koşulu | Kapalıyken |
 |---|---|---|
-| Keşfet > İlanlar | `hasArtisanProfile` | 3 ilan + "Usta profili aç" |
+| Keşfet > İlanlar (misafir) | oturum | 3 ilan + **"Giriş yap"** |
+| Keşfet > İlanlar (üye) | `hasArtisanProfile` | 3 ilan + "Usta profili aç" |
 | Keşfet > Mağaza > Talepler | mağaza **ve** müsaitlik | 3 talep + davet |
+
+Misafir daveti İKİ ADIMLIDIR: önce giriş, sonra usta profili. Kart yalnız bir
+sonraki adımı gösterir — misafire "meslek ve bölge ekleyin" demek, henüz
+hesabı yokken anlamsız bir talimattır.
 
 > [!note] Neden boş uyarı değil?
 > 2026-08-20: İlanlar kapısı yalnız "usta profili açın" yazan boş bir ekrandı.
@@ -101,6 +106,11 @@ davet kartı gösterir. Sayı ortaktır: `AppConstants.kapiOnizlemeSayisi` (3).
 >
 > Sayı sıfır olamaz (değer görünmez), yüksek de olamaz (kapı anlamsızlaşır).
 > Gizli sayı 0 ise kartta sayı YAZILMAZ — yanlış vaat olmasın.
+
+> [!note] Misafir neden boş duvar görmüyor?
+> Misafir aynı ilanları ana sayfa "Son İş İlanları" şeridinde ve "Hemen Lazım"
+> listesinde ZATEN görebiliyor. Keşfet'te gizlemek bir şey korumuyor, yalnız
+> aynı verinin iki yerde iki farklı davranışını üretiyordu.
 
 ## Ana sayfa — dört durum
 

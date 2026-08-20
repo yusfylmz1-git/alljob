@@ -26,7 +26,7 @@
 
 **Tarih:** 2026-08-20 — **KAPALI TEST GERİ BİLDİRİMLERİ (1. tur)**
 
-`flutter analyze` 0 · **1004 test** (öncesi 967).
+`flutter analyze` 0 · **1006 test** (öncesi 967).
 
 Testçilerden gelen üç şikâyet; ikisi tek kök nedenden çıktı.
 
@@ -126,11 +126,25 @@ Ortak sabit: `AppConstants.kapiOnizlemeSayisi = 3`. `kSinirliTalepSayisi`
 artık buna bağlı — iki kapı tek kaynaktan yönetilir, biri değişirse ikisi
 birden değişir.
 
-### Testler
-`test/rol_bazli_gorunum_test.dart` (16) — dört durumun gördüğü içerik +
-davet kartı sözleşmesi + kapı önizlemesi + mağaza kurgusunun korunduğu.
+**Misafir de aynı önizlemeyi görür** — kapıya düşen tek istisna oydu.
+Misafir aynı ilanları ana sayfa şeridinde ve "Hemen Lazım" listesinde zaten
+görebiliyordu; Keşfet'te boş duvar tutarsızlıktı. Davet iki adımlı: misafire
+"Giriş yap", üyeye "Usta profili aç". Artık ölü olan `notice()` yardımcısı
+silindi.
 
-**Toplam: 1004 test** · `flutter analyze` 0.
+### Testler
+`test/rol_bazli_gorunum_test.dart` (18) — dört durumun gördüğü içerik +
+davet kartı sözleşmesi + kapı önizlemesi (misafir dahil) + mağaza
+kurgusunun korunduğu.
+
+**Toplam: 1006 test** · `flutter analyze` 0.
+
+### Sürüm
+`1.1.0+5` → **`1.2.0+6`**. Minor artırıldı: yalnız hata düzeltmesi değil,
+yeni davranış da var (rol bazlı ana sayfa, kapı önizlemeleri).
+
+**Sunucuya deploy GEREKMEZ** — `firestore.rules`, `functions/` ve indeksler
+bu oturumda hiç değişmedi; en son `a8d1d9f`'te değiştiler ve canlıdalar.
 
 ### Doğrulanmayı bekliyor
 Mesaj hatasının e-posta doğrulaması olduğu **koddan çıkarıldı**, testçinin

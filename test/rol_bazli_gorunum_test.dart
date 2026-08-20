@@ -143,6 +143,26 @@ void main() {
       expect(kesfet.contains('usta olmanız gerekmez'), isTrue);
     });
 
+    test('MİSAFİR de önizleme görür', () {
+      // Misafir aynı ilanları ana sayfa şeridinde ve "Hemen Lazım"
+      // listesinde ZATEN görebiliyor; Keşfet'te boş duvar göstermek bir şey
+      // korumuyor, yalnız tutarsızlık üretiyordu.
+      expect(kesfet.contains('_IlanKapisiOnizleme(misafir: true)'), isTrue,
+          reason: 'Misafir yine boş kapı ekranına düşüyor.');
+    });
+
+    test('misafir daveti GİRİŞE, üye daveti PROFİLE götürür', () {
+      // İki adımlı çağrı: misafire "meslek ve bölge ekleyin" demek, henüz
+      // hesabı yokken anlamsız bir talimat olurdu.
+      expect(kesfet.contains("Text(misafir ? 'Giriş yap' : 'Usta profili aç')"),
+          isTrue,
+          reason: 'Davet düğmesi duruma göre değişmiyor.');
+      expect(kesfet.contains('misafir ? RoutePaths.login : RoutePaths.profile'),
+          isTrue,
+          reason: 'Misafir profil ekranına yönlendiriliyor — giriş yapmadan '
+              'orada yapabileceği bir şey yok.');
+    });
+
     test('iki kapı AYNI sayıda önizleme gösterir', () {
       // Tutarlılık: iki ekran tek sabitten yönetilmeli.
       final sabitler = read('lib/core/constants/app_constants.dart');

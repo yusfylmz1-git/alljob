@@ -625,46 +625,15 @@ class _JobsTab extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final user = ref.watch(currentUserProvider);
-    final palette = context.palette;
     final theme = Theme.of(context);
 
-    Widget notice(IconData icon, String title, String body, {Widget? action}) {
-      return ListView(
-        padding: const EdgeInsets.all(28),
-        children: [
-          const SizedBox(height: 24),
-          Icon(icon, size: 44, color: palette.inkMuted),
-          const SizedBox(height: 14),
-          Text(
-            title,
-            textAlign: TextAlign.center,
-            style: theme.textTheme.titleMedium
-                ?.copyWith(fontWeight: FontWeight.w800),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            body,
-            textAlign: TextAlign.center,
-            style: theme.textTheme.bodyMedium?.copyWith(color: palette.inkMuted),
-          ),
-          if (action != null) ...[const SizedBox(height: 18), action],
-        ],
-      );
-    }
-
     final body = () {
+      // MİSAFİR de önizleme görür (2026-08-20). Eskiden boş bir "giriş yap"
+      // duvarıydı; oysa misafir aynı ilanları ana sayfa şeridinde ve
+      // "Hemen Lazım" listesinde ZATEN görebiliyor. Burada gizlemek bir şey
+      // korumuyor, yalnız tutarsızlık üretiyordu.
       if (user == null) {
-        return notice(
-          Icons.login_rounded,
-          'İlanları görmek için giriş yap',
-          'İş ilanlarını görüntülemek ve teklif vermek için hesabına giriş yap.',
-          action: Center(
-            child: FilledButton(
-              onPressed: () => context.push(RoutePaths.login),
-              child: const Text('Giriş yap'),
-            ),
-          ),
-        );
+        return const _IlanKapisiOnizleme(misafir: true);
       }
 
       // Usta MODU değil; usta PROFİLİ. Profili açan herkes (müşteri
@@ -725,7 +694,11 @@ class _JobsTab extends ConsumerWidget {
 ///
 /// Dil DAVET'tir, ceza değil: kullanıcı bir şey kaybetmiyor, kazanabiliyor.
 class _IlanKapisiOnizleme extends ConsumerWidget {
-  const _IlanKapisiOnizleme();
+  const _IlanKapisiOnizleme({this.misafir = false});
+
+  /// Oturum yok → davet "Giriş yap"a götürür; varsa "Usta profili aç".
+  /// İki durumda da ÖNİZLEME aynıdır, yalnız çağrı değişir.
+  final bool misafir;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -741,9 +714,9 @@ class _IlanKapisiOnizleme extends ConsumerWidget {
     if (gorunen.isEmpty) {
       return ListView(
         padding: const EdgeInsets.all(20),
-        children: const [
-          SizedBox(height: 20),
-          _UstaProfiliDaveti(gizliSayi: 0),
+        children: [
+          const SizedBox(height: 20),
+          _UstaProfiliDaveti(gizliSayi: 0, misafir: misafir),
         ],
       );
     }
@@ -758,7 +731,10 @@ class _IlanKapisiOnizleme extends ConsumerWidget {
         ),
         const SizedBox(height: 4),
         Text(
-          'Usta profili açınca ilinizdeki tüm ilanları görürsünüz.',
+          misafir
+              ? 'Giriş yapıp usta profili açınca ilinizdeki tüm ilanları '
+                  'görürsünüz.'
+              : 'Usta profili açınca ilinizdeki tüm ilanları görürsünüz.',
           style: theme.textTheme.bodySmall?.copyWith(color: palette.inkMuted),
         ),
         const SizedBox(height: 12),
@@ -767,18 +743,25 @@ class _IlanKapisiOnizleme extends ConsumerWidget {
           const SizedBox(height: 10),
         ],
         const SizedBox(height: 4),
-        _UstaProfiliDaveti(gizliSayi: gizliSayi),
+        _UstaProfiliDaveti(gizliSayi: gizliSayi, misafir: misafir),
       ],
     );
   }
 }
 
 /// Önizlemenin altındaki davet kartı — `_TalepKilidi` ile aynı görsel dil.
+///
+/// İki adımlı çağrı: misafir önce GİRİŞ yapar, üye USTA PROFİLİ açar. Kart
+/// yalnız bir sonraki adımı gösterir — misafire "meslek ve bölge ekleyin"
+/// demek, henüz hesabı yokken anlamsız bir talimat olurdu.
 class _UstaProfiliDaveti extends StatelessWidget {
-  const _UstaProfiliDaveti({required this.gizliSayi});
+  const _UstaProfiliDaveti({required this.gizliSayi, this.misafir = false});
 
   /// Gizlenen ilan sayısı. 0 ise sayı yazılmaz — yanlış vaat olmasın.
   final int gizliSayi;
+
+  /// Oturum yok mu? Çağrı "Giriş yap"a döner.
+  final bool misafir;
 
   @override
   Widget build(BuildContext context) {
@@ -797,7 +780,10 @@ class _UstaProfiliDaveti extends StatelessWidget {
         children: [
           Row(
             children: [
-              Icon(Icons.handyman_outlined, color: palette.primary),
+              Icon(
+                misafir ? Icons.login_rounded : Icons.handyman_outlined,
+                color: palette.primary,
+              ),
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
@@ -813,9 +799,13 @@ class _UstaProfiliDaveti extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Text(
-            'Meslek ve bölgenizi ekleyin; ilinizdeki ilanların tamamını '
-            'görün, yenileri için bildirim alın ve müşterilere doğrudan '
-            'mesaj atın.',
+            misafir
+                ? 'Giriş yapın, usta profilinizi açın; ilinizdeki ilanların '
+                    'tamamını görün, yenileri için bildirim alın ve '
+                    'müşterilere doğrudan mesaj atın.'
+                : 'Meslek ve bölgenizi ekleyin; ilinizdeki ilanların tamamını '
+                    'görün, yenileri için bildirim alın ve müşterilere '
+                    'doğrudan mesaj atın.',
             style: theme.textTheme.bodyMedium?.copyWith(
               color: palette.inkMuted,
               height: 1.35,
@@ -825,17 +815,26 @@ class _UstaProfiliDaveti extends StatelessWidget {
           SizedBox(
             width: double.infinity,
             child: FilledButton.icon(
-              onPressed: () => context.push(RoutePaths.profile),
-              icon: const Icon(Icons.handyman_outlined, size: 18),
-              label: const Text('Usta profili aç'),
+              onPressed: () => context.push(
+                misafir ? RoutePaths.login : RoutePaths.profile,
+              ),
+              icon: Icon(
+                misafir ? Icons.login_rounded : Icons.handyman_outlined,
+                size: 18,
+              ),
+              label: Text(misafir ? 'Giriş yap' : 'Usta profili aç'),
             ),
           ),
           const SizedBox(height: 8),
           // İlan VERMEK usta olmayı gerektirmez — eski metindeki bu bilgi
-          // kaybolmasın (müşteri "ilan veremiyorum" sanmasın).
+          // kaybolmasın (müşteri "ilan veremiyorum" sanmasın). Misafirde
+          // "Yeni İlan" düğmesi görünmediği için o cümle yazılmaz.
           Text(
-            'İlan vermek için usta olmanız gerekmez — sağ üstteki '
-            '“Yeni İlan” düğmesini kullanın.',
+            misafir
+                ? 'İlan vermek için usta olmanız gerekmez; giriş yapmanız '
+                    'yeterlidir.'
+                : 'İlan vermek için usta olmanız gerekmez — sağ üstteki '
+                    '“Yeni İlan” düğmesini kullanın.',
             style: theme.textTheme.bodySmall?.copyWith(
               color: palette.inkMuted,
               height: 1.3,
