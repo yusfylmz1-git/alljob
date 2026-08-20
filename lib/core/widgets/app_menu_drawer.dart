@@ -248,6 +248,17 @@ class AppMenuDrawer extends ConsumerWidget {
             onTap: () => _open(context, RoutePaths.myJobs),
           ),
 
+          // TALEPLERİM (2026-08-20) — ürün talebi veren kullanıcının kendi
+          // taleplerine ulaşabildiği TEK yer. Talepler Keşfet'te listelenmez
+          // (kitlesi satıcılardır) ve artık "İlanlarım"da da görünmez; bu
+          // satır olmadan kullanıcı kendi talebini hiçbir yerden göremezdi.
+          ListTile(
+            leading: const Icon(Icons.shopping_bag_outlined),
+            title: const Text('Taleplerim'),
+            subtitle: const Text('Verdiğiniz ürün talepleri'),
+            onTap: () => _open(context, RoutePaths.myProductRequests),
+          ),
+
           // Henüz usta profili yoksa dönüşüm çağrısı.
           if (!user.hasArtisanProfile) ...[
             const Divider(indent: 16, endIndent: 16),

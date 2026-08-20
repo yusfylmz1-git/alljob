@@ -53,7 +53,8 @@ class HomeFeatured extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final ustalar = ref.watch(oneChikanUstalarProvider).valueOrNull ?? const [];
-    final isler = ref.watch(openJobsProvider).valueOrNull ?? const [];
+    // Süzülmüş feed: ürün talepleri, kendi ilanların ve il dışı ilanlar düşer.
+    final isler = ref.watch(visibleJobFeedProvider);
     final urunler = ref.watch(productsLiveProvider)
         ? (ref.watch(discoverProductsProvider).valueOrNull ?? const <Product>[])
         : const <Product>[];

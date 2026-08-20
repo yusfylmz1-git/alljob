@@ -40,6 +40,72 @@ ilandan bağımsız yaşar, silme mesaj geçmişini götürmez.
 **1 saat** içinde (`Job.editWindow`). Kural tarafında yalnız `open`
 doğrulanır (createdAt ISO string; kural zaman aritmetiği yapamaz).
 
+## İlan feed'i — DÖRT ayrı yol, aynı elemeler
+
+`jobs` koleksiyonu iş ilanını ve **ürün talebini** birlikte tutar; ayıran tek
+şey `category == kProductRequestCategory`. Bu yüzden "açık ilanları getir"
+demek yetmez, her tüketici süzmelidir.
+
+| Yol | Süzen | İl | Meslek | Kendi ilanı | Talep |
+|---|---|---|---|---|---|
+| Push bildirimi | `onJobCreated` (CF) | ✅ | ✅ | ✅ | ✅ |
+| "Yakındaki İşler" | `nearbyJobsProvider` → `matchesArtisan` | ✅ | ✅ | ✅ | ✅ |
+| Ana sayfa + Keşfet | `visibleJobFeedProvider` | filtre | filtre | ✅ | ✅ |
+| İlanlarım / Taleplerim | `MyJobsScreen._visible` | — | — | (yalnız kendi) | ayrık |
+
+> [!warning] `openJobsProvider` HAM akıştır — ekrana bağlama
+> İçinde ürün talepleri ve kullanıcının kendi ilanları durur. Ekranların
+> beklediği süzülmüş liste `visibleJobFeedProvider`'dır. Ham akış yalnız
+> türetilmiş provider'ların ortak kaynağıdır (tek sorgu, tek dinleyici) ve
+> `.when` ile yükleme/hata durumu göstermek için okunur.
+>
+> 2026-08-20 kapalı test bulgusu: elemeler yalnız ilk iki satırda vardı. Ana
+> sayfa şeridi ile Keşfet paneli ham akışa bağlıydı → testçi bölgesini
+> tanımlamadan başka ilin ilanını gördü, kendi ürün talebi iş ilanları
+> arasında listelendi. Regresyon: `test/ilan_feed_suzme_test.dart`.
+
+**İl neden feed'de değil, filtrede?** Kullanıcının değiştirebilmesi gerekiyor
+(komşu ilde çalışan usta mağdur olmasın). İl, Keşfet panelinde filtrenin
+**varsayılan** değeri olarak tohumlanır (`myFeedProvinceProvider`, tek
+seferlik `_provinceSeeded` bayrağıyla); kullanıcı başka il seçebilir veya
+temizleyip hepsini görebilir.
+
+**Meslek neden yalnız bildirimde?** Telefonu boş yere titretmemek için push
+dardır; liste geniştir — usta kendi ilindeki piyasayı mesleği tutmasa da
+görebilmeli. Daraltmak isteyen Keşfet'teki kategori filtresini kullanır.
+
+**Talepler nerede görünür?** İki yer:
+
+| Yer | Kim görür |
+|---|---|
+| Keşfet > Mağaza > **Talepler** sekmesi | Mağaza + müsait → **tamamı**; eksikse 3 örnek + davet kartı |
+| Yan menü > **Taleplerim** | Yalnız kendi talepleri (`RoutePaths.myProductRequests`) |
+
+Keşfet'in **İlanlar** sekmesinde talep YOKTUR; kitlesi satıcılardır.
+
+## Ana sayfa — dört durum
+
+Gövde herkeste aynıdır (2026-08-08: tek ürün, tek ana sayfa) ve müşteri
+gözüyle kuruludur. `HomeForYou` (`home_for_you.dart`) üzerine **role duyarlı**
+bir şerit ekler:
+
+| Durum | Ana sayfada ek olarak |
+|---|---|
+| Müşteri | — (bölüm kendini gizler) |
+| Müşteri + usta | "Sana Uygun İlanlar" — `nearbyJobsProvider` |
+| Müşteri + mağaza | "İlindeki Talepler" — `productRequestsProvider` |
+| Müşteri + usta + mağaza | ikisi de, ilanlar üstte |
+
+> [!warning] Şerit HAM akıştan beslenmez
+> `nearbyJobsProvider` kullanılır, `openJobsProvider` değil — yoksa usta ana
+> sayfada başka ilin ilanını görür. Yenilemeye de eklenmelidir
+> (`home_screen.dart` → `_refresh`), aksi hâlde aşağı çekmek bu bölümü
+> tazelemez.
+
+2026-08-20 kullanıcı bulgusu: usta ana sayfayı açtığında yalnız "İş İlanı Ver"
+ve "usta bul" görüyordu; işini bulmak için Keşfet'e geçmesi gerekiyordu.
+Regresyon: `test/rol_bazli_gorunum_test.dart`.
+
 ## Geçişleri kim yazar?
 
 | Geçiş | Yazan |

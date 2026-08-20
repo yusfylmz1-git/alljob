@@ -24,6 +24,109 @@
 
 ## ✅ Son Durum (EN SON BURAYI OKU)
 
+**Tarih:** 2026-08-20 — **KAPALI TEST GERİ BİLDİRİMLERİ (1. tur)**
+
+`flutter analyze` 0 · **999 test** (öncesi 967).
+
+Testçilerden gelen üç şikâyet; ikisi tek kök nedenden çıktı.
+
+### Bulgular ve düzeltmeler
+
+**1. "Bölgemi tanımlamadan başka ilin ilanı gözüktü" + "talep oluşturunca
+ilanlara da düşüyor"** → aynı kök neden.
+
+İlan süzme kuralı **dört yolda** uygulanmalıydı, ikisinde eksikti:
+
+| Yol | Önce | Sonra |
+|---|---|---|
+| `onJobCreated` (push) | ✅ | değişmedi |
+| `nearbyJobsProvider` | ✅ | değişmedi |
+| Ana sayfa + Keşfet | ❌ hiçbir eleme | `visibleJobFeedProvider` |
+| `MyJobsScreen` | ❌ tek yönlü | iki yönlü ayrım |
+
+- Yeni `visibleJobFeedProvider` — ürün talepleri + kendi ilanların düşer.
+  `openJobsProvider` artık **ham akıştır, ekrana bağlanmaz**.
+- Keşfet panelinde il, filtrenin **varsayılanı** olarak tohumlanır
+  (`myFeedProvinceProvider` + tek seferlik `_provinceSeeded`). Kullanıcı
+  değiştirebilir/temizleyebilir — komşu ilde çalışan usta mağdur olmasın.
+- İl feed'e SABİTLENMEDİ, meslek şartı feed'e EKLENMEDİ (bilinçli: push dar,
+  liste geniş).
+
+**2. "Yan menüde İlanlarım var, Taleplerim yok"** → menüye "Taleplerim"
+eklendi (`RoutePaths.myProductRequests` zaten tanımlıydı, satırı yoktu).
+Talep artık "İlanlarım"da görünmüyor; iki liste birbirini dışlıyor.
+
+**3. "Mesajlaşmada sorun var bazı kişilerde"** → ağ değil.
+`chats/create` kuralı `isEmailVerified()` istiyor, mesaj yazma istemiyor.
+E-posta/şifre ile kaydolup doğrulamayan kullanıcı sohbeti hiç açamıyordu;
+Google ile girenler otomatik doğrulanmış sayıldığı için sorun yaşamıyordu.
+`catch (_)` sebebi yuttuğu için ekranda "bağlantını kontrol et" yazıyordu.
+
+→ `_showSendFailure` hatayı koda göre ayırıyor; doğrulanmamış e-postada
+"E-postanı doğrula" diyaloğu + yeniden gönderme düğmesi çıkıyor.
+**Kural değiştirilmedi** (kullanıcı kararı: şart kalsın, mesaj düzelsin).
+
+### Yeni testler (21)
+`test/ilan_feed_suzme_test.dart` (12) · `test/mesaj_hata_sebebi_test.dart` (6)
+· `test/drawer_menu_items_test.dart` (+3)
+
+### Kasa
+`vault/02-Ozellikler/Is-Akisi-Durum-Makinesi.md` → "İlan feed'i" bölümü
+`vault/05-Operasyon/Bilinen-Tuzaklar.md` → iki yeni madde
+
+### 2. tur — rol bazlı görünüm (aynı oturum)
+
+**Ana sayfa dört durumun hiçbirine bakmıyordu.** Gövde tamamen müşteri
+gözüyle kuruluydu; usta ve satıcı ana sayfada kendine iş getiren hiçbir şey
+görmüyor, Keşfet'e geçip sekme değiştirmek zorunda kalıyordu.
+
+→ Yeni `HomeForYou` (`home_for_you.dart`) role duyarlı şerit ekler:
+
+| Durum | Ana sayfada ek olarak |
+|---|---|
+| Müşteri | — (gizlenir, ana sayfası değişmedi) |
+| + usta | "Sana Uygun İlanlar" (`nearbyJobsProvider` — il + meslek) |
+| + mağaza | "İlindeki Talepler" (`productRequestsProvider`) |
+| + ikisi | ikisi de |
+
+`_refresh`'e `nearbyJobsProvider` eklendi. Yeni sabit:
+`RoutePaths.nearbyJobs = '/profile/jobs'` (rota vardı, sabiti yoktu).
+
+**Profil davet kartları kuruydu** — iki satır metin, "açarsam ne kazanırım"
+cevapsızdı. → Yeni `_RolDavetKarti`: fayda listesi (kodun gerçek davranışı) +
+**müsaitlik şartı uyarısı** + eylem düğmesi. Şart uyarısı iki kartta da var;
+sonradan gelen "ürünlerim neden görünmüyor" sorusunu önden karşılıyor.
+
+### ⚠️ Önceki notta DÜZELTME
+1. turda "Mağaza > Talepler sekmesi yok, `productRequestsProvider` hiçbir
+ekrana bağlı değil" yazılmıştı — **yanlıştı**. Sekme var
+(`magaza_sekmesi.dart` → `_TaleplerBolumu`) ve kurgu doğru çalışıyor:
+
+| Durum | Talepler sekmesinde |
+|---|---|
+| Mağaza + müsait | **tamamı** |
+| Mağaza var, müsait değil | 3 örnek + "müsaitliğini aç" daveti |
+| Mağaza yok | 3 örnek + "mağaza aç" daveti |
+
+Ürün vitrini de müsaitliğe bağlı (`availableDiscoverProductsProvider`),
+taleplere mesaj da (`availability_gate.dart`). Kullanıcı teyidi alındı:
+**bu tarafta yapılacak bir şey yok.**
+
+### Testler
+`test/rol_bazli_gorunum_test.dart` (11) — dört durumun gördüğü içerik +
+davet kartı sözleşmesi + mağaza kurgusunun korunduğu.
+
+**Toplam: 999 test** · `flutter analyze` 0.
+
+### Doğrulanmayı bekliyor
+Mesaj hatasının e-posta doğrulaması olduğu **koddan çıkarıldı**, testçinin
+Firebase kaydından teyit edilmedi. Firebase Console → Authentication → o
+kullanıcı → sağlayıcı (e-posta mı Google mı) + "Email verified" sütunu.
+Cihaz saati ihtimali elendi (ekran görüntüsü 17:26, kullanıcı ~17:20 dedi).
+
+---
+
+
 **Tarih:** 2026-08-17 — **PLAY STORE ÖNCESİ TAM DENETİM**
 
 `flutter analyze` 0 · **935 test** (öncesi 912) · CF lint 0 hata.

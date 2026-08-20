@@ -77,4 +77,29 @@ void main() {
           reason: 'İlanlar artık isArtisan (aktif mod) ile kilitlenmemeli.');
     });
   });
+
+  // 2026-08-20 kapalı test bulgusu: "yan menüde İlanlarım var ama Taleplerim
+  // yok" + "talep oluşturunca ilanlarda da gözüküyor". Talep ile iş ilanı aynı
+  // `jobs` koleksiyonunda durur; iki AYRI listede sunulmaları gerekir.
+  group('Taleplerim — ürün taleplerinin tek girişi', () {
+    test('menüde "Taleplerim" satırı VAR', () {
+      expect(drawer.contains("Text('Taleplerim')"), isTrue,
+          reason: 'Taleplerim satırı kaldırılmış — kullanıcı kendi talebine '
+              'hiçbir yerden ulaşamaz: Keşfette talep sekmesi yok.');
+      expect(drawer.contains('RoutePaths.myProductRequests'), isTrue,
+          reason: 'Taleplerim yanlış rotaya bağlı.');
+    });
+
+    test('"İlanlarım" satırı korundu (fazlasını yapmadı)', () {
+      expect(drawer.contains("Text('İlanlarım')"), isTrue);
+      expect(drawer.contains('RoutePaths.myJobs'), isTrue);
+    });
+
+    test('iki rota AYRI (biri diğerinin yerine geçmiyor)', () {
+      final paths = read('lib/core/router/route_paths.dart');
+      expect(paths.contains("myProductRequests = '/jobs/mine?kind=product'"),
+          isTrue);
+      expect(paths.contains("myJobs = '/jobs/mine'"), isTrue);
+    });
+  });
 }

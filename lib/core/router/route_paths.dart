@@ -75,6 +75,7 @@ class RoutePaths {
 
   static const String myJobs = '/jobs/mine';
 
+
   /// "Hemen Lazım" ilanları listesi (ana sayfadaki şeritten "Tümünü Gör").
   /// Misafir dâhil herkese açıktır — vitrin niteliğindedir.
   /// DİKKAT: `/jobs/:jobId` deseninden ÖNCE tanımlanmalı, yoksa "quick"
@@ -92,6 +93,10 @@ class RoutePaths {
 
   // Müşteri profil sayfası (oturum açmış müşteri)
   static const String profile = '/profile';
+
+  /// "Yakındaki İşler" — ustaya uygun açık ilanlar (il + meslek eşleşmesi).
+  /// Router'da `/profile` altındaki `jobs` alt rotasıdır.
+  static const String nearbyJobs = '/profile/jobs';
 
   /// Hesap ayarları — telefon/e-posta doğrulama, üyelik, hesap silme.
   /// Profil ekranından ÇIKARILDI (sadeleştirme): profil artık içerik
@@ -147,7 +152,11 @@ class RoutePaths {
   /// Mevcut mağazanın kategori + bölge düzenlemesi.
   static const String shopEdit = '/products/shop-setup?edit=1';
 
-  /// Kendi ürün talepleri (İlanlarım, yalnız product_request).
+  /// Kendi ürün talepleri — yan menü > "Taleplerim".
+  ///
+  /// Aynı ekran (`MyJobsScreen`) `kind=product` ile yalnız talepleri gösterir.
+  /// Talep ve iş ilanı aynı `jobs` koleksiyonunda durur; 2026-08-20'den beri
+  /// iki liste BİRBİRİNİ DIŞLAR — talep "İlanlarım"da görünmez.
   static const String myProductRequests = '/jobs/mine?kind=product';
   static String productDetail(String id) => '/products/$id';
   static String productEdit(String id) => '/products/$id/edit';

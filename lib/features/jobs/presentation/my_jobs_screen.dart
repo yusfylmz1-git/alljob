@@ -90,9 +90,18 @@ class _MyJobsScreenState extends ConsumerState<MyJobsScreen> {
     }
   }
 
+  /// Ekranın gösterdiği kayıtlar. İŞ İLANI ve ÜRÜN TALEBİ aynı `jobs`
+  /// koleksiyonunda durur (yalnız `category` ayırır), bu yüzden liste HER İKİ
+  /// yönde de süzülmelidir.
+  ///
+  /// 2026-08-20 test bulgusu: talep oluşturan kullanıcı onu "İlanlarım"da
+  /// görüyordu. Eskiden yalnız `onlyProductRequests` yönü süzülüyordu; ters
+  /// yön (İlanlarım'dan talepleri elemek) YAZILMAMIŞTI.
   List<Job> _visible(List<Job> jobs) {
-    if (!widget.onlyProductRequests) return jobs;
-    return jobs.where((j) => j.isProductRequest).toList(growable: false);
+    if (widget.onlyProductRequests) {
+      return jobs.where((j) => j.isProductRequest).toList(growable: false);
+    }
+    return jobs.where((j) => !j.isProductRequest).toList(growable: false);
   }
 
   @override

@@ -51,6 +51,75 @@ BAŞTAN yapılır.
 
 ---
 
+## 🟠 Aynı kural DÖRT yerde uygulanır — biri unutulur
+
+2026-08-20 kapalı test: *"Kocaeli'yi tanımlamadan önce başkasının ilanı bende
+gözüktü"* ve *"talep oluşturunca ilanlara da düşüyor"*.
+
+İlan süzme kuralı (il / meslek / kendi ilanın / ürün talebi) **dört ayrı
+yolda** uygulanmalıdır → [[Is-Akisi-Durum-Makinesi]] "İlan feed'i" tablosu.
+İkisinde vardı, ikisinde yoktu:
+
+| Yol | Durum |
+|---|---|
+| `onJobCreated` (push) | ✅ vardı |
+| `nearbyJobsProvider` | ✅ vardı |
+| Ana sayfa + Keşfet | ❌ **hiçbir eleme yoktu** |
+| `MyJobsScreen` | ❌ tek yönlü süzüyordu |
+
+Dikkat çekici olan: `Job.matchesArtisan` ve `productRequestsProvider` **zaten
+yazılmıştı**. Kod doğru kuralı biliyordu, bazı tüketiciler onu çağırmıyordu.
+
+> [!warning] `jobs` koleksiyonu İKİ TÜR taşır
+> İş ilanı ve ürün talebi aynı koleksiyondadır; ayıran tek şey `category`.
+> "Açık ilanları getir" demek **talepleri de getirmek** demektir. Yeni bir
+> ilan tüketicisi yazarken `visibleJobFeedProvider`'ı kullan, ham
+> `openJobsProvider`'ı değil.
+
+Regresyon: `test/ilan_feed_suzme_test.dart` (ekran kaynağını da bağlar).
+
+---
+
+## 🔴 "Mesaj gönderilemedi" — ağ değil, DOĞRULANMAMIŞ E-POSTA
+
+2026-08-20, kapalı test. Testçi sohbete giriyor, yazıyor, kırmızı şerit:
+**"Mesaj gönderilemedi. Bağlantını kontrol edip tekrar dene."** Ağı sorunsuz,
+diğer testçilerde sorun yok — **yalnız bir kişide**.
+
+**Sebep:** `firestore.rules` → `chats/{chatId}` **create** kuralı
+`isEmailVerified()` şart koşar. Mesaj *yazma* kuralı koşmaz. Yani:
+
+| Ne zaman | Doğrulama şartı |
+|---|---|
+| Sohbeti İLK KEZ açmak (doküman create) | ✅ VAR |
+| Mevcut sohbete mesaj yazmak | ❌ yok |
+
+Google ile girenler `email_verified: true` gelir → hiç çarpmaz. E-posta/şifre
+ile kaydolup bağlantıya tıklamayan kullanıcı ilk mesajında çarpar. "Bazı
+kişilerde oluyor" belirtisinin tamamı budur.
+
+**Neden teşhis edilemiyordu:** `_sendText` içinde `catch (_)` HER hatayı tek
+metne indiriyordu. Kullanıcı sebebi göremedi, defalarca denedi.
+
+**Çözüm:** `_showSendFailure(Object error)` hatayı koduna göre ayırır:
+
+```dart
+permission-denied + !user.emailVerified → "E-postanı doğrula" diyaloğu
+                                          + sendEmailVerification()
+permission-denied (doğrulanmış)         → kilit / engel açıklaması
+unavailable · deadline-exceeded         → gerçek ağ metni
+```
+
+> [!warning] Yeni bir `catch` yazarken sebebi ATMA
+> Bu tuzağın maliyeti hatanın kendisi değil, **teşhis edilemez** olmasıydı.
+> Kullanıcıya yanlış sebep söylemek, hiçbir şey söylememekten kötüdür: testçi
+> ağını kontrol etmekle vakit kaybetti.
+
+Regresyon: `test/mesaj_hata_sebebi_test.dart` — kural ile istemcinin aynı
+şeyi söylediğini de bağlar (değişmez kural 2).
+
+---
+
 ## 🔴 ASLA DEĞİŞTİRİLMEYECEK sabitler
 
 Bunlar kozmetik görünür ama değiştirmek **kullanıcı verisi kaybettirir**.

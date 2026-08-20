@@ -364,31 +364,29 @@ class _UstaTabPanel extends ConsumerWidget {
     final theme = Theme.of(context);
 
     if (!user.hasArtisanProfile) {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Text(
-            'Hizmet verin',
-            style: theme.textTheme.titleSmall?.copyWith(
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            'Meslek ve bölge ekleyerek ustalar listesinde görünün, '
-            'ilanlara mesaj atın.',
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: palette.inkMuted,
-              height: 1.35,
-            ),
-          ),
-          const SizedBox(height: 14),
-          FilledButton.icon(
-            onPressed: () => _becomeArtisan(context, ref),
-            icon: const Icon(Icons.handyman_outlined, size: 18),
-            label: const Text('Hizmet vermeye başla'),
-          ),
+      // DAVET KARTI (2026-08-20 kullanıcı bulgusu): eskiden iki satırlık kuru
+      // bir metindi ("meslek ve bölge ekleyerek ... mesaj atın"). Kullanıcı
+      // "açarsam ne kazanırım" sorusunun cevabını alamıyordu.
+      //
+      // Maddeler UYDURMA DEĞİL, kodun gerçek davranışıdır:
+      //  - bildirim  → `onJobCreated` (CF): aynı il + aynı meslek fan-out
+      //  - sekme     → `_JobsTab` kapısı `hasArtisanProfile` ile açılır
+      //  - liste     → Keşfet > Ustalar (`artisanProfiles`)
+      //  - ana sayfa → `HomeForYou` "Sana Uygun İlanlar" şeridi
+      return _RolDavetKarti(
+        baslik: 'Hizmet verin',
+        girisMetni: 'Meslek ve bölgenizi ekleyin; işler size gelsin.',
+        ikon: Icons.handyman_outlined,
+        faydalar: const [
+          'İlinizdeki ilanlar için bildirim alırsınız — mesleğinize uyanlar',
+          'Ana sayfada "Sana Uygun İlanlar" şeridi açılır',
+          'Keşfette İlanlar sekmesi açılır, açık ilanları görürsünüz',
+          'Ustalar listesinde görünür, müşteriler size ulaşır',
         ],
+        sartMetni: 'İlanlara mesaj atabilmek ve listelerde görünmek için '
+            'profilinizdeki "Müsait" anahtarını açmanız gerekir.',
+        dugmeMetni: 'Hizmet vermeye başla',
+        onTap: () => _becomeArtisan(context, ref),
       );
     }
 
@@ -627,31 +625,27 @@ class _MagazaTabPanel extends ConsumerWidget {
     }
 
     if (!user.hasShopProfile) {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Text(
-            'Satış yapın',
-            style: theme.textTheme.titleSmall?.copyWith(
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            'Ürün kategorilerinizi seçin, vitrininizi açın. Usta profiliniz '
-            'varsa ikisini birlikte kullanabilirsiniz.',
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: palette.inkMuted,
-              height: 1.35,
-            ),
-          ),
-          const SizedBox(height: 14),
-          FilledButton.icon(
-            onPressed: () => context.push(RoutePaths.shopSetup),
-            icon: const Icon(Icons.storefront_outlined, size: 18),
-            label: const Text('Satış yapmaya başla'),
-          ),
+      // Usta kartıyla aynı gerekçe. Maddelerin kod karşılıkları:
+      //  - talepler  → `_TaleplerBolumu`: mağaza + müsaitlik varsa TAMAMI,
+      //                yoksa yalnız `kSinirliTalepSayisi` örnek
+      //  - vitrin    → `availableDiscoverProductsProvider` (müsaitliğe bağlı)
+      //  - ana sayfa → `HomeForYou` "İlindeki Talepler" şeridi
+      //  - mesaj     → `availability_gate.dart`
+      return _RolDavetKarti(
+        baslik: 'Satış yapın',
+        girisMetni: 'Ürün kategorilerinizi seçin, vitrininizi açın.',
+        ikon: Icons.storefront_outlined,
+        faydalar: const [
+          'İlinizdeki ürün taleplerinin TAMAMINI görürsünüz',
+          'Ana sayfada "İlindeki Talepler" şeridi açılır',
+          'Ürünleriniz Keşfet > Mağaza vitrininde listelenir',
+          'Talep sahiplerine mesaj yazabilirsiniz',
         ],
+        sartMetni: 'Vitrininizin görünmesi, taleplerin tamamına erişmek ve '
+            'mesaj yazabilmek için "Müsait" anahtarınız açık olmalıdır. '
+            'Kapalıyken ürünleriniz listelerde görünmez.',
+        dugmeMetni: 'Satış yapmaya başla',
+        onTap: () => context.push(RoutePaths.shopSetup),
       );
     }
 
@@ -1545,6 +1539,127 @@ class _PhoneVisibilityRow extends ConsumerWidget {
         value: shown,
         onChanged: draft == null ? null : onChanged,
       ),
+    );
+  }
+}
+
+/// Usta / Mağaza **davet kartı** — "açarsan ne kazanırsın".
+///
+/// 2026-08-20 kullanıcı bulgusu: iki sekmedeki davetler ikişer satırlık kuru
+/// metindi; kullanıcı rolü açmanın ne getirdiğini anlamıyordu. Kart üç parça
+/// taşır:
+///
+///  1. **Fayda listesi** — somut, kodun gerçek davranışı (uydurma vaat yok)
+///  2. **Şart uyarısı** — müsaitlik anahtarı. Sonradan "ürünlerim neden
+///     görünmüyor" sorusunu doğuran şey buydu; şimdi ÖNCEDEN söyleniyor
+///  3. **Eylem düğmesi**
+///
+/// Dil DAVET'tir, ceza değil: kullanıcı bir şey kaybetmiyor, kazanabiliyor
+/// (`_TalepKilidi` kartıyla aynı ton).
+class _RolDavetKarti extends StatelessWidget {
+  const _RolDavetKarti({
+    required this.baslik,
+    required this.girisMetni,
+    required this.ikon,
+    required this.faydalar,
+    required this.sartMetni,
+    required this.dugmeMetni,
+    required this.onTap,
+  });
+
+  final String baslik;
+  final String girisMetni;
+  final IconData ikon;
+  final List<String> faydalar;
+  final String sartMetni;
+  final String dugmeMetni;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final palette = context.palette;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          baslik,
+          style: theme.textTheme.titleSmall?.copyWith(
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          girisMetni,
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: palette.inkMuted,
+            height: 1.35,
+          ),
+        ),
+        const SizedBox(height: 14),
+
+        // Fayda listesi — her madde onay işaretiyle.
+        for (final f in faydalar)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.only(top: 2),
+                  child: Icon(
+                    Icons.check_circle_rounded,
+                    size: 17,
+                    color: palette.success,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    f,
+                    style: theme.textTheme.bodySmall?.copyWith(height: 1.35),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+        const SizedBox(height: 6),
+
+        // Şart uyarısı — müsaitlik. Sürpriz olmasın diye AÇMADAN ÖNCE.
+        Material(
+          color: palette.warningSurface,
+          borderRadius: BorderRadius.circular(12),
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(
+                  Icons.info_outline_rounded,
+                  size: 18,
+                  color: palette.warning,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    sartMetni,
+                    style: theme.textTheme.bodySmall?.copyWith(height: 1.35),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+
+        const SizedBox(height: 14),
+        FilledButton.icon(
+          onPressed: onTap,
+          icon: Icon(ikon, size: 18),
+          label: Text(dugmeMetni),
+        ),
+      ],
     );
   }
 }

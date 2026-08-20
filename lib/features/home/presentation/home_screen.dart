@@ -14,6 +14,7 @@ import '../../jobs/data/job_providers.dart';
 import '../../products/data/product_providers.dart';
 import 'widgets/home_discover.dart';
 import 'widgets/home_featured.dart';
+import 'widgets/home_for_you.dart';
 import 'widgets/home_guest_banner.dart';
 import 'widgets/home_quick_access.dart';
 import 'widgets/home_quick_support.dart';
@@ -79,18 +80,28 @@ class HomeScreen extends ConsumerWidget {
     ref.invalidate(oneChikanUstalarProvider);
     ref.invalidate(openJobsProvider);
     ref.invalidate(discoverProductsProvider);
+    // "Sana Uygun İlanlar" şeridi bundan beslenir (HomeForYou); yenilemeye
+    // eklenmezse aşağı çekmek o bölümü tazelemezdi.
+    ref.invalidate(nearbyJobsProvider);
 
     await Future.wait<void>([
       for (final f in <Future<Object?>>[
         ref.read(oneChikanUstalarProvider.future),
         ref.read(openJobsProvider.future),
         ref.read(discoverProductsProvider.future),
+        ref.read(nearbyJobsProvider.future),
       ])
         f.then<void>((_) {}, onError: (_) {}),
     ]);
   }
 
-  /// Ana Sayfa bölümleri — HERKESTE AYNI (rol ayrımı yok, 2026-08-08).
+  /// Ana Sayfa bölümleri.
+  ///
+  /// GÖVDE herkeste aynıdır (2026-08-08 kararı: tek ürün, tek ana sayfa);
+  /// üzerine [HomeForYou] **role duyarlı** bir şerit ekler — usta kendi
+  /// ilindeki ilanları, satıcı ilindeki talepleri ana sayfada görür
+  /// (2026-08-20). Rolü olmayan müşteride o bölüm kendini gizler, yani
+  /// müşterinin ana sayfası değişmemiştir.
   ///
   /// Eskiden usta ve müşteri iki farklı sıralama görüyordu. Tek ürün, tek
   /// akış: usta bul · ilan ver · hemen lazım.
@@ -111,6 +122,10 @@ class HomeScreen extends ConsumerWidget {
       if (isGuest) const HomeGuestBanner(),
       const HomeQuickAccess(),
       gap,
+      // Role duyarlı: usta → sana uygun ilanlar, satıcı → ilindeki talepler.
+      // Müşteride (ve misafirde) kendini gizler. Alt boşluğu KENDİ içinde
+      // taşır — burada `gap` eklenseydi bölüm gizliyken çift boşluk kalırdı.
+      if (!isGuest) const HomeForYou(),
       const HomeFeatured(), // ⭐ Öne Çıkan Ustalar + Son İş İlanları
       gap,
       const HomeQuickSupport(), // ⚡ Kolay İş

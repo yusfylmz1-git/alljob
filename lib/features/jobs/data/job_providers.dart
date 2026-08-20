@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/config/backend_config.dart';
+import '../../../data/models/geo_models.dart';
 import '../../../data/models/job.dart';
 import '../../artisan/application/my_profile_controller.dart';
 import '../../artisan/data/artisan_providers.dart' show mockDatabaseProvider;
@@ -15,10 +16,62 @@ final jobRepositoryProvider = Provider<JobRepository>((ref) {
   return MockJobRepository(ref.watch(mockDatabaseProvider));
 });
 
-/// Keşfet "İş İlanları" paneli (yalnız usta modu): tüm açık ilanlar, en yeni üstte.
+/// HAM açık ilan akışı — iş ilanı + ürün talebi + kendi ilanların, hepsi bir
+/// arada, en yeni üstte.
+///
+/// ⚠️ Bunu doğrudan EKRANA BAĞLAMA. Ürün talepleri ve kullanıcının kendi
+/// ilanları burada durur; ekranların beklediği süzülmüş liste
+/// [visibleJobFeedProvider]'dır. Bu provider yalnız türetilmiş provider'ların
+/// ortak kaynağıdır (tek sorgu, tek dinleyici).
 final openJobsProvider = StreamProvider<List<Job>>(
   (ref) => ref.watch(jobRepositoryProvider).watchOpenJobs(),
 );
+
+/// Ekrana çıkan iş ilanı listesi — ana sayfa "Son İş İlanları" şeridi ve
+/// Keşfet > İlanlar paneli buradan beslenir.
+///
+/// [openJobsProvider]'ın üstüne üç eleme koyar:
+///
+///  1. **Ürün talepleri düşer.** Talep ile iş ilanı aynı `jobs` koleksiyonunda
+///     durur; ayıran tek şey `category`. Talebin kitlesi satıcılardır.
+///  2. **Kendi ilanın düşer.** Kimse kendi verdiği ilana teklif vermez; kendi
+///     ilanı "İlanlarım"da görülür.
+/// 2026-08-20 test bulgusu: bu elemeler yalnız [nearbyJobsProvider] ve push
+/// bildiriminde (`onJobCreated`) vardı; ana sayfa ile Keşfet listesi tüm
+/// Türkiye'nin ilanlarını, kendi ilanın ve ürün talepleri dahil gösteriyordu.
+///
+/// İL elemesi burada YAPILMAZ — kullanıcının DEĞİŞTİREBİLMESİ gerekiyor
+/// (komşu ilde çalışan usta mağdur olmasın). İl, Keşfet panelinde filtrenin
+/// VARSAYILAN değeri olarak gelir ([myFeedProvinceProvider]); kullanıcı başka
+/// il seçebilir veya temizleyip hepsini görebilir. Ana sayfa şeridi kısa bir
+/// vitrindir, orada il daraltması yoktur.
+final visibleJobFeedProvider = Provider<List<Job>>((ref) {
+  final jobs = ref.watch(openJobsProvider).valueOrNull ?? const <Job>[];
+  final uid = ref.watch(currentUserProvider)?.uid;
+  return jobs.where((j) {
+    if (j.isProductRequest) return false;
+    if (uid != null && j.customerId == uid) return false;
+    return true;
+  }).toList(growable: false);
+});
+
+/// Keşfet > İlanlar filtresinin VARSAYILAN ili — hizmet bölgelerinin İLKİ.
+///
+/// `null` → filtre boş açılır, tüm iller listelenir (misafir, veya bölgesini
+/// henüz tanımlamamış kullanıcı). Boş ekran göstermektense geniş liste
+/// göstermek yeğdir.
+///
+/// Birden çok ilde hizmet veren usta için ilk bölge seçilir; filtre
+/// düğmesinden başka il seçebilir veya temizleyip hepsini görebilir.
+final myFeedProvinceProvider = Provider<String?>((ref) {
+  final draft = ref.watch(myProfileControllerProvider).valueOrNull;
+  final areas = draft?.profile.serviceAreas ?? const <ServiceArea>[];
+  for (final a in areas) {
+    final p = a.province.trim();
+    if (p.isNotEmpty) return p;
+  }
+  return null;
+});
 
 /// Ana sayfadaki "Hemen Lazım" şeridi: açık Hemen Lazım ilanları, en yeni
 /// üstte. [openJobsProvider] üzerinden süzülür — ayrı sorgu/indeks açmaz ve
@@ -28,7 +81,9 @@ final openJobsProvider = StreamProvider<List<Job>>(
 /// tanesinden süzülür; Hemen Lazım ilanı yoğun bir günde eskiler görünmeyebilir
 /// — "Tümünü Gör" kendi listesine götürür.
 final quickSupportJobsProvider = Provider<List<Job>>((ref) {
-  final jobs = ref.watch(openJobsProvider).valueOrNull ?? const <Job>[];
+  // [visibleJobFeedProvider] üzerinden: il elemesi ve "kendi ilanın düşer"
+  // kuralı Hemen Lazım şeridinde de geçerlidir.
+  final jobs = ref.watch(visibleJobFeedProvider);
   return jobs.where((j) => j.isQuickSupport).toList(growable: false);
 });
 

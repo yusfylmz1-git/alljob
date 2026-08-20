@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -190,14 +191,95 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           .read(chatRepositoryProvider)
           .sendMessage(chatId: widget.chatId, senderUid: user.uid, text: text);
       _scrollToBottom();
-    } catch (_) {
+    } catch (e) {
       if (mounted) {
         _controller.text = text; // mesajı kaybetme, tekrar denenebilsin
-        context.showError(
-          'Mesaj gönderilemedi. Bağlantını kontrol edip '
-          'tekrar dene.',
-        );
+        _showSendFailure(e);
       }
+    }
+  }
+
+  /// Gönderim hatasını SEBEBİNE göre anlat.
+  ///
+  /// 2026-08-20 test bulgusu: her hata "Bağlantını kontrol edip tekrar dene"
+  /// diyordu. Testçinin ağı sorunsuzdu — sohbet dokümanı oluşturulamıyordu
+  /// çünkü e-postası doğrulanmamıştı (`firestore.rules` chats/create →
+  /// `isEmailVerified()`). Kullanıcı defalarca denedi, sebebi hiç öğrenemedi.
+  ///
+  /// Google ile girenler otomatik doğrulanmış sayılır; bu yüzden hata yalnız
+  /// e-posta/şifre ile kaydolup bağlantıya tıklamamış kullanıcılarda çıkar —
+  /// "bazı kişilerde oluyor" belirtisi buradan gelir.
+  void _showSendFailure(Object error) {
+    final code = error is FirebaseException ? error.code : null;
+    AppLog.d('[chat] gönderim hatası (${widget.chatId}): $error');
+
+    if (code == 'permission-denied') {
+      final user = ref.read(currentUserProvider);
+      // E-posta doğrulanmamışsa asıl sebep BUDUR; eyleme dönüştürülebilir
+      // bir diyalog göster (toast düğme taşımıyor).
+      if (user != null && !user.emailVerified) {
+        _promptEmailVerification();
+        return;
+      }
+      // Doğrulanmış ama yine de reddedildi: sohbet kilitli ya da karşı taraf
+      // engellemiş olabilir. Şerit zaten sebebi yazar; burada genel kal.
+      context.showError(
+        'Bu sohbete şu an mesaj gönderilemiyor. '
+        'Sohbet kapatılmış veya karşı taraf sizi engellemiş olabilir.',
+      );
+      return;
+    }
+
+    if (code == 'unavailable' || code == 'deadline-exceeded') {
+      context.showError(
+        'Mesaj gönderilemedi. Bağlantını kontrol edip tekrar dene.',
+      );
+      return;
+    }
+
+    context.showError('Mesaj gönderilemedi, tekrar dene.');
+  }
+
+  static const _dogrulaMetni =
+      'Mesaj gönderebilmek için e-posta adresini doğrulaman gerekiyor.\n\n'
+      'Gelen kutunu kontrol et; bağlantı gelmediyse yeniden gönderebiliriz. '
+      '(Spam klasörüne de bakmayı unutma.)';
+
+  /// "E-postanı doğrula" diyaloğu + doğrulama bağlantısını yeniden gönderme.
+  Future<void> _promptEmailVerification() async {
+    final email = ref.read(currentUserProvider)?.email ?? '';
+    final send = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('E-postanı doğrula'),
+        content: Text(
+          email.isEmpty ? _dogrulaMetni : '$email\n\n$_dogrulaMetni',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Kapat'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Doğrulama bağlantısı gönder'),
+          ),
+        ],
+      ),
+    );
+    if (send != true || !mounted) return;
+
+    final ok = await ref
+        .read(authControllerProvider.notifier)
+        .sendEmailVerification();
+    if (!mounted) return;
+    if (ok) {
+      context.showInfo(
+        'Doğrulama bağlantısı gönderildi. E-postanı onayladıktan sonra '
+        'uygulamayı yeniden başlat.',
+      );
+    } else {
+      context.showError('Doğrulama bağlantısı gönderilemedi, tekrar dene.');
     }
   }
 
