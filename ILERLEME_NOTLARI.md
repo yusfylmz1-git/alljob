@@ -26,7 +26,7 @@
 
 **Tarih:** 2026-08-20 — **KAPALI TEST GERİ BİLDİRİMLERİ (1. tur)**
 
-`flutter analyze` 0 · **999 test** (öncesi 967).
+`flutter analyze` 0 · **1004 test** (öncesi 967).
 
 Testçilerden gelen üç şikâyet; ikisi tek kök nedenden çıktı.
 
@@ -112,11 +112,25 @@ ekrana bağlı değil" yazılmıştı — **yanlıştı**. Sekme var
 taleplere mesaj da (`availability_gate.dart`). Kullanıcı teyidi alındı:
 **bu tarafta yapılacak bir şey yok.**
 
-### Testler
-`test/rol_bazli_gorunum_test.dart` (11) — dört durumun gördüğü içerik +
-davet kartı sözleşmesi + mağaza kurgusunun korunduğu.
+### 3. tur — kapı ekranları (aynı oturum)
 
-**Toplam: 999 test** · `flutter analyze` 0.
+**Keşfet > İlanlar kapısı boş bir uyarıydı** ("usta profili açın"). Kullanıcı
+ne kaçırdığını göremediği için profil açmak soyut bir talimattı. Oysa Mağaza >
+Talepler'de çalışan bir desen zaten vardı: birkaç örnek + davet kartı.
+
+→ `_IlanKapisiOnizleme` + `_UstaProfiliDaveti`: 3 gerçek ilan gösterilir,
+altına "N ilan daha var" davet kartı gelir. Gizli sayı 0 ise sayı yazılmaz.
+"İlan vermek için usta olmanız gerekmez" bilgisi korundu.
+
+Ortak sabit: `AppConstants.kapiOnizlemeSayisi = 3`. `kSinirliTalepSayisi`
+artık buna bağlı — iki kapı tek kaynaktan yönetilir, biri değişirse ikisi
+birden değişir.
+
+### Testler
+`test/rol_bazli_gorunum_test.dart` (16) — dört durumun gördüğü içerik +
+davet kartı sözleşmesi + kapı önizlemesi + mağaza kurgusunun korunduğu.
+
+**Toplam: 1004 test** · `flutter analyze` 0.
 
 ### Doğrulanmayı bekliyor
 Mesaj hatasının e-posta doğrulaması olduğu **koddan çıkarıldı**, testçinin

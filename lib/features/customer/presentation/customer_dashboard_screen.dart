@@ -18,6 +18,8 @@ import '../../../core/widgets/responsive_center.dart';
 import '../../../core/widgets/role_bottom_bar.dart';
 import '../../../core/widgets/skeleton.dart';
 import '../../auth/application/auth_controller.dart';
+import '../../jobs/data/job_providers.dart';
+import '../../jobs/presentation/widgets/job_widgets.dart';
 import '../../jobs/presentation/widgets/jobs_explore_panel.dart';
 import '../../products/presentation/widgets/magaza_sekmesi.dart';
 import '../application/artisan_search_controller.dart';
@@ -667,20 +669,13 @@ class _JobsTab extends ConsumerWidget {
 
       // Usta MODU değil; usta PROFİLİ. Profili açan herkes (müşteri
       // modundayken bile) ilanları görür.
+      //
+      // 2026-08-20: eskiden burada BOŞ bir uyarı ekranı vardı ("usta profili
+      // açın"). Kullanıcı ne kaçırdığını göremediği için profil açmak soyut
+      // bir talimat olarak kalıyordu. Artık birkaç gerçek ilan + davet kartı
+      // gösterilir — Mağaza > Talepler ile AYNI desen (`_TalepKilidi`).
       if (!user.hasArtisanProfile) {
-        return notice(
-          Icons.handyman_outlined,
-          'İlanları görmek için usta profili',
-          'İş ilanlarını görüntülemek için Profil’den usta profili açın. '
-          'İlan vermek için usta olmanız gerekmez — sağ üstteki '
-          '“Yeni İlan”ı kullanın.',
-          action: Center(
-            child: FilledButton(
-              onPressed: () => context.push(RoutePaths.profile),
-              child: const Text('Profile git'),
-            ),
-          ),
-        );
+        return const _IlanKapisiOnizleme();
       }
 
       // MÜSAİTLİK KAPISI YOK (2026-08-10): müsait olmayan usta ilanları
@@ -714,6 +709,140 @@ class _JobsTab extends ConsumerWidget {
           ),
         Expanded(child: body),
       ],
+    );
+  }
+}
+
+/// Keşfet > İlanlar kapısı — **önizleme + davet**.
+///
+/// Usta profili olmayan kullanıcı buraya düşer. Eskiden boş bir uyarı ekranı
+/// vardı ("İlanları görmek için usta profili açın"); kullanıcı ne kaçırdığını
+/// göremediği için profil açmak soyut bir talimattı.
+///
+/// Artık [AppConstants.kapiOnizlemeSayisi] kadar GERÇEK ilan gösterilir,
+/// altına davet kartı gelir. Mağaza > Talepler'deki `_TalepKilidi` ile aynı
+/// desen ve aynı sayı — iki kapı tutarlı davranmalı.
+///
+/// Dil DAVET'tir, ceza değil: kullanıcı bir şey kaybetmiyor, kazanabiliyor.
+class _IlanKapisiOnizleme extends ConsumerWidget {
+  const _IlanKapisiOnizleme();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final palette = context.palette;
+    // Süzülmüş feed: ürün talepleri ve kendi ilanların zaten düşmüş durumda.
+    final ilanlar = ref.watch(visibleJobFeedProvider);
+    final gorunen =
+        ilanlar.take(AppConstants.kapiOnizlemeSayisi).toList(growable: false);
+    final gizliSayi = ilanlar.length - gorunen.length;
+
+    // Hiç ilan yoksa örnek gösterecek bir şey de yok: sade davet kalır.
+    if (gorunen.isEmpty) {
+      return ListView(
+        padding: const EdgeInsets.all(20),
+        children: const [
+          SizedBox(height: 20),
+          _UstaProfiliDaveti(gizliSayi: 0),
+        ],
+      );
+    }
+
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+      children: [
+        Text(
+          'Şu an açık ilanlardan birkaçı',
+          style: theme.textTheme.titleSmall
+              ?.copyWith(fontWeight: FontWeight.w800),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          'Usta profili açınca ilinizdeki tüm ilanları görürsünüz.',
+          style: theme.textTheme.bodySmall?.copyWith(color: palette.inkMuted),
+        ),
+        const SizedBox(height: 12),
+        for (final j in gorunen) ...[
+          NearbyJobCard(job: j, ctaText: 'Detayı Gör'),
+          const SizedBox(height: 10),
+        ],
+        const SizedBox(height: 4),
+        _UstaProfiliDaveti(gizliSayi: gizliSayi),
+      ],
+    );
+  }
+}
+
+/// Önizlemenin altındaki davet kartı — `_TalepKilidi` ile aynı görsel dil.
+class _UstaProfiliDaveti extends StatelessWidget {
+  const _UstaProfiliDaveti({required this.gizliSayi});
+
+  /// Gizlenen ilan sayısı. 0 ise sayı yazılmaz — yanlış vaat olmasın.
+  final int gizliSayi;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    final theme = Theme.of(context);
+
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: palette.primaryContainer,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: palette.primary.withValues(alpha: 0.25)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.handyman_outlined, color: palette.primary),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  gizliSayi > 0
+                      ? '$gizliSayi ilan daha var'
+                      : 'Tüm ilanları görün',
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Meslek ve bölgenizi ekleyin; ilinizdeki ilanların tamamını '
+            'görün, yenileri için bildirim alın ve müşterilere doğrudan '
+            'mesaj atın.',
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: palette.inkMuted,
+              height: 1.35,
+            ),
+          ),
+          const SizedBox(height: 14),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              onPressed: () => context.push(RoutePaths.profile),
+              icon: const Icon(Icons.handyman_outlined, size: 18),
+              label: const Text('Usta profili aç'),
+            ),
+          ),
+          const SizedBox(height: 8),
+          // İlan VERMEK usta olmayı gerektirmez — eski metindeki bu bilgi
+          // kaybolmasın (müşteri "ilan veremiyorum" sanmasın).
+          Text(
+            'İlan vermek için usta olmanız gerekmez — sağ üstteki '
+            '“Yeni İlan” düğmesini kullanın.',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: palette.inkMuted,
+              height: 1.3,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

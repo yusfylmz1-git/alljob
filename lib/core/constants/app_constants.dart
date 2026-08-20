@@ -126,6 +126,19 @@ class AppConstants {
   static const int openJobsFetchCap = 50;
   static const int nearbyJobsFetchCap = 80;
 
+  /// Kapı ekranlarında **önizleme** olarak gösterilen kayıt sayısı.
+  ///
+  /// Usta profili olmayan Keşfet > İlanlar'da, mağazası/müsaitliği olmayan
+  /// Keşfet > Mağaza > Talepler'de bu kadar örnek görür; gerisi davet
+  /// kartının arkasındadır.
+  ///
+  /// Değer bilinçli olarak küçük ama SIFIR DEĞİL: kullanıcı ne kaçırdığını
+  /// görmeli ki profili açmak anlamlı gelsin. Sıfır göstermek "burada bir
+  /// şey yok" izlenimi verirdi.
+  ///
+  /// İki ekran AYNI sayıyı kullanır — biri değişirse diğeri de değişsin.
+  static const int kapiOnizlemeSayisi = 3;
+
   // Keşfet Ürünler (PRD-006)
   static const bool kAdminProductModerationEnabled = true;
   static const int maxProductPhotos = 8;

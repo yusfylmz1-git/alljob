@@ -83,6 +83,25 @@ görebilmeli. Daraltmak isteyen Keşfet'teki kategori filtresini kullanır.
 
 Keşfet'in **İlanlar** sekmesinde talep YOKTUR; kitlesi satıcılardır.
 
+### Kapı ekranları — önizleme + davet
+
+İki sekme "kapalı" durumda **boş uyarı göstermez**; birkaç gerçek kayıt +
+davet kartı gösterir. Sayı ortaktır: `AppConstants.kapiOnizlemeSayisi` (3).
+
+| Sekme | Kapı koşulu | Kapalıyken |
+|---|---|---|
+| Keşfet > İlanlar | `hasArtisanProfile` | 3 ilan + "Usta profili aç" |
+| Keşfet > Mağaza > Talepler | mağaza **ve** müsaitlik | 3 talep + davet |
+
+> [!note] Neden boş uyarı değil?
+> 2026-08-20: İlanlar kapısı yalnız "usta profili açın" yazan boş bir ekrandı.
+> Kullanıcı **ne kaçırdığını göremediği** için profil açmak soyut bir talimat
+> olarak kalıyordu. Talepler tarafında örnek gösterme deseni zaten vardı ve
+> çalışıyordu; İlanlar sekmesi ona hizalandı.
+>
+> Sayı sıfır olamaz (değer görünmez), yüksek de olamaz (kapı anlamsızlaşır).
+> Gizli sayı 0 ise kartta sayı YAZILMAZ — yanlış vaat olmasın.
+
 ## Ana sayfa — dört durum
 
 Gövde herkeste aynıdır (2026-08-08: tek ürün, tek ana sayfa) ve müşteri

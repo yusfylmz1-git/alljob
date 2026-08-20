@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../../core/constants/app_constants.dart';
 import '../../../../core/router/route_paths.dart';
 import '../../../../core/theme/app_palette.dart';
 import '../../../auth/application/auth_controller.dart';
@@ -11,10 +12,9 @@ import 'products_explore_panel.dart';
 
 /// Mağazası olmayan / müsait olmayan kullanıcının görebileceği talep sayısı.
 ///
-/// Değer bilinçli olarak küçük ama sıfır değil: kullanıcı ne kaçırdığını
-/// görmeli ki mağaza açmak anlamlı gelsin. Sıfır göstermek "burada bir şey
-/// yok" izlenimi verirdi.
-const int kSinirliTalepSayisi = 3;
+/// Keşfet > İlanlar kapısıyla AYNI sayı — gerekçesi ve tek kaynağı
+/// [AppConstants.kapiOnizlemeSayisi].
+const int kSinirliTalepSayisi = AppConstants.kapiOnizlemeSayisi;
 
 /// Keşfet'in üçüncü sekmesi: **Mağaza**.
 ///

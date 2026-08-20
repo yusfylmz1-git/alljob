@@ -105,6 +105,58 @@ void main() {
     });
   });
 
+  group('Keşfet > İlanlar kapısı: önizleme + davet', () {
+    // 2026-08-20: kapı BOŞ bir uyarı ekranıydı ("usta profili açın").
+    // Kullanıcı ne kaçırdığını göremediği için profil açmak soyut bir
+    // talimattı. Mağaza > Talepler'de çalışan desen buraya da taşındı.
+    late String kesfet;
+    setUpAll(() {
+      kesfet = read(
+          'lib/features/customer/presentation/customer_dashboard_screen.dart');
+    });
+
+    test('boş uyarı ekranı YERİNE önizleme gösteriliyor', () {
+      expect(kesfet.contains('_IlanKapisiOnizleme'), isTrue,
+          reason: 'Önizleme kaldırılmış, boş kapı ekranına dönülmüş.');
+      // Eski hâl: usta kapısı `notice(...)` ile boş uyarı ekranı döndürüyor,
+      // tek eylemi "Profile git" düğmesiydi. Metnin kendisi aranamaz —
+      // yukarıdaki açıklama yorumunda da geçiyor.
+      expect(kesfet.contains("Text('Profile git')"), isFalse,
+          reason: 'Boş uyarı ekranına geri dönülmüş.');
+    });
+
+    test('gerçek ilan gösteriyor, süzülmüş kaynaktan', () {
+      expect(kesfet.contains('visibleJobFeedProvider'), isTrue,
+          reason: 'Ham akış kullanılırsa ürün talepleri de örnek olarak '
+              'gösterilir.');
+      expect(kesfet.contains('NearbyJobCard'), isTrue);
+    });
+
+    test('davet kartı + gizli sayı var', () {
+      expect(kesfet.contains('_UstaProfiliDaveti'), isTrue);
+      expect(kesfet.contains('gizliSayi > 0'), isTrue,
+          reason: 'Sayı 0 iken de sayı yazılıyor olabilir — yanlış vaat.');
+    });
+
+    test('"ilan vermek usta olmayı gerektirmez" bilgisi korundu', () {
+      // Eski metindeki bu bilgi kaybolursa müşteri "ilan veremiyorum" sanır.
+      expect(kesfet.contains('usta olmanız gerekmez'), isTrue);
+    });
+
+    test('iki kapı AYNI sayıda önizleme gösterir', () {
+      // Tutarlılık: iki ekran tek sabitten yönetilmeli.
+      final sabitler = read('lib/core/constants/app_constants.dart');
+      final magaza = read(
+          'lib/features/products/presentation/widgets/magaza_sekmesi.dart');
+
+      expect(sabitler.contains('kapiOnizlemeSayisi'), isTrue);
+      expect(kesfet.contains('AppConstants.kapiOnizlemeSayisi'), isTrue);
+      expect(magaza.contains('AppConstants.kapiOnizlemeSayisi'), isTrue,
+          reason: 'Mağaza kapısı ayrı bir sayıya bağlanmış — iki ekran '
+              'farklı davranır.');
+    });
+  });
+
   group('Mağaza kurgusu korundu (fazlasını yapmadı)', () {
     // Kullanıcı teyidi 2026-08-20: "mağaza sahipleri zaten talepleri
     // görebiliyor, sıkıntı yok". Bu grup o davranışın kazara bozulmasını
