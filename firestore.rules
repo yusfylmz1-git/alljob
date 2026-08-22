@@ -630,6 +630,25 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // config/app — yayındaki sürüm bilgisi (2026-08-23).
+    //
+    // Alanlar: latestVersion · minSupportedVersion · updateUrl · updateNote.
+    // İstemci menüdeki "Güncelleme var" satırını buradan besler.
+    //
+    // Okuma HERKESE açık (misafir dâhil): güncelleme uyarısı oturum
+    // gerektirmemeli — eski sürümde takılan kullanıcı giriş bile yapamıyor
+    // olabilir.
+    //
+    // YAZIM İSTEMCİYE TAMAMEN KAPALI. Buraya yazabilen biri
+    // `minSupportedVersion`'ı yükseltip tüm kullanıcılara "sürümünüz
+    // desteklenmiyor" gösterebilir ya da `updateUrl`'ü kendi sahte APK'sına
+    // çevirebilirdi — kimlik avı yüzeyi. Değeri yalnız Firebase konsolundan
+    // veya Admin SDK ile (kuralları aşan) yönetici yazar.
+    match /config/{docId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
     // Verilen güncellemede yalnızca [keys] alanları mı değişti?
     function changedOnly(keys) {
       return request.resource.data.diff(resource.data).affectedKeys().hasOnly(keys);

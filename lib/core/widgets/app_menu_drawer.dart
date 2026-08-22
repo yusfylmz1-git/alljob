@@ -13,6 +13,7 @@ import '../theme/accent_options.dart';
 import '../theme/accent_state.dart';
 import '../theme/app_palette.dart';
 import '../theme/theme_mode_state.dart';
+import '../update/app_update_providers.dart';
 import '../utils/snackbar_helper.dart';
 import 'brand_mark.dart';
 
@@ -45,6 +46,10 @@ class DrawerMenuButton extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final crossUnread = ref.watch(otherModeUnreadProvider);
+    // Güncelleme de rozeti yakar (2026-08-23): menü satırı ancak çekmece
+    // AÇILINCA görünür; kullanıcının önce bakması için bir sebep gerekiyor.
+    // Rozet noktadır, sayı taşımaz — iki kaynağı ayırt etmeye çalışmaz.
+    final guncelleme = ref.watch(updateStatusProvider).hasUpdate;
     final iconColor = color ?? context.palette.primary;
     return IconButton(
       tooltip: 'Menü',
@@ -57,7 +62,7 @@ class DrawerMenuButton extends ConsumerWidget {
         padding: const EdgeInsets.all(8),
       ),
       icon: Badge(
-        isLabelVisible: crossUnread > 0,
+        isLabelVisible: crossUnread > 0 || guncelleme,
         smallSize: 9,
         backgroundColor: context.palette.danger,
         child: Icon(Icons.menu_rounded, color: iconColor, size: 24),
@@ -298,6 +303,16 @@ class AppMenuDrawer extends ConsumerWidget {
           onTap: () => _pickTheme(context, ref),
         ),
 
+        // Güncelleme satırı — YALNIZ yeni sürüm varken çıkar (2026-08-23).
+        //
+        // Testçi bulgusu: "güncelleme bildirimi yok, yeni sürüm varsa üç
+        // çizgi menüde görünmesi lazım." Eski APK'da kalan testçiler
+        // düzeltilmiş hataları yeniden bildiriyordu.
+        //
+        // Güncelken satır HİÇ ÇİZİLMEZ: her açılışta "güncelsiniz" demek
+        // menüyü şişirir, kimse okumaz ve gerçek uyarı fark edilmez.
+        const _UpdateTile(),
+
         // Çıkış (oturum varsa).
         if (user != null)
           ListTile(
@@ -312,6 +327,75 @@ class AppMenuDrawer extends ConsumerWidget {
         const Divider(indent: 16, endIndent: 16),
         const _DrawerFooter(),
       ],
+    );
+  }
+}
+
+/// "Güncelleme var" satırı — yalnız yeni sürüm varken görünür.
+///
+/// Zorunlu güncellemede (çalışan sürüm `minSupportedVersion` altında) satır
+/// kırmızıya döner ve dili sertleşir; yine de KAPI DEĞİLDİR — uygulamayı
+/// kilitlemek, mağaza gecikmesi ya da yanlış yazılmış bir sürüm numarası
+/// yüzünden herkesi dışarıda bırakma riski taşır. Yönlendirme yeter.
+class _UpdateTile extends ConsumerWidget {
+  const _UpdateTile();
+
+  Future<void> _openStore(BuildContext context, String? url) async {
+    // Mağaza bağlantısı yoksa tanıtım sitesine düş — kullanıcı yine de
+    // güncel sürüme ulaşabilsin.
+    final hedef = (url == null || url.trim().isEmpty)
+        ? AppConstants.siteUrl
+        : url.trim();
+    try {
+      final ok = await launchUrl(
+        Uri.parse(hedef),
+        mode: LaunchMode.externalApplication,
+      );
+      if (!ok && context.mounted) context.showError('Bağlantı açılamadı.');
+    } catch (_) {
+      if (context.mounted) context.showError('Bağlantı açılamadı.');
+    }
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final status = ref.watch(updateStatusProvider);
+    if (!status.hasUpdate) return const SizedBox.shrink();
+
+    final info = ref.watch(appVersionInfoProvider).valueOrNull;
+    final palette = context.palette;
+    final zorunlu = status.isRequired;
+    final renk = zorunlu ? palette.danger : palette.primary;
+
+    return ListTile(
+      leading: Icon(Icons.system_update_rounded, color: renk),
+      title: Text(
+        zorunlu ? 'Güncelleme gerekli' : 'Güncelleme var',
+        style: TextStyle(color: renk, fontWeight: FontWeight.w700),
+      ),
+      subtitle: Text(
+        info?.updateNote ??
+            (zorunlu
+                ? 'Bu sürüm artık desteklenmiyor. Lütfen güncelleyin.'
+                : 'Sürüm ${info?.latestVersion} yayında '
+                    '(sizde ${AppConstants.appVersion}).'),
+      ),
+      trailing: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+        decoration: BoxDecoration(
+          color: renk.withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Text(
+          'Güncelle',
+          style: TextStyle(
+            color: renk,
+            fontWeight: FontWeight.w800,
+            fontSize: 12,
+          ),
+        ),
+      ),
+      onTap: () => _openStore(context, info?.updateUrl),
     );
   }
 }

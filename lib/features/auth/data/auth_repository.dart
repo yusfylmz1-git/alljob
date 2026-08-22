@@ -74,6 +74,25 @@ abstract interface class AuthRepository {
     bool? available,
   });
 
+  /// Numaranın herkese açık YAYININI açar/kapatır — numaranın KENDİSİNE
+  /// dokunmaz (2026-08-23).
+  ///
+  /// [updateUserProfile]'dan farkı: o "numaramı değiştir/sil" işlemidir ve
+  /// kalıcı kaydı (`private/contact.savedPhone`) da yazar. Bu metot yalnız
+  /// `users/{uid}.publicPhone` yayın alanını yönetir.
+  ///
+  /// Kapatmak için ikisini karıştırmak veri kaybettirir: eskiden görünürlük
+  /// anahtarı `updateUserProfile(publicPhone: '')` çağırıyor ve kullanıcının
+  /// numarasını TAMAMEN siliyordu ("telefonu göster kapatınca telefon
+  /// gidiyor" bulgusu). Yayın kapalıyken numara yalnız sahibine görünür.
+  ///
+  /// [publicPhone] açarken yayınlanacak numara; null ise kayıtlı numara
+  /// (`AppUser.contactPhone`) kullanılır.
+  Future<void> setPublicPhoneVisibility({
+    required bool show,
+    String? publicPhone,
+  });
+
   Future<void> signOut();
 
   /// Başka bir kullanıcının HERKESE AÇIK profili (`users/{uid}`).

@@ -9,6 +9,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/constants/app_constants.dart';
 import '../../../core/router/route_paths.dart';
+import '../../../core/utils/content_filter.dart';
 import '../../../core/utils/snackbar_helper.dart';
 import '../../../core/utils/validators.dart';
 import '../../../core/theme/app_palette.dart';
@@ -182,6 +183,16 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     if (user == null) return;
     if (_iBlockedOther(user.uid)) return;
     if (_throttleSend()) return;
+
+    // ARGO / MÜSTEHCEN DENETİMİ (2026-08-23).
+    //
+    // Kaba dilde bir kez sorulur; kullanıcı ısrar ederse mesaj GİDER.
+    // Filtre bir kapı değil, bir duraklama — yanlış pozitif meşru mesajı
+    // yutmamalı. Ağır içerik burada ENGELLENMEZ ama sunucuda moderasyon
+    // kuyruğuna düşer (`onMessageCreated`); karar insanındır.
+    if (!await _icerikOnayi(text)) return;
+    if (!mounted) return;
+
     HapticFeedback.lightImpact();
     _controller.clear();
     try {
@@ -197,6 +208,58 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         _showSendFailure(e);
       }
     }
+  }
+
+  /// Argo/müstehcen denetimi — gönderime devam edilsin mi?
+  ///
+  /// `true` → gönder. Temiz metinde HİÇ diyalog açılmaz (sıcak yol).
+  ///
+  /// Kaba dilde ([ContentSeverity.mild]) bir kez sorulur. Amaç öfkeyle
+  /// yazılmış mesajı bir saniye geciktirmek; ısrar eden kullanıcı gönderir.
+  ///
+  /// Ağır içerikte ([ContentSeverity.severe]) da mesaj gönderilebilir, ama
+  /// dil sertleşir ve kullanıcıya sonucun kayda geçtiği SÖYLENİR — caydırıcı
+  /// olan budur. Sunucu tarafı (`onMessageCreated`) kaydı moderasyon
+  /// kuyruğuna düşürür.
+  ///
+  /// HANGİ KELİMENİN yakalandığı GÖSTERİLMEZ: söylemek filtreyi atlatmayı
+  /// öğretir.
+  Future<bool> _icerikOnayi(String text) async {
+    final verdict = ContentFilter.inspect(text);
+    if (verdict.isClean) return true;
+
+    final agir = verdict.needsReview;
+    final onay = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(agir ? 'Bu mesaj incelenebilir' : 'Emin misiniz?'),
+        content: Text(
+          agir
+              ? 'Mesajınız topluluk kurallarına aykırı ifadeler içeriyor '
+                  'olabilir. Göndermeyi seçerseniz mesaj incelenmek üzere '
+                  'kaydedilir; tekrarlayan ihlaller hesabınızın askıya '
+                  'alınmasına yol açabilir.'
+              : 'Mesajınız kırıcı bir ifade içeriyor olabilir. Yine de '
+                  'göndermek istiyor musunuz?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Düzenle'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: Text(
+              'Yine de gönder',
+              style: TextStyle(
+                color: agir ? context.palette.danger : null,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+    return onay ?? false;
   }
 
   /// Gönderim hatasını SEBEBİNE göre anlat.

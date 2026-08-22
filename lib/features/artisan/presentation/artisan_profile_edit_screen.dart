@@ -999,7 +999,10 @@ class _PhoneVisibilityTile extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final user = ref.watch(currentUserProvider);
     final theme = Theme.of(context);
-    final phone = user?.publicPhone ?? profile.publicPhone;
+    // KAYITLI numara (2026-08-23) — yayından bağımsız. `publicPhone`
+    // görünürlük kapatılınca boşalır; onu okumak anahtarı ekrandan
+    // kaybettiriyor ve kullanıcıyı numarasını yeniden girmeye zorluyordu.
+    final phone = user?.contactPhone ?? profile.publicPhone;
 
     if (phone == null || phone.trim().isEmpty) {
       return Text(

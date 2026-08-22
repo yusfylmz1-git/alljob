@@ -18,6 +18,26 @@ class AppConstants {
   /// Menüde/künyede gösterilen kısa biçim (şema ve `www.` olmadan).
   static const String siteLabel = 'ilandahizmet.com';
 
+  /// Çalışan sürümün adı — `pubspec.yaml`'daki `version:` ile AYNI olmalı.
+  ///
+  /// Neden elle sabit: `package_info_plus` bunu çalışma anında okuyabilirdi
+  /// ama yayına yeni bir eklenti sokmak (platform kanalı, ProGuard kuralı,
+  /// iOS izinleri) sürüm bildirimi gibi küçük bir özellik için gereksiz risk.
+  /// Sabit kalırsa senkron riski doğar — `test/guncelleme_bildirimi_test.dart`
+  /// bu satırla `pubspec.yaml`'ı karşılaştırır ve ayrışırsa testi düşürür.
+  ///
+  /// ⚠️ SÜRÜM YÜKSELTİRKEN İKİSİNİ BİRDEN DEĞİŞTİR.
+  static const String appVersion = '1.2.0';
+
+  /// Sunucudaki sürüm bilgisinin okunduğu doküman (`config/app`).
+  ///
+  /// Alanlar: `latestVersion` (mağazadaki en yeni sürüm adı),
+  /// `minSupportedVersion` (bunun altı ZORUNLU güncelleme),
+  /// `updateUrl` (mağaza bağlantısı), `updateNote` (isteğe bağlı, kısa not).
+  /// Herkese açık okunur, YALNIZ admin/CF yazar.
+  static const String configCollection = 'config';
+  static const String configAppDoc = 'app';
+
   // Form / içerik limitleri
   static const int minPasswordLength = 6;
   static const int maxAboutLength = 500;

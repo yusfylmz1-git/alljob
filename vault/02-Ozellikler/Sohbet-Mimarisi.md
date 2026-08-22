@@ -136,11 +136,47 @@ bayrağını `false` yapabilir (yeni mesaj sohbeti arşivden çıkarır) — ama
 > Açık olsaydı kullanıcı "Usta seçildi" gibi resmî görünen sahte bildirimler
 > üretebilirdi.
 
-## İletişim maskeleme
+## İletişim maskeleme — KALDIRILDI
 
-`core/utils/contact_masker.dart` — telefon, e-posta, sosyal medya otomatik
-gizlenir (PRD §5). `sendMessage` maskeleme uygulandıysa `true` döner, UI uyarı
-gösterir. Ticari kural: iş platform içinde kalmalı.
+`core/utils/contact_masker.dart` sınıfı **duruyor ama sohbet akışında
+çağrılmıyor** (ürün kararı): taraflar telefon/e-posta paylaşabilir. Usta
+vitrininde zaten telefon gösterme seçeneği varken sohbeti kısıtlamak
+tutarsızdı. `sendMessage` bu yüzden her zaman `false` döner.
+
+## Argo / müstehcen denetimi (2026-08-23)
+
+`core/utils/content_filter.dart` — kapalı test bulgusu: *"mesajlarda argo
+kelime filtreleme yapmıyoruz, müstehcen yazıların denetlemesini nasıl
+yaparız?"*
+
+**Engelleme değil, kademeli müdahale.** Mesaj hiçbir aşamada silinmez:
+
+| Eşik | İstemci | Sunucu |
+|---|---|---|
+| `mild` (kaba dil) | "Emin misiniz?" — ısrar edilirse gider | — |
+| `severe` (küfür/taciz) | Sert uyarı + "kayda geçer" bilgisi | `reports` kuyruğuna **otomatik** düşer |
+
+* Ölçüt sözlük eşleştirmedir, anlam çözümleme değil → asıl mekanizma
+  **şikâyet yolu**; filtre onun önündeki ucuz süzgeçtir.
+* `normalizeForFilter` kaçışları açar: `S İ K T İ R`, `s1kt1r`, `siktirrrr`,
+  `a.m.k` → hepsi aynı kelime.
+* Yanlış pozitif kalkanı (`_allowList`) + kelime sınırı kontrolü: "malzeme",
+  "analiz", "sikke koleksiyonu" temiz kalır.
+* "lan"/"bok" gibi dolgu sözcükleri **bilinçli olarak listede değil** — her
+  mesajda uyarı çıkarsa kullanıcı öğrenip geçer, uyarı gerçek hakarette de
+  anlamsızlaşır.
+* Yakalanan **kelime kullanıcıya gösterilmez** (kaçış öğretir).
+
+**Sözlük iki yerde yaşar** — `content_filter.dart` (`_severe`, `_allowList`)
+ve `functions/index.js` (`SEVERE_WORDS`, `FILTER_ALLOW`). **Birlikte
+değişirler**; ayrışırsa istemci uyarır ama sunucu kuyruğa düşürmez.
+`test/icerik_filtresi_test.dart` iki listeyi karşılaştırır ve her maddenin
+normalize biçimde yazıldığını doğrular → [[Bilinen-Tuzaklar]].
+
+Sunucu kaydı `reports` şemasını aynen kullanır (`reporterUid: "system"`,
+`autoFilter: true`, deterministik `..__autofilter` kimliği) — admin kuyruğu
+değişmeden çalışır. Admin ekranı `system` uid'ini *"Otomatik içerik filtresi"*
+diye gösterir.
 
 ## Okunmamış sayacı
 

@@ -24,6 +24,128 @@
 
 ## ✅ Son Durum (EN SON BURAYI OKU)
 
+**Tarih:** 2026-08-23 — **KAPALI TEST GERİ BİLDİRİMLERİ (2. tur)**
+
+`flutter analyze` 0 · `eslint` 0 hata · **1078 test** (öncesi 1006).
+
+Testçiden altı madde geldi; beşi yapıldı (6. madde "Pro hesap ayarları"
+kullanıcı tarafından ertelendi).
+
+### 1. Güncelleme bildirimi yoktu
+
+Yeni sürüm çıktığında kullanıcının haberi olmuyor, testçiler eski APK'da
+kalıp **düzeltilmiş hataları yeniden bildiriyordu**.
+
+* Yeni `config/app` dokümanı: `latestVersion` · `minSupportedVersion` ·
+  `updateUrl` · `updateNote`. Herkes okur, **istemci yazamaz**.
+* `AppVersionInfo` + `compareVersions` — sayısal karşılaştırma
+  (`1.10.0 > 1.9.0` tuzağı), `+buildNumber` yok sayılır, bozuk değerde çökmez.
+* Menüde `_UpdateTile`: güncelken **hiç çizilmez**; hamburger ikonundaki
+  rozet de yanar (satır ancak çekmece açılınca görünür).
+* Zorunlu güncelleme **kapı değildir** — mağaza gecikmesi ya da yanlış yazılan
+  bir sürüm numarası herkesi dışarıda bırakmasın.
+
+> ⚠️ `AppConstants.appVersion` ile `pubspec.yaml` **birlikte** değişir.
+> `test/guncelleme_bildirimi_test.dart` ayrışırsa düşer.
+
+**Yayına almak için:** Firebase konsolundan `config/app` dokümanını elle
+oluştur. Doküman yokken hiçbir uyarı çıkmaz (güvenli varsayılan).
+
+### 2. "Ürün paylaş"a ulaşmak zordu
+
+Tek giriş Profil → Mağaza kartıydı; satıcı kendi vitrinine bakarken ürün
+ekleyemiyordu. Keşfet > Ürünler başlığına düğme eklendi (**yalnız
+`hasShopProfile` olana**). Boş vitrinde de davet role göre ayrışıyor:
+mağazası olana doğrudan eylem, olmayana yol tarifi.
+
+### 3. Otomatik il filtresi kaldırıldı → ELEME yerine VURGU
+
+**Bir önceki turun kararı geri alındı.** 2026-08-20'de ustanın ili Keşfet
+filtresine varsayılan olarak tohumlanıyordu; usta piyasayı göremiyor,
+filtrenin kendiliğinden dolduğunu **fark etmiyor** ve "ilan yok" sanıyordu.
+
+| Parça | Nerede |
+|---|---|
+| Ölçüt | `jobMatchesMeProvider` → `Job.matchesArtisan` (push ile **AYNI**) |
+| Sıralama | `sortJobMatchesFirst` — uyanlar başa, grup içi sıra korunur |
+| Görsel | yeşil çerçeve + "Sana uygun" rozeti (`palette.success`) |
+
+Liste **hiçbir ilanı elemez**. Ana sayfa şeridi de aynı sırayı kullanır
+(6 ilan gösteriyor, usta kendi işini ilk ekranda görsün).
+`myFeedProvinceProvider` ve `_seedProvince` **silindi**.
+
+### 4. Telefon gizleyince numara siliniyordu — GERÇEK VERİ KAYBI
+
+Kök neden: `users.publicPhone` **tek alanla iki iş** görüyordu — hem "kayıtlı
+numaram" hem "yayınlanan numara". Anahtar kapatılınca alan `null` oluyor,
+numara **tamamen siliniyordu**. Sonra `if (user.publicPhone != null)` koşulu
+düştüğü için **anahtar satırı ekrandan kayboluyor**; kullanıcı numarasını
+yeniden girmeden görünürlüğü geri açamıyordu.
+
+Ayrım yapıldı:
+
+| Alan | Yer | Anlamı |
+|---|---|---|
+| `savedPhone` | `users/{uid}/private/contact` | Kalıcı, **görünürlükten bağımsız** |
+| `publicPhone` | `users/{uid}` | Yayın — yalnız anahtar AÇIKKEN dolu |
+
+* `AppUser.contactPhone` ikisini birleştirir (eski kayıtlar `publicPhone`'a
+  düşer) — **UI bunu okur**.
+* `toMap()` `savedPhone` yazmaz: kapalıyken numara herkese açık dokümanda
+  durmamalı (kural 5).
+* Yayın için ayrı metot: `AuthRepository.setPublicPhoneVisibility`.
+  `updateUserProfile` numaranın kendisini yazar — **karıştırılırsa veri gider**.
+* Yol boyunca bulunan ikinci hata: `markOrtakAlanlarGocmus()` yeni alanı
+  taşımıyordu → kullanıcı adını değiştirince gizli numara sessizce düşüyordu.
+* Bonus: anahtar artık `users`'tan okunuyor — mağaza sahibinin usta profili
+  olmadığı için eskiden sonsuza dek pasif kalıyordu.
+
+**Göç gerekmez:** `contactPhone` eski kayıtlar için `publicPhone`'a düşer.
+
+### 5. Argo / müstehcen filtre yoktu
+
+`core/utils/content_filter.dart` — **engelleme değil, kademeli müdahale**:
+
+| Eşik | İstemci | Sunucu |
+|---|---|---|
+| `mild` | "Emin misiniz?" — ısrar edilirse gider | — |
+| `severe` | Sert uyarı + "kayda geçer" | `reports` kuyruğuna **otomatik** |
+
+* Mesaj **hiçbir aşamada silinmez/engellenmez** — karar moderatörün.
+* `normalizeForFilter` kaçışları açar: `S İ K T İ R`, `s1kt1r`, `siktirrrr`,
+  `a.m.k` hepsi aynı kelime.
+* Yanlış pozitif kalkanı + kelime sınırı: "malzeme", "analiz", "sikke
+  koleksiyonu" temiz kalır. "lan"/"bok" **bilinçli olarak listede değil**.
+* Sunucu kaydı mevcut `reports` şemasını kullanır → admin kuyruğu
+  değişmeden çalışır; ekran `system` uid'ini "Otomatik içerik filtresi"
+  diye gösterir.
+
+> ⚠️ Sözlük **iki yerde**: `content_filter.dart` ve `functions/index.js`.
+> Birlikte değişirler; test iki listeyi karşılaştırır ve her maddenin
+> **normalize biçimde** yazıldığını doğrular (ilk yazımda `yarrak` /
+> `namussuz` ham hâldeydi ve hiç eşleşmiyordu).
+
+### Yeni testler (72)
+
+`telefon_gorunurluk_test.dart` (10) · `ilan_uygunluk_vurgusu_test.dart` (13) ·
+`guncelleme_bildirimi_test.dart` (20) · `icerik_filtresi_test.dart` (25) ·
+`urun_paylas_kisayolu_test.dart` (4) · `ilan_feed_suzme_test.dart` (güncellendi)
+
+### Kasa
+
+`04-Veri/Firestore-Semasi.md` → telefon kayıt/yayın ayrımı + `config/app`
+`02-Ozellikler/Is-Akisi-Durum-Makinesi.md` → eleme yerine vurgu
+`02-Ozellikler/Sohbet-Mimarisi.md` → argo denetimi (maskeleme notu da düzeltildi)
+`03-Backend/Guvenlik-Kurallari.md` → `config` yetki satırı
+`03-Backend/Cloud-Functions-Haritasi.md` → `onMessageCreated` görevi
+`05-Operasyon/Bilinen-Tuzaklar.md` → üç yeni madde
+
+### Sırada
+
+**Madde 6: Pro hesap ayarları** — kullanıcı "sonra o" dedi, ertelendi.
+
+---
+
 **Tarih:** 2026-08-20 — **KAPALI TEST GERİ BİLDİRİMLERİ (1. tur)**
 
 `flutter analyze` 0 · **1006 test** (öncesi 967).

@@ -782,9 +782,15 @@ class _ReportDetailSheetState extends ConsumerState<_ReportDetailSheet> {
               const SizedBox(height: 8),
               _InfoBlock(
                 label: 'Şikayet eden (şikâyetçi)',
+                // `system` kaydı otomatik içerik filtresinden gelir
+                // (2026-08-23, `onMessageCreated` → flagMessageForReview).
+                // Ham uid gösterilirse moderatör "system" adlı bir kullanıcı
+                // arar; kaydın makine üretimi olduğu AÇIKÇA yazılır.
                 value: r.reporterUid.isEmpty
                     ? 'Hesap silindi'
-                    : r.reporterUid,
+                    : r.reporterUid == 'system'
+                        ? 'Otomatik içerik filtresi'
+                        : r.reporterUid,
               ),
               _InfoBlock(
                 label: 'Şikayet edilen (hedef kişi)',

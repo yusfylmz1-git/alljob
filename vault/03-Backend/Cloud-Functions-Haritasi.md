@@ -33,7 +33,7 @@
 |---|---|---|
 | `onJobCreated` | `jobs/{jobId}` | Uygun ustalara yeni ilan push'u; ürün talebinde satıcılara anlık (`notifyProductRequestSellers`) |
 | `onJobWritten` | `jobs/{jobId}` | Açık ilan sayacını tazeler (tek işi) ↓ |
-| `onMessageCreated` | `chats/{chatId}/messages/{msgId}` | Alıcıya push + okunmamış sayacı |
+| `onMessageCreated` | `chats/{chatId}/messages/{msgId}` | Alıcıya push + okunmamış sayacı + **argo denetimi** |
 | `onReviewWritten` | `reviews/{reviewId}` | Ustanın ortalama puanı + yorum sayısı |
 | `onUserWritten` | `users/{uid}` | Kullanıcı türevleri |
 | `onArtisanProfileWritten` | `artisanProfiles/{uid}` | Profil türevleri |

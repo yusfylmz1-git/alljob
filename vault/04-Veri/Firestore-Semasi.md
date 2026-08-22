@@ -22,6 +22,7 @@ staffWorkers/{docId}               iş arayan profilleri
 staffNeeds/{needId}                eleman ilanları
 reports/{reportId}                 şikayetler
 neighborhoods/{id}                 mahalle referans verisi
+config/{docId}                     yayın sürümü (`app`) — herkes okur, istemci YAZAMAZ
 supportTickets/{ticketId}
 membershipPurchases/{uid}
 premiumOverrides/{entryId}
@@ -32,6 +33,47 @@ adminRoles/{uid} · adminInvites/{id} · adminAuditLogs/{logId}
 adminStats/{docId}/** · adminConfig/{docId} · adminRateLimits/{uid}
 adminUserNotes/{noteId}
 ```
+
+## Telefon: kayıt ile yayın AYRI (2026-08-23)
+
+| Alan | Yer | Kim okur | Anlamı |
+|---|---|---|---|
+| `savedPhone` | `users/{uid}/private/contact` | yalnız sahibi | **Kalıcı kayıt** — görünürlükten bağımsız |
+| `publicPhone` | `users/{uid}` | herkes | **Yayın** — yalnız "profilde göster" AÇIKKEN dolu |
+| `phoneNumber` | `users/{uid}/private/contact` | yalnız sahibi | Auth doğrulanmış numara (SMS akışı kaldırıldı) |
+
+Anahtar kapatılınca **yalnız `publicPhone` temizlenir**; numara `savedPhone`'da
+kalır ve anahtar geri açıldığında oradan yayınlanır. Tek alanla yapılırsa
+kullanıcının numarası siliniyordu → [[Bilinen-Tuzaklar]].
+
+`AppUser.contactPhone` ikisini birleştirip UI'ya tek değer verir (eski
+kayıtlarda `savedPhone` yoksa `publicPhone`'a düşer). `toMap()` `savedPhone`'u
+herkese açık dokümana **yazmaz**.
+
+Yazan taraflar:
+* `AuthRepository.updateUserProfile(publicPhone:)` → numarayı değiştirir/siler (ikisini de yazar)
+* `AuthRepository.setPublicPhoneVisibility(show:)` → yalnız yayını açar/kapatır
+
+## `config/app` — yayın sürümü (2026-08-23)
+
+Menüdeki "Güncelleme var" satırının kaynağı.
+
+| Alan | Tip | Anlamı |
+|---|---|---|
+| `latestVersion` | string | Mağazadaki en yeni sürüm (`1.3.0`). Boş/`0.0.0` → uyarı yok |
+| `minSupportedVersion` | string? | Altındaki sürümler için sert uyarı. Boşsa kimse zorlanmaz |
+| `updateUrl` | string? | Mağaza bağlantısı; boşsa `AppConstants.siteUrl` |
+| `updateNote` | string? | Kısa "neler değişti" satırı |
+
+Okuma **herkese açık** (misafir de görsün — eski sürümde takılan kullanıcı
+giriş bile yapamıyor olabilir). Yazma **istemciye tamamen kapalı**: buraya
+yazabilen biri `minSupportedVersion` ile herkesi kilitleyebilir veya
+`updateUrl` ile sahte APK dağıtabilir. Değer yalnız konsoldan / Admin SDK ile
+yazılır.
+
+Çalışan sürüm `AppConstants.appVersion` sabitindedir ve `pubspec.yaml` ile
+senkron tutulur — `test/guncelleme_bildirimi_test.dart` ayrışırsa düşer.
+**Sürüm yükseltirken ikisi birden değişir.**
 
 ## Deterministik kimlikler
 

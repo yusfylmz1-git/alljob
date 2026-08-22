@@ -15,6 +15,7 @@ import '../../../../data/local/local_data_service.dart';
 import '../../../../data/models/geo_models.dart';
 import '../../../../data/models/product_category.dart';
 import '../../../../data/models/product.dart';
+import '../../../auth/application/auth_controller.dart';
 import '../../data/product_category_providers.dart';
 import '../../data/product_providers.dart';
 import 'product_card.dart';
@@ -154,13 +155,28 @@ class _ProductsExplorePanelState extends ConsumerState<ProductsExplorePanel> {
                 SliverFillRemaining(
                   hasScrollBody: false,
                   child: products.isEmpty
-                      ? const ErrorView(
-                          title: 'Henüz ürün yok',
-                          message:
-                              'Ürünler paylaşıldıkça burada görünecek. '
-                              'Satış için Profil → Mağaza’dan ürün ekleyin.',
-                          icon: Icons.storefront_outlined,
-                        )
+                      // Mağazası olana DOĞRUDAN eylem verilir; olmayana
+                      // yolu tarif etmek yeterli (2026-08-23). Eskiden
+                      // herkese "Profil → Mağaza'dan ekleyin" yazıyordu —
+                      // satıcıyı üç ekran öteye yolluyordu.
+                      ? (ref.watch(currentUserProvider)?.hasShopProfile ??
+                              false)
+                          ? ErrorView(
+                              title: 'Henüz ürün yok',
+                              message: 'İlk ürünü siz paylaşın — '
+                                  'vitrinde ilk sırada görünür.',
+                              icon: Icons.storefront_outlined,
+                              onRetry: () =>
+                                  context.push(RoutePaths.productNew),
+                              retryLabel: 'Ürün paylaş',
+                            )
+                          : const ErrorView(
+                              title: 'Henüz ürün yok',
+                              message:
+                                  'Ürünler paylaşıldıkça burada görünecek. '
+                                  'Satış için Profil → Mağaza’dan ürün ekleyin.',
+                              icon: Icons.storefront_outlined,
+                            )
                       : ErrorView(
                           title: 'Sonuç bulunamadı',
                           message:
@@ -268,17 +284,50 @@ class _Header extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Ürünler',
-            style: theme.textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-          Text(
-            'Satılık ürünler — iletişim sohbet ile',
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: palette.inkMuted,
-            ),
+          // Başlık + mağaza sahibi için ÜRÜN PAYLAŞ kısayolu (2026-08-23).
+          //
+          // Testçi bulgusu: "ürün paylaş bir tek profilde var, ulaşmak zor."
+          // Satıcı ürününü paylaşmak için Keşfet'ten çıkıp Profil > Mağaza
+          // kartına inmek zorundaydı. Düğme YALNIZ mağazası olanlara
+          // gösterilir — mağazası olmayanda ürün ekleme formu zaten
+          // kurulum ekranına yönlendirirdi, kalabalık yaratmasın.
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Ürünler',
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    Text(
+                      'Satılık ürünler — iletişim sohbet ile',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: palette.inkMuted,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (ref.watch(currentUserProvider)?.hasShopProfile ?? false)
+                Padding(
+                  padding: const EdgeInsets.only(left: 8),
+                  child: FilledButton.icon(
+                    onPressed: () => context.push(RoutePaths.productNew),
+                    icon: const Icon(Icons.add_rounded, size: 18),
+                    label: const Text('Ürün paylaş'),
+                    style: FilledButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 8),
+                      visualDensity: VisualDensity.compact,
+                    ),
+                  ),
+                ),
+            ],
           ),
           const SizedBox(height: 8),
           TextField(

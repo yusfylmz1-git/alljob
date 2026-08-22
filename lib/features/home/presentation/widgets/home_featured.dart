@@ -53,8 +53,17 @@ class HomeFeatured extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final ustalar = ref.watch(oneChikanUstalarProvider).valueOrNull ?? const [];
-    // Süzülmüş feed: ürün talepleri, kendi ilanların ve il dışı ilanlar düşer.
-    final isler = ref.watch(visibleJobFeedProvider);
+    // Süzülmüş feed: ürün talepleri ve kendi ilanların düşer (il ELEMEZ).
+    //
+    // Şerit yalnız 6 ilan gösterir; ustanın kendi işi bu altıya girmezse
+    // ana sayfada hiç görünmez. Bu yüzden mesleğine + bölgesine uyan
+    // ilanlar öne alınır (2026-08-23) — Keşfet listesindeki sıralamayla
+    // aynı ölçüt (`jobMatchesMeProvider`), kullanıcı iki yerde farklı sıra
+    // görmesin. Ustalık profili yoksa sıra değişmez.
+    final isler = sortJobMatchesFirst(
+      ref.watch(visibleJobFeedProvider),
+      ref.watch(jobMatchesMeProvider),
+    );
     final urunler = ref.watch(productsLiveProvider)
         ? (ref.watch(discoverProductsProvider).valueOrNull ?? const <Product>[])
         : const <Product>[];

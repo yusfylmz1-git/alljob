@@ -240,6 +240,14 @@ class MockAuthRepository implements AuthRepository {
       profilePhotoUrl: profilePhotoUrl,
       publicPhone: (t == null || t.isEmpty) ? null : t,
       clearPublicPhone: t != null && t.isEmpty,
+      // FİREBASE PARİTESİ (2026-08-23): gerçek uygulama numarayı İKİ yere
+      // yazar — yayın alanı `users.publicPhone` ve kalıcı kayıt
+      // `users/{uid}/private/contact.savedPhone`. Mock'ta ayrı doküman yok,
+      // ikisi de aynı `AppUser` üstünde durur; ayrımın DAVRANIŞI korunur:
+      // form numarayı siler → ikisi de gider, görünürlük anahtarı kapanır →
+      // yalnız yayın gider.
+      savedPhone: (t == null || t.isEmpty) ? null : t,
+      clearSavedPhone: t != null && t.isEmpty,
       socialLinks: socialLinks,
       aboutText: aboutText?.trim(),
       hasShopProfile: hasShopProfile,
@@ -253,6 +261,32 @@ class MockAuthRepository implements AuthRepository {
     if (publicPhone != null || socialLinks != null || aboutText != null) {
       updated = updated.markOrtakAlanlarGocmus();
     }
+    _store(updated);
+    _emit(updated);
+  }
+
+  @override
+  Future<void> setPublicPhoneVisibility({
+    required bool show,
+    String? publicPhone,
+  }) async {
+    await _delay();
+    final user = _current;
+    if (user == null) return;
+    // Yayınlanacak numara: verilmediyse kayıtlı numara kullanılır.
+    final yayin = show ? (publicPhone?.trim() ?? user.contactPhone) : null;
+    // Kural paritesi: yayın alanı E.164 TR cebi zorunlu (firestore.rules).
+    if (yayin != null && !RegExp(r'^\+905[0-9]{9}$').hasMatch(yayin)) {
+      throw AuthException('Geçersiz telefon biçimi.');
+    }
+    final updated = user.copyWith(
+      publicPhone: yayin,
+      // KAPATMAK YAYINI DÜŞÜRÜR, NUMARAYI SİLMEZ — `savedPhone` yerinde
+      // kalır ve anahtar geri açıldığında numara yeniden yayınlanır.
+      clearPublicPhone: yayin == null,
+      // Açarken kalıcı kayıt da tazelenir (Firebase ile aynı davranış).
+      savedPhone: yayin ?? user.savedPhone,
+    );
     _store(updated);
     _emit(updated);
   }

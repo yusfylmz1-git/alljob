@@ -63,6 +63,7 @@ Evetse `private/` altına.
 | `reports/*` | Admin | Oluşturan + admin |
 | `admin*` (7 koleksiyon) | Admin | CF / superadmin |
 | `products` · `staffWorkers` · `staffNeeds` · `favorites` | Karma | Sahibi |
+| `neighborhoods/*` · `config/*` | Herkes | **Hiç kimse** (konsol / Admin SDK) |
 
 > [!note] Bildirimde silme AÇIK, oluşturma KAPALI (2026-08-10)
 > Kuralın amacı **sahte bildirim enjeksiyonunu** engellemek; bunu sağlayan
@@ -70,6 +71,16 @@ Evetse `private/` altına.
 > ("Bildirimleri temizle") sahtecilik yolu açmaz, o yüzden
 > `delete: if isSelf(uid)` verildi. Bildirim türetilmiş veridir — kaynak
 > sohbet/ilan kaydı yerinde durur, denetim izi kaybolmaz.
+
+> [!warning] `config/app` yazımı istemciye TAMAMEN kapalı (2026-08-23)
+> Doküman yayındaki sürümü taşır (`latestVersion`, `minSupportedVersion`,
+> `updateUrl`). Buraya yazabilen biri `minSupportedVersion`'ı yükseltip **tüm
+> kullanıcılara** "sürümünüz desteklenmiyor" gösterebilir ya da `updateUrl`'ü
+> kendi sahte APK'sına çevirebilirdi — kimlik avı yüzeyi.
+>
+> Okuma misafire de açıktır: eski sürümde takılan kullanıcı giriş bile
+> yapamıyor olabilir, güncelleme uyarısı oturum gerektirmemeli.
+> → [[Firestore-Semasi]]
 
 ## Sohbet kuralları — en karmaşık bölüm
 
