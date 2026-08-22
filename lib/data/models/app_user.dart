@@ -26,6 +26,7 @@ class AppUser {
     this.completedJobsAsCustomer = 0,
     this.reviewCountAsCustomer = 0,
     this.publicPhone,
+    this.savedPhone,
     this.socialLinks = SocialLinks.empty,
     this.aboutText = '',
     this.ortakAlanlarGocmus = false,
@@ -119,6 +120,37 @@ class AppUser {
   /// Bu alan kullanıcının BİLEREK yayınladığı numaradır — boşsa gösterilmez.
   final String? publicPhone;
 
+  /// Kullanıcının KAYITLI numarası — görünürlükten BAĞIMSIZ (2026-08-23).
+  ///
+  /// Neden ayrı alan: eskiden tek alan ([publicPhone]) hem "kayıtlı numaram"
+  /// hem "vitrinde yayınlanan numara" işini görüyordu. "Profilde göster"
+  /// anahtarı kapatılınca yayın alanı temizleniyor ve numara TAMAMEN
+  /// siliniyordu; kullanıcı anahtarı geri açmak istediğinde numarası yok
+  /// olduğu için anahtar satırı bile ekrandan kayboluyordu (testçi bulgusu:
+  /// "telefonu göster kapatınca telefon gidiyor").
+  ///
+  /// Artık ikisi ayrı:
+  ///  - [savedPhone] kalıcıdır, `users/{uid}/private/contact.savedPhone`
+  ///    altında yaşar (herkese açık dokümanda DEĞİL — kapalıyken numara
+  ///    kimseye görünmemeli, kural 5).
+  ///  - [publicPhone] yalnız anahtar AÇIKKEN doludur ve herkese açıktır.
+  ///
+  /// Anahtar kapanınca [publicPhone] temizlenir, [savedPhone] yerinde kalır;
+  /// geri açıldığında numara buradan yeniden yayınlanır.
+  final String? savedPhone;
+
+  /// Kullanıcının girdiği numara — yayınlanmış olsun olmasın.
+  /// Telefon formunun ve "profilde göster" anahtarının OKUDUĞU değer.
+  String? get contactPhone {
+    final s = savedPhone?.trim();
+    if (s != null && s.isNotEmpty) return s;
+    final p = publicPhone?.trim();
+    return (p != null && p.isNotEmpty) ? p : null;
+  }
+
+  /// Numara kayıtlı mı (yayınlanmış olması gerekmez)?
+  bool get hasContactPhone => contactPhone != null;
+
   /// Sosyal medya + web sitesi (isteğe bağlı). Web sitesi ayrı alan değil,
   /// `socialLinks.website` — tek doğruluk kaynağı.
   final SocialLinks socialLinks;
@@ -174,9 +206,11 @@ class AppUser {
     bool? suspended,
     bool clearAdmin = false,
     String? publicPhone,
+    String? savedPhone,
     SocialLinks? socialLinks,
     String? aboutText,
     bool clearPublicPhone = false,
+    bool clearSavedPhone = false,
     bool? hasShopProfile,
     List<String>? shopCategories,
     List<ServiceArea>? shopServiceAreas,
@@ -205,6 +239,9 @@ class AppUser {
       // demek olduğundan alanı temizlemenin başka yolu yok.
       publicPhone:
           clearPublicPhone ? null : (publicPhone ?? this.publicPhone),
+      // Kayıtlı numara YAYINDAN bağımsızdır: `clearPublicPhone` onu SİLMEZ.
+      // Anahtar kapatıldığında yalnız yayın düşer, numara kullanıcıda kalır.
+      savedPhone: clearSavedPhone ? null : (savedPhone ?? this.savedPhone),
       socialLinks: socialLinks ?? this.socialLinks,
       aboutText: aboutText ?? this.aboutText,
       // Sayaçlarla aynı tuzak: copyWith parametresi değil, ama taşınmazsa
@@ -239,6 +276,10 @@ class AppUser {
         completedJobsAsCustomer: completedJobsAsCustomer,
         reviewCountAsCustomer: reviewCountAsCustomer,
         publicPhone: publicPhone,
+        // Taşınmazsa kalıcı numara her ortak-alan yazımında düşerdi
+        // (sayaçlardaki tuzağın aynısı): kullanıcı adını değiştirir,
+        // gizlediği numarası sessizce kaybolurdu.
+        savedPhone: savedPhone,
         socialLinks: socialLinks,
         aboutText: aboutText,
         ortakAlanlarGocmus: true,
@@ -269,6 +310,11 @@ class AppUser {
         'available': available,
         // GÜVENLİK: phoneNumber / email / fcmTokens bu dökümana yazılmaz
         // (kural da engeller). Token: users/{uid}/private/push.
+        //
+        // `savedPhone` DE YAZILMAZ: kayıtlı numara görünürlükten bağımsız
+        // saklanır ama anahtar KAPALIYKEN kimseye görünmemelidir. Yeri
+        // `users/{uid}/private/contact.savedPhone` (kural 5). Buraya
+        // eklenirse "gizle" dediği numara herkese açık dökümanda kalır.
         //
         // SAYAÇLAR DA YAZILMAZ: completedJobsAsCustomer /
         // reviewCountAsCustomer yalnız CF'e aittir (kural 3). Buraya

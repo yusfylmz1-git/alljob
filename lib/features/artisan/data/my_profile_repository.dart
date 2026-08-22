@@ -101,9 +101,15 @@ class MockMyProfileRepository implements MyProfileRepository {
     // `artisanProfiles/{uid}` (usta vitrini). Mock'ta `users` karşılığı
     // auth deposudur; oraya yazılmazsa profil başlığı numarayı göstermez ve
     // 2026-08-14'te canlıda çıkan hata mock testlerinde görünmez.
-    await _ref.read(authRepositoryProvider).updateUserProfile(
-          // Boş dize = ALANI TEMİZLE (updateUserProfile sözleşmesi).
-          publicPhone: showOnProfile ? (publicPhone ?? '') : '',
+    //
+    // YAYIN ≠ KAYIT (2026-08-23): kapatmak YALNIZ yayını düşürür. Burada
+    // `updateUserProfile(publicPhone: '')` ÇAĞRILAMAZ — o metot kalıcı
+    // kaydı (`savedPhone`) da temizler ve numara tamamen kaybolurdu; hatanın
+    // ta kendisi buydu. Bunun yerine kullanıcı doğrudan güncellenir:
+    // `clearPublicPhone` yayını siler, `savedPhone` yerinde kalır.
+    await _ref.read(authRepositoryProvider).setPublicPhoneVisibility(
+          show: showOnProfile,
+          publicPhone: publicPhone,
         );
 
     final db = _ref.read(mockDatabaseProvider);

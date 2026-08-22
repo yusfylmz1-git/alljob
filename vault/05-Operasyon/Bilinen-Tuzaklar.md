@@ -958,5 +958,55 @@ Kapı **önbelleğe değil dokümanın kendisine** bakmalı (`snap.exists`).
 `set(merge: true)` olmayan dokümanı oluşturduğu için varlık kontrolü şart —
 yoksa usta olmayan kullanıcıya boş vitrin kaydı doğar.
 
+## 🔴 Tek alan iki iş görürse, biri diğerini siler
+
+`users.publicPhone` hem *"kayıtlı numaram"* hem *"vitrinde yayınlanan numara"*
+işini görüyordu. "Telefonumu profilde göster" anahtarı kapatılınca
+`setPhoneVisibility` alanı `null` yapıyor — yani **numarayı tamamen siliyordu**.
+Ardından profil ekranındaki `if (user.publicPhone != null)` koşulu düşüyor ve
+**anahtar satırı ekrandan kayboluyor**: kullanıcı numarasını yeniden girmeden
+görünürlüğü geri açamıyor. Testçi bunu *"telefonu göster kapatınca telefon
+gidiyor, biraz sıkıntılı"* diye tarif etti.
+
+Ayrım artık net:
+
+| Alan | Yer | Anlamı |
+|---|---|---|
+| `savedPhone` | `users/{uid}/private/contact` | Kalıcı kayıt, **görünürlükten bağımsız** |
+| `publicPhone` | `users/{uid}` | Yayın — yalnız anahtar AÇIKKEN dolu |
+
+* `AppUser.contactPhone` ikisini birleştirir (eski kayıtlar için `publicPhone`'a düşer); **UI bunu okur**.
+* Kalıcı kayıt herkese açık dokümana YAZILMAZ (`toMap()` dışında) — kapalıyken numara kimseye görünmemeli (kural 5).
+* Yayını `AuthRepository.setPublicPhoneVisibility` yönetir; `updateUserProfile` numaranın kendisini yazar. **İkisi karıştırılırsa veri kaybolur.**
+* `markOrtakAlanlarGocmus()` gibi elle yazılmış kurucular `savedPhone`'u TAŞIMALI — taşımazsa kullanıcı adını değiştirince gizli numarası sessizce düşer (sayaç tuzağının aynısı).
+
+## 🟠 Otomatik filtre, kullanıcının göremediği bir kapıdır
+
+2026-08-20'de ustanın ili Keşfet > İlanlar filtresine **varsayılan** olarak
+tohumlanmıştı. Bir sonraki turda geri alındı: usta piyasada ne olduğunu
+göremiyor, filtrenin **kendiliğinden dolduğunu fark etmiyor** ve "ilan yok"
+sanıyordu.
+
+Kural: kullanıcının koymadığı bir daraltma, kullanıcının anlamadığı bir
+boşluk üretir. **Eleme yerine vurgu**: liste tüm ilanları gösterir,
+`jobMatchesMeProvider` (meslek + bölge = `Job.matchesArtisan`, push
+bildirimiyle AYNI ölçüt) uyanları yeşil çerçeveyle işaretler ve
+`sortJobMatchesFirst` onları başa alır.
+
+`List.sort` **kararlı değildir** — eşit grupta kartlar her çizimde yer
+değiştirir ve liste "zıplar". Bağ kaynak indeksiyle çözülmeli.
+
+## 🟠 Sözlük listeleri normalize biçimde tutulmalı
+
+`ContentFilter` metni normalize ederek arar (Türkçe katlama, leetspeak, harf
+tekrarı daraltma). Sözlüğe **ham** yazılan madde hiç eşleşmez: `'yarrak'` ve
+`'namussuz'` normalize metinde `yarak` / `namusuz` olduğu için filtre sessizce
+delik veriyordu. `test/icerik_filtresi_test.dart` her maddenin kendi
+normalizasyonuna eşit olduğunu doğrular.
+
+Aynı sözlük `functions/index.js` içinde de yaşar (`SEVERE_WORDS`,
+`FILTER_ALLOW`) — **ikisi birlikte değişir**, ayrışırsa istemci uyarır ama
+sunucu kuyruğa düşürmez. Test iki listeyi karşılaştırır.
+
 ---
 İlgili: [[Mimari-Kararlar]] · [[Guvenlik-Kurallari]] · [[Sohbet-Mimarisi]] · [[Deploy-ve-Ortam]] · [[Demo-Veri-Seti]]

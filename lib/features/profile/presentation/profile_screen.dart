@@ -1044,7 +1044,9 @@ class _AccountGroup extends ConsumerWidget {
     WidgetRef ref,
     AppUser user,
   ) async {
-    final sonuc = await _PhoneEditSheet.show(context, user.publicPhone);
+    // Forma KAYITLI numara açılır (yayında olmasa bile) — kullanıcı gizlediği
+    // numarasını düzenleyebilmeli, sıfırdan yazmak zorunda kalmamalı.
+    final sonuc = await _PhoneEditSheet.show(context, user.contactPhone);
     if (sonuc == null || !context.mounted) return;
 
     final kaldirildi = sonuc.isEmpty;
@@ -1053,8 +1055,10 @@ class _AccountGroup extends ConsumerWidget {
             // Boş dize = TEMİZLE (null "değiştirme" demek — bkz. AppUser).
             publicPhone: sonuc,
           );
-      // Numara kaldırıldıysa vitrindeki gösterim de kapanmalı: aksi hâlde
-      // profil "numaram görünsün" açık ama numara yok durumunda kalır.
+      // Numara kaldırıldıysa VİTRİNDEKİ (artisanProfiles) gösterim de
+      // kapanmalı. `users` tarafındaki yayın alanını `updateUserProfile`
+      // zaten temizledi; buradaki çağrı usta/mağaza vitrinindeki kopyayı
+      // ve `showPhoneOnProfile` bayrağını düşürür.
       if (kaldirildi && (user.hasArtisanProfile || user.hasShopProfile)) {
         await ref
             .read(myProfileControllerProvider.notifier)
@@ -1213,20 +1217,22 @@ class _AccountGroup extends ConsumerWidget {
           iconColor: context.palette.primary,
           iconSurface: context.palette.primaryContainer,
           title: 'İletişim Numarası',
-          subtitle: (user.publicPhone != null && user.publicPhone!.isNotEmpty)
-              ? formatTrPhone(user.publicPhone!)
+          // KAYITLI numara okunur, YAYINLANAN değil (2026-08-23):
+          // `publicPhone` görünürlük kapatılınca boşalır. Eskiden bu satır
+          // onu okuduğu için anahtarı kapatan kullanıcı numarasını "silinmiş"
+          // görüyordu — düğme "Düzenle"den "Ekle"ye dönüyordu.
+          subtitle: user.hasContactPhone
+              ? formatTrPhone(user.contactPhone!)
               : 'İsteğe bağlı — eklemezseniz numaranız hiç kaydedilmez',
           trailing: TextButton(
             onPressed: () => _editPhone(context, ref, user),
-            child: Text(
-              user.publicPhone != null && user.publicPhone!.isNotEmpty
-                  ? 'Düzenle'
-                  : 'Ekle',
-            ),
+            child: Text(user.hasContactPhone ? 'Düzenle' : 'Ekle'),
           ),
         ),
-        if (user.publicPhone != null && user.publicPhone!.isNotEmpty)
-          _PhoneVisibilityRow(phoneNumber: user.publicPhone),
+        // Anahtar numara KAYITLIYKEN görünür (yayında olması gerekmez):
+        // kapattıktan sonra geri açabilmenin tek yolu budur.
+        if (user.hasContactPhone)
+          _PhoneVisibilityRow(phoneNumber: user.contactPhone),
         Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -1492,16 +1498,21 @@ class _PhoneVisibilityRow extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final draft = ref.watch(myProfileControllerProvider).valueOrNull;
-    final shown = draft?.profile.hasPublicPhone ?? false;
+    final user = ref.watch(currentUserProvider);
+    // YAYIN DURUMU tek doğruluk kaynağından okunur: `users.publicPhone`
+    // doluysa numara yayındadır (2026-08-23).
+    //
+    // Eskiden usta taslağından (`profile.hasPublicPhone`) okunuyordu; mağaza
+    // sahibinin usta profili HİÇ olmayabildiği için anahtar açık olsa bile
+    // kapalı görünüyordu. Yayını `users` yazar, vitrin onu aynalar.
+    final shown = user?.publicPhone?.trim().isNotEmpty ?? false;
 
     Future<void> onChanged(bool value) async {
       // Açarken numara şart (gösterecek bir şey yoksa anahtar anlamsız).
       //
-      // NUMARA KAYNAĞI (2026-08-18): SMS doğrulaması kaldırıldı; numara
-      // artık kullanıcının elle girdiği `publicPhone` alanıdır. Bu satır
-      // zaten yalnız numara doluyken gösterilir — buraya düşmek, numaranın
-      // arada silinmiş olması demektir.
+      // NUMARA KAYNAĞI (2026-08-23): `AppUser.contactPhone` — kayıtlı
+      // numara, YAYINDAN bağımsız. Anahtar kapatmak numarayı artık
+      // silmiyor, bu yüzden kapatıp geri açmak tek dokunuş.
       if (value && (phoneNumber == null || phoneNumber!.trim().isEmpty)) {
         context.showError(
           'Önce “İletişim Numarası” bölümünden numaranızı ekleyin.',
@@ -1537,7 +1548,10 @@ class _PhoneVisibilityRow extends ConsumerWidget {
           : 'Kapalı — numaran gizli',
       trailing: Switch(
         value: shown,
-        onChanged: draft == null ? null : onChanged,
+        // Usta taslağı BEKLENMEZ: yayın `users` üstünde yaşar ve mağaza
+        // sahibinin usta profili hiç olmayabilir (eskiden anahtar onlarda
+        // sonsuza dek pasif kalıyordu).
+        onChanged: user == null ? null : onChanged,
       ),
     );
   }

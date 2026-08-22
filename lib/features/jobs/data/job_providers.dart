@@ -1,7 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/config/backend_config.dart';
-import '../../../data/models/geo_models.dart';
 import '../../../data/models/job.dart';
 import '../../artisan/application/my_profile_controller.dart';
 import '../../artisan/data/artisan_providers.dart' show mockDatabaseProvider;
@@ -40,11 +39,17 @@ final openJobsProvider = StreamProvider<List<Job>>(
 /// bildiriminde (`onJobCreated`) vardı; ana sayfa ile Keşfet listesi tüm
 /// Türkiye'nin ilanlarını, kendi ilanın ve ürün talepleri dahil gösteriyordu.
 ///
-/// İL elemesi burada YAPILMAZ — kullanıcının DEĞİŞTİREBİLMESİ gerekiyor
-/// (komşu ilde çalışan usta mağdur olmasın). İl, Keşfet panelinde filtrenin
-/// VARSAYILAN değeri olarak gelir ([myFeedProvinceProvider]); kullanıcı başka
-/// il seçebilir veya temizleyip hepsini görebilir. Ana sayfa şeridi kısa bir
-/// vitrindir, orada il daraltması yoktur.
+/// İL elemesi burada YAPILMAZ ve OTOMATİK FİLTRE DE YOKTUR (2026-08-23
+/// kullanıcı kararı: "şimdilik tüm ilanları görsün").
+///
+/// 2026-08-20'de ustanın ili Keşfet filtresine VARSAYILAN olarak
+/// yerleştirilmişti; kapalı testte ters etki verdi — usta piyasayı göremiyor,
+/// filtrenin kendiliğinden dolduğunu fark etmiyor ve "ilan yok" sanıyordu.
+///
+/// Yerine ELEME DEĞİL VURGU geldi: liste herkese açıktır, ustanın mesleğine +
+/// bölgesine uyan ilanlar yeşil çerçeveyle işaretlenir ve başa alınır
+/// ([jobMatchesMeProvider] · [sortJobMatchesFirst]). İl filtresi hâlâ var,
+/// ama kullanıcı kendi eliyle seçer.
 final visibleJobFeedProvider = Provider<List<Job>>((ref) {
   final jobs = ref.watch(openJobsProvider).valueOrNull ?? const <Job>[];
   final uid = ref.watch(currentUserProvider)?.uid;
@@ -55,23 +60,12 @@ final visibleJobFeedProvider = Provider<List<Job>>((ref) {
   }).toList(growable: false);
 });
 
-/// Keşfet > İlanlar filtresinin VARSAYILAN ili — hizmet bölgelerinin İLKİ.
-///
-/// `null` → filtre boş açılır, tüm iller listelenir (misafir, veya bölgesini
-/// henüz tanımlamamış kullanıcı). Boş ekran göstermektense geniş liste
-/// göstermek yeğdir.
-///
-/// Birden çok ilde hizmet veren usta için ilk bölge seçilir; filtre
-/// düğmesinden başka il seçebilir veya temizleyip hepsini görebilir.
-final myFeedProvinceProvider = Provider<String?>((ref) {
-  final draft = ref.watch(myProfileControllerProvider).valueOrNull;
-  final areas = draft?.profile.serviceAreas ?? const <ServiceArea>[];
-  for (final a in areas) {
-    final p = a.province.trim();
-    if (p.isNotEmpty) return p;
-  }
-  return null;
-});
+// `myFeedProvinceProvider` KALDIRILDI (2026-08-23).
+//
+// Keşfet > İlanlar filtresinin varsayılan ilini üretiyordu; otomatik filtre
+// kalkınca çağıranı kalmadı. Yerine geçen ölçüt [jobMatchesMeProvider] —
+// il TEK BAŞINA değil, meslek + bölge birlikte değerlendirilir ve sonuç
+// eleme değil vurgu üretir.
 
 /// Ana sayfadaki "Hemen Lazım" şeridi: açık Hemen Lazım ilanları, en yeni
 /// üstte. [openJobsProvider] üzerinden süzülür — ayrı sorgu/indeks açmaz ve
@@ -132,6 +126,62 @@ final nearbyJobsProvider = StreamProvider<List<Job>>((ref) {
         serviceAreas: profile.serviceAreas,
       ).map((jobs) => jobs.where((j) => j.customerId != uid).toList());
 });
+
+/// "Bu ilan BANA uygun mu?" sorusunun TEK cevabı (2026-08-23).
+///
+/// Uygun = ilanın kategorisi ustanın mesleklerinden biri VE ili hizmet
+/// bölgelerinden biri — yani [Job.matchesArtisan]. Push bildirimi
+/// (`onJobCreated`) ve [nearbyJobsProvider] aynı ölçütü kullanır; kart
+/// vurgusu da buradan beslenir ki üç yer birbirinden ayrışmasın.
+///
+/// KAPI DEĞİLDİR: uygun olmayan ilan gizlenmez, yalnız vurgulanmaz. Liste
+/// herkese açıktır (2026-08-23 kullanıcı kararı: "şimdilik tüm ilanları
+/// görsün"); usta uygun olanları çerçeveden ayırt eder.
+///
+/// Müsaitlik BURADA elemez — müsait olmayan usta da uygun ilanı görmeli
+/// ([nearbyJobsProvider] ile aynı gerekçe); mesaj kapısı ilan detayında.
+///
+/// Ustalık profili yoksa (müşteri, misafir) her zaman `false` döner —
+/// vurgusuz düz liste.
+final jobMatchesMeProvider = Provider<bool Function(Job)>((ref) {
+  final draft = ref.watch(myProfileControllerProvider).valueOrNull;
+  final profile = draft?.profile;
+  if (profile == null ||
+      profile.professionCodes.isEmpty ||
+      profile.serviceAreas.isEmpty) {
+    return (_) => false;
+  }
+  final codes = profile.professionCodes;
+  final areas = profile.serviceAreas;
+  return (job) => job.matchesArtisan(
+        professionCodes: codes,
+        serviceAreas: areas,
+      );
+});
+
+/// Ustaya uyan ilanları listenin BAŞINA alır; grup içindeki sıra korunur.
+///
+/// Ana sayfa şeridi ile Keşfet listesi AYNI sırayı göstermeli — kullanıcı iki
+/// yerde farklı dizilim görürse listeye güvenmez. Bu yüzden sıralama tek
+/// yerde durur.
+///
+/// `List.sort` KARARLI DEĞİLDİR: eşit karşılaştırmada öğeleri yer
+/// değiştirebilir ve kartlar her yeniden çizimde zıplardı. Bağ, kaynak
+/// indeksiyle çözülerek sıralama kararlı hâle getirilir.
+///
+/// Hiç eşleşme yoksa (müşteri, misafir, profilsiz usta) liste OLDUĞU GİBİ
+/// döner — boşuna kopya üretilmez.
+List<Job> sortJobMatchesFirst(List<Job> jobs, bool Function(Job) matchesMe) {
+  final indexed = [
+    for (var i = 0; i < jobs.length; i++) (i, jobs[i], matchesMe(jobs[i])),
+  ];
+  if (!indexed.any((e) => e.$3)) return jobs;
+  indexed.sort((a, b) {
+    if (a.$3 != b.$3) return a.$3 ? -1 : 1;
+    return a.$1.compareTo(b.$1);
+  });
+  return [for (final e in indexed) e.$2];
+}
 
 /// Ustanın şu an müsait olup olmadığı (feed/ekran mesajları için kısayol).
 /// `users.available` ile vitrin müsaitliğini birlikte okur.

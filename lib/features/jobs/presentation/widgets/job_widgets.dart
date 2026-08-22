@@ -85,10 +85,23 @@ class NearbyJobCard extends StatelessWidget {
     required this.job,
     this.ctaText = 'İletişime Geç',
     this.isNearby = false,
+    this.matchesMe = false,
   });
 
   final Job job;
   final String ctaText;
+
+  /// İlan ustanın MESLEĞİNE ve BÖLGESİNE uyuyor mu? (2026-08-23)
+  ///
+  /// Keşfet listesi artık tüm ilanları gösteriyor (otomatik il filtresi
+  /// kalktı). Ustanın kendi işini kalabalıkta bulabilmesi için uyan ilanlar
+  /// yeşil çerçeve + "Sana uygun" rozetiyle ayrışır ve listenin başına
+  /// alınır. Ölçüt `Job.matchesArtisan` — push bildirimi ile aynı kural
+  /// ([jobMatchesMeProvider]).
+  ///
+  /// KAPI DEĞİL: uyumsuz ilan da açılır ve mesaj atılabilir; bu yalnız
+  /// görsel bir işarettir.
+  final bool matchesMe;
 
   /// İlan ustanın KENDİ ilçesinde mi? Hemen Lazım ilanları il geneline
   /// gittiğinden, aynı ilçedekiler "Yakınında" rozetiyle ayrışır. Yalnız
@@ -106,6 +119,10 @@ class NearbyJobCard extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
       borderRadius: 16,
       glass: false, // iş ilanı listeleri: düz kart, gradyan yok
+      // Uyan ilan yeşil çerçeveyle ayrışır. Renk `palette.success` — tema
+      // kaynaklı, karanlık modda da okunur; sabit yeşil kullanılmaz.
+      accentBorder: matchesMe ? palette.success : null,
+      accentWidth: matchesMe ? 2 : 1.2,
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -169,7 +186,10 @@ class NearbyJobCard extends StatelessWidget {
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis),
                     ),
-                    if (isNearby) ...[
+                    // TEK rozet: ikisi birden takılırsa başlık için yer
+                    // kalmaz. "Yakınında" DAHA ÖZELDİR (aynı ilçe) ve
+                    // "Sana uygun"u zaten ima eder, o yüzden önceliklidir.
+                    if (isNearby || matchesMe) ...[
                       const SizedBox(width: 6),
                       Container(
                         padding: const EdgeInsets.symmetric(
@@ -179,7 +199,7 @@ class NearbyJobCard extends StatelessWidget {
                           borderRadius: BorderRadius.circular(6),
                         ),
                         child: Text(
-                          'Yakınında',
+                          isNearby ? 'Yakınında' : 'Sana uygun',
                           style: theme.textTheme.labelSmall?.copyWith(
                             color: palette.success,
                             fontWeight: FontWeight.w800,

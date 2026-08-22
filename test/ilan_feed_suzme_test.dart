@@ -136,7 +136,14 @@ void main() {
 
   _myJobsTestleri();
 
-  group('Keşfet paneli: varsayılan il', () {
+  // 2026-08-23: "Keşfet paneli: varsayılan il" grubu KALDIRILDI.
+  //
+  // 2026-08-20'de ustanın ili filtreye varsayılan olarak tohumlanıyordu.
+  // İkinci tur kapalı testte ters etki verdi: usta piyasayı göremiyor,
+  // filtrenin kendiliğinden dolduğunu fark etmiyor ve "ilan yok" sanıyordu.
+  // Karar geri alındı — liste tüm ilanları gösterir, uyanlar VURGULANIR.
+  // Yeni davranışın testi: `test/ilan_uygunluk_vurgusu_test.dart`.
+  group('Keşfet paneli: otomatik il filtresi YOK', () {
     late String panel;
     setUpAll(() {
       panel = File(
@@ -144,18 +151,18 @@ void main() {
       ).readAsStringSync();
     });
 
-    test('ustanın ili filtreye varsayılan olarak yerleşiyor', () {
-      expect(panel.contains('myFeedProvinceProvider'), isTrue,
-          reason: 'Varsayılan il tohumlaması kaldırılmış — usta yine tüm '
-              'bütün illerin ilanlarını görür (2026-08-20 bulgusu).');
-      expect(panel.contains('_seedProvince()'), isTrue);
+    test('filtre kendiliğinden DOLMUYOR', () {
+      expect(panel.contains('_seedProvince'), isFalse,
+          reason: 'Otomatik il tohumlaması geri gelmiş — usta yine '
+              'piyasanın tamamını göremez (2026-08-23 kararı).');
+      expect(panel.contains('_provinceSeeded'), isFalse);
     });
 
-    test('tohumlama TEK SEFERLİK (kullanıcı seçimini ezmiyor)', () {
-      // Bayrak olmasaydı, kullanıcı filtreyi temizlediği anda build kendi
-      // ilini geri yazar ve "hepsini gör" hiç çalışmazdı.
-      expect(panel.contains('_provinceSeeded'), isTrue,
-          reason: 'Tek seferlik bayrak yok — filtre temizlenemez hale gelir.');
+    test('eleme yerine SIRALAMA + vurgu var', () {
+      expect(panel.contains('sortJobMatchesFirst'), isTrue,
+          reason: 'Uygun ilanlar başa alınmıyor.');
+      expect(panel.contains('matchesMe: matchesMe(job)'), isTrue,
+          reason: 'Karta uygunluk vurgusu geçirilmiyor.');
     });
   });
 

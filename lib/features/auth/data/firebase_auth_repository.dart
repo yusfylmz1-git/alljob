@@ -136,6 +136,19 @@ class FirebaseAuthRepository implements AuthRepository {
             } else {
               user = await _loadOrCreate(fbUser);
             }
+            // KAYITLI NUMARA (2026-08-23): `savedPhone` ayrı dökümanda
+            // (`private/contact`) yaşar, bu snapshot onu TAŞIMAZ. Her
+            // `users` değişiminde ikinci bir okuma yapmak pahalı olurdu —
+            // bunun yerine önbellekteki değer taşınır; ilk yükleme
+            // (`_loadOrCreate` → `_withSavedPhone`) zaten okumuştu.
+            //
+            // Taşınmazsa: kullanıcı numarasını gizler, sonra ilgisiz bir
+            // alanı (ad, müsaitlik) değiştirir ve numarası ekrandan yeniden
+            // kaybolurdu — düzeltilen hatanın ta kendisi.
+            final saved = user.savedPhone ?? _cached?.savedPhone;
+            if (saved != null && user.savedPhone == null) {
+              user = user.copyWith(savedPhone: saved);
+            }
             // Optimistic mod: sunucu henüz eski moda dönüyorsa UI'yi ezme.
             final pendingMode = _pendingActiveMode;
             if (pendingMode != null) {
@@ -245,11 +258,13 @@ class FirebaseAuthRepository implements AuthRepository {
         // email / emailVerified Auth'tan (H2: public users'a email yazılmaz).
         // Legacy public email/fcmTokens varsa silmeye çalış (rules silmeye izin).
         unawaited(_stripPublicPii(fbUser.uid, snap.data()!));
-        return AppUser.fromMap(fbUser.uid, snap.data()!).copyWith(
-          email: fbUser.email ?? '',
-          emailVerified: fbUser.emailVerified,
-          isAdmin: isAdmin,
-          adminRole: role,
+        return _withSavedPhone(
+          AppUser.fromMap(fbUser.uid, snap.data()!).copyWith(
+            email: fbUser.email ?? '',
+            emailVerified: fbUser.emailVerified,
+            isAdmin: isAdmin,
+            adminRole: role,
+          ),
         );
       }
       final fresh = AppUser(
@@ -269,6 +284,31 @@ class FirebaseAuthRepository implements AuthRepository {
     } catch (_) {
       // Firestore yazma/okuma reddi veya ağ — Auth profili ile devam.
       return _minimalFromAuth(fbUser);
+    }
+  }
+
+  /// Kalıcı numarayı (`users/{uid}/private/contact.savedPhone`) okuyup
+  /// kullanıcıya iliştirir (2026-08-23).
+  ///
+  /// MALİYET: yalnız YAYIN KAPALIYKEN okur. `publicPhone` doluysa numara
+  /// zaten elimizdedir ve `contactPhone` ona düşer — her açılışta fazladan
+  /// bir doküman okuması yapılmaz.
+  ///
+  /// Hata/zaman aşımı yutulur: numara okunamazsa kullanıcı yine girebilir,
+  /// oturum açılışını DÜŞÜRMEZ.
+  Future<AppUser> _withSavedPhone(AppUser user) async {
+    if ((user.publicPhone?.trim().isNotEmpty ?? false)) return user;
+    try {
+      final snap = await _userDoc(user.uid)
+          .collection('private')
+          .doc('contact')
+          .get()
+          .timeout(_networkTimeout);
+      final saved = (snap.data()?['savedPhone'] as String?)?.trim();
+      if (saved == null || saved.isEmpty) return user;
+      return user.copyWith(savedPhone: saved);
+    } catch (_) {
+      return user;
     }
   }
 
@@ -620,6 +660,25 @@ class FirebaseAuthRepository implements AuthRepository {
 
     await _userDoc(fbUser.uid).set(data, SetOptions(merge: true));
 
+    // KALICI NUMARA (2026-08-23) — görünürlükten bağımsız kayıt.
+    //
+    // `users.publicPhone` YAYIN alanıdır; "profilde göster" kapatılınca
+    // temizlenir. Numaranın kendisi burada durur ve anahtar geri açıldığında
+    // kullanıcıya yeniden yazdırılmaz. Yer `private/contact`: herkese açık
+    // dökümanda tutulamaz, kapalıyken numara kimseye görünmemeli (kural 5).
+    if (telefonDegisti) {
+      try {
+        await _userDoc(fbUser.uid)
+            .collection('private')
+            .doc('contact')
+            .set({'savedPhone': yeniTelefon}, SetOptions(merge: true));
+      } catch (_) {
+        // Kalıcı kayıt YARDIMCIDIR: `users.publicPhone` zaten yazıldı ve
+        // `contactPhone` ona düşer. Hata ana akışı düşürmez — kullanıcı
+        // numarasını kaydetmiş sayılır.
+      }
+    }
+
     // Usta vitrininde denormalize kopya (liste ekstra okuma yapmasın).
     //
     // DİKKAT: yalnız ad/foto aynalanır. `publicPhone`/`socialLinks`/
@@ -659,6 +718,10 @@ class FirebaseAuthRepository implements AuthRepository {
         profilePhotoUrl: profilePhotoUrl ?? cached.profilePhotoUrl,
         publicPhone: yeniTelefon,
         clearPublicPhone: telefonDegisti && yeniTelefon == null,
+        // Kayıtlı numara da tazelenir: kullanıcı numarasını DEĞİŞTİRDİĞİNDE
+        // (ya da sildiğinde) kalıcı kayıt yeni değeri taşımalı.
+        savedPhone: yeniTelefon,
+        clearSavedPhone: telefonDegisti && yeniTelefon == null,
         socialLinks: socialLinks ?? cached.socialLinks,
         aboutText: aboutText?.trim() ?? cached.aboutText,
         hasShopProfile: hasShopProfile ?? cached.hasShopProfile,
@@ -669,6 +732,57 @@ class FirebaseAuthRepository implements AuthRepository {
       _cached = updated;
       // UI anında yenilensin (snapshot gecikse bile); aksi halde profil
       // foto/ad kaydı uygulama yeniden açılana kadar eski kalıyordu.
+      _manualUpdates.add(updated);
+    }
+  }
+
+  @override
+  Future<void> setPublicPhoneVisibility({
+    required bool show,
+    String? publicPhone,
+  }) async {
+    final fbUser = _auth.currentUser;
+    if (fbUser == null) return;
+    // Yayınlanacak numara: verilmediyse kayıtlı numaradan (önbellek →
+    // `private/contact`) çözülür. Kullanıcı numarasını girmişse anahtarı
+    // açmak için tekrar yazması gerekmez.
+    var yayin = show ? (publicPhone?.trim() ?? _cached?.contactPhone) : null;
+    if (show && (yayin == null || yayin.isEmpty)) {
+      final okundu = await _withSavedPhone(
+        _cached ?? _minimalFromAuth(fbUser),
+      );
+      yayin = okundu.contactPhone;
+    }
+    if (yayin != null && yayin.isEmpty) yayin = null;
+
+    // Yayın alanı: yalnız AÇIKKEN dolu. null = alanı temizle (kural
+    // publicPhone için string|null kabul eder).
+    await _userDoc(fbUser.uid).set(
+      {'publicPhone': show ? yayin : null},
+      SetOptions(merge: true),
+    );
+
+    // Kalıcı kayda YALNIZ açarken yazılır; KAPATIRKEN DOKUNULMAZ.
+    // Numara ancak kullanıcı "İletişim Numarası" formundan silerse gider.
+    if (show && yayin != null) {
+      try {
+        await _userDoc(fbUser.uid)
+            .collection('private')
+            .doc('contact')
+            .set({'savedPhone': yayin}, SetOptions(merge: true));
+      } catch (_) {
+        /* yardımcı kayıt; yayın zaten yazıldı */
+      }
+    }
+
+    final cached = _cached;
+    if (cached != null) {
+      final updated = cached.copyWith(
+        publicPhone: show ? yayin : null,
+        clearPublicPhone: !show || yayin == null,
+        savedPhone: yayin ?? cached.savedPhone,
+      );
+      _cached = updated;
       _manualUpdates.add(updated);
     }
   }

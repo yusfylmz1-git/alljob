@@ -159,6 +159,31 @@ class FirebaseMyProfileRepository implements MyProfileRepository {
       'publicPhone': showOnProfile ? publicPhone : null,
     }, SetOptions(merge: true));
 
+    // KALICI KAYIT (2026-08-23) — `private/contact.savedPhone`'a DOKUNULMAZ.
+    //
+    // Bu metot YALNIZ YAYINI değiştirir. Numaranın kendisi
+    // `users/{uid}/private/contact.savedPhone` altında durur ve ancak
+    // kullanıcı "İletişim Numarası" formundan silerse gider
+    // (`updateUserProfile`). Eskiden bu ayrım yoktu: anahtarı kapatmak
+    // numarayı SİLİYOR, kullanıcı geri açmak isteyince numara olmadığı için
+    // anahtar satırı ekrandan tamamen kayboluyordu (testçi bulgusu:
+    // "telefonu göster kapatınca telefon gidiyor").
+    //
+    // AÇARKEN yayınlanan numarayı kalıcı kayda da yaz: kullanıcı numarasını
+    // yalnız `artisanProfiles` tarafında değiştirmiş olabilir.
+    if (showOnProfile && publicPhone != null && publicPhone.trim().isNotEmpty) {
+      try {
+        await _db
+            .collection('users')
+            .doc(uid)
+            .collection('private')
+            .doc('contact')
+            .set({'savedPhone': publicPhone.trim()}, SetOptions(merge: true));
+      } catch (_) {
+        // Yardımcı kayıt: yayın zaten yazıldı, `contactPhone` ona düşer.
+      }
+    }
+
     // Usta vitrini için profil dokümanı (varsa) da güncellenir.
     final snap = await _profileDoc(uid).get();
     if (!snap.exists) return;

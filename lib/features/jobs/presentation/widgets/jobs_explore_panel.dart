@@ -26,24 +26,16 @@ class _JobsExplorePanelState extends ConsumerState<JobsExplorePanel> {
   Timer? _debounce;
   JobExploreFilter _filter = const JobExploreFilter();
 
-  /// Varsayılan il YALNIZ BİR KEZ uygulanır. Bayrak olmasaydı, kullanıcı
-  /// filtreyi temizlediği anda build yeniden kendi ilini yazar ve "hepsini
-  /// gör" hiç çalışmazdı.
-  bool _provinceSeeded = false;
-
-  /// Ustanın ili filtreye VARSAYILAN olarak yerleşir (2026-08-20 bulgusu:
-  /// Kocaeli'sini tanımlamamış testçiye başka ilin ilanı düşüyordu).
-  ///
-  /// Profil geç yüklenir; bu yüzden `initState` yerine build içinden çağrılır
-  /// ve il gelene kadar her build'de yeniden denenir.
-  void _seedProvince() {
-    if (_provinceSeeded) return;
-    final province = ref.read(myFeedProvinceProvider);
-    if (province == null) return; // profil henüz gelmedi ya da bölge yok
-    _provinceSeeded = true;
-    // setState YOK: zaten build içindeyiz, bu ilk çizimin girdisidir.
-    _filter = _filter.copyWith(province: province);
-  }
+  // OTOMATİK İL FİLTRESİ KALDIRILDI (2026-08-23, kullanıcı kararı).
+  //
+  // 2026-08-20'de ustanın ili filtreye VARSAYILAN olarak yerleştiriliyordu.
+  // Kapalı testte ters etki verdi: usta piyasada ne olduğunu göremiyor,
+  // filtrenin kendiliğinden dolduğunu fark etmiyor ve "ilan yok" sanıyordu.
+  //
+  // Yeni yaklaşım — ELEME DEĞİL, VURGU: liste tüm ilanları gösterir; ustanın
+  // kategorisine + bölgesine uyan ilanlar YEŞİL ÇERÇEVE ile işaretlenir ve
+  // listenin BAŞINA alınır ([jobMatchesMeProvider]). Kullanıcı isterse il
+  // filtresini kendi eliyle seçer.
 
   @override
   void dispose() {
@@ -77,16 +69,18 @@ class _JobsExplorePanelState extends ConsumerState<JobsExplorePanel> {
         await ref.read(openJobsProvider.future);
       });
 
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final palette = context.palette;
-    // Ustanın ili filtreye varsayılan olarak yerleşir (bir kez).
-    _seedProvince();
     // Yükleniyor/hata DURUMU ham akıştan, LİSTE süzülmüş feed'den gelir
-    // (ürün talepleri ve kendi ilanların düşer; il ayrıca filtrededir).
+    // (ürün talepleri ve kendi ilanların düşer). İl ELEMESİ YOK — filtre
+    // kullanıcının elindedir.
     final jobsAsync = ref.watch(openJobsProvider);
     final feed = ref.watch(visibleJobFeedProvider);
+    // "Bana uygun mu" ölçütü — vurgu ve sıralama bundan beslenir.
+    final matchesMe = ref.watch(jobMatchesMeProvider);
     final filterCount = _filter.activeDetailCount;
 
     return Column(
@@ -118,7 +112,15 @@ class _JobsExplorePanelState extends ConsumerState<JobsExplorePanel> {
             ),
             data: (_) {
               final allJobs = feed;
-              final jobs = _filter.apply(allJobs);
+              // UYGUN İLANLAR ÖNCE (2026-08-23): eleme yerine sıralama.
+              // `matchesMe` ustalık profili olmayanda hep false döner, o
+              // zaman sıralama kimliktir (liste zaten en yeni üstte).
+              //
+              // Sıralama KARARLIDIR: eşit gruptaki ilanlar kaynak sırasını
+              // (en yeni üstte) korur — `List.sort` kararlı olmadığı için
+              // indeksle bağ çözülür, yoksa her yeniden çizimde kartlar
+              // yer değiştirebilirdi.
+              final jobs = sortJobMatchesFirst(_filter.apply(allJobs), matchesMe);
 
               if (allJobs.isEmpty) {
                 return RefreshableEmpty(
@@ -194,9 +196,11 @@ class _JobsExplorePanelState extends ConsumerState<JobsExplorePanel> {
                           ],
                         );
                       }
+                      final job = jobs[i - 1];
                       return NearbyJobCard(
-                        job: jobs[i - 1],
+                        job: job,
                         ctaText: 'Detayı Gör',
+                        matchesMe: matchesMe(job),
                       );
                     },
                   ),

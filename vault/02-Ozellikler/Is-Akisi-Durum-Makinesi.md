@@ -50,7 +50,7 @@ demek yetmez, her tüketici süzmelidir.
 |---|---|---|---|---|---|
 | Push bildirimi | `onJobCreated` (CF) | ✅ | ✅ | ✅ | ✅ |
 | "Yakındaki İşler" | `nearbyJobsProvider` → `matchesArtisan` | ✅ | ✅ | ✅ | ✅ |
-| Ana sayfa + Keşfet | `visibleJobFeedProvider` | filtre | filtre | ✅ | ✅ |
+| Ana sayfa + Keşfet | `visibleJobFeedProvider` | — (vurgu) | — (vurgu) | ✅ | ✅ |
 | İlanlarım / Taleplerim | `MyJobsScreen._visible` | — | — | (yalnız kendi) | ayrık |
 
 > [!warning] `openJobsProvider` HAM akıştır — ekrana bağlama
@@ -64,15 +64,35 @@ demek yetmez, her tüketici süzmelidir.
 > tanımlamadan başka ilin ilanını gördü, kendi ürün talebi iş ilanları
 > arasında listelendi. Regresyon: `test/ilan_feed_suzme_test.dart`.
 
-**İl neden feed'de değil, filtrede?** Kullanıcının değiştirebilmesi gerekiyor
-(komşu ilde çalışan usta mağdur olmasın). İl, Keşfet panelinde filtrenin
-**varsayılan** değeri olarak tohumlanır (`myFeedProvinceProvider`, tek
-seferlik `_provinceSeeded` bayrağıyla); kullanıcı başka il seçebilir veya
-temizleyip hepsini görebilir.
+### Listede ELEME yok, VURGU var (2026-08-23)
 
-**Meslek neden yalnız bildirimde?** Telefonu boş yere titretmemek için push
-dardır; liste geniştir — usta kendi ilindeki piyasayı mesleği tutmasa da
-görebilmeli. Daraltmak isteyen Keşfet'teki kategori filtresini kullanır.
+Ana sayfa şeridi ve Keşfet > İlanlar **tüm ilanları** gösterir. Ustanın
+mesleğine + bölgesine uyanlar ayrışır:
+
+| Parça | Nerede |
+|---|---|
+| Ölçüt | `jobMatchesMeProvider` → `Job.matchesArtisan` (push ile **AYNI**) |
+| Sıralama | `sortJobMatchesFirst` — uyanlar başa, grup içi sıra korunur |
+| Görsel | `NearbyJobCard(matchesMe:)` → yeşil çerçeve + "Sana uygun" rozeti |
+
+> [!warning] Otomatik il filtresi GERİ ALINDI
+> 2026-08-20'de ustanın ili Keşfet filtresine **varsayılan** olarak
+> tohumlanıyordu (`myFeedProvinceProvider` + `_provinceSeeded`). Bir sonraki
+> turda kaldırıldı: usta piyasayı göremiyor, filtrenin kendiliğinden
+> dolduğunu **fark etmiyor** ve "ilan yok" sanıyordu. Provider da silindi.
+>
+> Kullanıcının koymadığı daraltma, kullanıcının anlamadığı boşluk üretir.
+> Regresyon: `test/ilan_uygunluk_vurgusu_test.dart`.
+
+Rozet çakışması: kart tek rozet taşır. `isNearby` (aynı **ilçe**) daha
+özeldir ve "Sana uygun"u zaten ima eder → önceliklidir.
+
+`sortJobMatchesFirst` bağı kaynak indeksiyle çözer: `List.sort` kararlı
+değildir, eşit grupta kartlar her çizimde yer değiştirir ve liste zıplar.
+
+**Meslek neden yalnız bildirimde eler?** Telefonu boş yere titretmemek için
+push dardır; liste geniştir — usta piyasayı mesleği tutmasa da görebilmeli.
+Daraltmak isteyen Keşfet'teki kategori/il filtresini **kendi eliyle** kullanır.
 
 **Talepler nerede görünür?** İki yer:
 
