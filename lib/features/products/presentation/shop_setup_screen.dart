@@ -59,7 +59,8 @@ class _ShopSetupScreenState extends ConsumerState<ShopSetupScreen> {
           ..addAll(user.shopCategories);
         _areas
           ..clear()
-          ..addAll(user.shopServiceAreas);
+          // Eski çok illi kayıt tek ile iner (bkz. `TekIlKurali`).
+          ..addAll(user.shopServiceAreas.onlySingleProvince);
         _prefilled = true;
       });
       return;
@@ -70,12 +71,13 @@ class _ShopSetupScreenState extends ConsumerState<ShopSetupScreen> {
     setState(() {
       _areas
         ..clear()
-        ..addAll(areas);
+        // Usta profilinden aktarım da tek ile indirilir.
+        ..addAll(areas.onlySingleProvince);
       _prefilled = true;
     });
   }
 
-  void _addArea() {
+  Future<void> _addArea() async {
     final p = _addProvince;
     final d = _addDistrict;
     if (p == null || d == null) {
@@ -87,6 +89,43 @@ class _ShopSetupScreenState extends ConsumerState<ShopSetupScreen> {
       context.showInfo('Bu bölge zaten ekli.');
       return;
     }
+
+    // TEK İL KURALI (2026-08-23) — usta profiliyle aynı davranış.
+    // Başka ilin ilçesi "ekleme" değil İL DEĞİŞTİRME'dir; mevcut ilçeler
+    // düşeceği için sessizce yapılmaz, önce sorulur.
+    final mevcutIl = _areas.singleProvince;
+    if (mevcutIl != null && area.province.trim() != mevcutIl) {
+      final onay = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Hizmet ilini değiştir'),
+          content: Text(
+            'Mağazanız tek ilde hizmet verebilir.\n\n'
+            '$mevcutIl ilindeki ${_areas.length} ilçe kaldırılacak ve '
+            'yerine ${area.province} / ${area.district} eklenecek.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(false),
+              child: const Text('Vazgeç'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(true),
+              child: const Text('İli değiştir'),
+            ),
+          ],
+        ),
+      );
+      if (onay != true || !mounted) return;
+      setState(() {
+        _areas
+          ..clear()
+          ..add(area);
+        _addDistrict = null;
+      });
+      return;
+    }
+
     setState(() {
       _areas.add(area);
       _addDistrict = null;
@@ -118,7 +157,9 @@ class _ShopSetupScreenState extends ConsumerState<ShopSetupScreen> {
       await ref.read(authRepositoryProvider).updateUserProfile(
             hasShopProfile: true,
             shopCategories: _selected.toList(),
-            shopServiceAreas: List.of(_areas),
+            // Tek il kuralı: eski çok illi kayıt bu kaydetmede ilk iline
+            // iner (toplu göç yapılmadı — bkz. `TekIlKurali`).
+            shopServiceAreas: List.of(_areas.onlySingleProvince),
             available: edit ? null : true,
           );
       if (!mounted) return;
@@ -257,9 +298,12 @@ class _ShopSetupScreenState extends ConsumerState<ShopSetupScreen> {
             ),
             const SizedBox(height: 6),
             Text(
-              'Hangi il/ilçelerde satış yapıyorsunuz? Müşteriler '
-              'mağazanızın yerini burada görür. Usta profilinizde bölge '
-              'seçtiyseniz ilk açılışta otomatik aktarılır.',
+              // TEK İL KURALI (2026-08-23) — sınır önceden söylenir,
+              // kullanıcı ikinci ili deneyip uyarıya çarpmasın.
+              'Hangi ilçelerde satış yapıyorsunuz? Mağazanız tek ilde '
+              'hizmet verir; o ilin istediğiniz kadar ilçesini ekleyin. '
+              'Usta profilinizde bölge seçtiyseniz ilk açılışta otomatik '
+              'aktarılır.',
               style: theme.textTheme.bodyMedium?.copyWith(
                 color: palette.inkMuted,
                 height: 1.35,

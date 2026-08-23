@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 
 import '../../../core/router/route_paths.dart';
 import '../../../core/theme/app_palette.dart';
+import '../../../core/utils/content_filter.dart';
 import '../../../core/utils/search_fold.dart';
 import '../../../core/utils/snackbar_helper.dart';
 import '../../../core/widgets/app_image.dart';
@@ -524,13 +525,18 @@ class _ThreadTile extends StatelessWidget {
     final name = thread.otherName(myUid);
     final photo = thread.otherPhoto(myUid);
     final hasUnread = unread > 0;
-    final preview = thread.lastMessage?.trim().isNotEmpty == true
-        ? thread.lastMessage!
-        : 'Sohbete başlayın';
-
     // Son mesajı biz mi yazdık? (tik yalnız kendi mesajımızda görünür)
     final isMine = thread.lastMessageSenderUid != null &&
         thread.lastMessageSenderUid == myUid;
+
+    // Önizleme de maskelenir (2026-08-23): sohbeti hiç açmadan listede
+    // küfür okumak, balonu maskelemenin anlamını bitirirdi. Kendi
+    // mesajımız maskelenmez — sohbet ekranıyla aynı kural.
+    final preview = thread.lastMessage?.trim().isNotEmpty == true
+        ? (isMine
+            ? thread.lastMessage!
+            : ContentFilter.mask(thread.lastMessage))
+        : 'Sohbete başlayın';
     // Karşı taraf son mesajdan SONRA okuduysa çift tik.
     final isReadByOther =
         otherLastRead != null && !otherLastRead!.isBefore(thread.updatedAt);

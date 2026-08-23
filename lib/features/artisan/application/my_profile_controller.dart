@@ -233,16 +233,40 @@ class MyProfileController extends AsyncNotifier<MyProfileDraft> {
           ));
 
   /// Hizmet bölgesi ekler (aynısı varsa eklemez).
+  /// Hizmet bölgesi ekler. Zaten varsa ya da BAŞKA bir ile aitse false.
+  ///
+  /// TEK İL KURALI (2026-08-23): usta yalnız bir ilde çalışır, o ilin
+  /// istediği kadar ilçesinde. Başka il eklemek için önce
+  /// [changeProvince] ile il değiştirilir — bu, mevcut ilçeleri temizler
+  /// ve kullanıcıya bunu açıkça sorar (bkz. profil düzenleme ekranı).
+  ///
+  /// Sessizce ilçe düşürmek yerine `false` dönüp çağıranın uyarı
+  /// göstermesini istiyoruz: kullanıcı neden eklenmediğini anlamalı.
   bool addServiceArea(ServiceArea area) {
     final current = state.valueOrNull;
     if (current == null) return false;
-    if (current.profile.serviceAreas.contains(area)) return false;
+    final mevcut = current.profile.serviceAreas;
+    if (mevcut.contains(area)) return false;
+    final il = mevcut.singleProvince;
+    if (il != null && area.province.trim() != il) return false;
     _update((d) => d.copyWith(
           profile: d.profile.copyWith(
             serviceAreas: [...d.profile.serviceAreas, area],
           ),
         ));
     return true;
+  }
+
+  /// Hizmet İLİNİ değiştirir: eski ilin TÜM ilçeleri düşer, yerine yeni
+  /// ilin verilen ilçesi gelir.
+  ///
+  /// Ayrı metot olmasının sebebi, işlemin yıkıcı olması — çağıran taraf
+  /// önce kullanıcıya onaylatır. [addServiceArea] bunu asla kendiliğinden
+  /// yapmaz.
+  void changeProvince(ServiceArea yeni) {
+    _update((d) => d.copyWith(
+          profile: d.profile.copyWith(serviceAreas: [yeni]),
+        ));
   }
 
   void removeServiceArea(ServiceArea area) {
@@ -430,6 +454,13 @@ class MyProfileController extends AsyncNotifier<MyProfileDraft> {
       experienceYears:
           Validators.clampExperienceYears(current.profile.experienceYears),
       aboutText: Validators.sanitizeFreeText(current.profile.aboutText),
+      // TEK İL KURALI (2026-08-23) — kayıt anında normalleştirme.
+      //
+      // Kural geldiğinde ÇOK İLLİ eski kayıtlar veritabanında duruyordu.
+      // Toplu göç yapılmadı (kimsenin verisi habersiz silinmesin); bunun
+      // yerine kullanıcı profilini bir dahaki kaydedişinde ilk iline iner.
+      // Tek illi profillerde bu satır hiçbir şey değiştirmez.
+      serviceAreas: current.profile.serviceAreas.onlySingleProvince,
     );
     final sanitized = current.copyWith(displayName: name, profile: profile);
 

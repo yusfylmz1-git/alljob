@@ -141,3 +141,29 @@ zaten daralmıştır, başlık gürültü olur.
 
 ---
 İlgili: [[Firestore-Semasi]] · [[Is-Akisi-Durum-Makinesi]] · [[Repository-Deseni]]
+
+## `ServiceArea` — tek il kuralı (2026-08-23)
+
+Usta ve mağaza **yalnız bir ilde** hizmet verir; o ilin istediği kadar
+ilçesinde. Kural `TekIlKurali` uzantısında (`geo_models.dart`):
+
+| Üye | Ne yapar |
+|---|---|
+| `singleProvince` | Listenin ili; çok illi eski kayıtta İLK il |
+| `onlySingleProvince` | Fazlalık illeri düşürür; tek illi listede kimlik |
+| `hasMultipleProvinces` | Eski kayıt tespiti |
+
+Eski çok illi kayıtlar için **toplu göç yapılmadı** — kullanıcı profilini
+kaydettiğinde tek ile iner. → [[Bilinen-Tuzaklar]]
+
+## `Job` — eşleşmenin iki yarısı (2026-08-23)
+
+`matchesArtisan` artık iki yarıdan **türetilir**:
+
+* `matchesArtisanProfession(codes)` — kategori ustanın mesleklerinden biri mi?
+* `matchesArtisanArea(areas)` — ilanın ili ustanın bölgelerinde mi?
+
+Yarılar ayrı durur ki mesaj kapısı **sebebi ayırt edebilsin**: "mesleğin
+tutmuyor" ile "bölgen tutmuyor" kullanıcı için farklı iki sorundur.
+Mantık kopyalanırsa feed vurgusu, push bildirimi ve mesaj kapısı ayrışır.
+

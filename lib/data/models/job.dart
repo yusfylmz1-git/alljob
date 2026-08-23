@@ -379,28 +379,53 @@ class Job {
     List<String>? professionCodes,
     required List<ServiceArea> serviceAreas,
   }) {
-    final codes = (professionCodes ??
-            (professionCode != null && professionCode.isNotEmpty
-                ? [professionCode]
-                : const <String>[]))
-        .map((c) => c.trim())
-        .where((c) => c.isNotEmpty)
-        .toList();
+    final codes = professionCodes ??
+        (professionCode != null && professionCode.isNotEmpty
+            ? [professionCode]
+            : const <String>[]);
     // ÜRÜN TALEBİ ustaya DÜŞMEZ — alıcı kitlesi satıcılar (Mağaza modülü).
     // Aşağıdaki meslek eşleşmesi zaten tutmazdı ('product_request' bir
     // meslek kodu değil), ama bu sessiz bir kazaydı: biri kategoriyi
     // meslek listesine eklerse talepler usta feed'ine sızardı. Açık kapı.
     if (category == kProductRequestCategory) return false;
-    // İL düzeyi: ustanın hizmet bölgelerinden herhangi biri ilanın ilinde.
-    final areaMatch = serviceAreas.any((a) => a.province == province);
+    // İKİ YARIDAN TÜRETİLİR (2026-08-23): mesaj kapısı sebebi ayırt
+    // edebilmek için yarıları ayrı ayrı da çağırıyor. Mantık burada
+    // kopyalanırsa üç yer birbirinden ayrışır — usta feed'de yeşil çerçeve
+    // görüp mesaj yazamayabilir, ya da tersi.
+    return matchesArtisanProfession(codes) && matchesArtisanArea(serviceAreas);
+  }
+
+  /// İlanın İLİ ustanın hizmet bölgeleriyle örtüşüyor mu? (2026-08-23)
+  ///
+  /// [matchesArtisan]'ın YALNIZ bölge yarısı. Ayrı durmasının sebebi mesaj
+  /// kapısında sebebi ayırt edebilmek: "mesleğin tutmuyor" ile "bölgen
+  /// tutmuyor" kullanıcı için TAMAMEN farklı iki sorundur ve farklı çözüm
+  /// gerektirir (biri meslek eklemek, diğeri il değiştirmek).
+  ///
+  /// Tek satırlık "meslek veya bölge eşleşmiyor" uyarısı kullanıcıyı hangi
+  /// alanı düzelteceğini bilmeden bırakıyordu.
+  bool matchesArtisanArea(List<ServiceArea> serviceAreas) =>
+      serviceAreas.any((a) => a.province == province);
+
+  /// İlanın KATEGORİSİ ustanın mesleklerinden biri mi? (2026-08-23)
+  ///
+  /// [matchesArtisan]'ın yalnız meslek yarısı — bölgeye bakmaz.
+  /// Hemen Lazım ilanlarında kural farklıdır: belirli bir meslek değil,
+  /// "Hemen Lazım sağlayıcısı" olmak yeter ([isQuickSupportProviderCodes]).
+  bool matchesArtisanProfession(List<String> professionCodes) {
+    if (category == kProductRequestCategory) return false;
+    final codes = professionCodes
+        .map((c) => c.trim())
+        .where((c) => c.isNotEmpty)
+        .toList(growable: false);
     if (category == kQuickSupportCategory) {
-      return areaMatch && isQuickSupportProviderCodes(codes);
+      return isQuickSupportProviderCodes(codes);
     }
     final matchable = codes
         .where((c) => c != kOtherProfession && c != kQuickSupportCategory)
         .toList(growable: false);
     if (matchable.isEmpty) return false;
-    return matchable.contains(category) && areaMatch;
+    return matchable.contains(category);
   }
 
   /// Bu ilan Hemen Lazım ilanı mı?

@@ -145,38 +145,47 @@ tutarsızdı. `sendMessage` bu yüzden her zaman `false` döner.
 
 ## Argo / müstehcen denetimi (2026-08-23)
 
-`core/utils/content_filter.dart` — kapalı test bulgusu: *"mesajlarda argo
-kelime filtreleme yapmıyoruz, müstehcen yazıların denetlemesini nasıl
-yaparız?"*
+`core/utils/content_filter.dart` — **engelleme değil, maskeleme**.
 
-**Engelleme değil, kademeli müdahale.** Mesaj hiçbir aşamada silinmez:
+| Katman | Ne yapar |
+|---|---|
+| Gönderirken | Bir kez sorar; ısrar eden kullanıcı gönderir |
+| Alıcının ekranında | Küfürler `***` olur (`ContentFilter.mask`) |
+| Gönderenin ekranında | **Maskelenmez** — kendi yazdığını görmeli ki düzeltebilsin |
+| Sohbet listesi önizlemesi | Maskelenir (sohbeti açmadan küfür okunmasın) |
+| Moderasyon | **Yalnız kullanıcı şikâyetiyle** başlar |
 
-| Eşik | İstemci | Sunucu |
-|---|---|---|
-| `mild` (kaba dil) | "Emin misiniz?" — ısrar edilirse gider | — |
-| `severe` (küfür/taciz) | Sert uyarı + "kayda geçer" bilgisi | `reports` kuyruğuna **otomatik** düşer |
+> [!warning] Otomatik şikâyet KALDIRILDI
+> İlk sürümde ağır içerikli her mesaj `reports` kuyruğuna otomatik
+> düşüyordu. Yanlış bir süreçti: kuyruk kimsenin şikâyet etmediği
+> mesajlarla dolar, **gerçek şikâyetler arasında kaybolur**, ve iki kişinin
+> kendi arasında küfretmesi mağdur yokken ihlal sayılmaz. Özel yazışmayı
+> istenmeden incelemeye almak da kullanıcının beklediği gizliliği aşar.
+>
+> `functions/index.js` içindeki sözlük ve `flagMessageForReview` **silindi**.
+> Sözlük artık tek kaynakta (Dart) — iki liste ayrışma riski de kalktı.
 
-* Ölçüt sözlük eşleştirmedir, anlam çözümleme değil → asıl mekanizma
-  **şikâyet yolu**; filtre onun önündeki ucuz süzgeçtir.
-* `normalizeForFilter` kaçışları açar: `S İ K T İ R`, `s1kt1r`, `siktirrrr`,
-  `a.m.k` → hepsi aynı kelime.
-* Yanlış pozitif kalkanı (`_allowList`) + kelime sınırı kontrolü: "malzeme",
-  "analiz", "sikke koleksiyonu" temiz kalır.
-* "lan"/"bok" gibi dolgu sözcükleri **bilinçli olarak listede değil** — her
-  mesajda uyarı çıkarsa kullanıcı öğrenip geçer, uyarı gerçek hakarette de
-  anlamsızlaşır.
-* Yakalanan **kelime kullanıcıya gösterilmez** (kaçış öğretir).
+**Maskeleme GÖRÜNTÜDEDİR, veri değişmez.** Firestore'daki metin olduğu gibi
+durur; şikâyet gelirse moderatör gerçek metni görüp karar verebilmeli.
+Maskeleme yazma yoluna (`firebase_chat_repository`) girerse bu bozulur —
+test bunu bağlar.
 
-**Sözlük iki yerde yaşar** — `content_filter.dart` (`_severe`, `_allowList`)
-ve `functions/index.js` (`SEVERE_WORDS`, `FILTER_ALLOW`). **Birlikte
-değişirler**; ayrışırsa istemci uyarır ama sunucu kuyruğa düşürmez.
-`test/icerik_filtresi_test.dart` iki listeyi karşılaştırır ve her maddenin
-normalize biçimde yazıldığını doğrular → [[Bilinen-Tuzaklar]].
+**Kaçış normalizasyonu** (`normalizeForFilter`): Türkçe katlama → leetspeak →
+ayraç temizliği → tek harf birleştirme → tekrar daraltma.
+`S İ K T İ R` · `s1kt1r` · `siktirrrr` · `a.m.k` hepsi aynı kelime.
 
-Sunucu kaydı `reports` şemasını aynen kullanır (`reporterUid: "system"`,
-`autoFilter: true`, deterministik `..__autofilter` kimliği) — admin kuyruğu
-değişmeden çalışır. Admin ekranı `system` uid'ini *"Otomatik içerik filtresi"*
-diye gösterir.
+Maskeleme **kayan pencere** ile çalışır: ham metin parçalara bölünür, 1–12
+parçalık her pencere normalize edilip sözlükle karşılaştırılır. En uzun
+eşleşme kazanır (`orospu cocugu` → tek `***`).
+
+> [!note] `!` leetspeak listesinde DEĞİL
+> Ünlem bir ara `i`'ye çevriliyordu: `SIKTIR!!!` → `siktirii` olup sözlükte
+> eşleşmiyordu — vurgu için ünlem koyan kullanıcı filtreden kazara
+> kaçıyordu. Ünlem artık ayraç sayılır.
+
+Yanlış pozitif kalkanı (`_allowList`) + kelime sınırı kontrolü: "malzeme",
+"analiz", "sikke koleksiyonu" temiz kalır. "lan"/"bok" gibi dolgu sözcükleri
+**bilinçli olarak listede değil** → [[Bilinen-Tuzaklar]].
 
 ## Okunmamış sayacı
 

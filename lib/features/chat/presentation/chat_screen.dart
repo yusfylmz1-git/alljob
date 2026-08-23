@@ -214,13 +214,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   ///
   /// `true` → gönder. Temiz metinde HİÇ diyalog açılmaz (sıcak yol).
   ///
-  /// Kaba dilde ([ContentSeverity.mild]) bir kez sorulur. Amaç öfkeyle
-  /// yazılmış mesajı bir saniye geciktirmek; ısrar eden kullanıcı gönderir.
+  /// Amaç öfkeyle yazılmış mesajı bir saniye geciktirmek; ısrar eden
+  /// kullanıcı yine gönderir. Kapı DEĞİLDİR.
   ///
-  /// Ağır içerikte ([ContentSeverity.severe]) da mesaj gönderilebilir, ama
-  /// dil sertleşir ve kullanıcıya sonucun kayda geçtiği SÖYLENİR — caydırıcı
-  /// olan budur. Sunucu tarafı (`onMessageCreated`) kaydı moderasyon
-  /// kuyruğuna düşürür.
+  /// DİLİ DÜRÜST TUTMAK (2026-08-23): eskiden ağır içerikte "mesaj
+  /// incelenmek üzere kaydedilir" yazıyordu. Otomatik şikâyet kaldırılınca
+  /// bu cümle YALAN oldu — kaydedilmiyor. Yerine gerçekten olan şey söyleniyor:
+  /// karşı taraf metni maskeli görecek.
   ///
   /// HANGİ KELİMENİN yakalandığı GÖSTERİLMEZ: söylemek filtreyi atlatmayı
   /// öğretir.
@@ -232,13 +232,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final onay = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text(agir ? 'Bu mesaj incelenebilir' : 'Emin misiniz?'),
+        title: const Text('Emin misiniz?'),
         content: Text(
           agir
-              ? 'Mesajınız topluluk kurallarına aykırı ifadeler içeriyor '
-                  'olabilir. Göndermeyi seçerseniz mesaj incelenmek üzere '
-                  'kaydedilir; tekrarlayan ihlaller hesabınızın askıya '
-                  'alınmasına yol açabilir.'
+              ? 'Mesajınızdaki bazı ifadeler karşı tarafa *** şeklinde '
+                  'gösterilecek. Yine de göndermek istiyor musunuz?'
               : 'Mesajınız kırıcı bir ifade içeriyor olabilir. Yine de '
                   'göndermek istiyor musunuz?',
         ),
@@ -1532,7 +1530,16 @@ class _Bubble extends StatelessWidget {
               Padding(
                 padding: EdgeInsets.only(top: message.hasImage ? 6 : 0),
                 child: Text(
-                  message.text!,
+                  // KÜFÜR MASKELEME (2026-08-23) — yalnız ALICI tarafında.
+                  //
+                  // Gönderen kendi yazdığını olduğu gibi görür: maskelenirse
+                  // ne yazdığını göremez ve mesajını düzeltemez. Karşı taraf
+                  // `***` görür. WhatsApp / Instagram deseni.
+                  //
+                  // Maskeleme GÖRÜNTÜDEDİR, veri değişmez: Firestore'daki
+                  // metin olduğu gibi durur. Şikâyet gelirse moderatör
+                  // gerçek metni görebilmeli, yoksa karar veremez.
+                  isMine ? message.text! : ContentFilter.mask(message.text),
                   style: TextStyle(color: fg, fontSize: 15, height: 1.35),
                 ),
               ),

@@ -117,6 +117,98 @@ class ContentFilter {
     return ContentVerdict.clean;
   }
 
+  /// Küfürleri `***` ile maskeler; metnin geri kalanına DOKUNMAZ.
+  ///
+  /// 2026-08-23 kullanıcı kararı: "küfürler *** şeklinde maskelensin."
+  ///
+  /// ── KİMİN EKRANINDA ──
+  ///
+  /// Yalnız ALICI maskelenmiş görür. Gönderen kendi yazdığını olduğu gibi
+  /// görür — yoksa ne yazdığını göremez ve mesajını düzeltemez. WhatsApp /
+  /// Instagram deseni budur.
+  ///
+  /// ── NASIL ÇALIŞIR ──
+  ///
+  /// Zor kısım: sözlük NORMALİZE metinde eşleşir ("S İ K T İ R" → "siktir")
+  /// ama maskeleme HAM metinde yapılmalı ve ham metindeki karakter sayısı
+  /// normalize edilenle aynı değildir.
+  ///
+  /// Çözüm — KAYAN PENCERE: ham metin "parça" dizisine bölünür (harf/rakam
+  /// dizileri + aralarındaki ayraçlar). Her konumdan başlayarak 1'den 8
+  /// parçaya kadar birleştirilip normalize edilir ve sözlükle karşılaştırılır.
+  /// Böylece hem tek kelime ("siktir"), hem noktalı kaçış ("a.m.k"), hem
+  /// boşluklu kaçış ("s i k t i r") aynı mekanizmayla yakalanır.
+  ///
+  /// En UZUN eşleşme kazanır — "orospu cocugu" tek `***` olur, iki değil.
+  static String mask(String? input) {
+    final ham = input ?? '';
+    if (ham.isEmpty) return ham;
+    // Ucuz ön eleme: temiz mesajda pencere gezdirme.
+    if (inspect(ham).isClean) return ham;
+
+    // Ham metni parçalara ayır; ayraçlar da parça olarak KORUNUR ki
+    // maskelenmeyen bölümler birebir geri yazılabilsin.
+    final parcalar = <String>[];
+    final re = RegExp(r'[\wçğıöşüÇĞİÖŞÜ]+|[^\wçğıöşüÇĞİÖŞÜ]+');
+    for (final m in re.allMatches(ham)) {
+      parcalar.add(m[0]!);
+    }
+
+    // Bir parçanın kaç ham parçayı kapsayabileceği. "s i k t i r" 11 parça
+    // eder (6 harf + 5 boşluk); tavan buna göre seçildi. Daha yükseği masum
+    // cümleleri birleştirip yanlış eşleşme üretme riskini artırır.
+    const pencereTavani = 12;
+
+    final sb = StringBuffer();
+    var i = 0;
+    while (i < parcalar.length) {
+      var eslesmeUzunluk = 0;
+      // Pencere ancak HARF/RAKAM parçasından başlayabilir: ayraçtan
+      // başlarsa öndeki boşluk maskenin içinde yutulur ("ne bu***").
+      if (_harfParcasi(parcalar[i])) {
+        final ust = (i + pencereTavani).clamp(0, parcalar.length);
+        for (var j = ust; j > i; j--) {
+          // Aday ayraçla BİTMEMELİ — sondaki boşluk yerinde kalsın.
+          if (!_harfParcasi(parcalar[j - 1])) continue;
+          if (_yasakMi(parcalar.sublist(i, j).join())) {
+            eslesmeUzunluk = j - i;
+            break; // en uzun eşleşme (j büyükten küçüğe gidiyor)
+          }
+        }
+      }
+      if (eslesmeUzunluk > 0) {
+        sb.write('***');
+        i += eslesmeUzunluk;
+      } else {
+        sb.write(parcalar[i]);
+        i++;
+      }
+    }
+    return sb.toString();
+  }
+
+  /// Parça harf/rakam mı, yoksa ayraç mı?
+  static bool _harfParcasi(String p) =>
+      p.isNotEmpty && RegExp(r'[\wçğıöşüÇĞİÖŞÜ]').hasMatch(p[0]);
+
+  /// Verilen ham parça, normalize edildiğinde sözlükteki bir kelimenin
+  /// TAMAMI mı? (Parça eşleşmesi kabul edilmez — "malzeme" içindeki "mal"
+  /// maskelenmemeli.)
+  static bool _yasakMi(String parca) {
+    final norm = normalizeForFilter(parca);
+    if (norm.isEmpty) return false;
+    // Kalkan önce: "sikke" → "sike" maskelenmemeli.
+    if (_allowList.contains(norm)) return false;
+    if (_severe.contains(norm) || _mild.contains(norm)) return true;
+    // Boşluklu yazılan bileşik küfür: "orospu cocugu" → "orospucocugu".
+    // Sözlükte bitişik duruyor; normalize edilmiş metindeki boşlukları
+    // atıp bir daha bakılır.
+    final bitisik = norm.replaceAll(' ', '');
+    if (bitisik == norm) return false;
+    if (_allowList.contains(bitisik)) return false;
+    return _severe.contains(bitisik) || _mild.contains(bitisik);
+  }
+
   /// Kelime sınırına saygılı arama.
   ///
   /// Düz `contains` "malzeme" içinde "mal"ı bulur ve masum mesajı yakalar.
@@ -156,9 +248,13 @@ class ContentFilter {
 String normalizeForFilter(String input) {
   var s = foldTrSearch(input);
 
+  // `!` BİLİNÇLİ OLARAK YOK (2026-08-23): ünlem Türkçede noktalamadır,
+  // harf kaçışı değil. Listede olduğunda "SIKTIR!!!" → "siktirii" oluyor ve
+  // sözlükte eşleşmiyordu — yani vurgu için ünlem koyan kullanıcı filtreden
+  // kazara kaçıyordu. Ünlem artık ayraç sayılır ve adım 3'te boşluğa iner.
   const leet = {
     '0': 'o', '1': 'i', '3': 'e', '4': 'a',
-    '5': 's', '7': 't', '@': 'a', r'$': 's', '!': 'i',
+    '5': 's', '7': 't', '@': 'a', r'$': 's',
   };
   final sb = StringBuffer();
   for (final ch in s.split('')) {

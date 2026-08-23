@@ -90,6 +90,36 @@ Rozet çakışması: kart tek rozet taşır. `isNearby` (aynı **ilçe**) daha
 `sortJobMatchesFirst` bağı kaynak indeksiyle çözer: `List.sort` kararlı
 değildir, eşit grupta kartlar her çizimde yer değiştirir ve liste zıplar.
 
+### Görmek ≠ yazabilmek (2026-08-23)
+
+Liste herkese açık, **mesaj kapısı değil**. Usta tüm ilanları görür ama
+yalnız kendi ilinde ve kendi mesleğinde olanlara yazabilir.
+
+| Durum | Listede | Mesaj yazabilir |
+|---|---|---|
+| İl ✅ meslek ✅ | yeşil çerçeve | ✅ |
+| İl ✅ meslek ❌ | düz kart | ❌ "… mesleği profilinizde yok" |
+| İl ❌ | düz kart | ❌ "Bu ilan X ilinde; siz Y ilinde…" |
+| **Ürün talebi** | Mağaza sekmesi | ✅ **bölge şartı YOK** |
+
+**Sebep AYRI söylenir.** Eskiden tek satır "meslek veya hizmet bölgenizle
+eşleşmiyor" yazıyordu; kullanıcı hangi alanı düzelteceğini bilmiyordu. İki
+sorun tamamen farklı çözüm ister: biri **il değiştirmek** (tek il kuralı
+yüzünden yıkıcı), diğeri **meslek eklemek** (zararsız). Uyarı ilanın ilini
+de yazar — kullanıcı kendi ilini bilir, ilanınkini bilmez.
+
+Uyarı **tıklamadan önce** de kartta durur ve çözüme götüren bir düğme taşır.
+
+`Job.matchesArtisan` artık iki yarıdan TÜRETİLİR
+(`matchesArtisanProfession` && `matchesArtisanArea`) — mantık kopyalanırsa
+feed vurgusu, push bildirimi ve mesaj kapısı birbirinden ayrışır.
+
+> [!note] Ürün talepleri bölgeden MUAF — bilinçli
+> Hizmet fiziksel olarak yerinde verilir: usta Bursa'daki musluğu Ankara'dan
+> tamir edemez. Ürün ise **kargoyla** gider. Bölge kapısını talebe koymak
+> satıcının pazarını kendi iline hapsederdi. Talepte tek şart mağaza
+> sahipliğidir.
+
 **Meslek neden yalnız bildirimde eler?** Telefonu boş yere titretmemek için
 push dardır; liste geniştir — usta piyasayı mesleği tutmasa da görebilmeli.
 Daraltmak isteyen Keşfet'teki kategori/il filtresini **kendi eliyle** kullanır.

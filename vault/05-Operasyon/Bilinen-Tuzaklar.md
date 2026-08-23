@@ -1008,5 +1008,40 @@ Aynı sözlük `functions/index.js` içinde de yaşar (`SEVERE_WORDS`,
 `FILTER_ALLOW`) — **ikisi birlikte değişir**, ayrışırsa istemci uyarır ama
 sunucu kuyruğa düşürmez. Test iki listeyi karşılaştırır.
 
+## 🟠 Tek il kuralı — hizmet bölgesi TEK ilde
+
+Usta ve mağaza **yalnız bir ilde** hizmet verir; o ilin istediği kadar
+ilçesinde. İki gerekçe:
+
+1. Sınırsız il seçen usta *"her yere giderim"* diyordu ama gitmiyordu;
+   müşteri cevapsız kalıyordu.
+2. Şehir bazlı Pro geçişini delerdi — bir il ücretliyken usta yanına komşu
+   il ekleyip kapıdan kaçmayı öğrenirdi.
+
+Kural `TekIlKurali` uzantısındadır (`geo_models.dart`):
+`singleProvince` · `onlySingleProvince` · `hasMultipleProvinces`.
+
+* **Ekleme ≠ il değiştirme.** `addServiceArea` başka ilin ilçesini
+  REDDEDER (`false` döner); il değiştirmek ayrı metottur (`changeProvince`)
+  ve çağıran taraf **önce kullanıcıya onaylatır** — mevcut ilçelerin hepsi
+  düşeceği için sessizce yapılmaz.
+* **Eski çok illi kayıtlar için TOPLU GÖÇ YOK.** Veri yerinde durur;
+  kullanıcı profilini bir dahaki kaydedişinde ilk iline iner
+  (`save()` içinde `onlySingleProvince`). Aynı normalleştirme mağaza
+  kaydında ve usta→mağaza aktarımında da yapılır — biri atlanırsa kural o
+  yoldan delinir.
+* Kural UI'da **önceden** söylenir; kullanıcı ikinci ili deneyip uyarıya
+  çarpmasın.
+
+## 🟠 Maskeleme yazma yoluna girerse moderasyon körelir
+
+`ContentFilter.mask` yalnız **görüntüdedir**. Firestore'daki metin ham
+hâlinde durur; şikâyet gelince moderatör gerçek metni görüp karar
+verebilmeli. Maskelemeyi `sendMessage` içine koymak (veya CF'de metni
+değiştirmek) moderasyonu kör eder ve geri dönüşü olmayan veri kaybıdır.
+
+Aynı sebeple **gönderen kendi mesajını maskesiz görür**: yazdığını göremeyen
+kullanıcı mesajını düzeltemez.
+
 ---
 İlgili: [[Mimari-Kararlar]] · [[Guvenlik-Kurallari]] · [[Sohbet-Mimarisi]] · [[Deploy-ve-Ortam]] · [[Demo-Veri-Seti]]

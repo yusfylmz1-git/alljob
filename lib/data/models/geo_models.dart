@@ -84,3 +84,51 @@ class ServiceArea {
   @override
   int get hashCode => key.hashCode;
 }
+
+/// TEK İL KURALI (2026-08-23).
+///
+/// Bir usta / mağaza **yalnız bir ilde** hizmet verebilir; o ilin istediği
+/// kadar ilçesini seçebilir.
+///
+/// NEDEN:
+///  * **Hizmet bölgesi belirsizleşiyordu.** Sınırsız il seçen usta "her yere
+///    giderim" diyordu ama gerçekte gitmiyordu; müşteri cevapsız kalıyordu.
+///  * **Şehir bazlı Pro geçişini delerdi.** Bir il ücretli döneme geçtiğinde
+///    usta yanına komşu bir il ekleyip kapıdan kaçmayı öğrenirdi.
+///    (Kural: illerden biri ücretliyse abonelik başlar — ama tek il varken
+///    bu soru hiç doğmaz.)
+///
+/// ESKİ KAYITLAR: çok illi profiller veritabanında DURUYOR ve okunmaya
+/// devam eder — göç yapılmaz, kimsenin verisi silinmez. Kullanıcı profilini
+/// bir dahaki kaydedişinde tek ile iner ([singleProvinceOf] ile).
+extension TekIlKurali on List<ServiceArea> {
+  /// Listedeki bölgelerin ili (hepsi aynı olmalı). Liste boşsa `null`.
+  ///
+  /// Çok illi ESKİ kayıtta İLK ilin adı döner — keyfi değil: kullanıcının
+  /// ilk seçtiği ildir ve kaydederken korunacak olan odur.
+  String? get singleProvince {
+    for (final a in this) {
+      final p = a.province.trim();
+      if (p.isNotEmpty) return p;
+    }
+    return null;
+  }
+
+  /// Yalnız [singleProvince]'e ait bölgeleri döndürür.
+  ///
+  /// Tek illi listede kimliktir (yeni liste bile üretmez). Çok illi eski
+  /// kayıtta fazlalık illeri düşürür — kayıt anında normalleştirme.
+  List<ServiceArea> get onlySingleProvince {
+    final il = singleProvince;
+    if (il == null) return this;
+    if (every((a) => a.province.trim() == il)) return this;
+    return where((a) => a.province.trim() == il).toList(growable: false);
+  }
+
+  /// Birden çok il taşıyor mu? (Eski kayıt uyarısı için.)
+  bool get hasMultipleProvinces {
+    final il = singleProvince;
+    if (il == null) return false;
+    return any((a) => a.province.trim() != il);
+  }
+}

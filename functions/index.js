@@ -948,153 +948,33 @@ exports.onFollowCreated = onDocumentCreated(
     },
 );
 
-// ───────────────── ARGO / MÜSTEHCEN DENETİMİ (2026-08-23) ─────────────────
+// ───────────────── ARGO / MÜSTEHCEN DENETİMİ ─────────────────
 //
-// Kapalı test bulgusu: "mesajlarda argo kelime filtreleme yapmıyoruz;
-// müstehcen yazıların denetlemesini nasıl yaparız?"
+// SUNUCU TARAFI KALDIRILDI (2026-08-23, kullanıcı kararı).
 //
-// İSTEMCİ AYNASI: `lib/core/utils/content_filter.dart`. İstemci kullanıcıya
-// SORAR (gönderime devam edebilir); sunucu ise gönderilmiş ağır içeriği
-// moderasyon kuyruğuna DÜŞÜRÜR. Mesaj SİLİNMEZ, ENGELLENMEZ — karar
-// moderatörün.
+// Kısa süre boyunca burada bir küfür sözlüğü ve `severeMatches` vardı;
+// ağır içerikli mesajı otomatik olarak `reports` kuyruğuna yazıyordu.
+// Yanlış bir süreçti — bkz. `onMessageCreated` içindeki not.
 //
-// ⚠️ İKİ LİSTE BİRLİKTE DEĞİŞİR. Ayrışırsa istemci uyarır ama sunucu kayda
-// geçmez (ya da tersi). Ölçüt `content_filter.dart` başlığındaki notlardır.
-const SEVERE_WORDS = [
-  "amcik", "amcigi", "amina", "aminakoyayim", "amk", "aq",
-  "sikeyim", "sikerim", "siktir", "sikik", "sikis", "siktimin",
-  "yarak", "tasak", "gotveren", "ibne", "pust",
-  "orospu", "orospucocugu", "kahpe", "kaltak", "surtuk",
-  "pezevenk", "godos", "piclik", "picfendi",
-  "gavat", "kancik", "zikeyim", "zikerim",
-  "anani", "avradini", "sulaleni",
-];
+// Filtrenin tamamı artık İSTEMCİDE yaşıyor:
+// `lib/core/utils/content_filter.dart`
+//   * gönderirken uyarı (`ContentFilter.inspect`)
+//   * alıcının ekranında maskeleme (`ContentFilter.mask`)
+//
+// Sözlüğü tek yerde tutmak ayrıca bir bakım yükünü kaldırdı: iki liste
+// ayrışırsa istemci uyarıp sunucu kaçırıyordu, artık tek kaynak var.
+//
+// Moderasyon YALNIZ kullanıcı şikâyetiyle başlar (`reports` koleksiyonu).
 
-// Yanlış pozitif kalkanı — NORMALİZE biçimde ("sikke" → "sike").
-const FILTER_ALLOW = [
-  "sike", "sikeler", "siklet", "sirkeci", "siklon",
-  "analiz", "anayasa", "anahtar", "anadolu", "anaokulu",
-  "malzeme", "maliyet", "malikane", "malatya",
-  "bokser", "boksor",
-];
-
-const TR_FOLD = {
-  "İ": "i", "I": "i", "ı": "i", "Ş": "s", "ş": "s", "Ğ": "g", "ğ": "g",
-  "Ü": "u", "ü": "u", "Ö": "o", "ö": "o", "Ç": "c", "ç": "c",
-};
-const LEET = {
-  "0": "o", "1": "i", "3": "e", "4": "a",
-  "5": "s", "7": "t", "@": "a", "$": "s", "!": "i",
-};
-
-/**
- * Metni filtre için sadeleştirir — `normalizeForFilter` (Dart) ile AYNI.
- *
- * Türkçe katlama → leet çözümü → ayraç temizliği → tek harf birleştirme →
- * tekrar daraltma. "S İ K T İ R", "s1kt1r", "siktirrrr" hepsi "siktir".
- * @param {string} input Ham metin.
- * @return {string} Normalize metin.
- */
-function normalizeForFilter(input) {
-  let s = String(input || "");
-  s = s.split("").map((c) => TR_FOLD[c] || c).join("").toLowerCase();
-  s = s.split("").map((c) => LEET[c] || c).join("");
-  s = s.replace(/[^a-z0-9]+/g, " ").trim();
-  if (!s) return "";
-
-  // Tek harflik parçaları birleştir ("s i k t i r" → "siktir").
-  const out = [];
-  let buf = "";
-  for (const p of s.split(" ")) {
-    if (p.length === 1) {
-      buf += p;
-    } else {
-      if (buf) {
-        out.push(buf);
-        buf = "";
-      }
-      out.push(p);
-    }
-  }
-  if (buf) out.push(buf);
-  s = out.join(" ");
-
-  s = s.replace(/(.)\1{2,}/g, "$1$1").replace(/(.)\1/g, "$1");
-  return s;
-}
-
-/**
- * Kelime sınırına saygılı arama — "malzeme" içindeki "mal"ı yakalamaz.
- * @param {string} hay Aranan metin (normalize).
- * @param {string} needle Aranacak kelime (normalize).
- * @return {boolean} Kelime sınırlarıyla geçiyor mu.
- */
-function containsWord(hay, needle) {
-  if (!needle) return false;
-  let from = 0;
-  for (;;) {
-    const i = hay.indexOf(needle, from);
-    if (i < 0) return false;
-    const before = i === 0 ? "" : hay[i - 1];
-    const afterIdx = i + needle.length;
-    const after = afterIdx >= hay.length ? "" : hay[afterIdx];
-    const leftOk = !before || !/[a-z0-9]/.test(before);
-    const rightOk = !after || !/[a-z0-9]/.test(after);
-    if (leftOk && rightOk) return true;
-    from = i + 1;
-  }
-}
-
-/**
- * Metin ağır (severe) içerik taşıyor mu?
- * @param {string} text Denetlenecek metin.
- * @return {string[]} Eşleşen kelimeler; boşsa temiz.
- */
-function severeMatches(text) {
-  const norm = normalizeForFilter(text);
-  if (!norm) return [];
-  let hay = norm;
-  for (const ok of FILTER_ALLOW) hay = hay.split(ok).join(" ");
-  return SEVERE_WORDS.filter((w) => containsWord(hay, w));
-}
-
-/**
- * Ağır içerikli mesajı moderasyon kuyruğuna düşürür.
- *
- * `reports` koleksiyonuna, elle şikâyetlerle AYNI şemayla yazılır — admin
- * kuyruğu (`onReportWritten`, `adminResolveReport`) hiç değişmeden çalışır.
- *
- * Doküman kimliği deterministiktir: aynı mesaj iki kez işlenirse (CF yeniden
- * denemesi) kuyruk şişmez.
- *
- * Kanıt metni KISALTILIR: rapor dökümanı sohbetin tamamını taşımamalı.
- * @param {object} p Parametreler.
- * @param {string} p.chatId Sohbet kimliği.
- * @param {string} p.msgId Mesaj kimliği.
- * @param {string} p.senderUid Gönderen.
- * @param {string} p.text Mesaj metni.
- * @param {string[]} p.matches Eşleşen kelimeler.
- * @return {Promise<void>}
- */
-async function flagMessageForReview({chatId, msgId, senderUid, text, matches}) {
-  const reportId = `message_${chatId}__${msgId}__autofilter`;
-  await db.collection("reports").doc(reportId).set({
-    reporterUid: "system",
-    targetType: "message",
-    targetId: `${chatId}/${msgId}`,
-    reason: "Otomatik filtre: uygunsuz dil",
-    status: "open",
-    createdAt: new Date().toISOString(),
-    // Moderatörün karar verebilmesi için bağlam.
-    reportedUid: senderUid,
-    chatId,
-    messageId: msgId,
-    autoFilter: true,
-    matchedWords: matches.slice(0, 10),
-    evidenceText: String(text || "").slice(0, 500),
-    evidenceCapturedAt: new Date().toISOString(),
-  }, {merge: true});
-}
+// `flagMessageForReview` KALDIRILDI (2026-08-23).
+//
+// Ağır içerikli mesajı otomatik olarak `reports` kuyruğuna yazıyordu.
+// Kullanıcı kararıyla kaldırıldı: kimsenin şikâyet etmediği mesaj
+// moderasyona düşmemeli — kuyruk dolar, gerçek şikâyetler kaybolur ve
+// özel yazışma istenmeden incelemeye alınmış olur.
+//
+// Yerine istemcide MASKELEME var (`ContentFilter.mask`); moderasyon
+// yalnız kullanıcı şikâyetiyle başlar.
 
 /**
  * Bir sohbete yeni mesaj yazılınca, mesajı GÖNDEREN dışındaki katılımcıya
@@ -1115,30 +995,25 @@ exports.onMessageCreated = onDocumentCreated(
       const senderUid = msg.senderUid;
       if (!senderUid) return;
 
-      // ARGO DENETİMİ (2026-08-23) — bildirimden ÖNCE, ama akışı KESMEDEN.
+      // OTOMATİK ŞİKÂYET KALDIRILDI (2026-08-23, kullanıcı kararı).
       //
-      // Mesaj silinmez/engellenmez: yalnız moderasyon kuyruğuna düşer.
-      // Hata yutulur — filtre çökerse bildirim yine gitmeli, aksi hâlde
-      // bir sözlük hatası tüm mesajlaşmayı sessizce bozardı.
-      if (msg.text) {
-        try {
-          const matches = severeMatches(msg.text);
-          if (matches.length) {
-            await flagMessageForReview({
-              chatId,
-              msgId: event.params.msgId,
-              senderUid,
-              text: msg.text,
-              matches,
-            });
-            logger.info(
-                `içerik filtresi: ${chatId}/${event.params.msgId} ` +
-                `(${matches.length} eşleşme)`);
-          }
-        } catch (e) {
-          logger.warn(`içerik filtresi hatası (${chatId}): ${e}`);
-        }
-      }
+      // Kısa süre boyunca ağır içerikli her mesaj `reports` kuyruğuna
+      // otomatik düşüyordu. Yanlış bir süreçti:
+      //
+      //  * Moderatör kuyruğu, kimsenin şikâyet etmediği mesajlarla dolar ve
+      //    GERÇEK şikâyetler arasında kaybolur.
+      //  * İki kişinin kendi aralarında konuşurken küfretmesi bir ihlal
+      //    değildir — mağdur yoksa moderasyon konusu da yoktur.
+      //  * Kimse istemeden özel yazışmayı incelemeye almak, kullanıcının
+      //    beklediği gizliliği aşar.
+      //
+      // Yerine iki katman kaldı:
+      //  1. İstemcide MASKELEME — alıcı `***` görür (`ContentFilter.mask`).
+      //  2. ŞİKÂYET YOLU — rahatsız olan kişi mesajı bildirir, kayıt
+      //     kuyruğa o zaman düşer ve gerçek metniyle incelenir.
+      //
+      // `severeMatches` yardımcısı duruyor: şikâyet gelen mesajı moderatöre
+      // "filtre bunu ağır buldu" diye işaretlemek için ileride kullanılabilir.
 
       // Sohbet dökümanından katılımcıları + adları oku.
       const chatSnap = await db.collection("chats").doc(chatId).get();

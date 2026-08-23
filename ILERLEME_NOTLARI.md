@@ -24,6 +24,101 @@
 
 ## ✅ Son Durum (EN SON BURAYI OKU)
 
+**Tarih:** 2026-08-23 — **KAPALI TEST 3. TUR** (aynı gün, 2. turdan sonra)
+
+`flutter analyze` 0 · `eslint` 0 hata · **1118 test** (öncesi 1089).
+
+Üç madde; üçü de bir önceki turda yapılan işin **düzeltilmesi**.
+
+### 1. Argo filtresi: otomatik şikâyet → maskeleme
+
+2. turda ağır içerikli mesaj `reports` kuyruğuna otomatik düşüyordu.
+Kullanıcı: *"bu mantıklı bir süreç değil. kullanıcı şikayet etmediği
+sürece admin paneline düşmesi saçma."* Haklıydı — kuyruk kimsenin şikâyet
+etmediği mesajlarla dolar, gerçek şikâyetler kaybolur, özel yazışma
+istenmeden incelemeye alınır.
+
+| Katman | Davranış |
+|---|---|
+| Gönderirken | Bir kez sorar; ısrar eden gönderir |
+| **Alıcının ekranı** | Küfürler `***` (`ContentFilter.mask`) |
+| Gönderenin ekranı | Maskelenmez — yazdığını görmeli ki düzeltebilsin |
+| Sohbet listesi | Önizleme de maskeli |
+| Moderasyon | **Yalnız şikâyetle** |
+
+* Maskeleme GÖRÜNTÜDE; Firestore'daki metin ham durur (moderatör gerçek
+  metni görebilmeli). Test bunu bağlıyor.
+* **Kayan pencere** ile çalışır: `a.m.k`, `s i k t i r`, `s1kt1r`,
+  `orospu cocugu` (tek `***`) hepsi yakalanır.
+* Sunucudaki sözlük + `flagMessageForReview` **silindi** → tek kaynak Dart,
+  iki liste ayrışma riski bitti.
+* Yol boyunca bulunan hata: `!` leetspeak listesindeydi, `SIKTIR!!!` →
+  `siktirii` olup **kaçıyordu**. Ünlem artık ayraç.
+* Uyarı metni de düzeltildi: "incelenmek üzere kaydedilir" artık YALAN
+  olduğu için kaldırıldı.
+
+### 2. Tek il kuralı
+
+Usta/mağaza sınırsız il seçebiliyordu. Artık **tek il, çok ilçe**.
+
+`TekIlKurali` uzantısı (`geo_models.dart`): `singleProvince` ·
+`onlySingleProvince` · `hasMultipleProvinces`.
+
+* `addServiceArea` başka ili **reddeder**; il değiştirmek ayrı metot
+  (`changeProvince`) ve **önce kullanıcıya onaylatılır** — mevcut ilçeler
+  düşeceği için sessizce yapılmaz.
+* **Toplu göç YOK**: eski çok illi kayıt yerinde durur, kullanıcı profilini
+  kaydettiğinde ilk iline iner. Aynı normalleştirme üç yolda: usta kaydı,
+  mağaza kaydı, usta→mağaza aktarımı.
+* Kural UI'da **önceden** söylenir.
+
+Gerekçe iki katlı: hizmet bölgesi belirsizliği + şehir bazlı Pro geçişinin
+delinmesi (komşu il ekleyip kapıdan kaçma).
+
+### 3. Mesaj kapısı: sebep AYRI söyleniyor
+
+Kapı zaten vardı ama tek satır yazıyordu: *"meslek veya hizmet bölgenizle
+eşleşmiyor."* Kullanıcı hangi alanı düzelteceğini bilmiyordu.
+
+`Job.matchesArtisan` iki yarıdan **türetildi**:
+`matchesArtisanProfession` && `matchesArtisanArea`.
+
+| Durum | Mesaj |
+|---|---|
+| Bölge tutmuyor | "Bu ilan **Bursa** ilinde; siz **Balıkesir** ilinde hizmet veriyorsunuz." |
+| Meslek tutmuyor | "**Boyacı** mesleği profilinizde yok." |
+
+* İki il de yazılır — kullanıcı kendi ilini bilir, ilanınkini bilmez.
+* Uyarı **tıklamadan önce** de kartta durur ve çözüme götüren düğme taşır.
+* **Ürün talepleri MUAF**: ürün kargoyla gider, satıcının pazarı kendi
+  iline hapsedilmemeli. Talepte tek şart mağaza sahipliği.
+
+### Yeni testler (29)
+
+`tek_il_kurali_test.dart` (17) · `ilan_mesaj_kapisi_test.dart` (12) ·
+`icerik_filtresi_test.dart` (yeniden yazıldı, 36) ·
+`profil_bolge_ve_meslek_arama_test.dart` (dize eşleşmesi davranışa bağlandı)
+
+### Kasa
+
+`02-Ozellikler/Sohbet-Mimarisi.md` → maskeleme (otomatik şikâyet notu)
+`02-Ozellikler/Is-Akisi-Durum-Makinesi.md` → "görmek ≠ yazabilmek"
+`03-Backend/Cloud-Functions-Haritasi.md` → `onMessageCreated` sadeleşti
+`04-Veri/Veri-Modelleri.md` → `TekIlKurali` + eşleşmenin iki yarısı
+`05-Operasyon/Bilinen-Tuzaklar.md` → iki yeni madde
+
+### Sırada
+
+**Pro üyelik Faz 1.** Plan hazır (iki artifact). Kullanıcı "ben sana
+söylediğimde" dedi — beklemede.
+
+Bekleyen küçük iş: `kClientVersion` hâlâ `1.0.0` (gerçek sürüm 1.2.0).
+`adminConfig/runtime.minAppVersion` yazılırsa herkesi kilitler.
+
+---
+
+## 📋 2. Tur (aynı gün, daha önce)
+
 **Tarih:** 2026-08-23 — **KAPALI TEST GERİ BİLDİRİMLERİ (2. tur)**
 
 `flutter analyze` 0 · `eslint` 0 hata · **1078 test** (öncesi 1006).

@@ -72,9 +72,12 @@ void main() {
     });
 
     test('controller tekilleştirmeyi yapıyor', () {
+      // 2026-08-23: tek il kuralı gelince satır `mevcut.contains(area)`
+      // oldu (liste önce yerel değişkene alınıyor). Kontrol edilen şey
+      // ifadenin YAZIMI değil, mükerrer eklemenin engellendiğidir.
       final c = read(
           'lib/features/artisan/application/my_profile_controller.dart');
-      expect(c.contains('serviceAreas.contains(area)'), isTrue,
+      expect(c.contains('.contains(area)'), isTrue,
           reason: 'addServiceArea aynı bölgeyi ikinci kez eklememeli.');
     });
   });

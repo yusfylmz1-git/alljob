@@ -13,6 +13,7 @@ import '../../../core/widgets/gradient_app_bar.dart';
 import '../../../core/widgets/responsive_center.dart';
 import '../../../core/widgets/status_views.dart';
 import '../../../data/local/mock_database.dart' show kProfessionNames;
+import '../../../data/models/geo_models.dart';
 import '../../../data/models/job.dart';
 import '../../../data/models/report.dart';
 import '../../artisan/application/availability_gate.dart';
@@ -705,7 +706,14 @@ class _ArtisanOfferSection extends ConsumerWidget {
     // isArtisan (aktif mod) DEĞİL — profili olan herkes bağlanır.
     if (!artisanAvailabilityAllowsNewChat(context, ref)) return;
 
-    // Ürün talebi → mağaza profili (meslek eşleşmesi yok).
+    // ÜRÜN TALEBİ — meslek VE BÖLGE kapısı YOK (bilinçli, 2026-08-23).
+    //
+    // Hizmet fiziksel olarak yerinde verilir: usta Bursa'daki musluğu
+    // Ankara'dan tamir edemez. Ürün ise KARGOYLA gider — satıcı istediği
+    // ile ürün gönderebilir. Bölge kapısını buraya da koymak, satıcının
+    // pazarını sebepsiz yere kendi iline hapsederdi.
+    //
+    // Buradaki tek şart mağaza sahipliğidir.
     if (job.isProductRequest) {
       if (!user.hasShopProfile) {
         context.showError(
@@ -725,13 +733,34 @@ class _ArtisanOfferSection extends ConsumerWidget {
         context.showError('Önce profilinizi (meslek + bölge) tamamlayın.');
         return;
       }
-      if (!job.matchesArtisan(
-        professionCodes: profile.professionCodes,
-        serviceAreas: profile.serviceAreas,
-      )) {
+      // SEBEBİ AYIR (2026-08-23 kullanıcı bulgusu): eskiden tek satır
+      // "meslek veya hizmet bölgenizle eşleşmiyor" yazıyordu. Testçi
+      // boyacı olmadığı hâlde boyacı ilanını listede görüyor, tıklıyor ve
+      // hangi alanı düzelteceğini bilmeden kalıyordu.
+      //
+      // İki sorun TAMAMEN farklı çözüm ister:
+      //  * bölge → il değiştirmek (tek il kuralı yüzünden yıkıcı bir işlem)
+      //  * meslek → profile meslek eklemek (zararsız)
+      //
+      // Ayrıca ilanın ili söylenir: kullanıcı kendi ilini bilir, ilanınkini
+      // bilmez — karşılaştırabilmesi için ikisi de yazılır.
+      final bolgeTutuyor = job.matchesArtisanArea(profile.serviceAreas);
+      final meslekTutuyor =
+          job.matchesArtisanProfession(profile.professionCodes);
+
+      if (!bolgeTutuyor) {
+        final benimIl = profile.serviceAreas.singleProvince ?? '—';
         context.showError(
-          'Bu ilan meslek veya hizmet bölgenizle eşleşmiyor. '
-          'Profilinizdeki meslek ve bölgeleri kaydedip kontrol edin.',
+          'Bu ilan ${job.province} ilinde; siz $benimIl ilinde hizmet '
+          'veriyorsunuz. Yalnız kendi ilinizdeki ilanlara mesaj '
+          'gönderebilirsiniz.',
+        );
+        return;
+      }
+      if (!meslekTutuyor) {
+        context.showError(
+          '"${job.categoryLabelTR}" mesleği profilinizde yok. '
+          'Profil → Meslekler bölümünden ekleyebilirsiniz.',
         );
         return;
       }
@@ -813,6 +842,45 @@ class _ArtisanOfferSection extends ConsumerWidget {
         actionLabel: 'Profilde müsaitliği aç',
         onAction: () => context.push(RoutePaths.profile),
       );
+    }
+
+    // UYUMSUZLUK TIKLAMADAN ÖNCE SÖYLENİR (2026-08-23 kullanıcı bulgusu).
+    //
+    // Keşfet listesi tüm ilanları gösteriyor; uyanlar yeşil çerçeveli.
+    // Çerçevesiz bir ilana giren usta eskiden düğmeyi görüp tıklıyor ve
+    // ancak o zaman "eşleşmiyor" uyarısı alıyordu. Sebep de belirsizdi.
+    //
+    // Ürün talepleri MUAF: kargoyla gider, bölge şartı yok (bkz.
+    // `_messageOwner`).
+    if (!job.isProductRequest && draft != null) {
+      final profile = draft.profile;
+      final kurulumTamam = profile.professionCodes.isNotEmpty &&
+          profile.serviceAreas.isNotEmpty;
+      if (kurulumTamam) {
+        if (!job.matchesArtisanArea(profile.serviceAreas)) {
+          final benimIl = profile.serviceAreas.singleProvince ?? '—';
+          return _NoticeCard(
+            icon: Icons.location_off_outlined,
+            tone: _NoticeTone.warning,
+            text: 'Bu ilan ${job.province} ilinde; siz $benimIl ilinde '
+                'hizmet veriyorsunuz. Yalnız kendi ilinizdeki ilanlara '
+                'mesaj gönderebilirsiniz.',
+            actionLabel: 'Hizmet bölgemi değiştir',
+            onAction: () => context.push(RoutePaths.profileEdit),
+          );
+        }
+        if (!job.matchesArtisanProfession(profile.professionCodes)) {
+          return _NoticeCard(
+            icon: Icons.handyman_outlined,
+            tone: _NoticeTone.warning,
+            text: '"${job.categoryLabelTR}" mesleği profilinizde yok. '
+                'Bu ilana mesaj gönderebilmek için mesleklerinize '
+                'ekleyebilirsiniz.',
+            actionLabel: 'Mesleklerimi düzenle',
+            onAction: () => context.push(RoutePaths.profileEdit),
+          );
+        }
+      }
     }
 
     return Column(

@@ -262,15 +262,50 @@ class _EditFormState extends ConsumerState<_EditForm> {
     }
   }
 
-  void _addArea() {
+  Future<void> _addArea() async {
     final p = _addProvince, d = _addDistrict;
     if (p == null || d == null) {
       context.showInfo('Lütfen il ve ilçe seçin.');
       return;
     }
-    final added = _controller.addServiceArea(
-      ServiceArea(province: p.name, district: d.name),
-    );
+    final yeni = ServiceArea(province: p.name, district: d.name);
+    final mevcut =
+        ref.read(myProfileControllerProvider).valueOrNull?.profile.serviceAreas ??
+            const <ServiceArea>[];
+    final mevcutIl = mevcut.singleProvince;
+
+    // TEK İL KURALI (2026-08-23): başka bir ilin ilçesi eklenmek isteniyorsa
+    // bu bir "ekleme" değil, İL DEĞİŞTİRME'dir — mevcut ilçelerin hepsi
+    // düşer. Yıkıcı olduğu için sessizce yapılmaz, önce sorulur.
+    if (mevcutIl != null && yeni.province.trim() != mevcutIl) {
+      final onay = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Hizmet ilini değiştir'),
+          content: Text(
+            'Aynı anda tek ilde hizmet verebilirsiniz.\n\n'
+            '$mevcutIl ilindeki ${mevcut.length} ilçe kaldırılacak ve '
+            'yerine ${yeni.province} / ${yeni.district} eklenecek.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(false),
+              child: const Text('Vazgeç'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(true),
+              child: const Text('İli değiştir'),
+            ),
+          ],
+        ),
+      );
+      if (onay != true || !mounted) return;
+      _controller.changeProvince(yeni);
+      setState(() => _addDistrict = null);
+      return;
+    }
+
+    final added = _controller.addServiceArea(yeni);
     if (!added) {
       context.showInfo('Bu bölge zaten ekli.');
       return;
@@ -736,6 +771,21 @@ class _EditFormState extends ConsumerState<_EditForm> {
                   children: [
                     _Label('Hizmet Bölgeleri'),
                     const SizedBox(height: 4),
+                    // TEK İL KURALI (2026-08-23) — kural ÖNCEDEN söylenir.
+                    // Kullanıcı ikinci ili eklemeye çalışıp uyarıyla
+                    // karşılaşmasın; sınırı baştan bilsin.
+                    Text(
+                      profile.serviceAreas.isEmpty
+                          ? 'Tek ilde hizmet verebilirsiniz; o ilin istediğiniz '
+                              'kadar ilçesini ekleyin.'
+                          : '${profile.serviceAreas.singleProvince} ilinde '
+                              'hizmet veriyorsunuz. Başka bir ilin ilçesini '
+                              'seçerseniz il değiştirilir.',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: context.palette.inkMuted,
+                          ),
+                    ),
+                    const SizedBox(height: 8),
                     _ServiceAreaAdder(
                       province: _addProvince,
                       district: _addDistrict,
@@ -755,7 +805,7 @@ class _EditFormState extends ConsumerState<_EditForm> {
                         // seçimi otomatik ekler; metin de bunu söylesin.
                         _addProvince != null && _addDistrict != null
                             ? 'Seçtiğiniz bölge kaydederken eklenecek. '
-                                'Birden fazla bölge için "+" kullanın.'
+                                'Aynı ilin başka ilçeleri için "+" kullanın.'
                             : 'Henüz bölge eklemediniz.',
                         style: Theme.of(context).textTheme.bodySmall,
                       )
