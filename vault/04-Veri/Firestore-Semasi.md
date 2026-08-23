@@ -75,6 +75,37 @@ yazılır.
 senkron tutulur — `test/guncelleme_bildirimi_test.dart` ayrışırsa düşer.
 **Sürüm yükseltirken ikisi birden değişir.**
 
+## `adminStats/provinces/items/{il}` — Pro geçiş sayacı (2026-08-23)
+
+Şehir bazlı Pro geçişinin ölçüsü. Günlük `rebuildProvinceStats` (03:00) yazar,
+yalnız admin okur.
+
+| Alan | Anlamı |
+|---|---|
+| `availableCount` | İldeki **şu an müsait** kullanıcı sayısı |
+| `thresholdReachedAt` | Eşiğe (1.000) İLK ulaşıldığı an — **bir kez yazılır** |
+| `updatedAt` | Son sayım |
+
+**Ölçü `users.available == true`** (askıya alınmışlar hariç). Haftalık takvim
+sunucuda **yeniden hesaplanmaz** — `isAvailableAt` mantığının ikinci kopyası
+olurdu ve iki taraf zamanla ayrışırdı.
+
+İl, ustanın `serviceAreas`'ından ya da mağazanın `shopServiceAreas`'ından
+çözülür. Tek il kuralı geldiği için kullanıcı başına tek il düşer.
+
+> [!warning] Damga KİLİTLİDİR
+> `thresholdReachedAt` bir kez yazılır ve **bir daha değişmez**. Sayı
+> sonradan düşse bile geri sarmaz: kullanıcıya verilen tarih değişmemeli.
+> Boşalan ilde `availableCount` sıfırlanır ama damgaya dokunulmaz.
+
+**Neden günlük toplu sayım, artırımlı sayaç değil:** "şu an müsait" durumu
+sık değişir; her değişimde `increment` yazmak hem pahalı hem **kayar** (bir
+CF yeniden denemesi sayacı ikiler ve hata birikerek büyür). Tam sayım her gün
+sıfırdan hesaplar.
+
+Eşik iki yerde: `PROVINCE_THRESHOLD` (JS) ve `ProvinceStat.threshold` (Dart)
+— **birlikte değişir**, test karşılaştırır.
+
 ## Deterministik kimlikler
 
 Rastgele kimlik yerine hesaplanabilir kimlik kullanılır — tekillik ve yetki

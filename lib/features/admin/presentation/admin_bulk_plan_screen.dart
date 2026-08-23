@@ -10,6 +10,7 @@ import '../../../data/local/local_data_service.dart';
 import '../../../data/models/geo_models.dart';
 import '../data/admin_artisan_repository.dart';
 import '../data/admin_providers.dart';
+import 'admin_province_panel.dart';
 
 /// Toplu plan yönetimi — ücretsiz dönem bitişi (Yapılacaklar madde 7).
 ///
@@ -225,6 +226,24 @@ class _AdminBulkPlanScreenState extends ConsumerState<AdminBulkPlanScreen> {
                 ],
               ),
             ),
+
+          // İL PANOSU — hangi il eşiğe ne kadar yakın (2026-08-23).
+          //
+          // İl seçicinin ÜSTÜNDE duruyor: yönetici önce "hangi il hazır"
+          // sorusunu cevaplar, sonra seçer. Satıra dokununca seçici
+          // doldurulur — tabloda gördüğü ili elle aramak zorunda kalmasın.
+          AdminProvincePanel(
+            onSelect: (il) async {
+              final iller = await ref.read(provincesProvider.future);
+              final eslesen = iller.where((p) => p.name == il).firstOrNull;
+              if (eslesen == null || !mounted) return;
+              setState(() {
+                _il = eslesen;
+                _preview = null; // il değişti → önizleme geçersiz
+              });
+            },
+          ),
+          const Divider(height: 28),
 
           // HEDEF İL — zorunlu. Seçilmeden önizleme/uygula açılmaz.
           Text('Hedef il', style: theme.textTheme.labelLarge),

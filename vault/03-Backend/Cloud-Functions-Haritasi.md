@@ -60,6 +60,7 @@ Durum değişiminde (ve silmede) `refreshOpenJobCount` → ilan limiti sayacı.
 |---|---|---|
 | `processScheduledCampaigns` | 5 dakika | Zamanlanmış duyuruları gönderir |
 | `purgeRemovedProducts` | 24 saat | Kaldırılan ürünleri temizler |
+| `rebuildProvinceStats` | her gece 03:00 | İl bazlı müsait sayacı + eşik damgası |
 | `sendProductRequestDigest` | her gün 19:00 TR | Ürün talebi özeti — anlık almayan, aynı il+kategori satıcıları |
 
 Saat dilimi: `Europe/Istanbul`.

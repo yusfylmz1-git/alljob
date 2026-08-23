@@ -5525,6 +5525,170 @@ exports.purgeRemovedProducts = onSchedule(
  *
  * @return {Promise<void>}
  */
+// ─────────────── IL BAZLI MUSAITLIK SAYACI (2026-08-23) ───────────────
+//
+// Sehir bazli Pro gecisinin olcusu: bir ilde kac kullanici SU AN musait?
+// 1.000'e ulasan il ucretli doneme hazir sayilir.
+//
+// NEDEN GUNLUK TOPLU SAYIM, ARTIRIMLI SAYAC DEGIL:
+//
+// "Su an musait" durumu sik degisir (haftalik takvim, manuel duraklatma,
+// premium suresi). Her degisimde increment yazmak hem pahali hem KAYAR:
+// bir CF yeniden denemesi sayaci ikilerdi ve hata birikerek buyurdu. Gunluk
+// tam sayim her gun sifirdan hesaplar — kayma imkansiz.
+//
+// OLCU: `users.available === true`. Bu, istemcinin musaitlik degisiminde
+// yazdigi denormalize bayraktir ve Kesfet filtreleri de ayni alani okur
+// (`artisanIsAvailableProvider`, `availableDiscoverProductsProvider`).
+// Haftalik takvimi burada YENIDEN HESAPLAMIYORUZ: `isAvailableAt` mantiginin
+// ikinci bir kopyasi olurdu ve iki taraf zamanla ayrisirdi.
+//
+// IL: usta profilinin `serviceAreas` ya da magazanin `shopServiceAreas`
+// alanindan. Tek il kurali (2026-08-23) geldigi icin kullanici basina TEK
+// il dusuyor; eski cok illi kayitta ILK il sayilir (kayitta zaten tek ile
+// inecek).
+//
+// KILIT: bir il 1.000'e ULASTIGINDA `thresholdReachedAt` damgasi yazilir ve
+// BIR DAHA DEGISMEZ. Sayi sonradan dususe bile geri sarmaz — kullaniciya
+// verilen tarih degismemeli.
+
+/** Il esigi: bu sayiya ulasan il ucretli doneme hazir sayilir. */
+const PROVINCE_THRESHOLD = 1000;
+
+/**
+ * Bir kullanicinin hizmet ILINI cozer (tek il kurali).
+ * @param {object} user `users/{uid}` verisi.
+ * @param {object|null} artisan `artisanProfiles/{uid}` verisi (varsa).
+ * @return {string} Il adi; cozulemezse bos dize.
+ */
+function resolveUserProvince(user, artisan) {
+  const listeler = [
+    artisan && artisan.serviceAreas,
+    user && user.shopServiceAreas,
+  ];
+  for (const liste of listeler) {
+    if (!Array.isArray(liste)) continue;
+    for (const a of liste) {
+      const il = a && String(a.province || "").trim();
+      if (il) return il;
+    }
+  }
+  return "";
+}
+
+exports.rebuildProvinceStats = onSchedule(
+    {
+      // Gece 03:00 — trafik dusuk, sayim gunun sonucunu yansitir.
+      schedule: "0 3 * * *",
+      region: REGION,
+      timeZone: "Europe/Istanbul",
+      timeoutSeconds: 540,
+      memory: "512MiB",
+    },
+    async () => {
+      // uid -> il (yalniz MUSAIT kullanicilar)
+      const musaitIller = new Map();
+
+      // 1) Musait kullanicilari topla (sayfali — koleksiyon buyuyecek).
+      let sonUser = null;
+      for (;;) {
+        let q = db.collection("users")
+            .orderBy(FieldPath.documentId())
+            .limit(500);
+        if (sonUser) q = q.startAfter(sonUser);
+        const sayfa = await q.get();
+        if (sayfa.empty) break;
+        sonUser = sayfa.docs[sayfa.docs.length - 1].id;
+        for (const doc of sayfa.docs) {
+          const d = doc.data() || {};
+          if (d.available !== true) continue;
+          // Askiya alinmis hesap arzin parcasi degil.
+          if (d.suspended === true) continue;
+          musaitIller.set(doc.id, {user: d, il: ""});
+        }
+        if (sayfa.size < 500) break;
+      }
+
+      // 2) Usta profillerinden il coz (magaza ili user dokumaninda zaten).
+      let sonArtisan = null;
+      for (;;) {
+        let q = db.collection("artisanProfiles")
+            .orderBy(FieldPath.documentId())
+            .limit(500);
+        if (sonArtisan) q = q.startAfter(sonArtisan);
+        const sayfa = await q.get();
+        if (sayfa.empty) break;
+        sonArtisan = sayfa.docs[sayfa.docs.length - 1].id;
+        for (const doc of sayfa.docs) {
+          const kayit = musaitIller.get(doc.id);
+          if (!kayit) continue; // musait degil, ilgilenmiyoruz
+          kayit.artisan = doc.data() || {};
+        }
+        if (sayfa.size < 500) break;
+      }
+
+      // 3) Il il say.
+      const sayim = new Map();
+      for (const kayit of musaitIller.values()) {
+        const il = resolveUserProvince(kayit.user, kayit.artisan || null);
+        if (!il) continue; // bolgesiz kullanici hicbir ile sayilmaz
+        sayim.set(il, (sayim.get(il) || 0) + 1);
+      }
+
+      // 4) Yaz. Esige ULASAN il damgalanir ve damga BIR DAHA DEGISMEZ.
+      const kok = db.collection("adminStats").doc("provinces")
+          .collection("items");
+
+      // Mevcut damgalari TEK sorguda oku — il basina ayri `get()` 81 ayri
+      // okuma demekti ve gunluk isin maliyetini gereksiz katliyordu.
+      const damgalar = new Map();
+      const mevcutSnap = await kok.get();
+      mevcutSnap.docs.forEach((d) => {
+        const v = d.data() || {};
+        if (v.thresholdReachedAt) damgalar.set(d.id, v.thresholdReachedAt);
+      });
+
+      const simdi = new Date().toISOString();
+      let batch = db.batch();
+      let adet = 0;
+      for (const [il, sayi] of sayim.entries()) {
+        const patch = {
+          province: il,
+          availableCount: sayi,
+          updatedAt: simdi,
+        };
+        // Damga YALNIZ bir kez yazilir (kilit): sayi sonradan dususe bile
+        // geri sarmaz — kullaniciya verilen tarih degismemeli.
+        if (sayi >= PROVINCE_THRESHOLD && !damgalar.has(il)) {
+          patch.thresholdReachedAt = simdi;
+        }
+        batch.set(kok.doc(il), patch, {merge: true});
+        adet++;
+        if (adet >= 400) {
+          await batch.commit();
+          batch = db.batch();
+          adet = 0;
+        }
+      }
+
+      // Sayimda HIC gecmeyen il varsa sayacini sifirla — dun 40 musait
+      // kullanicisi olan il bugun bosaldiysa tablo eski sayiyi gostermemeli.
+      // Damgaya DOKUNULMAZ.
+      mevcutSnap.docs.forEach((d) => {
+        if (sayim.has(d.id)) return;
+        if (((d.data() || {}).availableCount || 0) === 0) return;
+        batch.set(d.ref, {availableCount: 0, updatedAt: simdi}, {merge: true});
+        adet++;
+      });
+
+      if (adet > 0) await batch.commit();
+
+      logger.info(
+          `rebuildProvinceStats: ${sayim.size} il, ` +
+          `${musaitIller.size} musait kullanici`);
+    },
+);
+
 exports.sendProductRequestDigest = onSchedule(
     {
       // Akşam 19:00 — anlık kaçıranlar (yeni ürün ekleyen, token'sız) için net.
