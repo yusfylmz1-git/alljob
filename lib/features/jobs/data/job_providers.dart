@@ -3,7 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/config/backend_config.dart';
 import '../../../data/models/job.dart';
 import '../../artisan/application/my_profile_controller.dart';
-import '../../artisan/data/artisan_providers.dart' show mockDatabaseProvider;
+import '../../artisan/data/artisan_providers.dart'
+    show mockDatabaseProvider, premiumFreeForMeProvider;
 import '../../auth/application/auth_controller.dart';
 import 'firebase_job_repository.dart';
 import 'job_repository.dart';
@@ -185,11 +186,26 @@ List<Job> sortJobMatchesFirst(List<Job> jobs, bool Function(Job) matchesMe) {
 
 /// Ustanın şu an müsait olup olmadığı (feed/ekran mesajları için kısayol).
 /// `users.available` ile vitrin müsaitliğini birlikte okur.
+///
+/// PREMIUM KAPISI ARTIK İL FARKINDA (2026-08-23): eskiden `profile.isAvailable`
+/// çağrılıyordu ve o getter YEREL sabiti (`AppConstants.premiumFreeDuringBeta`)
+/// okuyordu — remote yapılandırmayı hiç görmüyordu. Şehir bazlı geçişte bu
+/// sessiz bir delik olurdu: Bursa ücretliye geçse bile bu provider "müsait"
+/// demeye devam ederdi.
+///
+/// Şimdi karar tek yerden geliyor ([premiumFreeForMeProvider]): beta bayrağı
+/// + kullanıcının ili + ücretli il listesi.
 final artisanIsAvailableProvider = Provider<bool>((ref) {
   final user = ref.watch(currentUserProvider);
   if (user == null) return false;
   if (!user.available) return false;
   final draft = ref.watch(myProfileControllerProvider).valueOrNull;
-  if (draft != null && !draft.profile.isAvailable) return false;
+  if (draft != null &&
+      !draft.profile.isAvailableAt(
+        DateTime.now(),
+        premiumFreeDuringBeta: ref.watch(premiumFreeForMeProvider),
+      )) {
+    return false;
+  }
   return true;
 });

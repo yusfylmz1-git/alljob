@@ -145,6 +145,13 @@ class ArtisanSearchController extends AsyncNotifier<ArtisanSearchState> {
       ref.read(appRuntimeConfigProvider).valueOrNull?.premiumFreeDuringBeta ??
       AppConstants.premiumFreeDuringBeta;
 
+  /// ÜCRETLİ döneme geçmiş iller (2026-08-23). Her usta KENDİ iliyle
+  /// değerlendirilir — Bursa ücretliyken Balıkesirli usta hâlâ aramada
+  /// görünmeli.
+  List<String> get _paidProvinces =>
+      ref.read(appRuntimeConfigProvider).valueOrNull?.paidProvinces ??
+      const [];
+
   /// Seçili (opsiyonel) filtreyle ilk sayfayı getirir. Filtre boş olabilir.
   Future<void> search() async {
     _filter = ref.read(customerFilterProvider).toArtisanFilter();
@@ -159,6 +166,7 @@ class ArtisanSearchController extends AsyncNotifier<ArtisanSearchState> {
         offset: 0,
         limit: AppConstants.artisanPageSize,
         premiumFreeDuringBeta: _freeBeta,
+        paidProvinces: _paidProvinces,
       );
       return ArtisanSearchState(
         items: page.items,
@@ -190,6 +198,7 @@ class ArtisanSearchController extends AsyncNotifier<ArtisanSearchState> {
         offset: current.items.length,
         limit: AppConstants.artisanPageSize,
         premiumFreeDuringBeta: _freeBeta,
+        paidProvinces: _paidProvinces,
       );
       // Devam eden istek sırasında yeni bir arama başladıysa (filtre değişti)
       // eski sayfayı yeni listeye eklemeyiz — karışık sonuç görünürdü.

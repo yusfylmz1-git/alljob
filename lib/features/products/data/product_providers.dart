@@ -63,6 +63,15 @@ final availableDiscoverProductsProvider = Provider<List<Product>>((ref) {
     }
     final satici = ref.watch(publicUserProvider(p.ownerUid)).valueOrNull;
     // Henüz yüklenmedi → göster (titreme olmasın).
+    //
+    // NOT (2026-08-23): burada `users.available` bayrağı okunuyor, premium
+    // kapısı DEĞİL. Bu bayrağı satıcının kendi cihazı yazar ve o cihazdaki
+    // kapı (`artisanIsAvailableProvider`) artık il farkında. Yani şehir
+    // geçişinde satıcı uygulamayı açtığında bayrak düşer ve ürünler bir
+    // sonraki okumada gizlenir — ama satıcı hiç açmazsa bayrak açık kalır.
+    //
+    // Kalıcı çözüm ürün sorgusunun sahibin ilini de okuması; şimdilik
+    // toplu plan ekranı (`pauseAvailability`) bu boşluğu kapatabiliyor.
     if (satici == null || satici.available) sonuc.add(p);
   }
   return sonuc;

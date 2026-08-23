@@ -10,6 +10,7 @@ import '../../../data/models/product_category.dart';
 class AdminRuntimeConfig {
   const AdminRuntimeConfig({
     this.premiumFreeDuringBeta = true,
+    this.paidProvinces = const [],
     this.maintenanceMode = false,
     this.minAppVersion,
     this.productsEnabled = true,
@@ -33,6 +34,10 @@ class AdminRuntimeConfig {
   });
 
   final bool premiumFreeDuringBeta;
+
+  /// ÜCRETLİ döneme geçmiş iller (2026-08-23) — şehir bazlı Pro geçişi.
+  /// Boşken davranış eskisiyle birebir aynıdır.
+  final List<String> paidProvinces;
   final bool maintenanceMode;
   final String? minAppVersion;
 
@@ -71,6 +76,12 @@ class AdminRuntimeConfig {
 
     return AdminRuntimeConfig(
       premiumFreeDuringBeta: map['premiumFreeDuringBeta'] != false,
+      // Bozuk değer BOŞ listeye düşer: yanlış bir il adı yüzünden kimsenin
+      // müsaitliği kapanmamalı (güvenli varsayılan).
+      // `as List?` DEĞİL: yanlış tipte bir değer (ör. düz String) cast
+      // hatası atar ve TÜM yapılandırma okunamaz hâle gelirdi — tek bir
+      // hatalı alan yüzünden bakım modu, sürüm kapısı, duyuru da düşerdi.
+      paidProvinces: _ilListesi(map['paidProvinces']),
       maintenanceMode: map['maintenanceMode'] == true,
       minAppVersion: s('minAppVersion'),
       productsEnabled: map['productsEnabled'] != false,
@@ -174,6 +185,7 @@ class MockAdminRuntimeConfigRepository implements AdminRuntimeConfigRepository {
   Future<void> update(Map<String, dynamic> patch) async {
     final m = <String, dynamic>{
       'premiumFreeDuringBeta': _config.premiumFreeDuringBeta,
+      'paidProvinces': _config.paidProvinces,
       'maintenanceMode': _config.maintenanceMode,
       'minAppVersion': _config.minAppVersion,
       'productsEnabled': _config.productsEnabled,
@@ -388,4 +400,17 @@ class ScheduledCampaign {
       error: map['error'] as String?,
     );
   }
+}
+
+/// `paidProvinces` alanını GÜVENLİ okur.
+///
+/// Liste değilse (ör. elle düz String yazılmışsa) BOŞ liste döner: yanlış
+/// bir değer yüzünden ne kimsenin müsaitliği kapanmalı ne de tüm
+/// yapılandırma okunamaz hâle gelmeli.
+List<String> _ilListesi(Object? v) {
+  if (v is! List) return const [];
+  return v
+      .map((e) => e.toString().trim())
+      .where((e) => e.isNotEmpty)
+      .toList(growable: false);
 }

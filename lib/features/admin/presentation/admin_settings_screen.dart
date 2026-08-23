@@ -5,7 +5,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/theme/app_palette.dart';
 import '../../../core/utils/snackbar_helper.dart';
 import '../../../core/widgets/responsive_center.dart';
+import '../../../core/widgets/searchable_select_field.dart';
 import '../../../core/widgets/status_views.dart';
+import '../../../data/local/local_data_service.dart';
+import '../../../data/models/geo_models.dart';
 import '../../legal/legal_docs.dart';
 import '../data/admin_providers.dart';
 import '../data/admin_runtime_config_repository.dart';
@@ -132,6 +135,24 @@ class _AdminSettingsScreenState extends ConsumerState<AdminSettingsScreen> {
                       ? null
                       : (v) => _patch({'premiumFreeDuringBeta': v}),
                 ),
+                // ÜCRETLİ İLLER (2026-08-23) — şehir bazlı Pro geçişi.
+                //
+                // Bu liste bir KAPI'dır, veri yazmaz: il eklendiği an o ilde
+                // aboneliği olmayan kullanıcının müsaitliği düşer, il
+                // çıkarılınca herkes eski hâline kendiliğinden döner.
+                //
+                // Toplu plan ekranındaki yıkıcı işlemlerle karıştırılmamalı:
+                // orası veri yazar ve geri alınamaz.
+                if (cfg.premiumFreeDuringBeta) ...[
+                  const SizedBox(height: 8),
+                  _UcretliIller(
+                    iller: cfg.paidProvinces,
+                    enabled: canManage && !_busy,
+                    onChanged: (yeni) => _patch({'paidProvinces': yeni}),
+                  ),
+                ],
+                const SizedBox(height: 8),
+
                 SwitchListTile(
                   contentPadding: EdgeInsets.zero,
                   title: const Text('Bakım modu'),
@@ -260,6 +281,110 @@ class _AdminSettingsScreenState extends ConsumerState<AdminSettingsScreen> {
           );
         },
       ),
+    );
+  }
+}
+
+/// ÜCRETLİ döneme geçmiş illerin listesi (2026-08-23).
+///
+/// Şehir bazlı Pro geçişinin tek kontrol noktası. Ekleme/çıkarma anında
+/// etkilidir ve **hiçbir veri yazmaz** — kapı yalnız okur. Yanlış giderse
+/// il çıkarılır, herkes eski hâline döner.
+class _UcretliIller extends ConsumerWidget {
+  const _UcretliIller({
+    required this.iller,
+    required this.enabled,
+    required this.onChanged,
+  });
+
+  final List<String> iller;
+  final bool enabled;
+  final void Function(List<String>) onChanged;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final palette = context.palette;
+    final theme = Theme.of(context);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text('Ücretli iller', style: theme.textTheme.labelLarge),
+        const SizedBox(height: 4),
+        Text(
+          iller.isEmpty
+              ? 'Liste boş — tüm iller betada, kimse ödemiyor.'
+              : '${iller.length} il ücretli dönemde. Bu illerde aboneliği '
+                  'olmayan kullanıcının müsaitliği kapalıdır.',
+          style: TextStyle(color: palette.inkMuted, fontSize: 12.5),
+        ),
+        const SizedBox(height: 8),
+        if (iller.isNotEmpty)
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final il in iller)
+                Chip(
+                  label: Text(il),
+                  onDeleted: enabled
+                      ? () => onChanged(
+                            iller.where((e) => e != il).toList(growable: false),
+                          )
+                      : null,
+                ),
+            ],
+          ),
+        const SizedBox(height: 8),
+        ref.watch(provincesProvider).when(
+              loading: () => const LinearProgressIndicator(),
+              error: (_, _) => const Text('İl verisi yüklenemedi'),
+              data: (hepsi) {
+                final kalan = hepsi
+                    .where((p) => !iller.contains(p.name))
+                    .toList(growable: false);
+                return SearchableSelectField<Province>(
+                  label: 'İl ekle',
+                  value: null,
+                  items: kalan,
+                  itemLabel: (p) => p.name,
+                  searchHint: 'İl ara…',
+                  prefixIcon: Icons.add_location_alt_outlined,
+                  enabled: enabled,
+                  equals: (a, b) => a.id == b.id,
+                  onSelected: (p) async {
+                    // Geçiş bir ilan kadar görünür bir karar: sessizce
+                    // eklenmemeli.
+                    final onay = await showDialog<bool>(
+                      context: context,
+                      builder: (ctx) => AlertDialog(
+                        title: Text('${p.name} ücretli döneme geçsin mi?'),
+                        content: Text(
+                          '${p.name} ilinde aboneliği olmayan kullanıcıların '
+                          'müsaitliği KAPANIR; aramada görünmez ve iş '
+                          'alamazlar.\n\n'
+                          'Hiçbir veri değişmez — ili listeden çıkarırsanız '
+                          'herkes eski hâline döner.',
+                        ),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(ctx, false),
+                            child: const Text('Vazgeç'),
+                          ),
+                          FilledButton(
+                            onPressed: () => Navigator.pop(ctx, true),
+                            child: const Text('Ücretliye geçir'),
+                          ),
+                        ],
+                      ),
+                    );
+                    if (onay != true) return;
+                    onChanged([...iller, p.name]);
+                  },
+                );
+              },
+            ),
+      ],
     );
   }
 }

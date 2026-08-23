@@ -1,5 +1,6 @@
 import 'dart:math';
 
+import '../../../core/config/app_runtime_config.dart';
 import '../../../data/local/mock_database.dart';
 import '../../../data/models/artisan_profile.dart';
 import 'artisan_repository.dart';
@@ -17,6 +18,7 @@ class MockArtisanRepository implements ArtisanRepository {
     required int offset,
     required int limit,
     bool? premiumFreeDuringBeta,
+    List<String> paidProvinces = const [],
   }) async {
     // Yapay ağ gecikmesi — iskelet/yükleniyor durumları mock'ta da görünsün.
     // Sayfalamada (offset > 0) KISA tutulur: 900 tohumlanmış ustayı kaydırarak
@@ -31,7 +33,18 @@ class MockArtisanRepository implements ArtisanRepository {
 
     // Premium kapısı — mock, güvenlik kuralı/istemci davranışını taklit eder.
     bool musait(ArtisanProfile p) =>
-        p.isAvailableAt(now, premiumFreeDuringBeta: premiumFreeDuringBeta);
+        p.isAvailableAt(
+          now,
+          // FİREBASE PARİTESİ (kural 1): her usta KENDİ iliyle
+          // değerlendirilir; tek bool yetmez.
+          premiumFreeDuringBeta: premiumFreeForUser(
+            userProvinces: p.serviceAreas
+                .map((a) => a.province)
+                .toList(growable: false),
+            premiumFreeDuringBeta: premiumFreeDuringBeta,
+            paidProvinces: paidProvinces,
+          ),
+        );
 
     // Opsiyonel filtre (PRD §3): verilen alanlar AND; boş alan tümünü kabul eder.
     // Meslek seçilmemiş kayıtlar (yeni ustalar) listelenmez.

@@ -30,6 +30,7 @@ class _SayacliRepository implements ArtisanRepository {
     required int offset,
     required int limit,
     bool? premiumFreeDuringBeta,
+    List<String> paidProvinces = const [],
   }) async {
     cagriSayisi++;
     // Gerçek repo gibi asenkron davran (yarış durumu ancak böyle görünür).

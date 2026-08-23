@@ -106,6 +106,34 @@ sıfırdan hesaplar.
 Eşik iki yerde: `PROVINCE_THRESHOLD` (JS) ve `ProvinceStat.threshold` (Dart)
 — **birlikte değişir**, test karşılaştırır.
 
+## `adminConfig/runtime.paidProvinces` — şehir bazlı Pro kapısı (2026-08-23)
+
+ÜCRETLİ döneme geçmiş illerin listesi. **Boşken davranış eskisiyle birebir
+aynıdır** — yalnız `premiumFreeDuringBeta` karar verir.
+
+Karar sırası (`premiumFreeForUser`):
+
+1. Beta bayrağı KAPALIYSA → hiç kimse ücretsiz değil (eski davranış korunur)
+2. Kullanıcının ili bu listedeyse → ücretsiz değil
+3. Aksi hâlde ücretsiz
+
+**Bölgesiz kullanıcı ücretliye ALINMAZ**: hangi ile ait olduğu bilinmiyor.
+Karşılaştırma kırpılmış + büyük/küçük harfe duyarsızdır — admin panelinden
+`" bursa"` yazılması geçişi sessizce bozmasın.
+
+> [!note] Kapı GERİ ALINABİLİR — hiçbir veri yazmaz
+> `premiumFreeForUser` saf bir fonksiyondur. İl listeden çıkınca eski cevabı
+> vermeye başlar ve herkes kendiliğinden eski hâline döner. Toplu plan
+> ekranıyla karıştırılmamalı: orası veri yazar ve geri alınamaz.
+
+**Arama tarafında her usta KENDİ iliyle değerlendirilir** — tek bir bool
+yetmez, çünkü Bursa ücretliyken Balıkesirli usta hâlâ listede görünmeli.
+`searchArtisans` bu yüzden `paidProvinces` listesini alır.
+
+Alan **güvenli okunur** (`_ilListesi`): liste değilse boş listeye düşer.
+`as List?` cast'i kullanılsaydı yanlış tipte tek bir değer TÜM
+yapılandırmayı okunamaz hâle getirir, bakım modu ve sürüm kapısı da düşerdi.
+
 ## Deterministik kimlikler
 
 Rastgele kimlik yerine hesaplanabilir kimlik kullanılır — tekillik ve yetki

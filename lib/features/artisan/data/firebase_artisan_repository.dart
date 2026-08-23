@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+import '../../../core/config/app_runtime_config.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../data/local/mock_database.dart' show kProfessionNames;
 import '../../../data/models/artisan_profile.dart';
@@ -122,6 +123,7 @@ class FirebaseArtisanRepository implements ArtisanRepository {
     required int offset,
     required int limit,
     bool? premiumFreeDuringBeta,
+    List<String> paidProvinces = const [],
   }) async {
     final docs =
         await _cachedProfiles(filter.professionCode, filter.province);
@@ -129,8 +131,20 @@ class FirebaseArtisanRepository implements ArtisanRepository {
 
     // Premium kapısı: ücretsiz dönem kapalıysa premium erişimi olmayan usta
     // müsait sayılmaz → listede görünmez (madde 7).
-    bool musait(ArtisanProfile p) =>
-        p.isAvailableAt(now, premiumFreeDuringBeta: premiumFreeDuringBeta);
+    //
+    // İL FARKINDA (2026-08-23): her usta KENDİ iliyle değerlendirilir.
+    // Tek bir bool yetmez — Bursa ücretliyken Balıkesir hâlâ beta'da olabilir
+    // ve iki ustanın kapısı farklı çalışmalı.
+    bool musait(ArtisanProfile p) => p.isAvailableAt(
+          now,
+          premiumFreeDuringBeta: premiumFreeForUser(
+            userProvinces: p.serviceAreas
+                .map((a) => a.province)
+                .toList(growable: false),
+            premiumFreeDuringBeta: premiumFreeDuringBeta,
+            paidProvinces: paidProvinces,
+          ),
+        );
 
     final records = docs
         .map((d) => _record(d.id, d.data))

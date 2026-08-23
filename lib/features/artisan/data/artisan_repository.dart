@@ -136,11 +136,17 @@ abstract interface class ArtisanRepository {
   /// SAYILMAZ ve listede görünmez — ücretsiz döneme son verilince
   /// müsaitliğin kendiliğinden kapanmasını sağlayan kapı budur.
   /// Verilmezse `AppConstants` yerel varsayılanı kullanılır.
+  /// [paidProvinces]: ÜCRETLİ döneme geçmiş iller (2026-08-23). Her usta
+  /// KENDİ iliyle değerlendirilir — tek bir bool yetmez, çünkü Bursa
+  /// ücretliyken Balıkesir hâlâ beta'da olabilir.
+  ///
+  /// Boş liste = eski davranış (yalnız [premiumFreeDuringBeta] karar verir).
   Future<ArtisanSearchPage> searchArtisans({
     required ArtisanFilter filter,
     required int offset,
     required int limit,
     bool? premiumFreeDuringBeta,
+    List<String> paidProvinces = const [],
   });
 
   Future<ArtisanDetail?> getArtisanDetail(String uid);
