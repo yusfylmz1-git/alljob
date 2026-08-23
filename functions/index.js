@@ -3383,6 +3383,25 @@ exports.adminGrantPremium = onCall(
  * ustalara DOKUNMAZ — parasini odeyen kullaniciyi kapatmak gelir kaybi ve
  * sikayet sebebidir. Yonetici bilerek false gecebilir.
  *
+ * `province` ZORUNLUDUR (2026-08-23). Once yoktu ve sorgu TUM koleksiyonu
+ * tariyordu: Bursa'yi gecirmek isteyen yonetici Turkiye'deki her ustanin
+ * musaitligini kapatabiliyordu ve islem GERI ALINAMIYOR. Sehir bazli gecise
+ * gecilince bu artik teorik bir risk degil, gunluk bir islem.
+ *
+ * "Tumu" secenegi BILEREK YOK: birinin yanlislikla secmesi an meselesi.
+ * Ulke geneli bir islem gerekirse iller tek tek secilir — yavaslik burada
+ * guvenliktir.
+ *
+ * SAYFALAMA (2026-08-23): eskiden `.get()` ile tek cagrida tum koleksiyon
+ * okunuyordu. 10.000 ustada bu 10.000 okuma + muhtemel zaman asimi demek.
+ * Artik `orderBy(documentId) + startAfter` ile 500'luk sayfalar halinde
+ * yurur. Kod tabanindaki diger 29 dinleyicinin hepsinde limit var; burasi
+ * atlanmisti.
+ *
+ * IL ESLESMESI bellekte yapilir: `serviceAreas` bir DIZI ve icindeki
+ * `province` alanina Firestore `where` ile bakilamaz (array-contains tam
+ * nesne esitligi ister, ilce adini da bilmek gerekirdi).
+ *
  * Gerekce ZORUNLUDUR ve audit log'a yazilir. Islem 400'luk yiginlar halinde
  * yurur (Firestore batch siniri 500).
  */
@@ -3391,8 +3410,17 @@ exports.adminBulkPlanUpdate = onCall(
     async (request) => {
       const auth = request.auth;
       await assertCap(auth, "finance.manage");
-      const {mode, reason, onlyWithoutActivePremium, dryRun} =
+      const {mode, reason, onlyWithoutActivePremium, dryRun, province} =
         request.data || {};
+
+      // IL ZORUNLU — bos gecilemez. Bkz. fonksiyon basligindaki not.
+      const il = String(province || "").trim();
+      if (!il) {
+        throw new HttpsError(
+            "invalid-argument",
+            "province zorunlu: toplu islem yalniz tek bir il icin calisir.",
+        );
+      }
 
       const gecerliModlar = ["revokePremium", "pauseAvailability", "both"];
       if (!gecerliModlar.includes(mode)) {
@@ -3416,52 +3444,77 @@ exports.adminBulkPlanUpdate = onCall(
       const korunanlariAtla = onlyWithoutActivePremium !== false;
       const simdi = Date.now();
 
-      const snap = await db.collection("artisanProfiles").get();
       let etkilenen = 0;
       let atlanan = 0;
+      let taranan = 0;   // tum koleksiyonda gezilen kayit
+      let ildeki = 0;    // il eslesmesi tutan kayit
       let batch = db.batch();
       let batchAdet = 0;
 
-      for (const doc of snap.docs) {
-        const d = doc.data() || {};
-        const bitis = d.premiumExpiresAt ?
-          d.premiumExpiresAt.toDate().getTime() : 0;
-        const aktifPremium = d.isPremium === true && bitis > simdi;
+      // SAYFALI TARAMA — tek `.get()` yerine 500'luk sayfalar.
+      const SAYFA = 500;
+      let sonDoc = null;
+      for (;;) {
+        let q = db.collection("artisanProfiles")
+            .orderBy(FieldPath.documentId())
+            .limit(SAYFA);
+        if (sonDoc) q = q.startAfter(sonDoc.id);
+        const sayfa = await q.get();
+        if (sayfa.empty) break;
+        sonDoc = sayfa.docs[sayfa.docs.length - 1];
 
-        if (korunanlariAtla && aktifPremium) {
-          atlanan++;
-          continue;
-        }
+        for (const doc of sayfa.docs) {
+          taranan++;
+          const d = doc.data() || {};
 
-        const patch = {};
-        if (mode === "revokePremium" || mode === "both") {
-          // Zaten premium degilse yazma — bosuna yazma maliyeti.
-          if (d.isPremium === true) {
-            patch.isPremium = false;
-            patch.premiumExpiresAt = Timestamp.fromDate(new Date());
+          // IL FILTRESI (bellekte): serviceAreas bir dizi, icindeki
+          // province alanina Firestore where ile bakilamaz.
+          const alanlar = Array.isArray(d.serviceAreas) ? d.serviceAreas : [];
+          const ildeMi = alanlar.some(
+              (a) => a && String(a.province || "").trim() === il);
+          if (!ildeMi) continue; // atlanan SAYILMAZ: kapsam disi
+          ildeki++;
+
+          const bitis = d.premiumExpiresAt ?
+            d.premiumExpiresAt.toDate().getTime() : 0;
+          const aktifPremium = d.isPremium === true && bitis > simdi;
+
+          if (korunanlariAtla && aktifPremium) {
+            atlanan++;
+            continue;
+          }
+
+          const patch = {};
+          if (mode === "revokePremium" || mode === "both") {
+            // Zaten premium degilse yazma — bosuna yazma maliyeti.
+            if (d.isPremium === true) {
+              patch.isPremium = false;
+              patch.premiumExpiresAt = Timestamp.fromDate(new Date());
+            }
+          }
+          if (mode === "pauseAvailability" || mode === "both") {
+            if (d.manualPause !== true) {
+              patch.manualPause = true;
+            }
+          }
+          if (Object.keys(patch).length === 0) {
+            atlanan++;
+            continue;
+          }
+
+          etkilenen++;
+          if (dryRun === true) continue; // yalniz say, yazma
+
+          patch.premiumUpdatedAt = FieldValue.serverTimestamp();
+          batch.set(doc.ref, patch, {merge: true});
+          batchAdet++;
+          if (batchAdet >= 400) {
+            await batch.commit();
+            batch = db.batch();
+            batchAdet = 0;
           }
         }
-        if (mode === "pauseAvailability" || mode === "both") {
-          if (d.manualPause !== true) {
-            patch.manualPause = true;
-          }
-        }
-        if (Object.keys(patch).length === 0) {
-          atlanan++;
-          continue;
-        }
-
-        etkilenen++;
-        if (dryRun === true) continue; // yalniz say, yazma
-
-        patch.premiumUpdatedAt = FieldValue.serverTimestamp();
-        batch.set(doc.ref, patch, {merge: true});
-        batchAdet++;
-        if (batchAdet >= 400) {
-          await batch.commit();
-          batch = db.batch();
-          batchAdet = 0;
-        }
+        if (sayfa.size < SAYFA) break; // son sayfa
       }
 
       if (dryRun !== true && batchAdet > 0) await batch.commit();
@@ -3475,23 +3528,30 @@ exports.adminBulkPlanUpdate = onCall(
         before: null,
         after: {
           mode,
+          province: il,
           etkilenen,
           atlanan,
-          toplam: snap.size,
+          // `toplam` artik ILDEKI kayit sayisi — yoneticinin gordugu
+          // "N ustadan M tanesi" ifadesi kapsam disi illeri saymamali.
+          toplam: ildeki,
+          taranan,
           onlyWithoutActivePremium: korunanlariAtla,
           dryRun: dryRun === true,
         },
       });
 
       logger.info(
-          `adminBulkPlanUpdate mode=${mode} etkilenen=${etkilenen} ` +
-          `atlanan=${atlanan} dryRun=${dryRun === true}`,
+          `adminBulkPlanUpdate il=${il} mode=${mode} ` +
+          `ildeki=${ildeki} etkilenen=${etkilenen} atlanan=${atlanan} ` +
+          `taranan=${taranan} dryRun=${dryRun === true}`,
       );
       return {
         ok: true,
         etkilenen,
         atlanan,
-        toplam: snap.size,
+        toplam: ildeki,
+        taranan,
+        province: il,
         dryRun: dryRun === true,
       };
     },

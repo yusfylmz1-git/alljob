@@ -79,7 +79,16 @@ abstract interface class AdminArtisanRepository {
   /// aktif aboneler ATLANIR. [dryRun] true ise hiçbir şey yazılmaz, yalnız
   /// kaç ustanın etkileneceği döner — yönetici önce görsün.
   /// [reason] zorunludur (denetim kaydına yazılır).
+  /// Toplu plan güncellemesi — YALNIZ tek bir il için.
+  ///
+  /// [province] ZORUNLUDUR (2026-08-23). Eskiden yoktu ve işlem tüm
+  /// koleksiyonu tarıyordu: Bursa'yı geçirmek isteyen yönetici Türkiye'deki
+  /// her ustanın müsaitliğini kapatabiliyordu ve işlem GERİ ALINAMAZ.
+  ///
+  /// "Tümü" seçeneği bilerek yok — ülke geneli bir işlem gerekirse iller
+  /// tek tek seçilir. Yavaşlık burada güvenliktir.
   Future<BulkPlanResult> bulkPlanUpdate({
+    required String province,
     required String mode,
     required String reason,
     bool onlyWithoutActivePremium = true,
@@ -100,7 +109,12 @@ class BulkPlanResult {
   final int etkilenen;
 
   /// Dokunulmayanlar: aktif aboneler + zaten o durumda olanlar.
+  ///
+  /// KAPSAM DIŞI iller buraya SAYILMAZ — "N ustadan M tanesi" ifadesi
+  /// yalnız seçilen ildeki kayıtları anlatmalı.
   final int atlanan;
+
+  /// Seçilen İLDEKİ toplam usta sayısı (koleksiyonun tamamı değil).
   final int toplam;
   final bool dryRun;
 }
@@ -238,6 +252,7 @@ class FirebaseAdminArtisanRepository implements AdminArtisanRepository {
 
   @override
   Future<BulkPlanResult> bulkPlanUpdate({
+    required String province,
     required String mode,
     required String reason,
     bool onlyWithoutActivePremium = true,
@@ -246,6 +261,7 @@ class FirebaseAdminArtisanRepository implements AdminArtisanRepository {
     final res = await _functions
         .httpsCallable('adminBulkPlanUpdate')
         .call<Object?>({
+          'province': province,
           'mode': mode,
           'reason': reason,
           'onlyWithoutActivePremium': onlyWithoutActivePremium,
@@ -435,16 +451,24 @@ class MockAdminArtisanRepository implements AdminArtisanRepository {
   }
 
   /// Toplu plan işlemleri kaydı (sunucu audit log'unun test karşılığı).
-  final List<({String mode, String reason, bool dryRun})> bulkOps = [];
+  final List<({String province, String mode, String reason, bool dryRun})>
+      bulkOps = [];
 
   @override
   Future<BulkPlanResult> bulkPlanUpdate({
+    required String province,
     required String mode,
     required String reason,
     bool onlyWithoutActivePremium = true,
     bool dryRun = false,
   }) async {
     // Sunucu doğrulamalarının aynısı (mock ile CF davranışı ayrışmasın).
+    final il = province.trim();
+    if (il.isEmpty) {
+      // CF de boş ili reddeder; mock aynı kapıyı kurmazsa "tümü" davranışı
+      // yalnız canlıda patlar (kural 1).
+      throw ArgumentError('İl zorunlu: toplu işlem tek bir il için çalışır.');
+    }
     const gecerli = ['revokePremium', 'pauseAvailability', 'both'];
     if (!gecerli.contains(mode)) {
       throw ArgumentError('Geçersiz mode: $mode');
@@ -453,14 +477,22 @@ class MockAdminArtisanRepository implements AdminArtisanRepository {
       throw ArgumentError('Gerekçe zorunlu (en az 5 karakter).');
     }
 
-    bulkOps.add((mode: mode, reason: reason, dryRun: dryRun));
+    bulkOps.add(
+        (province: il, mode: mode, reason: reason, dryRun: dryRun));
 
     final now = DateTime.now();
     var etkilenen = 0;
     var atlanan = 0;
+    var ildeki = 0;
 
     for (final entry in _items.entries.toList()) {
       final p = entry.value;
+
+      // İL FİLTRESİ — CF ile aynı: kapsam dışı kayıt `atlanan` SAYILMAZ,
+      // hiç görülmemiş sayılır.
+      if (!p.serviceAreas.any((a) => a.province.trim() == il)) continue;
+      ildeki++;
+
       final bitis = p.premiumExpiresAt;
       final aktifPremium = p.isPremium && bitis != null && bitis.isAfter(now);
 
@@ -494,7 +526,8 @@ class MockAdminArtisanRepository implements AdminArtisanRepository {
     return BulkPlanResult(
       etkilenen: etkilenen,
       atlanan: atlanan,
-      toplam: _items.length,
+      // İLDEKİ sayı — koleksiyonun tamamı değil (CF ile aynı).
+      toplam: ildeki,
       dryRun: dryRun,
     );
   }

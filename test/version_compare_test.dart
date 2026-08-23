@@ -1,5 +1,8 @@
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sepette_hizmet/core/config/app_version.dart';
+import 'package:sepette_hizmet/core/constants/app_constants.dart';
 
 void main() {
   group('compareVersions', () {
@@ -67,6 +70,41 @@ void main() {
         ),
         isFalse,
       );
+    });
+  });
+
+  group('Sürüm TEK kaynaktan gelir (2026-08-23)', () {
+    // Bu grubun varlık sebebi gerçek bir tuzak: `kClientVersion` elle
+    // yazılmış ayrı bir sabitti ve `1.0.0`'da unutulmuştu — gerçek sürüm
+    // `1.2.0` iken. Zorunlu güncelleme kapısı bu değeri okuduğu için
+    // `minAppVersion: 1.1.0` yazan bir yönetici GÜNCEL sürümdekiler dâhil
+    // HERKESİ kilitlerdi.
+
+    test('kClientVersion == AppConstants.appVersion', () {
+      expect(kClientVersion, AppConstants.appVersion,
+          reason: 'İkinci bir sürüm sabiti doğmuş — biri eskiyecek ve '
+              'zorunlu güncelleme kapısı yanlış hesaplayacak.');
+    });
+
+    test('güncel sürüm kendi sürümüyle KİLİTLENMİYOR', () {
+      // minAppVersion = çalışan sürüm → kapı açılmamalı.
+      expect(
+        isClientBelowMinVersion(
+          clientVersion: kClientVersion,
+          minAppVersion: AppConstants.appVersion,
+        ),
+        isFalse,
+      );
+    });
+
+    test('compareVersions İKİ kez tanımlanmıyor', () {
+      // İki kopya = iki farklı davranış: güncelleme rozeti bir şey,
+      // zorunlu güncelleme kapısı başka şey söyleyebilirdi.
+      final kaynak = File('lib/core/config/app_version.dart').readAsStringSync();
+      expect(kaynak.contains('int compareVersions('), isFalse,
+          reason: 'Kopya uygulama geri gelmiş; tek kaynak '
+              'app_version_info.dart olmalı.');
+      expect(kaynak.contains("show compareVersions"), isTrue);
     });
   });
 }

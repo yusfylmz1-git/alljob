@@ -5,6 +5,9 @@ import '../../../core/config/app_runtime_config.dart';
 import '../../../core/theme/app_palette.dart';
 import '../../../core/utils/snackbar_helper.dart';
 import '../../../core/widgets/responsive_center.dart';
+import '../../../core/widgets/searchable_select_field.dart';
+import '../../../data/local/local_data_service.dart';
+import '../../../data/models/geo_models.dart';
 import '../data/admin_artisan_repository.dart';
 import '../data/admin_providers.dart';
 
@@ -34,6 +37,17 @@ class _AdminBulkPlanScreenState extends ConsumerState<AdminBulkPlanScreen> {
   String _mode = 'pauseAvailability';
   final _reason = TextEditingController();
 
+  /// Hedef il — ZORUNLU (2026-08-23).
+  ///
+  /// Önce yoktu ve işlem TÜM koleksiyonu tarıyordu: Bursa'yı geçirmek
+  /// isteyen yönetici Türkiye'deki her ustanın müsaitliğini kapatabiliyordu
+  /// ve işlem geri alınamıyor. Şehir bazlı geçişe geçilince bu artık teorik
+  /// bir risk değil, günlük bir işlem.
+  ///
+  /// "Tümü" seçeneği BİLEREK YOK: birinin yanlışlıkla seçmesi an meselesi.
+  /// Ülke geneli işlem gerekirse iller tek tek seçilir.
+  Province? _il;
+
   /// Parasını ödemiş aktif aboneler atlansın mı? (varsayılan: evet)
   bool _skipPaying = true;
 
@@ -56,6 +70,7 @@ class _AdminBulkPlanScreenState extends ConsumerState<AdminBulkPlanScreen> {
     setState(() => _busy = true);
     try {
       final res = await ref.read(adminArtisanRepositoryProvider).bulkPlanUpdate(
+            province: _il!.name,
             mode: _mode,
             reason: _reason.text.trim(),
             onlyWithoutActivePremium: _skipPaying,
@@ -82,7 +97,8 @@ class _AdminBulkPlanScreenState extends ConsumerState<AdminBulkPlanScreen> {
       builder: (ctx) => AlertDialog(
         title: const Text('Toplu işlemi uygula'),
         content: Text(
-          '${p.etkilenen} usta etkilenecek. Bu işlem GERİ ALINAMAZ.\n\n'
+          '${_il?.name} ilinde ${p.etkilenen} usta etkilenecek '
+          '(ildeki toplam ${p.toplam}). Bu işlem GERİ ALINAMAZ.\n\n'
           '${_modeAciklama(_mode)}\n\n'
           'Gerekçe denetim kaydına yazılacak.',
         ),
@@ -106,6 +122,7 @@ class _AdminBulkPlanScreenState extends ConsumerState<AdminBulkPlanScreen> {
     setState(() => _busy = true);
     try {
       final res = await ref.read(adminArtisanRepositoryProvider).bulkPlanUpdate(
+            province: _il!.name,
             mode: _mode,
             reason: _reason.text.trim(),
             onlyWithoutActivePremium: _skipPaying,
@@ -113,7 +130,8 @@ class _AdminBulkPlanScreenState extends ConsumerState<AdminBulkPlanScreen> {
       if (!mounted) return;
       setState(() => _preview = null);
       context.showSuccess(
-        '${res.etkilenen} usta güncellendi (${res.atlanan} atlandı).',
+        '${_il?.name}: ${res.etkilenen} usta güncellendi '
+        '(${res.atlanan} atlandı).',
       );
     } catch (e) {
       if (!mounted) return;
@@ -127,6 +145,10 @@ class _AdminBulkPlanScreenState extends ConsumerState<AdminBulkPlanScreen> {
   bool _guard() {
     if (!ref.read(adminCapabilitiesProvider).allows('finance.manage')) {
       context.showError('finance.manage yetkisi yok.');
+      return false;
+    }
+    if (_il == null) {
+      context.showError('Hedef il seçin.');
       return false;
     }
     if (!_reasonOk) {
@@ -204,6 +226,36 @@ class _AdminBulkPlanScreenState extends ConsumerState<AdminBulkPlanScreen> {
               ),
             ),
 
+          // HEDEF İL — zorunlu. Seçilmeden önizleme/uygula açılmaz.
+          Text('Hedef il', style: theme.textTheme.labelLarge),
+          const SizedBox(height: 6),
+          ref.watch(provincesProvider).when(
+                loading: () => const LinearProgressIndicator(),
+                error: (_, _) => const Text('İl verisi yüklenemedi'),
+                data: (iller) => SearchableSelectField<Province>(
+                  label: 'İl',
+                  value: _il,
+                  items: iller,
+                  itemLabel: (p) => p.name,
+                  searchHint: 'İl ara…',
+                  prefixIcon: Icons.map_outlined,
+                  enabled: canManage && !_busy,
+                  equals: (a, b) => a.id == b.id,
+                  onSelected: (p) => setState(() {
+                    _il = p;
+                    _preview = null; // il değişti → önizleme geçersiz
+                  }),
+                ),
+              ),
+          const SizedBox(height: 6),
+          Text(
+            'İşlem yalnız seçilen ildeki ustaları etkiler. "Tümü" seçeneği '
+            'YOKTUR — ülke geneli bir işlem gerekiyorsa illeri tek tek '
+            'seçin.',
+            style: TextStyle(color: palette.inkMuted, fontSize: 12.5),
+          ),
+          const SizedBox(height: 16),
+
           Text('İşlem', style: theme.textTheme.labelLarge),
           const SizedBox(height: 6),
           RadioGroup<String>(
@@ -280,8 +332,12 @@ class _AdminBulkPlanScreenState extends ConsumerState<AdminBulkPlanScreen> {
             children: [
               Expanded(
                 child: OutlinedButton.icon(
-                  onPressed:
-                      (!canManage || _busy || !_reasonOk) ? null : _onizle,
+                  // İl seçilmeden önizleme de alınamaz: sunucu zaten
+                  // reddederdi, ama düğmeyi kilitlemek hatayı hiç
+                  // doğurmamak demek.
+                  onPressed: (!canManage || _busy || !_reasonOk || _il == null)
+                      ? null
+                      : _onizle,
                   icon: const Icon(Icons.visibility_outlined, size: 18),
                   label: const Text('Önizle'),
                 ),

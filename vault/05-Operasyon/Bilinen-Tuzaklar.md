@@ -1043,5 +1043,48 @@ değiştirmek) moderasyonu kör eder ve geri dönüşü olmayan veri kaybıdır.
 Aynı sebeple **gönderen kendi mesajını maskesiz görür**: yazdığını göremeyen
 kullanıcı mesajını düzeltemez.
 
+## 🔴 Toplu işlem kapsamı: il ZORUNLU, sorgu SAYFALI
+
+`adminBulkPlanUpdate` iki hatayla duruyordu (2026-08-23'te düzeltildi):
+
+1. **İl filtresi yoktu** — sorgu `artisanProfiles` koleksiyonunun tamamını
+   tarıyordu. Bursa'yı geçirmek isteyen yönetici Türkiye'deki her ustanın
+   müsaitliğini kapatabilirdi ve **işlem geri alınamaz**.
+2. **Sorgu limitsizdi** — `.get()` ile tek çağrı. 10.000 ustada 10.000 okuma
+   + zaman aşımı riski. Kod tabanındaki diğer 29 dinleyicinin hepsinde
+   `limit()` var; burası atlanmıştı.
+
+Şimdi: `province` zorunlu (boş reddedilir), sorgu `orderBy(documentId) +
+startAfter` ile 500'lük sayfalar.
+
+**"Tümü" seçeneği BİLEREK YOK.** Birinin yanlışlıkla seçmesi an meselesi ve
+işlem geri alınamaz. Ülke geneli bir işlem gerekirse iller tek tek seçilir —
+yavaşlık burada güvenliktir.
+
+İl eşleşmesi **bellekte** yapılır: `serviceAreas` bir dizi ve içindeki
+`province` alanına Firestore `where` ile bakılamaz (`array-contains` tam
+nesne eşitliği ister, ilçe adını da bilmek gerekirdi).
+
+Kapsam dışı kayıt **`atlanan` sayılmaz** — "N ustadan M tanesi" ifadesi
+yalnız seçilen ili anlatmalı, yoksa yönetici yanılır.
+
+## 🔴 İki sürüm sabiti = herkesi kilitleme riski
+
+`kClientVersion` elle yazılmış AYRI bir sabitti ve `'1.0.0'`da unutulmuştu —
+gerçek sürüm `1.2.0` iken. Zorunlu güncelleme kapısı
+(`app_router.dart` → `isClientBelowMinVersion`) bu değeri okuduğu için:
+`adminConfig/runtime.minAppVersion` alanına `1.1.0` yazan bir yönetici,
+uygulama kendini `1.0.0` sandığından **GÜNCEL sürümdekiler dâhil herkesi
+kilitlerdi**.
+
+Zincir artık tek: **`pubspec.yaml` → `AppConstants.appVersion` →
+`kClientVersion`**. İlk halka `test/guncelleme_bildirimi_test.dart`, ikincisi
+`test/version_compare_test.dart` ile bağlı.
+
+`compareVersions` de iki yerde tanımlıydı; tek kaynağa
+(`app_version_info.dart`) indirildi ve `app_version.dart` onu yeniden dışa
+aktarıyor. İki kopya = iki farklı davranış: güncelleme rozeti bir şey,
+zorunlu güncelleme kapısı başka şey söyleyebilirdi.
+
 ---
 İlgili: [[Mimari-Kararlar]] · [[Guvenlik-Kurallari]] · [[Sohbet-Mimarisi]] · [[Deploy-ve-Ortam]] · [[Demo-Veri-Seti]]

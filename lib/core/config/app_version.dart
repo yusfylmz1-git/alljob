@@ -1,33 +1,30 @@
-/// İstemci sürümü — `pubspec.yaml` içindeki `version:` alanının
-/// **build numarasından önceki** kısmı ile senkron tutulmalı
-/// (ör. `1.0.0+12` → `1.0.0`).
+import '../../data/models/app_version_info.dart' show compareVersions;
+import '../constants/app_constants.dart';
+
+export '../../data/models/app_version_info.dart' show compareVersions;
+
+/// İstemci sürümü — **tek kaynak** [AppConstants.appVersion]'dır.
 ///
-/// Admin `adminConfig/runtime.minAppVersion` bu değerden yüksekse
-/// zorunlu güncelleme kapısı açılır (bkz. [isClientBelowMinVersion]).
-const String kClientVersion = '1.0.0';
-
-/// `a` ile `b` semver-benzeri karşılaştırma: negatif = a < b, 0 = eşit,
-/// pozitif = a > b. Yalnız nokta ile ayrılmış sayısal parçalar (1.2.3);
-/// `+build` / `-pre` soneki yok sayılır. Boş / geçersiz → 0 parçalı.
-int compareVersions(String a, String b) {
-  List<int> parts(String raw) {
-    final core = raw.trim().split(RegExp(r'[+\-]')).first;
-    if (core.isEmpty) return const [];
-    return core.split('.').map((p) => int.tryParse(p.trim()) ?? 0).toList();
-  }
-
-  final pa = parts(a);
-  final pb = parts(b);
-  final n = pa.length > pb.length ? pa.length : pb.length;
-  for (var i = 0; i < n; i++) {
-    final x = i < pa.length ? pa[i] : 0;
-    final y = i < pb.length ? pb[i] : 0;
-    if (x != y) return x.compareTo(y);
-  }
-  return 0;
-}
+/// 2026-08-23'e kadar burada elle yazılmış ayrı bir sabit duruyordu
+/// (`'1.0.0'`) ve gerçek sürüm `1.2.0` iken güncellenmemişti. Zorunlu
+/// güncelleme kapısı bu değeri okuduğu için ciddi bir tuzaktı:
+/// `adminConfig/runtime.minAppVersion` alanına `1.1.0` yazan bir yönetici,
+/// uygulama kendini `1.0.0` sandığından **herkesin uygulamasını
+/// kilitlerdi** — güncel sürümdekiler dâhil.
+///
+/// Artık `AppConstants.appVersion`'a bağlı; o sabit de
+/// `test/guncelleme_bildirimi_test.dart` ile `pubspec.yaml`'a bağlanmış
+/// durumda. Yani zincir tek: **pubspec → AppConstants → buradan okuyan
+/// herkes.**
+const String kClientVersion = AppConstants.appVersion;
 
 /// [minAppVersion] dolu ve istemci daha düşükse true.
+///
+/// Karşılaştırma [compareVersions] ile yapılır — o fonksiyon
+/// `app_version_info.dart` içinde yaşar ve buradan yeniden dışa aktarılır.
+/// İkinci bir kopya tutmak, iki farklı "sürüm karşılaştırma" davranışı
+/// demekti: güncelleme rozeti bir şey, zorunlu güncelleme kapısı başka bir
+/// şey söyleyebilirdi.
 bool isClientBelowMinVersion({
   required String clientVersion,
   String? minAppVersion,
