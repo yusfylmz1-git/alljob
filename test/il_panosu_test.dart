@@ -283,4 +283,43 @@ void main() {
           reason: 'İkinci dokunuş yutulmuyor.');
     });
   });
+
+  group('Eşik ayarı ERİŞİLEBİLİR (2026-08-24)', () {
+    // Kullanıcı bulgusu: "eşik ayarı yok, açılmıyor".
+    //
+    // İki sebep vardı:
+    //  1. Yalnız UZUN BASMA ile açılıyordu — admin paneli WEB'de
+    //     yayınlanıyor ve masaüstünde uzun basma hem gecikmeli çalışıyor
+    //     hem keşfedilemez.
+    //  2. Sayım gece 03:00'te çalıştığı için liste BOŞTU; basılacak satır
+    //     bile yoktu.
+
+    late String pano;
+    setUpAll(() => pano =
+        read('lib/features/admin/presentation/admin_province_panel.dart'));
+
+    test('satırda GÖRÜNÜR düğme var', () {
+      expect(pano.contains("tooltip: 'Eşiği düzenle'"), isTrue,
+          reason: 'Yalnız uzun basma kaldıysa masaüstünde bulunamaz.');
+      expect(pano.contains('Icons.tune_rounded'), isTrue);
+    });
+
+    test('uzun basma da KORUNDU (dokunmatik için)', () {
+      expect(pano.contains('onLongPress:'), isTrue);
+    });
+
+    test('liste BOŞKEN de eşik ayarlanabiliyor', () {
+      expect(pano.contains("label: Text('Bir ilin eşiğini ayarla')") ||
+              pano.contains("const Text('Bir ilin eşiğini ayarla')"),
+          isTrue,
+          reason: 'İlk sayımdan önce eşik ayarlanamıyor.');
+      expect(pano.contains('_bosDurumdaEsikAyarla'), isTrue);
+    });
+
+    test('boş durumda önce İL seçtiriliyor', () {
+      // Hangi ilin eşiği ayarlanacağı belirsiz olamaz.
+      expect(pano.contains("title: const Text('Hangi ilin eşiği?')"), isTrue);
+      expect(pano.contains('SearchableSelectField<Province>'), isTrue);
+    });
+  });
 }

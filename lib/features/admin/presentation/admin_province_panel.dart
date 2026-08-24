@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/theme/app_palette.dart';
+import '../../../core/widgets/searchable_select_field.dart';
+import '../../../data/local/local_data_service.dart';
+import '../../../data/models/geo_models.dart';
 import '../../../core/utils/snackbar_helper.dart';
 import '../data/admin_province_stats.dart';
 
@@ -61,10 +64,27 @@ class AdminProvincePanel extends ConsumerWidget {
           ),
           data: (iller) {
             if (iller.isEmpty) {
-              return _Bilgi(
-                renk: palette.inkMuted,
-                metin: 'Henüz sayım yapılmadı. İlk sonuç bu gece 03:00\'te '
-                    'oluşur.',
+              // SAYIM ÖNCESİ DE EŞİK AYARLANABİLİR (2026-08-24).
+              //
+              // İlk sayım gece 03:00'te çalışıyor; o zamana kadar listede
+              // satır YOK ve basılacak bir şey de yok. Ama yönetici küçük
+              // bir il için eşiği şimdiden 300'e çekmek isteyebilir —
+              // sayımı beklemesi gereksiz.
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _Bilgi(
+                    renk: palette.inkMuted,
+                    metin: 'Henüz sayım yapılmadı. İlk sonuç bu gece '
+                        '03:00\'te oluşur.',
+                  ),
+                  const SizedBox(height: 4),
+                  OutlinedButton.icon(
+                    onPressed: () => _bosDurumdaEsikAyarla(context, ref),
+                    icon: const Icon(Icons.tune_rounded, size: 18),
+                    label: const Text('Bir ilin eşiğini ayarla'),
+                  ),
+                ],
               );
             }
             return Column(
@@ -78,6 +98,61 @@ class AdminProvincePanel extends ConsumerWidget {
       ],
     );
   }
+}
+
+/// Sayım öncesi eşik ayarlama: önce il seçtirir, sonra düzenleme
+/// sayfasını açar.
+///
+/// İlk sayım gece 03:00'te çalıştığı için o zamana kadar listede satır
+/// yok — ama yönetici küçük bir il için eşiği şimdiden 300'e çekmek
+/// isteyebilir.
+Future<void> _bosDurumdaEsikAyarla(BuildContext context, WidgetRef ref) async {
+  final iller = await ref.read(provincesProvider.future);
+  if (!context.mounted) return;
+
+  Province? secilen;
+  final onay = await showDialog<bool>(
+    context: context,
+    builder: (ctx) => StatefulBuilder(
+      builder: (ctx, setSt) => AlertDialog(
+        title: const Text('Hangi ilin eşiği?'),
+        content: SearchableSelectField<Province>(
+          label: 'İl',
+          value: secilen,
+          items: iller,
+          itemLabel: (p) => p.name,
+          searchHint: 'İl ara…',
+          prefixIcon: Icons.map_outlined,
+          equals: (a, b) => a.id == b.id,
+          onSelected: (p) => setSt(() => secilen = p),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Vazgeç'),
+          ),
+          FilledButton(
+            onPressed:
+                secilen == null ? null : () => Navigator.pop(ctx, true),
+            child: const Text('Devam'),
+          ),
+        ],
+      ),
+    ),
+  );
+
+  final il = secilen;
+  if (onay != true || il == null || !context.mounted) return;
+
+  // Henüz sayım yok: sıfır sayılı geçici kayıtla düzenleme sayfasını aç.
+  // Kaydedilen tek şey EŞİK; sayaç sunucudan gelecek.
+  await const _IlSatiri(
+    stat: ProvinceStat(province: '', availableCount: 0),
+  )._esikDuzenle(
+    context,
+    ref,
+    ProvinceStat(province: il.name, availableCount: 0),
+  );
 }
 
 class _IlSatiri extends ConsumerWidget {
@@ -164,7 +239,19 @@ class _IlSatiri extends ConsumerWidget {
                   ],
                 ),
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: 8),
+              // GÖRÜNÜR DÜĞME (2026-08-24): uzun basma masaüstünde hem
+              // gecikmeli çalışıyor hem KEŞFEDİLEMEZ — kimse denemez.
+              // Admin paneli web'de yayınlandığı için asıl kullanım
+              // masaüstü.
+              IconButton(
+                tooltip: 'Eşiği düzenle',
+                visualDensity: VisualDensity.compact,
+                icon: Icon(Icons.tune_rounded, size: 18,
+                    color: palette.inkMuted),
+                onPressed: () => _esikDuzenle(context, ref, stat),
+              ),
+              const SizedBox(width: 4),
               Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
