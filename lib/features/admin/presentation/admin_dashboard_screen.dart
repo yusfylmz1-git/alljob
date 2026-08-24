@@ -9,6 +9,7 @@ import '../data/admin_daily_stats_repository.dart';
 import '../data/admin_export_util.dart';
 import '../data/admin_insights_repository.dart';
 import '../data/admin_providers.dart';
+import '../data/admin_province_stats.dart';
 import '../data/admin_stats_repository.dart';
 import 'admin_charts.dart';
 import 'admin_chrome.dart';
@@ -191,6 +192,60 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                     : () => widget.onOpenSection!(5),
               ),
             ]),
+
+            // ── PRO GEÇİŞİ (2026-08-23) ─────────────────────────
+            //
+            // Şehir bazlı geçişte yöneticinin en sık soracağı soru "hangi
+            // il hazır". Ana ekranda hiç il bilgisi yoktu; toplu plan
+            // ekranına girmeden görülemiyordu.
+            //
+            // Tam tablo değil ÖZET: eşiğe en yakın üç il. Detay için
+            // toplu plan ekranına götürür — dashboard bir vitrindir,
+            // ikinci bir yönetim ekranı değil.
+            ref.watch(provinceStatsProvider).maybeWhen(
+                  data: (iller) {
+                    if (iller.isEmpty) return const SizedBox.shrink();
+                    final ilk3 = iller.take(3).toList();
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        const SizedBox(height: 28),
+                        _SectionTitle(
+                          title: 'Pro geçişi',
+                          subtitle: 'Eşiğe en yakın iller · sayım her gece '
+                              '03:00.',
+                        ),
+                        const SizedBox(height: 12),
+                        _kpiGrid(context, [
+                          for (final il in ilk3)
+                            _KpiCard(
+                              title: il.province,
+                              value: '${il.availableCount}',
+                              icon: il.reached
+                                  ? Icons.check_circle_outline
+                                  : Icons.trending_up_rounded,
+                              color: il.reached
+                                  ? palette.success
+                                  : palette.primary,
+                              subtitle: il.reached
+                                  ? (il.phaseAt(DateTime.now())?.labelTR ??
+                                      'Eşik doldu')
+                                  : '${il.remaining} kaldı · '
+                                      'eşik ${il.effectiveThreshold}',
+                              // Superadmin değilse toplu plan sekmesi yok;
+                              // dokunuş sessizce hiçbir şey yapmasın diye
+                              // kapatılır.
+                              onTap: (widget.onOpenSection == null ||
+                                      !ref.watch(isSuperAdminProvider))
+                                  ? null
+                                  : () => widget.onOpenSection!(9),
+                            ),
+                        ]),
+                      ],
+                    );
+                  },
+                  orElse: () => const SizedBox.shrink(),
+                ),
 
             const SizedBox(height: 28),
             _SectionTitle(
