@@ -32,7 +32,7 @@ class AppConstants {
   ///
   /// Yedek değer eskirse zarar vermez: yalnızca eklenti çalışmadığında
   /// okunur ve o durumda `0.0.0` yazmak "hiç sürüm bilinmiyor" demek olurdu.
-  static const String appVersionFallback = '1.2.0';
+  static const String appVersionFallback = '1.3.0';
 
   /// Sunucudaki sürüm bilgisinin okunduğu doküman (`config/app`).
   ///
