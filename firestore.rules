@@ -106,7 +106,21 @@ service cloud.firestore {
                 || (d.aboutText is string && d.aboutText.size() <= 1000))
           && (!('socialLinks' in d)
                 || d.socialLinks == null
-                || d.socialLinks is map);
+                || d.socialLinks is map)
+          // FİLTRELENEBİLİR İL (2026-08-23) — admin panelinde il bazlı
+          // sorgu için düz kopya. `serviceAreas`/`shopServiceAreas` birer
+          // DİZİ olduğundan Firestore `where` ile içlerine bakılamıyordu.
+          //
+          // SAYAÇ DEĞİL, ETİKET: kullanıcının kendi seçtiği ilin kopyası.
+          // Yanlış yazması kendi profilini bozar, başkasını etkilemez —
+          // bu yüzden kural 3'ün (sayaçları istemci yazmaz) kapsamında
+          // değil ve istemci yazabilir.
+          //
+          // Tavan: en uzun il adı 20 karakterin altında; 40 rahat bir
+          // sınır ve serbest metin depolamayı engeller.
+          && (!('province' in d)
+                || d.province == null
+                || (d.province is string && d.province.size() <= 40));
       }
 
       allow read: if true;

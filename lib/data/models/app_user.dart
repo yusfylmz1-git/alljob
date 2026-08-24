@@ -33,6 +33,7 @@ class AppUser {
     this.hasShopProfile = false,
     this.shopCategories = const [],
     this.shopServiceAreas = const [],
+    this.province,
     this.available = false,
   });
 
@@ -177,6 +178,34 @@ class AppUser {
   /// varsa oradaki bölgeler başlangıç değeri olarak kopyalanabilir.
   final List<ServiceArea> shopServiceAreas;
 
+  /// Kullanıcının hizmet İLİ — filtrelenebilir kopya (2026-08-23).
+  ///
+  /// ── NEDEN DENORMALİZE ──
+  ///
+  /// İl aslında iki yerde yaşıyor: usta profilinde
+  /// (`artisanProfiles.serviceAreas`) ve mağaza alanında
+  /// (`users.shopServiceAreas`). İkisi de **dizi** olduğu için Firestore
+  /// `where` ile il bazlı sorgu yapılamıyor — admin panelinde "Bursa'daki
+  /// kullanıcıları göster" imkânsızdı ve şehir bazlı Pro geçişi bu bilgi
+  /// olmadan yönetilemez.
+  ///
+  /// Bu alan o sorgunun tek amacıdır: **düz string**, `users` dokümanında,
+  /// tek `where` ile filtrelenebilir.
+  ///
+  /// ── SAYAÇ DEĞİL, ETİKET ──
+  ///
+  /// CLAUDE.md kural 3 sayaçları istemciye kapatır; bu bir sayaç DEĞİL.
+  /// Kullanıcının kendi seçtiği ilin kopyası — yanlış yazması kendi
+  /// profilini bozar, başkasını etkilemez. O yüzden istemci yazabilir.
+  ///
+  /// ── GÖÇ YOK ──
+  ///
+  /// Eski kayıtlarda boştur ve boş kalması sorun değil: profil bir dahaki
+  /// kaydedilişinde dolar. İl filtresinde alanı olmayan kullanıcı çıkmaz —
+  /// kabul edilebilir, çünkü Pro geçişi aylar sonra ve o zamana kadar aktif
+  /// kullanıcıların çoğu profilini bir kez kaydeder.
+  final String? province;
+
   /// Genel müsaitlik (Mağaza vitrini / talep mesajı; usta tarafı da aynalar).
   final bool available;
 
@@ -214,6 +243,8 @@ class AppUser {
     bool? hasShopProfile,
     List<String>? shopCategories,
     List<ServiceArea>? shopServiceAreas,
+    String? province,
+    bool clearProvince = false,
     bool? available,
   }) {
     return AppUser(
@@ -250,6 +281,10 @@ class AppUser {
       hasShopProfile: hasShopProfile ?? this.hasShopProfile,
       shopCategories: shopCategories ?? this.shopCategories,
       shopServiceAreas: shopServiceAreas ?? this.shopServiceAreas,
+      // Telefondaki desenle aynı: `province: null` "değiştirme" demek
+      // olduğundan alanı temizlemenin ayrı bir bayrağı var. Olmazsa bölge
+      // silinince eski il yapışık kalırdı.
+      province: clearProvince ? null : (province ?? this.province),
       available: available ?? this.available,
     );
   }
@@ -286,6 +321,8 @@ class AppUser {
         hasShopProfile: hasShopProfile,
         shopCategories: shopCategories,
         shopServiceAreas: shopServiceAreas,
+        // Taşınmazsa ortak alan yazımında il düşerdi (sayaç tuzağı).
+        province: province,
         available: available,
       );
 
@@ -305,6 +342,9 @@ class AppUser {
         'aboutText': aboutText,
         'hasShopProfile': hasShopProfile,
         'shopCategories': shopCategories,
+        // Filtrelenebilir il kopyası — boşsa alan hiç yazılmaz (eski
+        // kayıtlarda `null` görünmesin, sorgu zaten eşleşmez).
+        if ((province ?? '').trim().isNotEmpty) 'province': province,
         'shopServiceAreas':
             shopServiceAreas.map((e) => e.toMap()).toList(),
         'available': available,
@@ -355,6 +395,9 @@ class AppUser {
               .where((s) => s.isNotEmpty)
               .toList() ??
           const [],
+      province: (map['province'] as String?)?.trim().isEmpty == true
+          ? null
+          : (map['province'] as String?)?.trim(),
       shopServiceAreas: ((map['shopServiceAreas'] as List?) ?? [])
           .whereType<Map>()
           .map((e) => ServiceArea.fromMap(e.cast<String, dynamic>()))

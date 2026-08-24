@@ -11,6 +11,7 @@ import '../data/admin_export_util.dart';
 import '../data/admin_providers.dart';
 import '../data/admin_user_repository.dart';
 import 'admin_chrome.dart';
+import 'admin_pickers.dart';
 import 'admin_list_search.dart';
 import 'admin_moderation_glossary.dart';
 import 'admin_person_hub.dart';
@@ -341,6 +342,36 @@ class _AdminUsersScreenState extends ConsumerState<AdminUsersScreen> {
                     ),
                   ),
                 const SizedBox(height: 12),
+
+                // İL FİLTRESİ (2026-08-23) — şehir bazlı Pro geçişinde
+                // yöneticinin ilk aradığı bilgi.
+                //
+                // Rol/askı filtreleriyle BİRLEŞMEZ: her kombinasyon ayrı
+                // bileşik indeks isterdi. İl seçiliyken rozetlerden ayırt
+                // edilir; kayıp küçük, maliyet farkı büyük.
+                AdminProvincePicker(
+                  label: 'İl filtresi',
+                  value: ref.watch(userDirectoryProvinceProvider),
+                  allowClear: true,
+                  onChanged: (il) {
+                    ref.read(userDirectoryProvinceProvider.notifier).state = il;
+                    if (il != null) {
+                      ref.read(userDirectoryFilterProvider.notifier).state =
+                          AdminUserListFilter.all;
+                    }
+                    dirCtrl.refresh();
+                  },
+                ),
+                if (ref.watch(userDirectoryProvinceProvider) != null) ...[
+                  const SizedBox(height: 6),
+                  Text(
+                    'İl seçiliyken rol/askı filtreleri uygulanmaz. '
+                    'Rozetlerden ayırt edin.',
+                    style: TextStyle(color: palette.inkMuted, fontSize: 12),
+                  ),
+                ],
+                const SizedBox(height: 12),
+
                 SingleChildScrollView(
                   scrollDirection: Axis.horizontal,
                   child: Row(

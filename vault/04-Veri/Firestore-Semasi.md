@@ -145,6 +145,36 @@ Alan **güvenli okunur** (`_ilListesi`): liste değilse boş listeye düşer.
 `as List?` cast'i kullanılsaydı yanlış tipte tek bir değer TÜM
 yapılandırmayı okunamaz hâle getirir, bakım modu ve sürüm kapısı da düşerdi.
 
+## `users.province` — filtrelenebilir il kopyası (2026-08-23)
+
+İl aslında iki yerde yaşıyor ve **ikisi de dizi**:
+`artisanProfiles.serviceAreas` ve `users.shopServiceAreas`. Firestore
+`where` ile dizinin içindeki alana bakılamaz — admin panelinde "Bursa'daki
+kullanıcıları göster" bu düz kopya olmadan imkânsızdı ve şehir bazlı Pro
+geçişi bu bilgi olmadan yönetilemez.
+
+**Sayaç değil, etiket.** Kullanıcının kendi seçtiği ilin kopyası; yanlış
+yazması kendi profilini bozar, başkasını etkilemez. Bu yüzden kural 3'ün
+(sayaçları istemci yazmaz) kapsamında değil — istemci yazabilir, kural
+yalnız tip + 40 karakter tavanı doğrular.
+
+**Göç YOK.** Eski kayıtlarda boştur; profil bir dahaki kaydedilişinde dolar
+(telefon düzeltmesindeki desenin aynısı). İl filtresinde alanı olmayan
+kullanıcı çıkmaz — kabul edilebilir, Pro geçişi aylar sonra.
+
+Yazan taraflar:
+* `updateUserProfile(shopServiceAreas:)` → ilden **kendiliğinden** türetir
+* `updateUserProfile(province:)` → açıkça verir (usta kaydı bunu kullanır)
+* Boş dize = **temizle** (`FieldValue.delete()`); `copyWith` tarafında
+  `clearProvince` bayrağı — `null` "değiştirme" demek olduğundan alanı
+  silmenin başka yolu yok
+
+> [!warning] İl filtresi diğer filtrelerle BİRLEŞMEZ
+> Her kombinasyon ayrı bileşik indeks isterdi (`province +
+> hasArtisanProfile + createdAt` gibi). İl seçiliyken rol/askı filtresi
+> **yok sayılır**; yönetici listede rozetlerden ayırt eder. Tek indeks
+> (`province + createdAt`) yeterli.
+
 ## Deterministik kimlikler
 
 Rastgele kimlik yerine hesaplanabilir kimlik kullanılır — tekillik ve yetki

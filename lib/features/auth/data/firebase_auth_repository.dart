@@ -618,6 +618,7 @@ class FirebaseAuthRepository implements AuthRepository {
     bool? hasShopProfile,
     List<String>? shopCategories,
     List<ServiceArea>? shopServiceAreas,
+    String? province,
     bool? available,
   }) async {
     final fbUser = _auth.currentUser;
@@ -653,6 +654,22 @@ class FirebaseAuthRepository implements AuthRepository {
     if (shopServiceAreas != null) {
       data['shopServiceAreas'] =
           shopServiceAreas.map((e) => e.toMap()).toList();
+      // FİLTRELENEBİLİR İL KOPYASI (2026-08-23).
+      //
+      // `shopServiceAreas` bir DİZİ; Firestore `where` ile içindeki
+      // `province` alanına bakılamaz. Admin panelinde "Bursa'daki
+      // kullanıcıları göster" bu düz alan olmadan imkânsızdı.
+      //
+      // Tek il kuralı gereği en fazla bir il var; ilkini yazmak yeterli.
+      // Bölge temizlenirse alan da silinir — eski il yapışık kalmasın.
+      final il = shopServiceAreas.singleProvince;
+      data['province'] = il == null || il.isEmpty ? FieldValue.delete() : il;
+    }
+    // AÇIKÇA verilen il, mağazadan türetilenin ÜSTÜNE yazar: usta profili
+    // kaydedildiğinde `shopServiceAreas` gönderilmez ama il yine güncellenmeli.
+    if (province != null) {
+      final t = province.trim();
+      data['province'] = t.isEmpty ? FieldValue.delete() : t;
     }
     if (available != null) data['available'] = available;
 
@@ -727,6 +744,16 @@ class FirebaseAuthRepository implements AuthRepository {
         hasShopProfile: hasShopProfile ?? cached.hasShopProfile,
         shopCategories: shopCategories ?? cached.shopCategories,
         shopServiceAreas: shopServiceAreas ?? cached.shopServiceAreas,
+        // Önbellek Firestore ile AYNI davranmalı: orada
+        // `FieldValue.delete()` yazılıyorsa burada da düşmeli, yoksa
+        // kullanıcı bölgesini silene kadar eski il ekranda kalırdı.
+        province: province != null && province.trim().isNotEmpty
+            ? province.trim()
+            : (shopServiceAreas?.singleProvince ?? cached.province),
+        clearProvince: (province != null && province.trim().isEmpty) ||
+            (shopServiceAreas != null &&
+                shopServiceAreas.singleProvince == null &&
+                province == null),
         available: available ?? cached.available,
       );
       _cached = updated;

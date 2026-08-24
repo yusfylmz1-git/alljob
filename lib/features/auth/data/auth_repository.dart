@@ -71,6 +71,17 @@ abstract interface class AuthRepository {
     bool? hasShopProfile,
     List<String>? shopCategories,
     List<ServiceArea>? shopServiceAreas,
+
+    /// Filtrelenebilir il kopyası (2026-08-23).
+    ///
+    /// `shopServiceAreas` ve `artisanProfiles.serviceAreas` birer DİZİ;
+    /// Firestore `where` ile içlerindeki `province` alanına bakılamaz.
+    /// Admin panelinde il bazlı sorgu bu düz alan olmadan imkânsız.
+    ///
+    /// Boş dize = ALANI TEMİZLE (diğer alanlarla aynı sözleşme).
+    /// Verilmezse dokunulmaz; `shopServiceAreas` yazılıyorsa oradan
+    /// KENDİLİĞİNDEN türetilir — usta kaydı için açıkça geçilir.
+    String? province,
     bool? available,
   });
 

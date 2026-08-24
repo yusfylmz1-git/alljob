@@ -502,6 +502,17 @@ class MyProfileController extends AsyncNotifier<MyProfileDraft> {
             publicPhone: telefon,
             socialLinks: sanitized.profile.socialLinks,
             aboutText: sanitized.profile.aboutText,
+            // FİLTRELENEBİLİR İL KOPYASI (2026-08-23).
+            //
+            // Ustanın ili `artisanProfiles.serviceAreas` dizisinde yaşıyor
+            // ve Firestore `where` ile dizinin içindeki `province` alanına
+            // bakılamıyor. Admin panelinde "Bursa'daki kullanıcıları göster"
+            // bu düz kopya olmadan imkânsız.
+            //
+            // GÖÇ YOK: eski kayıtlarda boş kalır, profil bir dahaki
+            // kaydedilişinde dolar (telefon düzeltmesindeki desenin aynısı).
+            // Bölge temizlenirse boş dize gider ve alan silinir.
+            province: sanitized.profile.serviceAreas.singleProvince ?? '',
             // null → alan değişmez (ayrı yazım gerekmez).
             available: available,
           );

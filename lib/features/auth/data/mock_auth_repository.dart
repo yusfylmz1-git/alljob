@@ -216,6 +216,7 @@ class MockAuthRepository implements AuthRepository {
     bool? hasShopProfile,
     List<String>? shopCategories,
     List<ServiceArea>? shopServiceAreas,
+    String? province,
     bool? available,
   }) async {
     await _delay();
@@ -253,6 +254,16 @@ class MockAuthRepository implements AuthRepository {
       hasShopProfile: hasShopProfile,
       shopCategories: shopCategories,
       shopServiceAreas: shopServiceAreas,
+      // FİREBASE PARİTESİ (kural 1): açıkça verilen il öncelikli, yoksa
+      // mağaza bölgesinden türetilir. Boş dize = TEMİZLE (Firebase'de
+      // `FieldValue.delete()` karşılığı).
+      province: province != null && province.trim().isNotEmpty
+          ? province.trim()
+          : shopServiceAreas?.singleProvince,
+      clearProvince: (province != null && province.trim().isEmpty) ||
+          (shopServiceAreas != null &&
+              shopServiceAreas.singleProvince == null &&
+              province == null),
       available: available,
     );
     // Firebase paritesi: ortak alanlardan biri yazıldığı an kayıt "göçmüş"

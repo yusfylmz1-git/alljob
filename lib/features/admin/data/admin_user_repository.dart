@@ -76,6 +76,7 @@ abstract interface class AdminUserRepository {
     String? beforeCursor,
     int limit = 30,
     AdminUserListFilter filter = AdminUserListFilter.all,
+    String? province,
   });
 
   /// Moderatör yetki listesini günceller (YALNIZ superadmin). CF merge.
@@ -325,17 +326,33 @@ class FirebaseAdminUserRepository implements AdminUserRepository {
     String? beforeCursor,
     int limit = 30,
     AdminUserListFilter filter = AdminUserListFilter.all,
+    String? province,
   }) async {
     Query<Map<String, dynamic>> q = _db.collection('users');
-    switch (filter) {
-      case AdminUserListFilter.all:
-        break;
-      case AdminUserListFilter.suspended:
-        q = q.where('suspended', isEqualTo: true);
-      case AdminUserListFilter.artisans:
-        q = q.where('hasArtisanProfile', isEqualTo: true);
-      case AdminUserListFilter.nonArtisans:
-        q = q.where('hasArtisanProfile', isEqualTo: false);
+
+    // İL FİLTRESİ (2026-08-23) — diğer filtrelerle BİRLEŞMEZ.
+    //
+    // Her filtre kombinasyonu ayrı bir bileşik indeks ister
+    // (`province + hasArtisanProfile + createdAt` gibi). Dört filtre ×
+    // il = dört yeni indeks demekti; her biri yazma maliyetini artırır.
+    //
+    // İl seçiliyken diğer filtre YOK SAYILIR: yönetici "Bursa'daki
+    // kullanıcılar" sorusunu sorar, sonra listede rozetlerden ayırt eder.
+    // Tek indeks (`province + createdAt`) yeterli.
+    final il = province?.trim();
+    if (il != null && il.isNotEmpty) {
+      q = q.where('province', isEqualTo: il);
+    } else {
+      switch (filter) {
+        case AdminUserListFilter.all:
+          break;
+        case AdminUserListFilter.suspended:
+          q = q.where('suspended', isEqualTo: true);
+        case AdminUserListFilter.artisans:
+          q = q.where('hasArtisanProfile', isEqualTo: true);
+        case AdminUserListFilter.nonArtisans:
+          q = q.where('hasArtisanProfile', isEqualTo: false);
+      }
     }
     q = q.orderBy('createdAt', descending: true);
     if (beforeCursor != null && beforeCursor.isNotEmpty) {
@@ -514,18 +531,28 @@ class MockAdminUserRepository implements AdminUserRepository {
     String? beforeCursor,
     int limit = 30,
     AdminUserListFilter filter = AdminUserListFilter.all,
+    String? province,
   }) async {
     var list = _users.values.toList()
       ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
-    switch (filter) {
-      case AdminUserListFilter.all:
-        break;
-      case AdminUserListFilter.suspended:
-        list = list.where((u) => u.suspended).toList();
-      case AdminUserListFilter.artisans:
-        list = list.where((u) => u.hasArtisanProfile).toList();
-      case AdminUserListFilter.nonArtisans:
-        list = list.where((u) => !u.hasArtisanProfile).toList();
+
+    // FİREBASE PARİTESİ (kural 1): il seçiliyken diğer filtre YOK SAYILIR.
+    // Sunucuda bu bir indeks kararı; mock aynı davranmazsa fark yalnız
+    // canlıda ortaya çıkar.
+    final il = province?.trim();
+    if (il != null && il.isNotEmpty) {
+      list = list.where((u) => (u.province ?? '').trim() == il).toList();
+    } else {
+      switch (filter) {
+        case AdminUserListFilter.all:
+          break;
+        case AdminUserListFilter.suspended:
+          list = list.where((u) => u.suspended).toList();
+        case AdminUserListFilter.artisans:
+          list = list.where((u) => u.hasArtisanProfile).toList();
+        case AdminUserListFilter.nonArtisans:
+          list = list.where((u) => !u.hasArtisanProfile).toList();
+      }
     }
     if (beforeCursor != null && beforeCursor.isNotEmpty) {
       final cut = DateTime.tryParse(beforeCursor);

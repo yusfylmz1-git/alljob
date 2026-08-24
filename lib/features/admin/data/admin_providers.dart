@@ -86,6 +86,13 @@ final userDirectoryFilterProvider =
       (ref) => AdminUserListFilter.all,
     );
 
+/// Kullanıcı dizini İL filtresi (2026-08-23).
+///
+/// Ayrı bir provider: diğer filtrelerle BİRLEŞMEZ. Her kombinasyon ayrı
+/// bileşik indeks isterdi; il seçiliyken rol/askı filtresi yok sayılır.
+final userDirectoryProvinceProvider =
+    StateProvider.autoDispose<String?>((ref) => null);
+
 /// Sayfalı kullanıcı dizini.
 final userDirectoryControllerProvider =
     StateNotifierProvider.autoDispose<
@@ -94,11 +101,13 @@ final userDirectoryControllerProvider =
     >((ref) {
       final repo = ref.watch(adminUserRepositoryProvider);
       final filter = ref.watch(userDirectoryFilterProvider);
+      final province = ref.watch(userDirectoryProvinceProvider);
       return PagedController<AppUser>(
         fetch: ({beforeCursor, limit = 30}) => repo.fetchPage(
           beforeCursor: beforeCursor,
           limit: limit,
           filter: filter,
+          province: province,
         ),
         cursorOf: (u) => u.createdAt.toUtc().toIso8601String(),
       );
