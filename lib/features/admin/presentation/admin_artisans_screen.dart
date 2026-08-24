@@ -379,6 +379,29 @@ class _PersonArtisanCard extends ConsumerWidget {
                         ? palette.success
                         : palette.inkFaint,
                   ),
+
+                  // MÜSAİTLİK (2026-08-23) — Pro modelinin ölçüsü.
+                  //
+                  // "Kim ödeyecek" sorusunun cevabı bu: müsait olan öder.
+                  // Premium rozetiyle YAN YANA duruyor çünkü ikisi birlikte
+                  // okunur: müsait ama premium yoksa, o kişi geçişte
+                  // kapanacak demektir.
+                  //
+                  // `isAvailable` yerel sabiti okur (remote bayrağı görmez);
+                  // burada anlamlı olan ustanın KENDİ ayarı — geçişin
+                  // kapatacağı kişileri görmek istiyoruz, kapanmış hâli
+                  // değil.
+                  _StatusChip(
+                    label: p.manualPause
+                        ? 'Duraklattı'
+                        : (p.alwaysAvailable ? 'Müsait' : 'Takvimli'),
+                    color: p.manualPause ? palette.inkFaint : palette.success,
+                  ),
+
+                  // İL — şehir bazlı geçişte ilk aranan bilgi.
+                  // Tek il kuralı gereği en fazla bir tane.
+                  if (p.serviceAreas.isNotEmpty)
+                    _StatusChip(label: p.serviceAreas.first.province),
                   if (p.certificatesPending)
                     _StatusChip(
                       label: 'Belge bekliyor',

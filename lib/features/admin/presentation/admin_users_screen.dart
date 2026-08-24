@@ -600,18 +600,56 @@ class _UserCard extends StatelessWidget {
                               ? palette.danger
                               : palette.success,
                         ),
+                        // ROL — usta ve mağaza AYRI (2026-08-23).
+                        //
+                        // Önce yalnız "Usta / Müşteri" vardı; mağaza sahibi
+                        // müşteri görünüyordu. Pro modelinde ölçü müsaitlik
+                        // ve mağaza sahibi de müsait olur — yöneticinin bunu
+                        // listede ayırt etmesi gerekiyor.
                         if (user.hasArtisanProfile)
                           _Chip(
                             label: 'Usta',
                             bg: palette.infoSurface,
                             fg: palette.info,
-                          )
-                        else
+                          ),
+                        if (user.hasShopProfile)
+                          _Chip(
+                            label: 'Mağaza',
+                            bg: palette.infoSurface,
+                            fg: palette.info,
+                          ),
+                        if (!user.hasArtisanProfile && !user.hasShopProfile)
                           _Chip(
                             label: 'Müşteri',
                             bg: palette.surfaceMuted,
                             fg: palette.inkMuted,
                           ),
+
+                        // MÜSAİTLİK — Pro modelinin ölçüsü.
+                        //
+                        // Kim ödeyecek sorusunun cevabı bu: müsait olan
+                        // öder. Yalnız usta/mağazada anlamlı; müşteride
+                        // gösterilmesi kafa karıştırır.
+                        if (user.hasArtisanProfile || user.hasShopProfile)
+                          _Chip(
+                            label: user.available ? 'Müsait' : 'Kapalı',
+                            bg: user.available
+                                ? palette.successSurface
+                                : palette.surfaceMuted,
+                            fg: user.available
+                                ? palette.success
+                                : palette.inkMuted,
+                          ),
+
+                        // İL — şehir bazlı geçişte yöneticinin ilk aradığı
+                        // bilgi. Tek il kuralı gereği en fazla bir tane.
+                        if (_ilAdi(user) case final il?)
+                          _Chip(
+                            label: il,
+                            bg: palette.surfaceMuted,
+                            fg: palette.inkMuted,
+                          ),
+
                         if (user.phoneVerified)
                           _Chip(
                             label: 'Tel. ✓',
@@ -631,6 +669,23 @@ class _UserCard extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Kullanıcının hizmet İLİ — mağaza bölgesinden (2026-08-23).
+///
+/// Usta profilindeki `serviceAreas` burada OKUNAMAZ: o ayrı bir dokümanda
+/// (`artisanProfiles`) ve liste başına 30 ekstra okuma demek olurdu. Mağaza
+/// bölgesi `users` dokümanında olduğu için bedava.
+///
+/// Sonuç: mağazası olan kullanıcıda il görünür, yalnız usta olanda
+/// görünmez. Eksik ama **maliyetsiz**; il filtresi geldiğinde
+/// (`users.province`) bu boşluk da kapanacak.
+String? _ilAdi(AppUser user) {
+  for (final a in user.shopServiceAreas) {
+    final il = a.province.trim();
+    if (il.isNotEmpty) return il;
+  }
+  return null;
 }
 
 class _Chip extends StatelessWidget {
