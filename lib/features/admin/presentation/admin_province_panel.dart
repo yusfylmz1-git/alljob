@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/theme/app_palette.dart';
+import '../../../core/utils/snackbar_helper.dart';
 import '../data/admin_province_stats.dart';
 
 /// İl panosu — hangi il Pro geçişine ne kadar yakın (2026-08-23).
@@ -44,7 +45,7 @@ class AdminProvincePanel extends ConsumerWidget {
           ],
         ),
         Text(
-          'Şu an müsait kullanıcı sayısı. Eşik ${ProvinceStat.threshold}. '
+          'Şu an müsait kullanıcı sayısı. Eşik ${ProvinceStat.defaultThreshold}. '
           'Sayım her gece 03:00\'te yenilenir.',
           style: TextStyle(color: palette.inkMuted, fontSize: 12.5),
         ),
@@ -79,14 +80,14 @@ class AdminProvincePanel extends ConsumerWidget {
   }
 }
 
-class _IlSatiri extends StatelessWidget {
+class _IlSatiri extends ConsumerWidget {
   const _IlSatiri({required this.stat, this.onTap});
 
   final ProvinceStat stat;
   final void Function(String il)? onTap;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final palette = context.palette;
     final theme = Theme.of(context);
     final faz = stat.phaseAt(DateTime.now());
@@ -105,6 +106,9 @@ class _IlSatiri extends StatelessWidget {
       child: InkWell(
         borderRadius: BorderRadius.circular(10),
         onTap: onTap == null ? null : () => onTap!(stat.province),
+        // Uzun basış: eşik düzenleme. Küçük illerde varsayılan 1.000 hiç
+        // dolmayabilir; eşik pazarın BÜYÜKLÜĞÜNÜ değil DOYGUNLUĞUNU ölçmeli.
+        onLongPress: () => _esikDuzenle(context, ref, stat),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
           child: Row(
@@ -176,7 +180,11 @@ class _IlSatiri extends StatelessWidget {
                     // ulaşanda tarih.
                     stat.reached
                         ? _tarih(stat.thresholdReachedAt!)
-                        : '${stat.remaining} kaldı',
+                        // Özel eşikli ilde eşiği de yaz: yönetici "neden
+                        // 300'de hazır oldu" diye sormasın.
+                        : stat.threshold != null
+                            ? '${stat.remaining} kaldı · eşik ${stat.threshold}'
+                            : '${stat.remaining} kaldı',
                     style: TextStyle(color: palette.inkMuted, fontSize: 11),
                   ),
                 ],
@@ -186,6 +194,99 @@ class _IlSatiri extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  /// Eşik düzenleme sayfası.
+  ///
+  /// Yeni eşik BİR SONRAKİ gece sayımında işlerlik kazanır ve damgaya
+  /// dokunmaz: eşiği düşürmek geçmiş bir geçişi iptal etmez, yükseltmek de
+  /// damgayı silmez. Bu, kullanıcıya verilen tarihin korunması demek.
+  Future<void> _esikDuzenle(
+    BuildContext context,
+    WidgetRef ref,
+    ProvinceStat stat,
+  ) async {
+    final ctrl = TextEditingController(
+      text: stat.threshold?.toString() ?? '',
+    );
+    final sebep = TextEditingController();
+
+    final sonuc = await showDialog<({int? esik, String sebep})>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('${stat.province} eşiği'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              'Şu an ${stat.availableCount} müsait kullanıcı var. '
+              'Geçerli eşik ${stat.effectiveThreshold}'
+              '${stat.threshold == null ? ' (varsayılan)' : ''}.',
+              style: const TextStyle(fontSize: 13),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: ctrl,
+              keyboardType: TextInputType.number,
+              decoration: InputDecoration(
+                labelText: 'Yeni eşik',
+                hintText: 'Boş bırakırsanız varsayılana '
+                    '(${ProvinceStat.defaultThreshold}) döner',
+                helperText: '10 – 100000 arası',
+              ),
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: sebep,
+              decoration: const InputDecoration(
+                labelText: 'Gerekçe (zorunlu)',
+                hintText: 'ör. Siirt küçük il, 300 doymuş pazar',
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Vazgeç'),
+          ),
+          FilledButton(
+            onPressed: () {
+              final metin = ctrl.text.trim();
+              final s = sebep.text.trim();
+              if (s.length < 5) return; // gerekçe kapısı (CF de zorlar)
+              Navigator.pop(
+                ctx,
+                (esik: metin.isEmpty ? null : int.tryParse(metin), sebep: s),
+              );
+            },
+            child: const Text('Kaydet'),
+          ),
+        ],
+      ),
+    );
+
+    ctrl.dispose();
+    sebep.dispose();
+    if (sonuc == null || !context.mounted) return;
+
+    try {
+      await ref.read(setProvinceThresholdProvider)(
+        stat.province,
+        sonuc.esik,
+        sonuc.sebep,
+      );
+      if (!context.mounted) return;
+      context.showSuccess(
+        sonuc.esik == null
+            ? '${stat.province} varsayılan eşiğe döndü.'
+            : '${stat.province} eşiği ${sonuc.esik} oldu. '
+                'Bir sonraki sayımda geçerli olur.',
+      );
+    } catch (e) {
+      if (context.mounted) context.showError('Eşik değiştirilemedi: $e');
+    }
   }
 
   static String _tarih(DateTime t) =>

@@ -25,6 +25,17 @@ import 'admin_user_overview.dart';
 /// hep aynı kaydırılabilir panelde.
 ///
 /// Rol atama YOK — o yalnız Kadro sekmesinde.
+/// Panel şu an açılıyor mu? (2026-08-23 yönetici bulgusu)
+///
+/// Kullanıcı verisi ağdan geliyor; yavaş bağlantıda `findByUid` beklerken
+/// yönetici "açılmadı" sanıp ikinci kez basıyordu ve **iki panel üst üste**
+/// açılıyordu. Birini kapatmak diğerini bırakıyor, hangi kullanıcıya
+/// baktığı belirsizleşiyordu.
+///
+/// Kilit MODÜL seviyesinde: fonksiyon beş ayrı ekrandan çağrılıyor ve her
+/// birine ayrı koruma yazmak kaçınılmaz olarak birinde unutulurdu.
+bool _acilisSuruyor = false;
+
 Future<void> showAdminUserActions(
   BuildContext context,
   WidgetRef ref,
@@ -32,13 +43,25 @@ Future<void> showAdminUserActions(
   VoidCallback? onChanged,
   String? contextHint,
 }) async {
+  // Yükleme sürerken gelen ikinci dokunuş SESSİZCE yutulur: hata göstermek
+  // yöneticiyi yanlış yönlendirir, zaten istediği şey birazdan açılacak.
+  if (_acilisSuruyor) return;
+  _acilisSuruyor = true;
+
   AppUser? user;
   try {
     user = await ref.read(adminUserRepositoryProvider).findByUid(uid);
   } catch (_) {
+    _acilisSuruyor = false;
     if (context.mounted) context.showError('Kullanıcı yüklenemedi.');
     return;
   }
+  // Kilit BURADA açılır, panel kapanınca değil: panel açıkken zaten
+  // ekranın üstünü kapatıyor, ikinci dokunuş fiziksel olarak imkânsız.
+  // Kapanışa kadar tutmak, panel içindeki bir eylemin yeni panel açmasını
+  // engellerdi.
+  _acilisSuruyor = false;
+
   if (!context.mounted) return;
   if (user == null) {
     context.showError('Kullanıcı bulunamadı.');

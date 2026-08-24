@@ -21,10 +21,12 @@ void main() {
   ProvinceStat stat({
     int sayi = 0,
     DateTime? damga,
+    int? esik,
   }) =>
       ProvinceStat(
         province: 'Bursa',
         availableCount: sayi,
+        threshold: esik,
         thresholdReachedAt: damga,
       );
 
@@ -163,9 +165,10 @@ void main() {
     test('Dart ve JS eşiği eşleşiyor', () {
       // Ayrışırsa pano "hazır" derken sunucu damgalamaz (ya da tersi).
       final js = read('functions/index.js');
-      final m = RegExp(r'const PROVINCE_THRESHOLD = (\d+);').firstMatch(js);
-      expect(m, isNotNull, reason: 'Sunucu eşiği tanımlı değil.');
-      expect(int.parse(m!.group(1)!), ProvinceStat.threshold);
+      final m =
+          RegExp(r'const PROVINCE_THRESHOLD_DEFAULT = (\d+);').firstMatch(js);
+      expect(m, isNotNull, reason: 'Sunucu varsayılan eşiği tanımlı değil.');
+      expect(int.parse(m!.group(1)!), ProvinceStat.defaultThreshold);
     });
   });
 
@@ -183,6 +186,101 @@ void main() {
       expect(ekran.contains('AdminProvincePanel('), isTrue);
       expect(ekran.contains('onSelect:'), isTrue,
           reason: 'Tabloda görülen il elle aranmak zorunda kalmamalı.');
+    });
+  });
+
+  group('İl başına eşik ayarlanabilir (2026-08-23)', () {
+    // Sabit 1.000 küçük illeri KALICI olarak beta'da bırakırdı: Siirt'te
+    // müsait sayısı belki hiç 1.000'e ulaşmaz ama 300 usta o il için doymuş
+    // bir pazar olabilir. Eşik BÜYÜKLÜĞÜ değil DOYGUNLUĞU ölçmeli.
+
+    test('özel eşik varsayılanı EZİYOR', () {
+      expect(stat(sayi: 250, esik: 300).effectiveThreshold, 300);
+      expect(stat(sayi: 250, esik: 300).remaining, 50);
+    });
+
+    test('özel eşik yoksa varsayılan', () {
+      expect(stat(sayi: 250).effectiveThreshold,
+          ProvinceStat.defaultThreshold);
+      expect(stat(sayi: 250).remaining, 750);
+    });
+
+    test('ilerleme özel eşiğe göre hesaplanıyor', () {
+      expect(stat(sayi: 150, esik: 300).progress, 0.5);
+    });
+
+    test('geçersiz eşik VARSAYILANA düşer', () {
+      // Yanlış bir değer yüzünden il beklenmedik anda ücretliye geçmemeli.
+      for (final bozuk in [0, -5]) {
+        final p = ProvinceStat.fromMap('Bursa', {
+          'availableCount': 100,
+          'threshold': bozuk,
+        });
+        expect(p.threshold, isNull, reason: '$bozuk kabul edildi.');
+        expect(p.effectiveThreshold, ProvinceStat.defaultThreshold);
+      }
+    });
+
+    test('sunucu il başına eşiği OKUYOR', () {
+      final js = read('functions/index.js');
+      expect(js.contains('esikler.get(il) || PROVINCE_THRESHOLD_DEFAULT'),
+          isTrue,
+          reason: 'Sunucu hâlâ sabit eşik kullanıyor.');
+    });
+
+    test('sayım patchi eşiği EZMİYOR', () {
+      // Günlük sayım `merge: true` yazar ve patch `threshold` içermez;
+      // içerseydi admin ayarı her gece silinirdi.
+      final js = read('functions/index.js');
+      final blok = RegExp(
+        r'const patch = \{\s*province: il,(.*?)\};',
+        dotAll: true,
+      ).firstMatch(js);
+      expect(blok, isNotNull);
+      expect(blok!.group(1)!.contains('threshold'), isFalse,
+          reason: 'Sayım admin eşiğini eziyor.');
+    });
+
+    test('eşik ayarlama CF üzerinden ve DENETİMLİ', () {
+      // `adminStats` istemciye yazıma kapalı; ayrıca para etkili bir karar.
+      final js = read('functions/index.js');
+      expect(js.contains('exports.adminSetProvinceThreshold = onCall('),
+          isTrue);
+      expect(js.contains('"province_threshold_set"'), isTrue,
+          reason: 'Denetim kaydı yazılmıyor.');
+      expect(js.contains('Gerekce zorunlu'), isTrue);
+    });
+
+    test('CF makul olmayan eşiği REDDEDİYOR', () {
+      // 0/negatif il ANINDA eşiğe ulaşmış sayardı; üst sınır yazım hatasına
+      // karşı.
+      final js = read('functions/index.js');
+      expect(js.contains('t < 10 || t > 100000'), isTrue);
+    });
+
+    test('eşik değişimi DAMGAYA dokunmuyor', () {
+      // Eşiği düşürmek geçmiş bir geçişi iptal etmez, yükseltmek damgayı
+      // silmez — kullanıcıya verilen tarih korunmalı.
+      final js = read('functions/index.js');
+      final blok = RegExp(
+        r'exports\.adminSetProvinceThreshold = onCall\((.*?)\n\);',
+        dotAll: true,
+      ).firstMatch(js);
+      expect(blok, isNotNull);
+      expect(blok!.group(1)!.contains('thresholdReachedAt'), isFalse,
+          reason: 'Eşik ayarı damgayı değiştiriyor.');
+    });
+  });
+
+  group('Yönetici çift tıklamayla iki panel açamıyor', () {
+    test('açılış kilidi var', () {
+      // Yavaş bağlantıda yönetici "açılmadı" sanıp ikinci kez basıyordu ve
+      // iki panel üst üste açılıyordu.
+      final hub =
+          read('lib/features/admin/presentation/admin_person_hub.dart');
+      expect(hub.contains('bool _acilisSuruyor = false;'), isTrue);
+      expect(hub.contains('if (_acilisSuruyor) return;'), isTrue,
+          reason: 'İkinci dokunuş yutulmuyor.');
     });
   });
 }

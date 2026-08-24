@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 /// Bir ilin Pro geçişine hazırlık durumu (2026-08-23).
@@ -13,6 +14,7 @@ class ProvinceStat {
   const ProvinceStat({
     required this.province,
     required this.availableCount,
+    this.threshold,
     this.thresholdReachedAt,
     this.updatedAt,
   });
@@ -22,6 +24,14 @@ class ProvinceStat {
   /// Şu an müsait kullanıcı sayısı.
   final int availableCount;
 
+  /// Bu ile ÖZEL eşik — admin yazmışsa. Yoksa [defaultThreshold].
+  ///
+  /// NEDEN AYARLANABİLİR (2026-08-23): sabit 1.000 küçük illeri KALICI
+  /// olarak beta'da bırakırdı. Siirt'te müsait kullanıcı sayısı belki hiç
+  /// 1.000'e ulaşmaz; ama 300 usta o il için doymuş bir pazar olabilir.
+  /// Eşik pazarın BÜYÜKLÜĞÜNÜ değil DOYGUNLUĞUNU ölçmeli.
+  final int? threshold;
+
   /// Eşiğe İLK ulaşıldığı an. Bir kez yazılır ve **bir daha değişmez** —
   /// sayı sonradan düşse bile geri sarmaz, çünkü kullanıcıya verilen tarih
   /// değişmemeli.
@@ -29,22 +39,26 @@ class ProvinceStat {
 
   final DateTime? updatedAt;
 
-  /// Eşik — sunucudaki `PROVINCE_THRESHOLD` ile aynı olmalı.
-  static const int threshold = 1000;
+  /// VARSAYILAN eşik — sunucudaki `PROVINCE_THRESHOLD_DEFAULT` ile aynı
+  /// olmalı. İl bazında [threshold] ile ezilebilir.
+  static const int defaultThreshold = 1000;
+
+  /// Bu il için geçerli eşik (özel değer varsa o, yoksa varsayılan).
+  int get effectiveThreshold => threshold ?? defaultThreshold;
 
   bool get reached => thresholdReachedAt != null;
 
   /// Eşiğe kalan kullanıcı sayısı (ulaşıldıysa 0).
   int get remaining {
     if (reached) return 0;
-    final kalan = threshold - availableCount;
+    final kalan = effectiveThreshold - availableCount;
     return kalan > 0 ? kalan : 0;
   }
 
   /// 0–1 arası ilerleme (eşiği aşan iller 1'de sabitlenir).
   double get progress {
     if (reached) return 1;
-    final o = availableCount / threshold;
+    final o = availableCount / effectiveThreshold;
     return o > 1 ? 1 : o;
   }
 
@@ -74,6 +88,12 @@ class ProvinceStat {
           ? map['province'] as String
           : id,
       availableCount: (map['availableCount'] as num?)?.toInt() ?? 0,
+      // Geçersiz/sıfır değer YOK SAYILIR → varsayılana düşer. Yanlış bir
+      // eşik yüzünden il beklenmedik anda ücretliye geçmemeli.
+      threshold: switch ((map['threshold'] as num?)?.toInt()) {
+        final t? when t > 0 => t,
+        _ => null,
+      },
       thresholdReachedAt: t('thresholdReachedAt'),
       updatedAt: t('updatedAt'),
     );
@@ -122,4 +142,25 @@ final provinceStatsProvider = FutureProvider<List<ProvinceStat>>((ref) async {
       return b.availableCount.compareTo(a.availableCount);
     });
   return sirali;
+});
+
+/// Bir ilin eşiğini ayarlar; `null` varsayılana döndürür.
+///
+/// `adminStats` istemciye yazıma KAPALI (rules) — işlem CF üzerinden yürür
+/// ve denetim kaydına yazılır (gerekçe zorunlu).
+///
+/// Yeni eşik BİR SONRAKİ gece sayımında işlerlik kazanır; damgaya
+/// dokunulmaz — eşiği düşürmek geçmiş bir geçişi iptal etmez.
+final setProvinceThresholdProvider =
+    Provider<Future<void> Function(String, int?, String)>((ref) {
+  return (province, threshold, reason) async {
+    await FirebaseFunctions.instanceFor(region: 'europe-west1')
+        .httpsCallable('adminSetProvinceThreshold')
+        .call<Object?>({
+      'province': province,
+      'threshold': threshold,
+      'reason': reason,
+    });
+    ref.invalidate(provinceStatsProvider);
+  };
 });

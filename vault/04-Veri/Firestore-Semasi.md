@@ -83,8 +83,19 @@ yalnız admin okur.
 | Alan | Anlamı |
 |---|---|
 | `availableCount` | İldeki **şu an müsait** kullanıcı sayısı |
-| `thresholdReachedAt` | Eşiğe (1.000) İLK ulaşıldığı an — **bir kez yazılır** |
+| `threshold` | Bu ile ÖZEL eşik (admin yazar). Yoksa varsayılan 1.000 |
+| `thresholdReachedAt` | Eşiğe İLK ulaşıldığı an — **bir kez yazılır** |
 | `updatedAt` | Son sayım |
+
+**Eşik il başına ayarlanabilir** (`adminSetProvinceThreshold`, gerekçe zorunlu
++ denetim kaydı). Sabit 1.000 küçük illeri **kalıcı olarak** beta'da
+bırakırdı: Siirt'te müsait sayısı belki hiç 1.000'e ulaşmaz ama 300 usta o il
+için doymuş bir pazar olabilir. Eşik pazarın **büyüklüğünü değil doygunluğunu**
+ölçmeli.
+
+Günlük sayım `merge: true` yazar ve patch `threshold` **içermez** — içerseydi
+admin ayarı her gece silinirdi. Eşik değişimi damgaya da dokunmaz: düşürmek
+geçmiş bir geçişi iptal etmez, yükseltmek damgayı silmez.
 
 **Ölçü `users.available == true`** (askıya alınmışlar hariç). Haftalık takvim
 sunucuda **yeniden hesaplanmaz** — `isAvailableAt` mantığının ikinci kopyası

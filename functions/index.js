@@ -5552,8 +5552,16 @@ exports.purgeRemovedProducts = onSchedule(
 // BIR DAHA DEGISMEZ. Sayi sonradan dususe bile geri sarmaz — kullaniciya
 // verilen tarih degismemeli.
 
-/** Il esigi: bu sayiya ulasan il ucretli doneme hazir sayilir. */
-const PROVINCE_THRESHOLD = 1000;
+/**
+ * VARSAYILAN il esigi. Il basina admin panelinden DEGISTIRILEBILIR
+ * (`adminStats/provinces/items/{il}.threshold`).
+ *
+ * NEDEN AYARLANABILIR (2026-08-23): sabit 1.000 esigi kucuk illeri KALICI
+ * olarak beta'da birakirdi. Siirt'te musait kullanici sayisi belki hic
+ * 1.000'e ulasmaz; ama 300 usta o il icin doymus bir pazar olabilir.
+ * Esik pazarin BUYUKLUGUNU degil DOYGUNLUGUNU olcmeli.
+ */
+const PROVINCE_THRESHOLD_DEFAULT = 1000;
 
 /**
  * Bir kullanicinin hizmet ILINI cozer (tek il kurali).
@@ -5575,6 +5583,75 @@ function resolveUserProvince(user, artisan) {
   }
   return "";
 }
+
+/**
+ * Bir ilin Pro esigini elle ayarlar (2026-08-23).
+ *
+ * NEDEN GEREKLI: sabit 1.000 esigi kucuk illeri KALICI olarak beta'da
+ * birakirdi. Siirt'te musait kullanici sayisi belki hic 1.000'e ulasmaz;
+ * ama 300 usta o il icin doymus bir pazar olabilir. Esik pazarin
+ * BUYUKLUGUNU degil DOYGUNLUGUNU olcmeli.
+ *
+ * `adminStats` istemciye yazima KAPALI (rules) — bu yuzden CF uzerinden.
+ *
+ * DAMGAYA DOKUNULMAZ: esigi dusurmek zaten gecmis bir gecisi iptal etmez,
+ * yukseltmek de damgayi silmez. Damga bir kez yazilir (bkz.
+ * rebuildProvinceStats). Yeni esik BIR SONRAKI sayimda islerlik kazanir.
+ *
+ * `threshold: null` gonderilirse il VARSAYILANA doner.
+ */
+exports.adminSetProvinceThreshold = onCall(
+    ADMIN_CALL_OPTS,
+    async (request) => {
+      const auth = request.auth;
+      await assertCap(auth, "finance.manage");
+      const {province, threshold, reason} = request.data || {};
+
+      const il = String(province || "").trim();
+      if (!il) throw new HttpsError("invalid-argument", "province zorunlu.");
+
+      const note = String(reason || "").trim();
+      if (note.length < 5) {
+        throw new HttpsError(
+            "invalid-argument", "Gerekce zorunlu (en az 5 karakter).");
+      }
+
+      // null = varsayilana don. Sayi ise makul aralikta olmali: 0 ve negatif
+      // il ANINDA esige ulasmis sayardi; ust sinir yazim hatasina karsi.
+      let yeni = null;
+      if (threshold !== null && threshold !== undefined) {
+        const t = Number(threshold);
+        if (!Number.isFinite(t) || t < 10 || t > 100000) {
+          throw new HttpsError(
+              "invalid-argument", "Esik 10 ile 100000 arasinda olmali.");
+        }
+        yeni = Math.round(t);
+      }
+
+      const ref = db.collection("adminStats").doc("provinces")
+          .collection("items").doc(il);
+      const onceki = await ref.get();
+      const eskiEsik = onceki.exists ? (onceki.data().threshold || null) : null;
+
+      await ref.set({
+        province: il,
+        threshold: yeni === null ? FieldValue.delete() : yeni,
+      }, {merge: true});
+
+      await writeAuditLog({
+        actorUid: auth.uid,
+        action: "province_threshold_set",
+        targetType: "adminStats",
+        targetId: il,
+        reason: note,
+        before: {threshold: eskiEsik},
+        after: {threshold: yeni},
+      });
+
+      logger.info(`adminSetProvinceThreshold ${il}: ${eskiEsik} -> ${yeni}`);
+      return {ok: true, province: il, threshold: yeni};
+    },
+);
 
 exports.rebuildProvinceStats = onSchedule(
     {
@@ -5642,10 +5719,14 @@ exports.rebuildProvinceStats = onSchedule(
       // Mevcut damgalari TEK sorguda oku — il basina ayri `get()` 81 ayri
       // okuma demekti ve gunluk isin maliyetini gereksiz katliyordu.
       const damgalar = new Map();
+      const esikler = new Map();
       const mevcutSnap = await kok.get();
       mevcutSnap.docs.forEach((d) => {
         const v = d.data() || {};
         if (v.thresholdReachedAt) damgalar.set(d.id, v.thresholdReachedAt);
+        // Admin il basina esik yazmis olabilir; sayi degilse yok sayilir.
+        const t = Number(v.threshold);
+        if (Number.isFinite(t) && t > 0) esikler.set(d.id, t);
       });
 
       const simdi = new Date().toISOString();
@@ -5659,7 +5740,9 @@ exports.rebuildProvinceStats = onSchedule(
         };
         // Damga YALNIZ bir kez yazilir (kilit): sayi sonradan dususe bile
         // geri sarmaz — kullaniciya verilen tarih degismemeli.
-        if (sayi >= PROVINCE_THRESHOLD && !damgalar.has(il)) {
+        // Il basina esik: admin yazmissa o, yoksa varsayilan.
+        const esik = esikler.get(il) || PROVINCE_THRESHOLD_DEFAULT;
+        if (sayi >= esik && !damgalar.has(il)) {
           patch.thresholdReachedAt = simdi;
         }
         batch.set(kok.doc(il), patch, {merge: true});
