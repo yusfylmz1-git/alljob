@@ -24,6 +24,90 @@
 
 ## ✅ Son Durum (EN SON BURAYI OKU)
 
+**Tarih:** 2026-08-23 — **ADMİN PANELİ DENETİMİ + PRO ALTYAPISI**
+
+`flutter analyze` 0 · `eslint` 0 hata · **1242 test** (gün başında 1006).
+Kural + indeks + 5 Cloud Function **canlıda**.
+
+### Bugün ne yapıldı
+
+Gün üç bölümde geçti: kapalı test bulguları → Pro plan altyapısı →
+admin paneli denetimi.
+
+### Pro modeli (karar verildi)
+
+**Ölçü müsaitlik.** Usta/mağaza ayrımı yok — müsait olan öder, olmayan
+müşteri gibi davranır.
+
+| Aşama | Ne olur |
+|---|---|
+| Eşik | İlde 1.000 müsait kullanıcı → sayaç **kilitlenir** |
+| 1. ay | Geri sayım, hâlâ ücretsiz |
+| 2. ay | Teklif: **ilk ay ₺49,99**, sonra ₺99,99 |
+| Sonrası | Müsaitlik kapanır; sonra abone olan tam fiyat öder |
+
+* **Eşik il başına ayarlanabilir** (`adminSetProvinceThreshold`) — Siirt'te
+  1.000 hiç dolmayabilir ama 300 doymuş pazar olabilir.
+* Kurucu kotası **iptal edildi**: eşik il bazlı, ödül ülke bazlıydı — iki
+  ölçek çarpışıyordu.
+* Geçiş **geri alınabilir**: kapı (`premiumFreeForUser`) saf fonksiyon,
+  hiçbir veri yazmaz.
+
+### Pro altyapısı (Faz 1 — 5 iş bitti)
+
+1. **Toplu plan güvenliği** — il zorunlu + sayfalama. Önce tüm koleksiyonu
+   tarıyordu: Bursa'yı geçirirken Türkiye'yi kapatabilirdin, geri alınamaz.
+2. **Sürüm sabiti** → `pubspec.yaml` tek kaynak (`package_info_plus`).
+   `kClientVersion` `1.0.0`'da unutulmuştu; `minAppVersion` yazılsa
+   **herkesi kilitlerdi**.
+3. **İl panosu + müsait sayacı** — günlük 03:00 tam sayım. Damga bir kez
+   yazılır, sayı düşse bile geri sarmaz.
+4. **İl bazlı premium kapısı** — `paidProvinces` listesi. Boşken davranış
+   eskisiyle birebir aynı.
+5. *(Play Console kurulumu sende — satıcı hesabı bekliyor.)*
+
+### Admin paneli denetimi (5 iş bitti)
+
+22 ekran tarandı. Güvenlik sağlam çıktı: **paneli kullanarak projeyi
+çökertmek mümkün değil**, en kötü senaryo geri alınabilir bir kapanma.
+Asıl sorun görünürlüktü — panel veriyi tutuyor ama sunmuyordu.
+
+1. **Meslek/il seçicileri** — 4 ekranda düz metin kutusu vardı; katalogda
+   **145 meslek** var ve hiçbiri ekranda görünmüyordu. Yanlış yazım hata
+   da vermiyordu.
+2. **Liste rozetleri** — Pro / müsaitlik / il / mağaza ayrımı.
+3. **Duyuru geçmişi** — "şimdi gönder" ile yollananların hiçbir izi yoktu.
+   Kaynak denetim kaydı; yeni koleksiyon açılmadı.
+4. **`users.province` + il filtresi** — il iki yerde ama ikisi de DİZİ;
+   Firestore `where` ile içine bakılamıyordu. Göç yok, kayıtta dolar.
+5. **Dashboard Pro özeti** — eşiğe en yakın üç il.
+
+### Gün boyunca yakalanan sessiz hatalar
+
+* **`paidProvinces` allowlist dışındaydı** — admin il ekliyor, ekran
+  başarılı gösteriyor, sunucu sessizce yok sayıyordu.
+* **Boş dize ili temizlemiyordu** — `copyWith`'te `null` "değiştirme"
+  demek; `clearProvince` bayrağı eklendi.
+* **`!` leetspeak listesindeydi** — `SIKTIR!!!` filtreden kaçıyordu.
+* **Çift tıklama iki panel açıyordu** — `showAdminUserActions` kilitsizdi.
+* **`campaign_sent` iç içe yazıyor** — düz alan bekleyen kod zamanlanmış
+  kampanyaları "0 kişi" gösterirdi.
+
+### Sırada
+
+**Play Console kurulumu (sende).** Satıcı hesabı açılması gerekiyor —
+bireysel kayıt yeterli, ama vergi tarafı için muhasebeciye danış.
+
+Sonra: indirimli ürün kimliği (kodda), Play RTDN, uçtan uca test.
+
+Bekleyen küçük iş: ürün vitrini (`product_providers.dart`) hâlâ
+`users.available` bayrağını okuyor, premium kapısını değil. Kodda yorumla
+işaretli.
+
+---
+
+## 📋 Aynı gün, daha önce
+
 **Tarih:** 2026-08-23 — **KAPALI TEST 3. TUR** (aynı gün, 2. turdan sonra)
 
 `flutter analyze` 0 · `eslint` 0 hata · **1118 test** (öncesi 1089).

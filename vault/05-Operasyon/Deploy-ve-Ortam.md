@@ -53,6 +53,25 @@ Deploy ağ hataları uç noktaya göre IPv4 **ya da** IPv6 ister.
 
 Tek bir doğru ayar yok — hataya bakarak karar ver.
 
+### "Cannot determine backend specification" → TEKRAR DENE
+
+Deploy sırasında Firebase CLI `index.js`'i çalıştırıp fonksiyon listesini
+çıkarır ve bu adımın **10 saniyelik sabit bütçesi** vardır. Soğuk bir
+makinede (ilk deploy, npm önbelleği boş) bu bütçe dolabiliyor:
+
+```
+Error: User code failed to load. Cannot determine backend specification.
+Timeout after 10000.
+```
+
+**Çözüm: aynı komutu tekrar çalıştır.** İkinci denemede modüller ısınmış
+olur ve geçer. 2026-08-23'te birebir böyle yaşandı.
+
+Kalıcı önlem kodda zaten var: `googleapis` (110 MB) modül tepesinde
+`require` EDİLMEZ, tembel yüklenir. Yine de hata sürerse yeni bir ağır
+bağımlılık tepeye eklenmiş demektir — `functions/index.js` başındaki
+`require` satırlarına bak.
+
 ### Android JDK 17
 AR paketi Java 17 toolchain ister. `gradle.properties` içinde makineye özel
 yolla tanımlı.
