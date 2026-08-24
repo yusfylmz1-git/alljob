@@ -9,6 +9,7 @@ import '../../../data/local/mock_database.dart' show kProfessionNames;
 import '../../../data/models/job.dart';
 import '../data/admin_export_util.dart';
 import '../data/admin_providers.dart';
+import 'admin_pickers.dart';
 import 'admin_chrome.dart';
 import 'admin_list_search.dart';
 import 'admin_users_screen.dart';
@@ -23,7 +24,6 @@ class AdminJobsScreen extends ConsumerStatefulWidget {
 }
 
 class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
-  final _provinceCtrl = TextEditingController();
   final _searchCtrl = TextEditingController();
   String _query = '';
   Job? _idHit;
@@ -31,7 +31,6 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
 
   @override
   void dispose() {
-    _provinceCtrl.dispose();
     _searchCtrl.dispose();
     super.dispose();
   }
@@ -144,20 +143,19 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
             ),
           _JobFilters(
             status: statusFilter,
-            provinceController: _provinceCtrl,
+            province: ref.watch(jobDirectoryProvinceFilterProvider),
             onStatus: (s) {
               ref.read(jobDirectoryStatusFilterProvider.notifier).state = s;
               if (s != null) {
                 ref.read(jobDirectoryProvinceFilterProvider.notifier).state =
                     null;
-                _provinceCtrl.clear();
               }
             },
-            onProvinceSubmit: () {
-              final t = _provinceCtrl.text.trim();
-              ref.read(jobDirectoryProvinceFilterProvider.notifier).state =
-                  t.isEmpty ? null : t;
-              if (t.isNotEmpty) {
+            onProvince: (il) {
+              ref.read(jobDirectoryProvinceFilterProvider.notifier).state = il;
+              // İl ve durum filtresi birlikte kullanılmıyor (bileşik indeks
+              // yok); biri seçilince diğeri temizlenir.
+              if (il != null) {
                 ref.read(jobDirectoryStatusFilterProvider.notifier).state =
                     null;
               }
@@ -166,7 +164,6 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
               ref.read(jobDirectoryStatusFilterProvider.notifier).state = null;
               ref.read(jobDirectoryProvinceFilterProvider.notifier).state =
                   null;
-              _provinceCtrl.clear();
             },
             provinceActive: provinceFilter != null && provinceFilter.isNotEmpty,
           ),
@@ -252,17 +249,17 @@ class _AdminJobsScreenState extends ConsumerState<AdminJobsScreen> {
 class _JobFilters extends StatelessWidget {
   const _JobFilters({
     required this.status,
-    required this.provinceController,
+    required this.province,
     required this.onStatus,
-    required this.onProvinceSubmit,
+    required this.onProvince,
     required this.onClearAll,
     required this.provinceActive,
   });
 
   final JobStatus? status;
-  final TextEditingController provinceController;
+  final String? province;
   final ValueChanged<JobStatus?> onStatus;
-  final VoidCallback onProvinceSubmit;
+  final ValueChanged<String?> onProvince;
   final VoidCallback onClearAll;
   final bool provinceActive;
 
@@ -291,17 +288,15 @@ class _JobFilters extends StatelessWidget {
               const SizedBox(width: 6),
             ],
             const SizedBox(width: 8),
+            // SEÇİCİ (2026-08-23): elle yazılan il adı yanlış olabiliyor
+            // ve sonuç boş liste — yönetici filtrenin mi yanlış, verinin mi
+            // yok olduğunu ayırt edemiyordu.
             SizedBox(
-              width: 140,
-              child: TextField(
-                controller: provinceController,
-                decoration: const InputDecoration(
-                  isDense: true,
-                  labelText: 'İl',
-                  hintText: 'İstanbul',
-                  border: OutlineInputBorder(),
-                ),
-                onSubmitted: (_) => onProvinceSubmit(),
+              width: 190,
+              child: AdminProvincePicker(
+                value: province,
+                allowClear: true,
+                onChanged: onProvince,
               ),
             ),
           ],

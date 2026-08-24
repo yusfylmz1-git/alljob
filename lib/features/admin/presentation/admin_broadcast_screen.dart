@@ -5,7 +5,9 @@ import 'package:intl/intl.dart';
 import '../../../core/theme/app_palette.dart';
 import '../../../core/utils/snackbar_helper.dart';
 import '../../../core/widgets/responsive_center.dart';
+import '../../../data/local/mock_database.dart' show kProfessionNames;
 import '../data/admin_providers.dart';
+import 'admin_pickers.dart';
 import '../data/admin_runtime_config_repository.dart';
 import 'admin_chrome.dart';
 
@@ -21,8 +23,11 @@ class AdminBroadcastScreen extends ConsumerStatefulWidget {
 class _AdminBroadcastScreenState extends ConsumerState<AdminBroadcastScreen> {
   final _title = TextEditingController();
   final _body = TextEditingController();
-  final _profession = TextEditingController();
-  final _province = TextEditingController();
+  /// Seçili meslek KODU (`painter`) — seçiciden gelir, elle yazılmaz.
+  String? _professionCode;
+
+  /// Seçili il ADI (`Bursa`) — seçiciden gelir.
+  String? _provinceName;
   final _targetUser = TextEditingController();
   String _audience = 'all';
   bool _sendPush = true;
@@ -36,8 +41,7 @@ class _AdminBroadcastScreenState extends ConsumerState<AdminBroadcastScreen> {
   void dispose() {
     _title.dispose();
     _body.dispose();
-    _profession.dispose();
-    _province.dispose();
+
     _targetUser.dispose();
     super.dispose();
   }
@@ -59,11 +63,11 @@ class _AdminBroadcastScreenState extends ConsumerState<AdminBroadcastScreen> {
       context.showError('Başlık ve metin zorunlu.');
       return false;
     }
-    if (_audience == 'profession' && _profession.text.trim().isEmpty) {
+    if (_audience == 'profession' && (_professionCode ?? '').isEmpty) {
       context.showError('Meslek kodu girin (örn. painter).');
       return false;
     }
-    if (_audience == 'province' && _province.text.trim().isEmpty) {
+    if (_audience == 'province' && (_provinceName ?? '').isEmpty) {
       context.showError('İl adı girin (örn. Bursa).');
       return false;
     }
@@ -161,8 +165,8 @@ class _AdminBroadcastScreenState extends ConsumerState<AdminBroadcastScreen> {
           audience: _audience,
           scheduledAt: when,
           sendPush: _sendPush,
-          profession: _profession.text.trim(),
-          province: _province.text.trim(),
+          profession: _professionCode ?? '',
+          province: _provinceName ?? '',
           targetUid: target.uid,
           targetEmail: target.email,
         );
@@ -176,8 +180,8 @@ class _AdminBroadcastScreenState extends ConsumerState<AdminBroadcastScreen> {
           body: body,
           audience: _audience,
           sendPush: _sendPush,
-          profession: _profession.text.trim(),
-          province: _province.text.trim(),
+          profession: _professionCode ?? '',
+          province: _provinceName ?? '',
           targetUid: target.uid,
           targetEmail: target.email,
         );
@@ -207,8 +211,10 @@ class _AdminBroadcastScreenState extends ConsumerState<AdminBroadcastScreen> {
   String _audienceLabel() => switch (_audience) {
     'artisans' => 'Ustalar',
     'customers' => 'Müşteriler',
-    'profession' => 'Meslek: ${_profession.text.trim()}',
-    'province' => 'İl: ${_province.text.trim()}',
+    // Kod DEĞİL ad gösterilir: yönetici ne seçtiğini okuyabilmeli.
+    'profession' => 'Meslek: '
+        '${kProfessionNames[_professionCode] ?? _professionCode ?? '—'}',
+    'province' => 'İl: ${_provinceName ?? '—'}',
     'user' => 'Tek kişi: ${_targetUser.text.trim()}',
     _ => 'Tümü (son 300)',
   };
@@ -315,26 +321,26 @@ class _AdminBroadcastScreenState extends ConsumerState<AdminBroadcastScreen> {
                   ),
               ],
             ),
+            // SEÇİCİ, METİN KUTUSU DEĞİL (2026-08-23).
+            //
+            // Yönetici `painter` yazmak zorundaydı ama katalogda 145 meslek
+            // var ve hiçbiri ekranda görünmüyordu. Yanlış yazım hata da
+            // vermiyordu: sunucu "alıcı bulunamadı" diyor, sebep belirsiz
+            // kalıyordu — duyurunun kimseye gitmemesiyle aynı ekran.
             if (_audience == 'profession') ...[
               const SizedBox(height: 12),
-              TextField(
-                controller: _profession,
+              AdminProfessionPicker(
+                value: _professionCode,
                 enabled: can && !_busy,
-                decoration: const InputDecoration(
-                  labelText: 'Meslek kodu',
-                  hintText: 'painter, electrician…',
-                ),
+                onChanged: (v) => setState(() => _professionCode = v),
               ),
             ],
             if (_audience == 'province') ...[
               const SizedBox(height: 12),
-              TextField(
-                controller: _province,
+              AdminProvincePicker(
+                value: _provinceName,
                 enabled: can && !_busy,
-                decoration: const InputDecoration(
-                  labelText: 'İl',
-                  hintText: 'Bursa',
-                ),
+                onChanged: (v) => setState(() => _provinceName = v),
               ),
             ],
             if (_audience == 'user') ...[

@@ -10,6 +10,7 @@ import '../../../data/local/mock_database.dart' show kProfessionNames;
 import '../../../data/models/artisan_profile.dart';
 import '../data/admin_artisan_repository.dart';
 import '../data/admin_providers.dart';
+import 'admin_pickers.dart';
 import 'admin_certificate_sheet.dart';
 import 'admin_chrome.dart';
 import 'admin_list_search.dart';
@@ -31,13 +32,11 @@ class AdminArtisansScreen extends ConsumerStatefulWidget {
 }
 
 class _AdminArtisansScreenState extends ConsumerState<AdminArtisansScreen> {
-  final _professionCtrl = TextEditingController();
   final _searchCtrl = TextEditingController();
   String _query = '';
 
   @override
   void dispose() {
-    _professionCtrl.dispose();
     _searchCtrl.dispose();
     super.dispose();
   }
@@ -85,7 +84,7 @@ class _AdminArtisansScreenState extends ConsumerState<AdminArtisansScreen> {
           ),
           _ArtisanFilters(
             verified: verified,
-            professionController: _professionCtrl,
+            profession: profession,
             professionActive: profession != null && profession.isNotEmpty,
             onVerified: (v) {
               ref.read(artisanDirectoryVerifiedFilterProvider.notifier).state =
@@ -94,15 +93,15 @@ class _AdminArtisansScreenState extends ConsumerState<AdminArtisansScreen> {
                 ref
                     .read(artisanDirectoryProfessionFilterProvider.notifier)
                     .state = null;
-                _professionCtrl.clear();
               }
             },
-            onProfessionSubmit: () {
-              final t = _professionCtrl.text.trim();
+            onProfession: (kod) {
               ref
                   .read(artisanDirectoryProfessionFilterProvider.notifier)
-                  .state = t.isEmpty ? null : t;
-              if (t.isNotEmpty) {
+                  .state = kod;
+              // Meslek ve doğrulama filtresi birlikte kullanılmıyor
+              // (bileşik indeks yok); biri seçilince diğeri temizlenir.
+              if (kod != null) {
                 ref
                     .read(artisanDirectoryVerifiedFilterProvider.notifier)
                     .state = null;
@@ -114,7 +113,6 @@ class _AdminArtisansScreenState extends ConsumerState<AdminArtisansScreen> {
               ref
                   .read(artisanDirectoryProfessionFilterProvider.notifier)
                   .state = null;
-              _professionCtrl.clear();
             },
           ),
           Expanded(
@@ -196,18 +194,18 @@ class _AdminArtisansScreenState extends ConsumerState<AdminArtisansScreen> {
 class _ArtisanFilters extends StatelessWidget {
   const _ArtisanFilters({
     required this.verified,
-    required this.professionController,
+    required this.profession,
     required this.professionActive,
     required this.onVerified,
-    required this.onProfessionSubmit,
+    required this.onProfession,
     required this.onClear,
   });
 
   final bool? verified;
-  final TextEditingController professionController;
+  final String? profession;
   final bool professionActive;
   final ValueChanged<bool?> onVerified;
-  final VoidCallback onProfessionSubmit;
+  final ValueChanged<String?> onProfession;
   final VoidCallback onClear;
 
   @override
@@ -238,16 +236,14 @@ class _ArtisanFilters extends StatelessWidget {
               onSelected: (v) => onVerified(v ? false : null),
             ),
             const SizedBox(width: 10),
+            // SEÇİCİ (2026-08-23): katalogda 145 meslek var; kodu ezberden
+            // yazmak imkânsızdı ve yanlış yazım boş liste üretiyordu.
             SizedBox(
-              width: 150,
-              child: TextField(
-                controller: professionController,
-                decoration: const InputDecoration(
-                  isDense: true,
-                  labelText: 'Meslek kodu',
-                  border: OutlineInputBorder(),
-                ),
-                onSubmitted: (_) => onProfessionSubmit(),
+              width: 220,
+              child: AdminProfessionPicker(
+                value: profession,
+                allowClear: true,
+                onChanged: onProfession,
               ),
             ),
           ],
