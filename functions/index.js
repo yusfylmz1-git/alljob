@@ -3875,6 +3875,30 @@ exports.adminUpdateConfig = onCall(
         next.announcementEnabled = patch.announcementEnabled;
       }
 
+      // UCRETLI ILLER (2026-08-23) — sehir bazli Pro gecisinin anahtari.
+      //
+      // ⚠️ Bu alan allowlist'e EKLENMEDEN admin ekranindan il eklemek
+      // SESSIZCE calismiyordu: adminUpdateConfig yalniz izin verilen
+      // alanlari yazar, gerisini yok sayar. Yonetici il ekliyor, ekran
+      // basarili gosteriyor, sunucuda hicbir sey degismiyordu.
+      //
+      // Sessiz basarisizlik en kotu hata turu: yonetici gecisi yaptigini
+      // saniyor, kullanicilar hala ucretsiz kullanmaya devam ediyor.
+      if (Array.isArray(patch.paidProvinces)) {
+        const iller = patch.paidProvinces
+            .map((e) => String(e || "").trim())
+            .filter((e) => e.length > 0 && e.length <= 60);
+        // Tekillestir: ayni il iki kez eklenirse liste sisirilmesin.
+        const tekil = [...new Set(iller)];
+        // Ust sinir: Turkiye'de 81 il var. Fazlasi yazim hatasi ya da
+        // kotuye kullanim demektir.
+        if (tekil.length > 81) {
+          throw new HttpsError(
+              "invalid-argument", "En fazla 81 il secilebilir.");
+        }
+        next.paidProvinces = tekil;
+      }
+
       if (Object.keys(next).length === 0) {
         throw new HttpsError(
             "invalid-argument", "En az bir config alanı gerekli.");
@@ -3890,6 +3914,7 @@ exports.adminUpdateConfig = onCall(
         productsEnabled: true,
         productsForceReview: false,
         announcementEnabled: false,
+        paidProvinces: [],
       };
       await ref.set({...seed, ...before, ...next}, {merge: true});
 

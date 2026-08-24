@@ -18,16 +18,21 @@ class AppConstants {
   /// Menüde/künyede gösterilen kısa biçim (şema ve `www.` olmadan).
   static const String siteLabel = 'ilandahizmet.com';
 
-  /// Çalışan sürümün adı — `pubspec.yaml`'daki `version:` ile AYNI olmalı.
+  /// Sürüm okunamadığında kullanılan YEDEK değer.
   ///
-  /// Neden elle sabit: `package_info_plus` bunu çalışma anında okuyabilirdi
-  /// ama yayına yeni bir eklenti sokmak (platform kanalı, ProGuard kuralı,
-  /// iOS izinleri) sürüm bildirimi gibi küçük bir özellik için gereksiz risk.
-  /// Sabit kalırsa senkron riski doğar — `test/guncelleme_bildirimi_test.dart`
-  /// bu satırla `pubspec.yaml`'ı karşılaştırır ve ayrışırsa testi düşürür.
+  /// ⚠️ BUNU ELLE GÜNCELLEMEK GEREKMEZ (2026-08-23). Gerçek sürüm çalışma
+  /// anında `package_info_plus` ile `pubspec.yaml`'dan okunur
+  /// ([AppVersion.load]). Burası yalnız eklentinin cevap veremediği ender
+  /// durumda (platform kanalı hazır değil, test ortamı) devreye girer.
   ///
-  /// ⚠️ SÜRÜM YÜKSELTİRKEN İKİSİNİ BİRDEN DEĞİŞTİR.
-  static const String appVersion = '1.2.0';
+  /// Neden değişti: bu sabit elle yazılıyordu ve `pubspec.yaml` ile senkron
+  /// tutmak kullanıcıya kalıyordu. Unutulduğunda güncelleme bildirimi yanlış
+  /// hesaplıyor, zorunlu güncelleme kapısı ise GÜNCEL sürümdekiler dâhil
+  /// herkesi kilitleyebiliyordu. Tek kaynak artık `pubspec.yaml`.
+  ///
+  /// Yedek değer eskirse zarar vermez: yalnızca eklenti çalışmadığında
+  /// okunur ve o durumda `0.0.0` yazmak "hiç sürüm bilinmiyor" demek olurdu.
+  static const String appVersionFallback = '1.2.0';
 
   /// Sunucudaki sürüm bilgisinin okunduğu doküman (`config/app`).
   ///

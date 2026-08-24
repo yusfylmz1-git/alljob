@@ -7,6 +7,7 @@ import '../../data/models/app_user.dart';
 import '../../features/auth/application/auth_controller.dart';
 import '../../features/auth/data/auth_repository.dart';
 import '../../features/chat/data/chat_providers.dart';
+import '../config/app_version_runtime.dart';
 import '../constants/app_constants.dart';
 import '../router/route_paths.dart';
 import '../theme/accent_options.dart';
@@ -378,7 +379,7 @@ class _UpdateTile extends ConsumerWidget {
             (zorunlu
                 ? 'Bu sürüm artık desteklenmiyor. Lütfen güncelleyin.'
                 : 'Sürüm ${info?.latestVersion} yayında '
-                    '(sizde ${AppConstants.appVersion}).'),
+                    '(sizde ${AppVersion.value}).'),
       ),
       trailing: Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),

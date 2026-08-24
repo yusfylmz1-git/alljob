@@ -24,23 +24,52 @@ void main() {
   AppVersionInfo info(String latest, {String? min}) =>
       AppVersionInfo(latestVersion: latest, minSupportedVersion: min);
 
-  group('Sürüm sabiti pubspec ile SENKRON', () {
-    test('AppConstants.appVersion == pubspec version', () {
-      // `package_info_plus` eklemek yerine sabit tutuldu; senkron riskini
-      // kapatan tek şey bu testtir. Sürüm yükseltip burayı unutan biri
-      // kullanıcılara "güncelleme var" derken aslında güncel sürümü
-      // gösteriyor olurdu.
+  group('Sürüm ÇALIŞMA ANINDA pubspecten okunuyor (2026-08-23)', () {
+    // Önce `AppConstants.appVersion` elle yazılıyordu ve pubspec ile
+    // senkron tutmak kullanıcıya kalıyordu. Unutulduğunda güncelleme
+    // bildirimi yanlış hesaplıyor, zorunlu güncelleme kapısı ise GÜNCEL
+    // sürümdekiler dâhil herkesi kilitleyebiliyordu.
+    //
+    // Artık tek kaynak `pubspec.yaml`; elle yazılan sabit YOK.
+
+    test('elle yazılan sürüm sabiti KALMADI', () {
+      final sabitler = read('lib/core/constants/app_constants.dart');
+      expect(sabitler.contains('static const String appVersion ='), isFalse,
+          reason: 'Elle yazılan sürüm sabiti geri gelmiş — senkron riski '
+              'yeniden doğdu.');
+    });
+
+    test('sürüm package_info_plus ile okunuyor', () {
+      final rt = read('lib/core/config/app_version_runtime.dart');
+      expect(rt.contains('PackageInfo.fromPlatform()'), isTrue);
+      expect(read('pubspec.yaml').contains('package_info_plus:'), isTrue);
+    });
+
+    test('okuma başarısızsa uygulama ÇÖKMÜYOR', () {
+      // Eklenti cevap veremezse (masaüstü, test ortamı) yedek değerle
+      // devam edilmeli; sürüm okunamadı diye uygulamayı açmamak çözdüğünden
+      // büyük bir sorun yaratırdı.
+      final rt = read('lib/core/config/app_version_runtime.dart');
+      expect(rt.contains('appVersionFallback'), isTrue);
+      expect(rt.contains('} catch (e) {'), isTrue);
+    });
+
+    test('main() sürümü yüklüyor', () {
+      // Yükleme unutulursa her kullanıcı yedek değerde kalır ve güncelleme
+      // bildirimi sessizce yanlış çalışır.
+      expect(read('lib/main.dart').contains('AppVersion.load()'), isTrue,
+          reason: 'main() içinde AppVersion.load() çağrılmıyor.');
+    });
+
+    test('yedek değer pubspec ile TUTARLI', () {
+      // Yedek eskirse zarar vermez ama tutarsız olması kafa karıştırır.
       final pubspec = read('pubspec.yaml');
       final satir = RegExp(r'^version:\s*(\S+)\s*$', multiLine: true)
           .firstMatch(pubspec);
       expect(satir, isNotNull, reason: 'pubspec.yaml içinde version yok.');
-
-      final tam = satir!.group(1)!; // örn. 1.2.0+6
-      final ad = tam.split('+').first;
-
-      expect(AppConstants.appVersion, ad,
-          reason: 'pubspec sürümü $ad ama AppConstants.appVersion '
-              '${AppConstants.appVersion}. İKİSİNİ BİRDEN güncelleyin.');
+      final ad = satir!.group(1)!.split('+').first;
+      expect(AppConstants.appVersionFallback, ad,
+          reason: 'Yedek değer pubspec ile ayrışmış.');
     });
   });
 

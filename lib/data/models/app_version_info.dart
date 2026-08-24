@@ -1,4 +1,4 @@
-import '../../core/constants/app_constants.dart';
+import '../../core/config/app_version_runtime.dart';
 
 /// Sunucudaki sürüm bilgisi (`config/app`) ve ondan çıkan güncelleme durumu.
 ///
@@ -115,5 +115,6 @@ extension _NullIfEmpty on String {
   String? get nullIfEmpty => isEmpty ? null : this;
 }
 
-/// Çalışan sürüm — `pubspec.yaml` ile senkron tutulan sabit.
-String get currentAppVersion => AppConstants.appVersion;
+/// Çalışan sürüm — `pubspec.yaml`'dan ÇALIŞMA ANINDA okunur.
+/// Elle yazılan bir sabit yoktur; bkz. [AppVersion].
+String get currentAppVersion => AppVersion.value;

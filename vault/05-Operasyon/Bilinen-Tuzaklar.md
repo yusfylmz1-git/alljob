@@ -1086,5 +1086,33 @@ Zincir artık tek: **`pubspec.yaml` → `AppConstants.appVersion` →
 aktarıyor. İki kopya = iki farklı davranış: güncelleme rozeti bir şey,
 zorunlu güncelleme kapısı başka şey söyleyebilirdi.
 
+## 🔴 `adminUpdateConfig` allowlist — sessiz başarısızlık kaynağı
+
+`adminUpdateConfig` **yalnız izin verilen alanları** yazar, gerisini sessizce
+yok sayar. Yeni bir yapılandırma alanı eklerken allowlist'e de eklenmezse:
+
+* admin ekranı **başarılı gösterir**,
+* sunucuda **hiçbir şey değişmez**,
+* yönetici işi yaptığını sanır.
+
+2026-08-23'te `paidProvinces` tam olarak böyle eklendi ve şehir bazlı geçiş
+canlıda hiç çalışmayacaktı. Sessiz başarısızlık en kötü hata türüdür — hata
+mesajı olsaydı beş dakikada fark edilirdi.
+
+**Yeni config alanı eklerken üç yer:** `AppRuntimeConfig.fromMap` (okuma) ·
+`adminUpdateConfig` allowlist (yazma) · `seed` (ilk yazım varsayılanı).
+
+## 🟠 Sürüm artık ELLE yazılmıyor
+
+`pubspec.yaml` tek kaynak; `package_info_plus` ile çalışma anında okunur
+(`AppVersion.load()`, `main()` içinde Firebase'den önce).
+
+Önce iki yerde elle yazılıyordu (`AppConstants.appVersion` + `kClientVersion`)
+ve senkron tutmak kullanıcıya kalıyordu. Unutulduğunda zorunlu güncelleme
+kapısı **güncel sürümdekiler dâhil herkesi kilitleyebiliyordu**.
+
+`AppConstants.appVersionFallback` yalnız eklenti cevap veremediğinde (test
+ortamı, masaüstü) devreye girer — eskise bile zarar vermez.
+
 ---
 İlgili: [[Mimari-Kararlar]] · [[Guvenlik-Kurallari]] · [[Sohbet-Mimarisi]] · [[Deploy-ve-Ortam]] · [[Demo-Veri-Seti]]

@@ -2,7 +2,7 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sepette_hizmet/core/config/app_version.dart';
-import 'package:sepette_hizmet/core/constants/app_constants.dart';
+import 'package:sepette_hizmet/core/config/app_version_runtime.dart';
 
 void main() {
   group('compareVersions', () {
@@ -80,9 +80,11 @@ void main() {
     // `minAppVersion: 1.1.0` yazan bir yönetici GÜNCEL sürümdekiler dâhil
     // HERKESİ kilitlerdi.
 
-    test('kClientVersion == AppConstants.appVersion', () {
-      expect(kClientVersion, AppConstants.appVersion,
-          reason: 'İkinci bir sürüm sabiti doğmuş — biri eskiyecek ve '
+    test('kClientVersion runtime sürümü YANSITIYOR', () {
+      // 2026-08-23: sürüm artık pubspec'ten çalışma anında okunuyor.
+      // `kClientVersion` ayrı bir sabit DEĞİL, o değerin aynası.
+      expect(kClientVersion, AppVersion.value,
+          reason: 'İkinci bir sürüm kaynağı doğmuş — biri eskiyecek ve '
               'zorunlu güncelleme kapısı yanlış hesaplayacak.');
     });
 
@@ -91,7 +93,7 @@ void main() {
       expect(
         isClientBelowMinVersion(
           clientVersion: kClientVersion,
-          minAppVersion: AppConstants.appVersion,
+          minAppVersion: AppVersion.value,
         ),
         isFalse,
       );

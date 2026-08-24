@@ -195,4 +195,33 @@ void main() {
           reason: 'Yönetici geçişin geri alınabilir olduğunu bilmeli.');
     });
   });
+
+  group('Sunucu allowlistinde — SESSİZ başarısızlık yok', () {
+    late String js;
+    setUpAll(() => js = read('functions/index.js'));
+
+    test('adminUpdateConfig paidProvinces YAZIYOR', () {
+      // Bu testin varlık sebebi gerçek bir açık: alan allowlist'e
+      // eklenmeden admin ekranından il eklemek SESSİZCE çalışmıyordu.
+      // `adminUpdateConfig` yalnız izin verilen alanları yazar, gerisini
+      // yok sayar — yönetici geçişi yaptığını sanıyor, sunucuda hiçbir şey
+      // değişmiyordu.
+      expect(js.contains('Array.isArray(patch.paidProvinces)'), isTrue,
+          reason: 'paidProvinces allowlist dışında kalmış — admin ekranı '
+              'çalışıyor görünür ama sunucu yok sayar.');
+      expect(js.contains('next.paidProvinces = tekil;'), isTrue);
+    });
+
+    test('liste tekilleştiriliyor ve sınırlı', () {
+      // Aynı il iki kez eklenirse liste şişmesin; 81'den fazlası yazım
+      // hatası ya da kötüye kullanım demektir.
+      expect(js.contains('new Set(iller)'), isTrue);
+      expect(js.contains('tekil.length > 81'), isTrue);
+    });
+
+    test('ilk yazımda güvenli varsayılan', () {
+      // Seed'de olmazsa ilk config yazımından sonra alan hiç doğmaz.
+      expect(js.contains('paidProvinces: [],'), isTrue);
+    });
+  });
 }

@@ -10,6 +10,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/date_symbol_data_local.dart';
 
 import 'app.dart';
+import 'core/config/app_version_runtime.dart';
 import 'core/config/backend_config.dart';
 import 'core/widgets/app_error_fallback.dart';
 import 'core/theme/accent_state.dart';
@@ -47,6 +48,15 @@ Future<void> main() async {
 
   // Türkçe tarih biçimlendirme verisini yükle (yorum tarihleri için).
   await initializeDateFormatting('tr_TR', null);
+
+  // Çalışan sürümü `pubspec.yaml`'dan oku (2026-08-23).
+  //
+  // Firebase'den ÖNCE: ağ gerektirmez ve zorunlu güncelleme kapısı ilk
+  // çizimde bu değeri okur. Sonraya bırakılsa ilk karede yedek değer
+  // görünür ve kapı bir an yanlış hesaplayabilirdi.
+  //
+  // Hata yutulur; okunamazsa yedek değerle devam edilir.
+  await AppVersion.load();
 
   // Firebase yalnızca backend açıkken başlatılır (bkz. backend_config.dart).
   // Mock modda (varsayılan) hiçbir Firebase kurulumu gerekmez.

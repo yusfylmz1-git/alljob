@@ -47,6 +47,14 @@ dependencies:
   firebase_app_check: ^0.3.2+10
   shared_preferences: ^2.5.5
 
+  # Sürümü ÇALIŞMA ANINDA pubspec'ten okur (2026-08-23).
+  #
+  # Önce `AppConstants.appVersion` elle yazılıyordu ve `pubspec.yaml` ile
+  # senkron tutmak kullanıcıya kalıyordu. Unutulduğunda güncelleme bildirimi
+  # yanlış hesaplıyor, zorunlu güncelleme kapısı ise HERKESİ kilitleyebiliyordu.
+  # Artık tek kaynak pubspec; elle yazılan sabit kalmadı.
+  package_info_plus: ^8.1.2
+
   # Push bildirim kanalı (Android high_importance_channel). NOT: bu paket
   # başlangıçta Takip Merkezi için eklenmişti; o modül kaldırıldı ama
   # `push_service._ensureAndroidPushChannel` hâlâ kullanıyor.
