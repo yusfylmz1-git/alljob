@@ -6,6 +6,7 @@ import '../../../core/theme/app_palette.dart';
 import '../../../core/utils/snackbar_helper.dart';
 import '../../../core/widgets/responsive_center.dart';
 import '../../../data/local/mock_database.dart' show kProfessionNames;
+import '../data/admin_broadcast_history.dart';
 import '../data/admin_providers.dart';
 import 'admin_pickers.dart';
 import '../data/admin_runtime_config_repository.dart';
@@ -174,6 +175,7 @@ class _AdminBroadcastScreenState extends ConsumerState<AdminBroadcastScreen> {
         context.showSuccess(
           'Planlandı · ${res['scheduledAt'] ?? when.toLocal()}',
         );
+        ref.invalidate(broadcastHistoryProvider);
       } else {
         final res = await repo.send(
           title: title,
@@ -186,7 +188,16 @@ class _AdminBroadcastScreenState extends ConsumerState<AdminBroadcastScreen> {
           targetEmail: target.email,
         );
         if (!mounted) return;
-        context.showSuccess('Gönderildi · ${res['recipients'] ?? 0} alıcı.');
+        // NEREYE DÜŞTÜĞÜNÜ SÖYLE (2026-08-23): yönetici gönderdikten
+        // sonra "gitti mi, nasıl görünüyor" sorusunun cevabını
+        // bilmiyordu. Bildirim, kullanıcının bildirim merkezinde
+        // (zil ikonu) görünür.
+        context.showSuccess(
+          '${res['recipients'] ?? 0} kişiye gönderildi · '
+          'bildirim merkezinde görünüyor'
+          '${_sendPush ? ' · push da gitti' : ''}',
+        );
+        ref.invalidate(broadcastHistoryProvider);
       }
       _title.clear();
       _body.clear();
@@ -430,8 +441,116 @@ class _AdminBroadcastScreenState extends ConsumerState<AdminBroadcastScreen> {
                 );
               },
             ),
+
+            // ANINDA GÖNDERİLENLER (2026-08-23).
+            //
+            // Üstteki liste yalnız ZAMANLANMIŞ kampanyaları gösteriyordu
+            // (`scheduledCampaigns` koleksiyonu). "Şimdi gönder" ile
+            // yollanan duyurunun hiçbir izi yoktu: yönetici "geçen hafta ne
+            // gönderdim" sorusunu cevaplayamıyor, aynı duyuruyu iki kez
+            // göndermeye karşı koruma da olmuyordu.
+            //
+            // Kaynak denetim kaydı — ayrı koleksiyon AÇILMADI, veri zaten
+            // orada tam duruyor.
+            const Divider(height: 40),
+            Text(
+              'Son gönderilenler',
+              style: theme.textTheme.titleSmall?.copyWith(
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Kaynak: denetim kaydı. Bildirimler kullanıcının bildirim '
+              'merkezinde (zil) görünür.',
+              style: TextStyle(color: palette.inkMuted, fontSize: 12.5),
+            ),
+            const SizedBox(height: 8),
+            ref.watch(broadcastHistoryProvider).when(
+                  loading: () => const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 16),
+                    child: LinearProgressIndicator(),
+                  ),
+                  error: (_, _) => Text(
+                    'Geçmiş okunamadı (audit.read yetkisi gerekli).',
+                    style: TextStyle(color: palette.inkMuted, fontSize: 13),
+                  ),
+                  data: (kayitlar) {
+                    if (kayitlar.isEmpty) {
+                      return Text(
+                        'Henüz duyuru gönderilmemiş.',
+                        style: TextStyle(color: palette.inkMuted),
+                      );
+                    }
+                    return Column(
+                      children: [
+                        for (final k in kayitlar) _GonderimSatiri(kayit: k),
+                      ],
+                    );
+                  },
+                ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// Gönderilmiş tek duyuru satırı.
+class _GonderimSatiri extends StatelessWidget {
+  const _GonderimSatiri({required this.kayit});
+  final BroadcastRecord kayit;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    final theme = Theme.of(context);
+    final fmt = DateFormat('dd.MM.yy HH:mm');
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(
+            kayit.scheduled
+                ? Icons.event_available_outlined
+                : Icons.send_outlined,
+            size: 18,
+            color: palette.inkMuted,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  kayit.title,
+                  style: theme.textTheme.bodyMedium
+                      ?.copyWith(fontWeight: FontWeight.w700),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  // Hedef KOD değil AD olarak yazılır.
+                  '${kayit.hedefTR(kProfessionNames)} · '
+                  '${fmt.format(kayit.createdAt.toLocal())}'
+                  '${kayit.pushSent ? ' · push' : ''}',
+                  style: TextStyle(color: palette.inkMuted, fontSize: 12),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 10),
+          Text(
+            '${kayit.recipients}',
+            style: theme.textTheme.bodyMedium?.copyWith(
+              fontWeight: FontWeight.w800,
+              fontFeatures: const [FontFeature.tabularFigures()],
+            ),
+          ),
+        ],
       ),
     );
   }
